@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="I build Telegram mini-app games for crypto communities. Reskin ChainCheck, DRILLBIT, or Zero Sum Life for your brand in 5 days.">
+<meta property="og:title" content="Khalifa — Telegram Mini-App Games">
+<meta property="og:description" content="Reskin a live Telegram game for your community in 5 days.">
+<title>Khalifa — Telegram Mini-App Games</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#0a0a0f;
+  --surface:#12121a;
+  --surface-hi:#1a1a24;
+  --text:#e8e6e3;
+  --dim:#7a7887;
+  --dimmer:#4a4857;
+  --accent:#00f0ff;
+  --accent-dim:rgba(0,240,255,0.12);
+  --accent-line:rgba(0,240,255,0.25);
+  --green:#22c55e;
+  --border:rgba(122,120,135,0.15);
+}
+html,body{background:var(--bg);color:var(--text);font-family:'Courier New','Space Mono',monospace;min-height:100vh;line-height:1.6}
+body{padding:40px 20px;max-width:760px;margin:0 auto}
+
+/* Header */
+.header{margin-bottom:56px;padding-top:20px}
+.pill{display:inline-block;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--green);border:1px solid var(--green);padding:4px 10px;border-radius:3px;margin-bottom:20px}
+.pill .dot{display:inline-block;width:6px;height:6px;background:var(--green);border-radius:50%;margin-right:6px;animation:blink 2s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}
+h1{font-size:clamp(28px,6vw,44px);font-weight:700;letter-spacing:-1px;margin-bottom:16px;line-height:1.1}
+h1 .cursor{display:inline-block;width:3px;height:0.9em;background:var(--accent);margin-left:4px;vertical-align:middle;animation:cursor 1s infinite}
+@keyframes cursor{0%,50%{opacity:1}51%,100%{opacity:0}}
+.tag{font-size:16px;color:var(--dim);max-width:560px}
+.tag em{color:var(--accent);font-style:normal}
+
+/* Offer box */
+.offer{margin:48px 0;padding:24px;border:1px solid var(--accent-line);background:var(--accent-dim);border-radius:6px}
+.offer-label{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--accent);margin-bottom:10px}
+.offer-headline{font-size:20px;font-weight:700;margin-bottom:10px}
+.offer-body{font-size:14px;color:var(--dim);line-height:1.7}
+.offer-body strong{color:var(--text);font-weight:700}
+
+/* Section */
+.section{margin-bottom:56px}
+.section-title{font-size:11px;letter-spacing:3px;text-transform:uppercase;color:var(--dim);margin-bottom:20px;padding-bottom:10px;border-bottom:1px solid var(--border)}
+
+/* Games */
+.games{display:flex;flex-direction:column;gap:16px}
+.game{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:24px;transition:all 0.2s;display:grid;grid-template-columns:1fr auto;gap:16px;align-items:start}
+.game:hover{border-color:var(--accent-line);background:var(--surface-hi)}
+.game-head{display:flex;align-items:center;gap:12px;margin-bottom:8px;flex-wrap:wrap}
+.game-name{font-size:18px;font-weight:700;letter-spacing:1px}
+.game-status{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;padding:2px 8px;border-radius:3px;font-weight:700}
+.status-live{background:rgba(34,197,94,0.15);color:var(--green);border:1px solid rgba(34,197,94,0.3)}
+.status-soon{background:rgba(122,120,135,0.12);color:var(--dim);border:1px solid var(--border)}
+.game-desc{font-size:14px;color:var(--dim);margin-bottom:8px}
+.game-meta{font-size:12px;color:var(--dimmer);font-family:'Courier New',monospace}
+.game-cta{align-self:center}
+.btn-play{display:inline-block;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:10px 16px;background:transparent;border:1px solid var(--accent);color:var(--accent);text-decoration:none;border-radius:4px;transition:all 0.2s;white-space:nowrap}
+.btn-play:hover{background:var(--accent);color:var(--bg);box-shadow:0 0 20px rgba(0,240,255,0.25)}
+.btn-soon{display:inline-block;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:10px 16px;background:transparent;border:1px solid var(--dimmer);color:var(--dim);border-radius:4px;cursor:default;white-space:nowrap}
+
+/* How it works */
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
+.step{padding:20px;background:var(--surface);border:1px solid var(--border);border-radius:6px}
+.step-num{font-size:11px;letter-spacing:2px;color:var(--accent);margin-bottom:10px}
+.step-title{font-size:15px;font-weight:700;margin-bottom:8px}
+.step-desc{font-size:13px;color:var(--dim);line-height:1.6}
+
+/* Price */
+.price-row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+.price-tag{padding:6px 12px;background:var(--surface);border:1px solid var(--border);border-radius:3px;font-size:12px;color:var(--dim)}
+.price-tag strong{color:var(--accent);font-weight:700}
+
+/* CTA */
+.cta{margin:56px 0 32px;padding:32px;background:var(--surface);border:1px solid var(--accent-line);border-radius:6px;text-align:center}
+.cta-headline{font-size:22px;font-weight:700;margin-bottom:12px}
+.cta-sub{font-size:14px;color:var(--dim);margin-bottom:24px}
+.cta-buttons{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.btn-primary{display:inline-block;font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:14px 24px;background:var(--accent);border:1px solid var(--accent);color:var(--bg);text-decoration:none;border-radius:4px;transition:all 0.2s}
+.btn-primary:hover{box-shadow:0 0 30px rgba(0,240,255,0.4);transform:translateY(-1px)}
+.btn-secondary{display:inline-block;font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:14px 24px;background:transparent;border:1px solid var(--dim);color:var(--text);text-decoration:none;border-radius:4px;transition:all 0.2s}
+.btn-secondary:hover{border-color:var(--accent);color:var(--accent)}
+
+/* Footer */
+footer{margin-top:48px;padding-top:24px;border-top:1px solid var(--border);text-align:center;font-size:12px;color:var(--dimmer)}
+footer a{color:var(--dim);text-decoration:none}
+footer a:hover{color:var(--accent)}
+
+@media (max-width:540px){
+  body{padding:24px 16px}
+  .header{margin-bottom:36px;padding-top:8px}
+  .game{grid-template-columns:1fr;gap:12px}
+  .game-cta{align-self:stretch}
+  .btn-play,.btn-soon{display:block;text-align:center}
+  .offer,.cta{padding:20px}
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="pill"><span class="dot"></span>Available for reskins</div>
+  <h1>I ship Telegram mini-app games<span class="cursor"></span></h1>
+  <p class="tag">Candle-prediction, idle mining, narrative sims. <em>Live bots, real users, Stars payments working.</em> I'll reskin one for your community in five days.</p>
+</div>
+
+<div class="offer">
+  <div class="offer-label">The offer</div>
+  <div class="offer-headline">Your branding. Your token as the points. Live in 5 days.</div>
+  <div class="offer-body">
+    Pick a game below. I reskin it for your community — <strong>your logo, colours, copy, reward currency, leaderboard prizes</strong>. You get a live Telegram bot playing your audience every day. Flat fee, no retainer, no surprises.
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">◆ The games</div>
+  <div class="games">
+
+    <div class="game">
+      <div>
+        <div class="game-head">
+          <div class="game-name">CHAINCHECK</div>
+          <div class="game-status status-live">Live</div>
+        </div>
+        <div class="game-desc">Daily candle-prediction game. Read the chart, call the move, climb the leaderboard.</div>
+        <div class="game-meta">Streaks · $CHECKS currency · Stars payments · Daily seed</div>
+      </div>
+      <div class="game-cta">
+        <a href="https://t.me/ChainCheckGameBot/play" class="btn-play" target="_blank" rel="noopener">Play ↗</a>
+      </div>
+    </div>
+
+    <div class="game">
+      <div>
+        <div class="game-head">
+          <div class="game-name">DRILLBIT</div>
+          <div class="game-status status-soon">Shipping soon</div>
+        </div>
+        <div class="game-desc">Tap-to-dig mining idle game. Four characters, fuel loops, escalating Stars continues.</div>
+        <div class="game-meta">Short runs · Leaderboard · $DBIT currency · Tap mechanic</div>
+      </div>
+      <div class="game-cta">
+        <span class="btn-soon">Soon</span>
+      </div>
+    </div>
+
+    <div class="game">
+      <div>
+        <div class="game-head">
+          <div class="game-name">ZERO SUM LIFE</div>
+          <div class="game-status status-soon">Shipping soon</div>
+        </div>
+        <div class="game-desc">Reigns-style life sim. Age 22 to 65. Four stats. Every choice costs something.</div>
+        <div class="game-meta">Swipe cards · Bias tracking · Ending cards · Share mechanic</div>
+      </div>
+      <div class="game-cta">
+        <span class="btn-soon">Soon</span>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">◆ How a reskin works</div>
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">01 / BRIEF</div>
+      <div class="step-title">30-minute call</div>
+      <div class="step-desc">Pick the game. Pick the brand direction. Pick the reward currency (your token, promo codes, merch).</div>
+    </div>
+    <div class="step">
+      <div class="step-num">02 / BUILD</div>
+      <div class="step-title">3–5 days</div>
+      <div class="step-desc">I reskin the game, set up your bot, wire in your currency and leaderboard prizes.</div>
+    </div>
+    <div class="step">
+      <div class="step-num">03 / LAUNCH</div>
+      <div class="step-title">Ship to your community</div>
+      <div class="step-desc">Live bot in your Telegram group. Weekly stats report. I stay on call for the first 30 days.</div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">◆ Fit &amp; price</div>
+  <div class="price-row">
+    <div class="price-tag">KOL VIP groups · <strong>from £1,500</strong></div>
+    <div class="price-tag">Trading bots &amp; memecoin teams · <strong>£1,500–2,500</strong></div>
+    <div class="price-tag">Exchanges &amp; launchpads · <strong>custom</strong></div>
+  </div>
+  <p class="tag" style="font-size:14px">Payment upfront or 50/50 split. Stablecoin, fiat, or your token. I work with crypto-native teams.</p>
+</div>
+
+<div class="cta">
+  <div class="cta-headline">Want to see it work for your community?</div>
+  <div class="cta-sub">DM me on X. Usually reply within 24h.</div>
+  <div class="cta-buttons">
+    <a href="https://x.com/khalbuildsapps" class="btn-primary" target="_blank" rel="noopener">DM on X →</a>
+    <a href="https://t.me/ChainCheckGameBot/play" class="btn-secondary" target="_blank" rel="noopener">Try ChainCheck</a>
+  </div>
+</div>
+
+<footer>
+  Khalifa · Builds Telegram mini-app games · <a href="https://x.com/khalbuildsapps" target="_blank" rel="noopener">@khalbuildsapps</a>
+</footer>
+
+</body>
+</html>
