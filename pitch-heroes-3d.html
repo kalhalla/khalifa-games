@@ -3,6 +3,9 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <title>Pitch Heroes 3D — 7-a-side arcade football</title>
 
 <!-- Share card. og:url and image URLs are ABSOLUTE — they assume khalifa.games.
@@ -462,6 +465,7 @@
       <button class="btn" id="diffBtn">AI: NORMAL</button>
       <button class="btn" id="muteBtn">SOUND: ON</button>
       <button class="btn" id="restart">Restart</button>
+      <button class="btn" id="fsBtn">Fullscreen</button>
     </span>
   </div>
 </div>
@@ -798,28 +802,41 @@ function fitGame() {
   const footer = document.querySelector(".footer");
   const help = document.querySelector(".help");
   if (!game || !stage) return;
+  // Size off the LAYOUT viewport (visual size × scale): tracks the mobile URL bar
+  // showing/hiding, but is invariant under pinch-zoom — so zooming never shrinks the
+  // pitch back to fit.
   const vv = window.visualViewport;
-  const vw = Math.round((vv && vv.width)  || window.innerWidth);
-  const vh = Math.round((vv && vv.height) || window.innerHeight);
+  const sc = (vv && vv.scale) ? vv.scale : 1;
+  const vw = Math.round(vv ? vv.width  * sc : window.innerWidth);
+  const vh = Math.round(vv ? vv.height * sc : window.innerHeight);
   const bs = getComputedStyle(document.body);
   const padX = parseFloat(bs.paddingLeft) + parseFloat(bs.paddingRight);
   const padY = parseFloat(bs.paddingTop)  + parseFloat(bs.paddingBottom);
   const gap = parseFloat(getComputedStyle(game).rowGap) || 0;
   const vis = el => el && el.offsetParent !== null;        // false when display:none
-  // The scoreboard is now an overlay inside the pitch, so the only column rows
-  // besides the pitch are the (touch-hidden) help and the footer.
-  const rows = [stage, help, footer].filter(vis).length;
-  const chrome = (vis(help)   ? help.offsetHeight   : 0)
-               + (vis(footer) ? footer.offsetHeight : 0)
-               + Math.max(0, rows - 1) * gap;
+  // On phones / short screens the pitch fills the whole screen and the footer controls
+  // sit just below the fold (scroll to reach them). On roomy desktop screens we keep
+  // the pitch, help and footer all visible without scrolling.
+  const compact = (window.matchMedia && window.matchMedia("(hover: none) and (pointer: coarse)").matches) || vh < 600;
   const RATIO = 16 / 10, MAXW = 1280;
   const availW = vw - padX;
-  const availH = vh - padY - chrome - 2;
+  let availH;
+  if (compact) {
+    availH = vh - padY - 2;
+  } else {
+    const rows = [stage, help, footer].filter(vis).length;
+    const chrome = (vis(help) ? help.offsetHeight : 0)
+                 + (vis(footer) ? footer.offsetHeight : 0)
+                 + Math.max(0, rows - 1) * gap;
+    availH = vh - padY - chrome - 2;
+  }
   let w = Math.min(availW, MAXW);
   let h = w / RATIO;
   if (h > availH) { h = Math.max(140, availH); w = h * RATIO; }  // height-bound (landscape)
   if (w > availW) { w = availW; h = w / RATIO; }                 // width-bound (portrait)
   w = Math.round(w); h = Math.round(h);
+  if (w === fitGame._w && h === fitGame._h) return;   // unchanged (e.g. mid pinch-zoom) — skip reflow
+  fitGame._w = w; fitGame._h = h;
   game.style.width = w + "px";
   stage.style.height = h + "px";
   stage.style.setProperty("--u", Math.max(2.4, h / 100).toFixed(2) + "px");
@@ -833,11 +850,34 @@ function scheduleFit() {
   requestAnimationFrame(() => { _fitQueued = false; fitGame(); });
 }
 window.addEventListener("resize", scheduleFit);
-window.addEventListener("orientationchange", () => setTimeout(fitGame, 120));
+window.addEventListener("orientationchange", () => { fitGame._w = 0; setTimeout(fitGame, 120); setTimeout(fitGame, 400); });
 if (window.visualViewport) window.visualViewport.addEventListener("resize", scheduleFit);
 fitGame();
 setTimeout(fitGame, 60);
 setTimeout(fitGame, 300);
+
+// Fullscreen toggle — works where the browser allows it (Android, desktop, iPad).
+// iPhone Safari blocks web fullscreen for non-video elements, so the button removes
+// itself there; the Add-to-Home-Screen metas in <head> give iPhone a true fullscreen
+// launch instead. Fullscreening the whole page keeps the body centring intact.
+(function () {
+  const fsBtn = document.getElementById("fsBtn");
+  if (!fsBtn) return;
+  const root = document.documentElement;
+  const reqFs  = root.requestFullscreen || root.webkitRequestFullscreen;
+  const exitFs = document.exitFullscreen || document.webkitExitFullscreen;
+  const enabledFlag = (document.fullscreenEnabled !== undefined) ? document.fullscreenEnabled
+                    : (document.webkitFullscreenEnabled !== undefined) ? document.webkitFullscreenEnabled
+                    : !!reqFs;
+  if (!reqFs || !enabledFlag) { fsBtn.style.display = "none"; return; }
+  const inFs = () => document.fullscreenElement || document.webkitFullscreenElement;
+  fsBtn.addEventListener("click", () => {
+    try { inFs() ? exitFs.call(document) : reqFs.call(root); } catch (e) {}
+  });
+  const sync = () => { fsBtn.textContent = inFs() ? "Exit full" : "Fullscreen"; fitGame._w = 0; setTimeout(fitGame, 80); };
+  document.addEventListener("fullscreenchange", sync);
+  document.addEventListener("webkitfullscreenchange", sync);
+})();
 
 /* ============================================================
    PITCH TEXTURE & MESH
