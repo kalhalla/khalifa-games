@@ -5,22 +5,21 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Pitch Heroes 3D — 7-a-side arcade football</title>
 
-<!-- Share card. NOTE: og:url and the image URLs must be ABSOLUTE and point to
-     wherever you host this. Defaults below assume khalifa.games — change them
-     if you publish to a subpath/subdomain, and upload og-pitch-heroes.png there. -->
+<!-- Share card. og:url and image URLs are ABSOLUTE — they assume khalifa.games.
+     Upload pitch-heroes-title.png to the site root alongside this file. -->
 <meta name="description" content="A fast 3D arcade football game you can play right in your browser. Sons of Pitches vs Goal Diggers — two halves, ninety seconds each." />
 <meta property="og:type" content="website" />
 <meta property="og:site_name" content="Khalifa" />
 <meta property="og:title" content="Pitch Heroes 3D — 7-a-side arcade football" />
 <meta property="og:description" content="A fast 3D arcade football game, right in your browser. Tap and play." />
-<meta property="og:image" content="https://khalifa.games/og-pitch-heroes.png" />
+<meta property="og:image" content="https://khalifa.games/pitch-heroes-title.png" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
-<meta property="og:url" content="https://khalifa.games/" />
+<meta property="og:url" content="https://khalifa.games/pitch-heroes-3d.html" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="Pitch Heroes 3D — 7-a-side arcade football" />
 <meta name="twitter:description" content="A fast 3D arcade football game, right in your browser. Tap and play." />
-<meta name="twitter:image" content="https://khalifa.games/og-pitch-heroes.png" />
+<meta name="twitter:image" content="https://khalifa.games/pitch-heroes-title.png" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2342a84a'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%23fff'/%3E%3Ccircle cx='16' cy='16' r='3.1' fill='%23111'/%3E%3C/svg%3E" />
 <style>
   :root {
@@ -57,44 +56,53 @@
     display: flex; flex-direction: column;
     gap: 10px;
   }
+  /* The scoreboard lives inside the pitch as a small overlay bug (top-centre):
+     team names, score and time — compact, so it no longer eats column height. */
   .scoreboard {
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
-    align-items: center;
-    background: #131c18;
-    border: 2px solid #283c30;
-    border-radius: 6px;
-    padding: 10px 18px;
+    position: absolute;
+    left: 50%; top: 7px;
+    transform: translateX(-50%);
+    z-index: 6;
+    display: flex; align-items: center; gap: 11px;
+    padding: 4px 13px;
+    background: rgba(5, 12, 8, 0.62);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 7px;
+    white-space: nowrap;
+    max-width: 94%;
+    pointer-events: none; user-select: none;
   }
   .team {
-    display: flex; align-items: center; gap: 12px;
-    letter-spacing: 0.08em;
+    display: flex; align-items: center; gap: 6px;
+    letter-spacing: 0.05em;
     font-weight: 700;
-    font-size: 18px;
+    font-size: 11.5px;
     text-transform: uppercase;
+    color: #e8efe6;
   }
-  .team.away { justify-content: flex-end; }
   .swatch {
-    width: 16px; height: 16px; border-radius: 50%;
-    box-shadow: inset 0 -3px 0 rgba(0,0,0,0.3);
+    width: 11px; height: 11px; border-radius: 50%;
+    box-shadow: inset 0 -2px 0 rgba(0,0,0,0.3);
   }
   .swatch.home { background: var(--home); }
   .swatch.away { background: var(--away); }
   .score {
-    font-size: 30px; font-weight: 800; letter-spacing: 0.1em;
-    color: #fff; text-shadow: 0 2px 0 #000;
+    font-size: 16px; font-weight: 800; letter-spacing: 0.05em;
+    color: #fff; text-shadow: 0 1px 0 #000;
   }
   .time {
+    display: flex; flex-direction: column; align-items: center;
     text-align: center;
-    font-size: 14px;
+    font-size: 8px;
     color: var(--muted);
-    letter-spacing: 0.18em;
+    letter-spacing: 0.12em;
+    line-height: 1.15;
   }
   .time .clock {
     display: block;
-    font-size: 22px;
+    font-size: 13px;
     color: #fff;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.06em;
   }
   .stage {
     position: relative;
@@ -377,54 +385,45 @@
     body { padding: 6px; }
     .game { gap: 6px; }
     .help { display: none; }
-    .scoreboard { padding: 4px 12px; }
-    .team { font-size: 13px; gap: 7px; }
-    .score { font-size: 20px; }
-    .time { font-size: 10px; }
-    .time .clock { font-size: 15px; }
     .footer > span:first-child { display: none; }
-    .footer { justify-content: center; gap: 8px; }
-    .footer .btn { padding: 5px 10px; font-size: 12px; }
+    .footer { justify-content: center; gap: 7px; }
+    .footer .btn { padding: 3px 9px; font-size: 10.5px; letter-spacing: 0.06em; }
   }
   /* Narrow screens (portrait phones): top-anchor instead of floating mid-screen,
      and keep the scoreboard/footer compact and tidy. */
   @media (max-width: 560px) {
     body { align-items: flex-start; }
-    .team { font-size: 12px; gap: 6px; }
-    .score { font-size: 20px; }
-    .time { font-size: 9px; }
-    .time .clock { font-size: 15px; }
-    .scoreboard { padding: 6px 8px; }
-    .footer { flex-direction: column; gap: 8px; text-align: center; }
-    .footer > span:last-child { display: flex; gap: 8px; justify-content: center; }
+    .scoreboard { gap: 8px; padding: 3px 9px; }
+    .team { font-size: 10px; gap: 5px; }
+    .score { font-size: 14px; }
+    .time .clock { font-size: 12px; }
+    .swatch { width: 9px; height: 9px; }
+    .footer { flex-direction: column; gap: 7px; text-align: center; }
+    .footer > span:last-child { display: flex; gap: 7px; justify-content: center; }
+    .footer .btn { padding: 3px 9px; font-size: 11px; }
   }
 </style>
 </head>
 <body>
 <div class="game">
-  <div class="scoreboard">
-    <div class="team home">
-      <span class="swatch home"></span>
-      <span>Sons of Pitches</span>
-      <span class="score" id="scoreHome">0</span>
-    </div>
-    <div class="time">
-      <span class="clock" id="clock">00:00</span>
-      <span id="period">FIRST HALF</span>
-    </div>
-    <div class="team away">
-      <span class="score" id="scoreAway">0</span>
-      <span>Goal Diggers</span>
-      <span class="swatch away"></span>
-    </div>
-  </div>
-
   <div class="stage">
     <canvas id="scene"></canvas>
 
-    <div class="hudclock" id="hudClock">
-      <span class="t" id="hudTime">00:00</span>
-      <span class="p" id="hudPeriod">FIRST HALF</span>
+    <div class="scoreboard">
+      <div class="team home">
+        <span class="swatch home"></span>
+        <span>Sons of Pitches</span>
+        <span class="score" id="scoreHome">0</span>
+      </div>
+      <div class="time">
+        <span class="clock" id="clock">00:00</span>
+        <span id="period">FIRST HALF</span>
+      </div>
+      <div class="team away">
+        <span class="score" id="scoreAway">0</span>
+        <span>Goal Diggers</span>
+        <span class="swatch away"></span>
+      </div>
     </div>
 
     <div class="touch" id="touch">
@@ -796,7 +795,6 @@ function resize() {
 function fitGame() {
   const game = document.querySelector(".game");
   const stage = document.querySelector(".stage");
-  const scoreboard = document.querySelector(".scoreboard");
   const footer = document.querySelector(".footer");
   const help = document.querySelector(".help");
   if (!game || !stage) return;
@@ -808,10 +806,11 @@ function fitGame() {
   const padY = parseFloat(bs.paddingTop)  + parseFloat(bs.paddingBottom);
   const gap = parseFloat(getComputedStyle(game).rowGap) || 0;
   const vis = el => el && el.offsetParent !== null;        // false when display:none
-  const rows = [scoreboard, stage, help, footer].filter(vis).length;
-  const chrome = (vis(scoreboard) ? scoreboard.offsetHeight : 0)
-               + (vis(help)       ? help.offsetHeight       : 0)
-               + (vis(footer)     ? footer.offsetHeight     : 0)
+  // The scoreboard is now an overlay inside the pitch, so the only column rows
+  // besides the pitch are the (touch-hidden) help and the footer.
+  const rows = [stage, help, footer].filter(vis).length;
+  const chrome = (vis(help)   ? help.offsetHeight   : 0)
+               + (vis(footer) ? footer.offsetHeight : 0)
                + Math.max(0, rows - 1) * gap;
   const RATIO = 16 / 10, MAXW = 1280;
   const availW = vw - padX;
