@@ -208,7 +208,7 @@
   footer .ps a { color: var(--green); border-bottom: 1px solid var(--line2); }
 
   /* fun / off-the-clock */
-  .fun-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; }
+  .fun-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; }
   .fun-card { border: 1px solid var(--line2); border-radius: 8px; overflow: hidden; background: linear-gradient(180deg, var(--panel), var(--panel2)); transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease; display: flex; flex-direction: column; }
   .fun-card:hover { transform: translateY(-4px); border-color: var(--green); box-shadow: 0 18px 44px rgba(0,0,0,0.5); }
   .fun-card .shot { display: block; }
@@ -228,7 +228,7 @@
   /* ---------- responsive ---------- */
   @media (max-width: 900px) {
     .offer-grid { grid-template-columns: 1fr; }
-    .games, .steps, .tiers, .fun-grid { grid-template-columns: 1fr; }
+    .games, .steps, .tiers { grid-template-columns: 1fr; }
     .candles { width: 70%; opacity: 0.35; }
   }
   @media (max-width: 560px) {
@@ -445,6 +445,24 @@
             </div>
             <div class="fun-meta">
               <a class="btn btn-green" href="/pitch-heroes-3d.html">▶ Play Pitch Heroes 3D</a>
+            </div>
+          </div>
+        </article>
+        <article class="fun-card">
+          <a class="shot" href="/shackleton.html" aria-label="Play Shackleton">
+            <img src="/shackleton-title.png" alt="Shackleton — a quiet lunar exploration game" width="1200" height="630" loading="lazy">
+          </a>
+          <div class="fun-body">
+            <h3>Shackleton</h3>
+            <p>A quiet, cinematic lunar game. You land alone in a crater, step out into one-sixth gravity, and make a foothold on the Moon — a tired voice on the radio your only company, three small robots trailing behind. No enemies, no score, just the long lunar quiet. An early build of a larger project.</p>
+            <div class="chips">
+              <span class="chip">Browser game</span>
+              <span class="chip">Three.js / WebGL</span>
+              <span class="chip">No install</span>
+              <span class="chip">Work in progress</span>
+            </div>
+            <div class="fun-meta">
+              <a class="btn btn-green" href="/shackleton.html">▶ Play Shackleton</a>
             </div>
           </div>
         </article>
