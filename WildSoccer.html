@@ -45,15 +45,19 @@
     display: flex; align-items: center; justify-content: center;
     padding: 16px;
   }
-  /* Touch devices: the joystick, the action buttons and the canvas each set
-     touch-action:none, so dragging the controls never scrolls the page. The page
-     itself stays scrollable, so the help text and footer controls (restart, sound,
-     difficulty) are always reachable — even in landscape where the pitch is tall. */
+  /* On touch devices, lock the page so the joystick and buttons never scroll the page. */
+  @media (hover: none) and (pointer: coarse) {
+    html, body {
+      overflow: hidden;
+      height: 100%;
+      position: fixed;
+      width: 100%;
+      overscroll-behavior: none;
+      touch-action: none;
+    }
+  }
   .game {
-    /* fitGame() sets the width in JS so the whole column fits the device with no
-       scrolling. min(1100px,100%) is just the pre-JS fallback. */
     width: min(1100px, 100%);
-    margin: 0 auto;
     display: flex; flex-direction: column;
     gap: 10px;
   }
@@ -103,8 +107,7 @@
     border-radius: 6px;
     overflow: hidden;
     box-shadow: 0 12px 40px rgba(0,0,0,0.5);
-    aspect-ratio: 16/10;          /* pre-JS fallback; fitGame sets an explicit height */
-    --u: 6px;                     /* touch-control sizing unit ≈ 1% of pitch height */
+    aspect-ratio: 16/10;
     touch-action: none;
   }
   canvas#scene {
@@ -125,17 +128,6 @@
     user-select: none;
   }
   .overlay.show { display: flex; }
-  /* During a goal the pitch is worth watching, so don't curtain it. Dim only a
-     top band behind the caption and drop the blur — the celebration plays in the
-     clear lower portion of the frame. */
-  .overlay.celebrate {
-    background: linear-gradient(to bottom,
-      rgba(0,0,0,0.62) 0%, rgba(0,0,0,0.30) 13%, rgba(0,0,0,0) 30%);
-    backdrop-filter: none;
-    justify-content: flex-start;
-    padding-top: 3.5%;
-  }
-  .overlay.celebrate p { text-shadow: 2px 2px 0 #000, 0 2px 10px rgba(0,0,0,0.9); }
   .overlay h1 {
     font-size: 56px;
     margin: 0 0 8px;
@@ -305,8 +297,8 @@
   }
   .touch .stick {
     position: absolute;
-    left: calc(var(--u) * 3); bottom: calc(var(--u) * 3);
-    width: calc(var(--u) * 18); height: calc(var(--u) * 18);
+    left: 18px; bottom: 18px;
+    width: 110px; height: 110px;
     border-radius: 50%;
     background: rgba(0,0,0,0.25);
     border: 2px solid rgba(255,255,255,0.25);
@@ -317,20 +309,20 @@
     position: absolute;
     left: 50%; top: 50%;
     transform: translate(-50%, -50%);
-    width: calc(var(--u) * 7.6); height: calc(var(--u) * 7.6);
+    width: 46px; height: 46px;
     border-radius: 50%;
     background: rgba(255,255,255,0.6);
     border: 2px solid rgba(0,0,0,0.3);
   }
   .touch .kick {
     position: absolute;
-    right: calc(var(--u) * 3.6); bottom: calc(var(--u) * 5);
-    width: calc(var(--u) * 14); height: calc(var(--u) * 14);
+    right: 22px; bottom: 30px;
+    width: 86px; height: 86px;
     border-radius: 50%;
     background: rgba(214, 50, 47, 0.55);
     border: 2px solid rgba(255,255,255,0.45);
     color: #fff;
-    font-size: calc(var(--u) * 3);
+    font-size: 18px;
     letter-spacing: 0.1em;
     pointer-events: auto;
     touch-action: none;
@@ -339,13 +331,13 @@
   }
   .touch .lob {
     position: absolute;
-    right: calc(var(--u) * 19.3); bottom: calc(var(--u) * 5);
-    width: calc(var(--u) * 10); height: calc(var(--u) * 10);
+    right: 116px; bottom: 30px;
+    width: 60px; height: 60px;
     border-radius: 50%;
     background: rgba(0, 225, 255, 0.55);
     border: 2px solid rgba(255,255,255,0.45);
     color: #fff;
-    font-size: calc(var(--u) * 2.2);
+    font-size: 13px;
     letter-spacing: 0.05em;
     pointer-events: auto;
     touch-action: none;
@@ -354,13 +346,13 @@
   }
   .touch .tackle {
     position: absolute;
-    right: calc(var(--u) * 6); bottom: calc(var(--u) * 21.3);
-    width: calc(var(--u) * 10.7); height: calc(var(--u) * 10.7);
+    right: 36px; bottom: 128px;
+    width: 64px; height: 64px;
     border-radius: 50%;
     background: rgba(0, 225, 255, 0.55);
     border: 2px solid rgba(255,255,255,0.45);
     color: #fff;
-    font-size: calc(var(--u) * 2.2);
+    font-size: 13px;
     letter-spacing: 0.06em;
     pointer-events: auto;
     touch-action: none;
@@ -369,34 +361,6 @@
   }
   @media (hover: none) and (pointer: coarse) {
     .touch { display: block; }
-    .help  { display: none; }   /* keyboard help is useless on touch — reclaim the space */
-  }
-  /* Short viewports (e.g. a landscape phone): trim everything but the pitch so
-     fitGame can give it as much height as possible. */
-  @media (max-height: 600px) {
-    body { padding: 6px; }
-    .game { gap: 6px; }
-    .help { display: none; }
-    .scoreboard { padding: 4px 12px; }
-    .team { font-size: 13px; gap: 7px; }
-    .score { font-size: 20px; }
-    .time { font-size: 10px; }
-    .time .clock { font-size: 15px; }
-    .footer > span:first-child { display: none; }
-    .footer { justify-content: center; gap: 8px; }
-    .footer .btn { padding: 5px 10px; font-size: 12px; }
-  }
-  /* Narrow screens (portrait phones): top-anchor instead of floating mid-screen,
-     and keep the scoreboard/footer compact and tidy. */
-  @media (max-width: 560px) {
-    body { align-items: flex-start; }
-    .team { font-size: 12px; gap: 6px; }
-    .score { font-size: 20px; }
-    .time { font-size: 9px; }
-    .time .clock { font-size: 15px; }
-    .scoreboard { padding: 6px 8px; }
-    .footer { flex-direction: column; gap: 8px; text-align: center; }
-    .footer > span:last-child { display: flex; gap: 8px; justify-content: center; }
   }
 </style>
 </head>
@@ -719,13 +683,13 @@ const TEAM = { HOME: 0, AWAY: 1 };
 
 // 7-a-side formation: x is fraction from own goal (along length), z is fraction across width
 const FORMATION = [
-  { x: 0.04, z: 0.50, role: "gk"  },
-  { x: 0.22, z: 0.30, role: "def" },
-  { x: 0.22, z: 0.70, role: "def" },
-  { x: 0.38, z: 0.22, role: "mid" },
-  { x: 0.38, z: 0.78, role: "mid" },
-  { x: 0.46, z: 0.50, role: "mid" },
-  { x: 0.55, z: 0.50, role: "fwd" },
+  { x: 0.04, z: 0.50, role: "gk",  species: "gorilla"  },
+  { x: 0.22, z: 0.30, role: "def", species: "elephant" },
+  { x: 0.22, z: 0.70, role: "def", species: "giraffe"  },
+  { x: 0.38, z: 0.22, role: "mid", species: "lion"     },
+  { x: 0.38, z: 0.78, role: "mid", species: "leopard"  },
+  { x: 0.46, z: 0.50, role: "mid", species: "cheetah"  },
+  { x: 0.55, z: 0.50, role: "fwd", species: "cheetah"  },
 ];
 
 /* ============================================================
@@ -788,57 +752,8 @@ function resize() {
   camera.aspect = stageW / stageH;
   camera.updateProjectionMatrix();
 }
-
-// Fit the whole game column to the device with no scrolling. The pitch is a 16:10
-// box scaled to fit the space left after the (trimmed) scoreboard and footer, then
-// centred — letterboxed on the sides when the screen is short, as on a landscape
-// phone. Recomputed on resize / orientation change / mobile URL-bar changes.
-function fitGame() {
-  const game = document.querySelector(".game");
-  const stage = document.querySelector(".stage");
-  const scoreboard = document.querySelector(".scoreboard");
-  const footer = document.querySelector(".footer");
-  const help = document.querySelector(".help");
-  if (!game || !stage) return;
-  const vv = window.visualViewport;
-  const vw = Math.round((vv && vv.width)  || window.innerWidth);
-  const vh = Math.round((vv && vv.height) || window.innerHeight);
-  const bs = getComputedStyle(document.body);
-  const padX = parseFloat(bs.paddingLeft) + parseFloat(bs.paddingRight);
-  const padY = parseFloat(bs.paddingTop)  + parseFloat(bs.paddingBottom);
-  const gap = parseFloat(getComputedStyle(game).rowGap) || 0;
-  const vis = el => el && el.offsetParent !== null;        // false when display:none
-  const rows = [scoreboard, stage, help, footer].filter(vis).length;
-  const chrome = (vis(scoreboard) ? scoreboard.offsetHeight : 0)
-               + (vis(help)       ? help.offsetHeight       : 0)
-               + (vis(footer)     ? footer.offsetHeight     : 0)
-               + Math.max(0, rows - 1) * gap;
-  const RATIO = 16 / 10, MAXW = 1280;
-  const availW = vw - padX;
-  const availH = vh - padY - chrome - 2;
-  let w = Math.min(availW, MAXW);
-  let h = w / RATIO;
-  if (h > availH) { h = Math.max(140, availH); w = h * RATIO; }  // height-bound (landscape)
-  if (w > availW) { w = availW; h = w / RATIO; }                 // width-bound (portrait)
-  w = Math.round(w); h = Math.round(h);
-  game.style.width = w + "px";
-  stage.style.height = h + "px";
-  stage.style.setProperty("--u", Math.max(2.4, h / 100).toFixed(2) + "px");
-  resize();
-}
-
-let _fitQueued = false;
-function scheduleFit() {
-  if (_fitQueued) return;
-  _fitQueued = true;
-  requestAnimationFrame(() => { _fitQueued = false; fitGame(); });
-}
-window.addEventListener("resize", scheduleFit);
-window.addEventListener("orientationchange", () => setTimeout(fitGame, 120));
-if (window.visualViewport) window.visualViewport.addEventListener("resize", scheduleFit);
-fitGame();
-setTimeout(fitGame, 60);
-setTimeout(fitGame, 300);
+window.addEventListener("resize", resize);
+setTimeout(resize, 60);
 
 /* ============================================================
    PITCH TEXTURE & MESH
@@ -1103,70 +1018,7 @@ function buildGoal(sideSign) {
     grp.add(bb);
   }
 
-  // --- Net panels ---
-  // Aim for net cells of roughly uniform world size across panels (~1.4 units per diamond)
-  const cellsPer = 0.55;
-  const netMatBack = new THREE.MeshStandardMaterial({
-    map: makeNetTexture(F.goalW * cellsPer, postH * cellsPer),
-    transparent: true,
-    side: THREE.DoubleSide,
-    roughness: 0.85,
-    metalness: 0,
-    alphaTest: 0.18,
-    depthWrite: false,
-    color: 0xf6f6f6,
-  });
-  const netMatTop = new THREE.MeshStandardMaterial({
-    map: makeNetTexture(F.goalW * cellsPer, F.goalDepth * cellsPer),
-    transparent: true,
-    side: THREE.DoubleSide,
-    roughness: 0.85,
-    metalness: 0,
-    alphaTest: 0.18,
-    depthWrite: false,
-    color: 0xf6f6f6,
-  });
-  const netMatSide = new THREE.MeshStandardMaterial({
-    map: makeNetTexture(F.goalDepth * cellsPer, postH * cellsPer),
-    transparent: true,
-    side: THREE.DoubleSide,
-    roughness: 0.85,
-    metalness: 0,
-    alphaTest: 0.18,
-    depthWrite: false,
-    color: 0xf6f6f6,
-  });
-
-  // Back wall (the panel behind the goal, what the ball hits when it scores)
-  {
-    const backPanel = new THREE.Mesh(
-      new THREE.PlaneGeometry(F.goalW, postH),
-      netMatBack
-    );
-    backPanel.rotation.y = Math.PI / 2;
-    // Position just inside the back post so it visually attaches
-    backPanel.position.set(xBack - sideSign * 0.05, postH/2, 0);
-    grp.add(backPanel);
-  }
-  // Top (roof of the goal)
-  {
-    const topPanel = new THREE.Mesh(
-      new THREE.PlaneGeometry(F.goalW, F.goalDepth),
-      netMatTop
-    );
-    topPanel.rotation.x = -Math.PI / 2;
-    topPanel.position.set(xMid, postH - 0.04, 0);
-    grp.add(topPanel);
-  }
-  // Sides (two vertical panels left and right)
-  for (const dz of [-halfW, halfW]) {
-    const sidePanel = new THREE.Mesh(
-      new THREE.PlaneGeometry(F.goalDepth, postH),
-      netMatSide
-    );
-    sidePanel.position.set(xMid, postH/2, dz - Math.sign(dz) * 0.04);
-    grp.add(sidePanel);
-  }
+  // No nets — the gorilla keeper swings on the bare frame.
 
   return grp;
 }
@@ -1179,7 +1031,8 @@ scene.add(buildGoal(+1));
 const SKIN_TONES = [0xf2c79c, 0xd9a373, 0xa9694a, 0x7a4527, 0xefd1a8, 0xc8956d];
 const HAIR_TONES = [0x2a1a0e, 0x3d2818, 0x5a3a1f, 0x1a1a1a, 0x8b6f47, 0xc7a96f, 0x5b3a1c];
 
-function buildPlayerMesh(team, role) {
+// Humanoid figure — now used only for the referee.
+function buildHumanoid(team, role) {
   const grp = new THREE.Group();
   const isGK = role === "gk";
   const isRef = role === "ref";
@@ -1202,8 +1055,7 @@ function buildPlayerMesh(team, role) {
   const bootMat   = new THREE.MeshStandardMaterial({ color: 0x1a1a1a,  roughness: 0.9,  flatShading: true });
   const eyeMat    = new THREE.MeshBasicMaterial({   color: 0x111111 });
 
-  // BOOTS + LEGS — hip pivot → thigh, then a knee pivot carrying shin + foot,
-  // so the leg can fold during the running recovery instead of swinging stiff.
+  // BOOTS + LEGS — children of hip pivot groups so they can swing
   const leftHip = new THREE.Group();
   leftHip.position.set(-0.2, 0.87, 0);
   grp.add(leftHip);
@@ -1211,29 +1063,17 @@ function buildPlayerMesh(team, role) {
   rightHip.position.set(0.2, 0.87, 0);
   grp.add(rightHip);
 
-  const knees = [];
   for (const hip of [leftHip, rightHip]) {
-    const thigh = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.40, 0.26), skinMat);
-    thigh.position.set(0, -0.20, 0);
-    thigh.castShadow = true;
-    hip.add(thigh);
-
-    const knee = new THREE.Group();
-    knee.position.set(0, -0.40, 0);
-    hip.add(knee);
-    knees.push(knee);
-
-    const shin = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.40, 0.24), skinMat);
-    shin.position.set(0, -0.20, 0);
-    shin.castShadow = true;
-    knee.add(shin);
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.7, 0.26), skinMat);
+    leg.position.set(0, -0.35, 0);
+    leg.castShadow = true;
+    hip.add(leg);
 
     const foot = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.13, 0.46), bootMat);
-    foot.position.set(0, -0.405, 0.10);
+    foot.position.set(0, -0.79, 0.08);
     foot.castShadow = true;
-    knee.add(foot);
+    hip.add(foot);
   }
-  const [leftKnee, rightKnee] = knees;
 
   // SHORTS — single chunky box covering the hips and upper legs
   const shorts = new THREE.Mesh(new THREE.BoxGeometry(0.74, 0.42, 0.46), shortsMat);
@@ -1252,8 +1092,7 @@ function buildPlayerMesh(team, role) {
   stripe.position.set(0, 1.42, 0);
   grp.add(stripe);
 
-  // ARMS — shoulder pivot → upper arm, then an elbow pivot carrying the forearm,
-  // so arms can bend (running pump, fists in the air on a goal).
+  // ARMS — children of shoulder pivot groups so they can swing
   const leftShoulder = new THREE.Group();
   leftShoulder.position.set(-0.52, 2.1, 0);
   grp.add(leftShoulder);
@@ -1261,24 +1100,17 @@ function buildPlayerMesh(team, role) {
   rightShoulder.position.set(0.52, 2.1, 0);
   grp.add(rightShoulder);
 
-  const elbows = [];
   for (const shoulder of [leftShoulder, rightShoulder]) {
-    const upper = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.44, 0.24), shirtMat);
-    upper.position.set(0, -0.22, 0);
+    const upper = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.56, 0.24), shirtMat);
+    upper.position.set(0, -0.28, 0);
     upper.castShadow = true;
     shoulder.add(upper);
 
-    const elbow = new THREE.Group();
-    elbow.position.set(0, -0.44, 0);
-    shoulder.add(elbow);
-    elbows.push(elbow);
-
     const fore = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.42, 0.22), skinMat);
-    fore.position.set(0, -0.21, 0.02);
+    fore.position.set(0, -0.77, 0.06);
     fore.castShadow = true;
-    elbow.add(fore);
+    shoulder.add(fore);
   }
-  const [leftElbow, rightElbow] = elbows;
 
   // NECK
   const neck = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.14, 0.2), skinMat);
@@ -1316,15 +1148,218 @@ function buildPlayerMesh(team, role) {
   grp.userData.bodyMat = torso.material;
   grp.userData.leftHip = leftHip;
   grp.userData.rightHip = rightHip;
-  grp.userData.leftKnee = leftKnee;
-  grp.userData.rightKnee = rightKnee;
   grp.userData.leftShoulder = leftShoulder;
   grp.userData.rightShoulder = rightShoulder;
-  grp.userData.leftElbow = leftElbow;
-  grp.userData.rightElbow = rightElbow;
   grp.userData.runPhase = Math.random() * Math.PI * 2;
   grp.userData.runAmp = 0;
   return grp;
+}
+
+/* ---- ANIMAL PLAYERS ----
+   Each animal honours the same userData contract the animation code expects:
+   bodyMat (for highlight glow), four limb pivots, runPhase/runAmp. For the
+   quadrupeds the front legs map to "shoulders" and the back legs to "hips", so
+   the existing trot/tackle/tumble animation drives them unchanged. Team colour
+   (gold vs rust) is carried on the body so you can still tell the sides apart;
+   the species is told by silhouette and markings. */
+function animalPalette(team) {
+  const home = team === TEAM.HOME;
+  return {
+    base:  home ? 0xe7b21f : 0xcf3a2c,   // the team colour
+    mark:  home ? 0x8a5b06 : 0x7a1c14,   // spots / mane / patches
+    light: home ? 0xf2cf6a : 0xe07a55,   // muzzle / belly
+  };
+}
+function mkMat(c, rough) {
+  return new THREE.MeshStandardMaterial({ color: c, roughness: rough == null ? 0.8 : rough, flatShading: true });
+}
+function legPivot(x, y, z, w, h, d, mat, footMat) {
+  const g = new THREE.Group();
+  g.position.set(x, y, z);
+  const leg = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+  leg.position.y = -h / 2; leg.castShadow = true; g.add(leg);
+  if (footMat) {
+    const f = new THREE.Mesh(new THREE.BoxGeometry(w * 1.15, h * 0.16, d * 1.4), footMat);
+    f.position.set(0, -h + h * 0.08, d * 0.12); f.castShadow = true; g.add(f);
+  }
+  return g;
+}
+function finishAnimal(grp, bodyMat, fl, fr, bl, br, species, role) {
+  grp.userData.bodyMat = bodyMat;
+  grp.userData.leftShoulder = fl;  // front-left leg
+  grp.userData.rightShoulder = fr; // front-right leg
+  grp.userData.leftHip = bl;       // back-left leg
+  grp.userData.rightHip = br;      // back-right leg
+  grp.userData.runPhase = Math.random() * Math.PI * 2;
+  grp.userData.runAmp = 0;
+  grp.userData.species = species;
+  grp.userData.role = role;
+  return grp;
+}
+
+function buildCat(team, role, kind) {
+  const P = animalPalette(team);
+  const grp = new THREE.Group();
+  const bodyMat = mkMat(P.base, 0.75);
+  const markMat = mkMat(P.mark, 0.8);
+  const eyeMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
+  const slim = kind === "cheetah" ? 0.88 : kind === "leopard" ? 1.0 : 1.15; // lion stockier
+  const bw = 0.6 * slim, bh = 0.5, blen = 1.5, bodyY = 1.0;
+
+  const body = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, blen), bodyMat);
+  body.position.set(0, bodyY, 0); body.castShadow = true; grp.add(body);
+  const chest = new THREE.Mesh(new THREE.BoxGeometry(bw * 1.05, bh * 0.95, 0.5), bodyMat);
+  chest.position.set(0, bodyY + 0.08, blen * 0.32); chest.castShadow = true; grp.add(chest);
+
+  const legH = bodyY - bh / 2 + 0.02, lx = bw * 0.42, fz = blen * 0.36, bz = -blen * 0.36;
+  const fl = legPivot(-lx, bodyY - bh / 2, fz, 0.16, legH, 0.18, bodyMat, markMat);
+  const fr = legPivot( lx, bodyY - bh / 2, fz, 0.16, legH, 0.18, bodyMat, markMat);
+  const bL = legPivot(-lx, bodyY - bh / 2, bz, 0.17, legH, 0.2, bodyMat, markMat);
+  const bR = legPivot( lx, bodyY - bh / 2, bz, 0.17, legH, 0.2, bodyMat, markMat);
+  grp.add(fl, fr, bL, bR);
+
+  const neck = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.34, 0.34), bodyMat);
+  neck.position.set(0, bodyY + 0.28, blen * 0.5); neck.rotation.x = -0.4; neck.castShadow = true; grp.add(neck);
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.38, 0.42), bodyMat);
+  head.position.set(0, bodyY + 0.5, blen * (kind === "lion" ? 0.66 : 0.62)); head.castShadow = true; grp.add(head);
+  const muz = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.18, 0.18), mkMat(P.light, 0.8));
+  muz.position.set(0, bodyY + 0.42, blen * 0.62 + 0.28); grp.add(muz);
+  for (const dx of [-0.13, 0.13]) { const ear = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.16, 4), bodyMat); ear.position.set(dx, bodyY + 0.74, blen * 0.6); grp.add(ear); }
+  for (const dx of [-0.1, 0.1]) { const e = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.04), eyeMat); e.position.set(dx, bodyY + 0.55, blen * 0.62 + 0.21); grp.add(e); }
+
+  const tail = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.7), bodyMat);
+  tail.position.set(0, bodyY + 0.12, -blen * 0.56); tail.rotation.x = 0.5; grp.add(tail);
+  const tip = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.14, 0.16), markMat);
+  tip.position.set(0, bodyY + 0.36, -blen * 0.78); grp.add(tip);
+
+  if (kind === "lion") {
+    const mane = new THREE.Mesh(new THREE.SphereGeometry(0.44, 8, 7), markMat);
+    mane.position.set(0, bodyY + 0.5, blen * 0.54); mane.scale.set(1.15, 1.15, 0.8); mane.castShadow = true; grp.add(mane);
+  }
+  if (kind === "leopard" || kind === "cheetah") {
+    for (let i = 0; i < 8; i++) {
+      const s = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.05, 0.1), markMat);
+      s.position.set((Math.random() - 0.5) * bw, bodyY + bh / 2 - 0.01, (Math.random() - 0.5) * blen * 0.9); grp.add(s);
+    }
+    if (kind === "cheetah") for (const dx of [-0.08, 0.08]) { const t = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.13, 0.04), markMat); t.position.set(dx, bodyY + 0.46, blen * 0.62 + 0.22); grp.add(t); }
+  }
+  return finishAnimal(grp, bodyMat, fl, fr, bL, bR, kind, role);
+}
+
+function buildElephant(team, role) {
+  const P = animalPalette(team);
+  const grp = new THREE.Group();
+  const bodyMat = mkMat(P.base, 0.85);
+  const tuskMat = mkMat(0xf3ead2, 0.5);
+  const eyeMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
+  const bw = 1.0, bh = 0.95, blen = 1.7, bodyY = 1.35;
+
+  const body = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, blen), bodyMat);
+  body.position.set(0, bodyY, 0); body.castShadow = true; grp.add(body);
+  const legH = bodyY - bh / 2 + 0.02, lx = bw * 0.34, fz = blen * 0.32, bz = -blen * 0.32;
+  const fl = legPivot(-lx, bodyY - bh / 2, fz, 0.34, legH, 0.36, bodyMat);
+  const fr = legPivot( lx, bodyY - bh / 2, fz, 0.34, legH, 0.36, bodyMat);
+  const bL = legPivot(-lx, bodyY - bh / 2, bz, 0.34, legH, 0.36, bodyMat);
+  const bR = legPivot( lx, bodyY - bh / 2, bz, 0.34, legH, 0.36, bodyMat);
+  grp.add(fl, fr, bL, bR);
+
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.6), bodyMat);
+  head.position.set(0, bodyY + 0.2, blen * 0.55); head.castShadow = true; grp.add(head);
+  for (const dx of [-0.55, 0.55]) { const ear = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.72, 0.62), bodyMat); ear.position.set(dx, bodyY + 0.2, blen * 0.5); ear.rotation.y = dx < 0 ? 0.4 : -0.4; ear.castShadow = true; grp.add(ear); }
+  for (let i = 0; i < 4; i++) { const seg = new THREE.Mesh(new THREE.BoxGeometry(0.24 - i * 0.03, 0.26, 0.24 - i * 0.03), bodyMat); seg.position.set(0, bodyY + 0.0 - i * 0.24, blen * 0.55 + 0.34 - i * 0.02); seg.castShadow = true; grp.add(seg); }
+  for (const dx of [-0.18, 0.18]) { const t = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.42), tuskMat); t.position.set(dx, bodyY - 0.08, blen * 0.55 + 0.28); t.rotation.x = 0.35; grp.add(t); }
+  for (const dx of [-0.24, 0.24]) { const e = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 0.04), eyeMat); e.position.set(dx, bodyY + 0.32, blen * 0.55 + 0.31); grp.add(e); }
+  const tail = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.5, 0.08), bodyMat); tail.position.set(0, bodyY - 0.1, -blen * 0.55); grp.add(tail);
+  return finishAnimal(grp, bodyMat, fl, fr, bL, bR, "elephant", role);
+}
+
+function buildGiraffe(team, role) {
+  const P = animalPalette(team);
+  const grp = new THREE.Group();
+  const bodyMat = mkMat(P.base, 0.8);
+  const patchMat = mkMat(P.mark, 0.8);
+  const eyeMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
+  const bw = 0.6, bh = 0.66, blen = 1.25, bodyY = 1.7;
+
+  const body = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, blen), bodyMat);
+  body.position.set(0, bodyY, 0); body.castShadow = true; grp.add(body);
+  const legH = bodyY - bh / 2 + 0.02, lx = bw * 0.4, fz = blen * 0.34, bz = -blen * 0.34;
+  const fl = legPivot(-lx, bodyY - bh / 2, fz, 0.15, legH, 0.16, bodyMat);
+  const fr = legPivot( lx, bodyY - bh / 2, fz, 0.15, legH, 0.16, bodyMat);
+  const bL = legPivot(-lx, bodyY - bh / 2, bz, 0.15, legH, 0.16, bodyMat);
+  const bR = legPivot( lx, bodyY - bh / 2, bz, 0.15, legH, 0.16, bodyMat);
+  grp.add(fl, fr, bL, bR);
+
+  const neck = new THREE.Mesh(new THREE.BoxGeometry(0.28, 1.3, 0.3), bodyMat);
+  neck.position.set(0, bodyY + 0.7, blen * 0.45); neck.rotation.x = -0.32; neck.castShadow = true; grp.add(neck);
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.5), bodyMat);
+  head.position.set(0, bodyY + 1.35, blen * 0.45 + 0.42); head.castShadow = true; grp.add(head);
+  for (const dx of [-0.08, 0.08]) {
+    const o = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.16, 5), bodyMat); o.position.set(dx, bodyY + 1.55, blen * 0.45 + 0.34); grp.add(o);
+    const k = new THREE.Mesh(new THREE.SphereGeometry(0.055, 6, 5), patchMat); k.position.set(dx, bodyY + 1.64, blen * 0.45 + 0.34); grp.add(k);
+  }
+  for (const dx of [-0.1, 0.1]) { const e = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.04), eyeMat); e.position.set(dx, bodyY + 1.4, blen * 0.45 + 0.66); grp.add(e); }
+  for (let i = 0; i < 6; i++) { const s = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.04, 0.16), patchMat); s.position.set((Math.random() - 0.5) * bw, bodyY + bh / 2 - 0.01, (Math.random() - 0.5) * blen * 0.8); grp.add(s); }
+  const tail = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.55, 0.06), bodyMat); tail.position.set(0, bodyY - 0.05, -blen * 0.55); grp.add(tail);
+  return finishAnimal(grp, bodyMat, fl, fr, bL, bR, "giraffe", role);
+}
+
+function buildGorilla(team, role) {
+  const grp = new THREE.Group();
+  const bodyMat  = mkMat(0x191a1d, 0.9);    // near-black fur
+  const silverMat = mkMat(0xb9bec8, 0.5);   // silverback saddle
+  const faceMat  = mkMat(0x303036, 0.85);   // dark grey face / knuckles
+  const teamC = team === TEAM.HOME ? 0xffd230 : 0xd6322f;
+  const bandMat  = mkMat(teamC, 0.6);       // small team-colour tell
+  const whiteMat = new THREE.MeshBasicMaterial({ color: 0xeeeeee });
+  const pupilMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
+
+  const legH = 0.6;
+  const leftHip  = legPivot(-0.27, 0.72, 0, 0.32, legH, 0.36, bodyMat, faceMat);
+  const rightHip = legPivot( 0.27, 0.72, 0, 0.32, legH, 0.36, bodyMat, faceMat);
+  grp.add(leftHip, rightHip);
+
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.98, 1.02, 0.64), bodyMat);
+  torso.position.set(0, 1.28, 0); torso.rotation.x = 0.12; torso.castShadow = true; grp.add(torso);
+  const belly = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.62, 0.3), faceMat);
+  belly.position.set(0, 1.22, 0.33); grp.add(belly);
+  // Silverback saddle across the back, and a team band at the waist.
+  const saddle = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.72, 0.22), silverMat);
+  saddle.position.set(0, 1.42, -0.3); saddle.rotation.x = 0.12; saddle.castShadow = true; grp.add(saddle);
+  const band = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.15, 0.66), bandMat);
+  band.position.set(0, 0.9, 0); grp.add(band);
+
+  const armH = 1.18;
+  const leftShoulder = new THREE.Group();  leftShoulder.position.set(-0.64, 1.82, 0);  grp.add(leftShoulder);
+  const rightShoulder = new THREE.Group(); rightShoulder.position.set(0.64, 1.82, 0);  grp.add(rightShoulder);
+  for (const sh of [leftShoulder, rightShoulder]) {
+    const up = new THREE.Mesh(new THREE.BoxGeometry(0.32, armH * 0.6, 0.34), bodyMat); up.position.y = -armH * 0.3; up.castShadow = true; sh.add(up);
+    const fore = new THREE.Mesh(new THREE.BoxGeometry(0.3, armH * 0.55, 0.32), bodyMat); fore.position.set(0, -armH * 0.8, 0.04); fore.castShadow = true; sh.add(fore);
+    const fist = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.32, 0.36), faceMat); fist.position.set(0, -armH * 1.05, 0.06); fist.castShadow = true; sh.add(fist);
+  }
+
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.56, 0.56), bodyMat);
+  head.position.set(0, 2.18, 0.08); head.castShadow = true; grp.add(head);
+  const crown = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.16, 0.5), silverMat); // silver crown
+  crown.position.set(0, 2.47, 0.05); grp.add(crown);
+  const face = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.42, 0.18), faceMat);
+  face.position.set(0, 2.12, 0.37); grp.add(face);
+  const brow = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.1, 0.14), bodyMat);
+  brow.position.set(0, 2.3, 0.39); grp.add(brow);
+  for (const dx of [-0.1, 0.1]) {
+    const e = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.04), whiteMat); e.position.set(dx, 2.18, 0.46); grp.add(e);
+    const pu = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.035, 0.02), pupilMat); pu.position.set(dx, 2.18, 0.48); grp.add(pu);
+  }
+  // Map arms -> shoulders, legs -> hips (same contract as the humanoid).
+  return finishAnimal(grp, bodyMat, leftShoulder, rightShoulder, leftHip, rightHip, "gorilla", role);
+}
+
+function buildPlayerMesh(team, role, species) {
+  if (role === "ref") return buildHumanoid(team, "ref");
+  if (role === "gk" || species === "gorilla") return buildGorilla(team, role);
+  if (species === "elephant") return buildElephant(team, role);
+  if (species === "giraffe")  return buildGiraffe(team, role);
+  return buildCat(team, role, species || "lion");
 }
 
 function buildBallMesh() {
@@ -1443,7 +1478,6 @@ const diff = () => DIFFICULTY[diffKey];
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const lenH  = (x, z) => Math.hypot(x, z);
 const lerp  = (a, b, t) => a + (b - a) * t;
-const ease  = t => t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t + 2, 2) / 2;  // smooth in/out
 
 function teamSide(team) { return team === TEAM.HOME ? -1 : 1; }
 function ownGoalX(team) { return team === TEAM.HOME ? F.left : F.right; }
@@ -1461,7 +1495,7 @@ function createTeam(team) {
     return {
       x, z, vx: 0, vz: 0,
       hx: x, hz: z,
-      team, role: f.role,
+      team, role: f.role, species: f.species,
       // facing: angle for three.js rotation.y (0 = facing +Z, PI/2 = +X)
       facing: team === TEAM.HOME ? Math.PI / 2 : -Math.PI / 2,
       lastInputAngle: team === TEAM.HOME ? Math.PI / 2 : -Math.PI / 2,
@@ -1474,7 +1508,7 @@ function rebuildPlayerMeshes() {
   for (const m of playerMeshes) scene.remove(m);
   playerMeshes = [];
   for (const p of players) {
-    const m = buildPlayerMesh(p.team, p.role);
+    const m = buildPlayerMesh(p.team, p.role, p.species);
     m.position.set(p.x, 0, p.z);
     m.rotation.y = p.facing;
     scene.add(m);
@@ -1576,19 +1610,13 @@ const touchState = { dx: 0, dz: 0, active: false, kickDown: false, switchDown: f
   const kickBtn = document.getElementById("kickBtn");
   const switchBtn = document.getElementById("switchBtn");
   const tackleBtn = document.getElementById("tackleBtn");
-  // The joystick is sized relative to the pitch (--u), so derive the knob travel
-  // from the element's actual rendered size — identical feel whether the pitch is
-  // huge on a desktop or small on a landscape phone.
-  const setKnob = (clientX, clientY) => {
-    const r = stick.getBoundingClientRect();
-    const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
-    const radius = r.width * 0.33;
-    const dx = clientX - cx, dy = clientY - cy;
+  const radius = 36;
+  const setKnob = (dx, dy) => {
     const mag = Math.hypot(dx, dy);
     const m = mag > radius ? radius / mag : 1;
     knob.style.transform = `translate(calc(-50% + ${dx*m}px), calc(-50% + ${dy*m}px))`;
-    touchState.dx = (dx * m) / radius;
-    touchState.dz = (dy * m) / radius;
+    touchState.dx = (dx*m) / radius;
+    touchState.dz = (dy*m) / radius;
   };
   const reset = () => {
     knob.style.transform = "translate(-50%, -50%)";
@@ -1598,13 +1626,13 @@ const touchState = { dx: 0, dz: 0, active: false, kickDown: false, switchDown: f
   const opts = { passive: false };
   stick.addEventListener("touchstart", e => {
     e.preventDefault(); SFX.ensure(); touchState.active = true;
-    const t = e.touches[0];
-    setKnob(t.clientX, t.clientY);
+    const t = e.touches[0]; const r = stick.getBoundingClientRect();
+    setKnob(t.clientX - (r.left + r.width/2), t.clientY - (r.top + r.height/2));
   }, opts);
   stick.addEventListener("touchmove", e => {
     e.preventDefault(); if (!touchState.active) return;
-    const t = e.touches[0];
-    setKnob(t.clientX, t.clientY);
+    const t = e.touches[0]; const r = stick.getBoundingClientRect();
+    setKnob(t.clientX - (r.left + r.width/2), t.clientY - (r.top + r.height/2));
   }, opts);
   stick.addEventListener("touchend", e => { e.preventDefault(); reset(); }, opts);
   stick.addEventListener("touchcancel", reset);
@@ -2475,7 +2503,7 @@ function checkGoals() {
 
 function onGoalScored(scoringTeam) {
   mode = "goal";
-  modeTimer = 175;
+  modeTimer = 130;
   SFX.whistle(0);
   SFX.goal();
   showOverlay(
@@ -2485,7 +2513,6 @@ function onGoalScored(scoringTeam) {
     scoringTeam === TEAM.AWAY
   );
   kickoffTeam = scoringTeam === TEAM.HOME ? TEAM.AWAY : TEAM.HOME;
-  startCelebrations(scoringTeam, ball.lastTouch);
 }
 
 function handleOutOfBounds() {
@@ -2674,153 +2701,6 @@ function showCardToast(teamName, red) {
 }
 
 /* ============================================================
-   GOAL CELEBRATIONS  (the extravagant bit)
-   ============================================================ */
-// On a goal, hand the scoring side a wild move each — flips, spins, a knee
-// slide, a cartwheel — and set the conceding side trudging home, heads down.
-// Purely cosmetic: it all runs off p.celeT during the "goal" mode and resets
-// at kick-off (players are rebuilt then). The scorer gets the marquee move.
-function startCelebrations(scoringTeam, scorerIdx) {
-  const KINDS = ["backflip", "frontflip", "spinleap", "kneeslide", "cartwheel", "pump"];
-  for (let i = 0; i < players.length; i++) {
-    const p = players[i];
-    if (p.downTimer && p.downTimer > 0) { p.celeKind = null; continue; } // leave the fouled where they lie
-    if (p.team === scoringTeam) {
-      let kind;
-      if (i === scorerIdx) kind = Math.random() < 0.5 ? "backflip" : "spinleap";
-      else                 kind = KINDS[Math.floor(Math.random() * KINDS.length)];
-      p.celeKind    = kind;
-      p.celeT       = 0;
-      p.celeDelay   = (i === scorerIdx) ? 0 : Math.floor(Math.random() * 22); // cascade, don't sync
-      p.celeSign    = Math.random() < 0.5 ? -1 : 1;
-      p.celeTurns   = 2 + Math.floor(Math.random() * 2);   // 2–3 full spins
-      p.celeFacing0 = (Math.random() - 0.5) * 0.7;          // roughly toward the camera
-      p.facing      = p.celeFacing0;
-    } else {
-      p.celeKind = "trudge";
-      p.celeT    = 0;
-    }
-  }
-}
-
-// Drive one player's celebration mesh from p.celeT. Owns position.y, all three
-// rotations (in YXZ so flips/cartwheels read relative to facing) and the limbs.
-function animateCele(p, m, i) {
-  const md = m.userData;
-  m.rotation.order = "YXZ";
-  const face = p.celeFacing0 || 0;
-  const fwdX = Math.sin(face), fwdZ = Math.cos(face);   // forward, relative to facing
-  const sideX = Math.cos(face), sideZ = -Math.sin(face); // player's left/right
-
-  let y = 0, rx = 0, ry = face, rz = 0, offX = 0, offZ = 0;
-  let hipL = 0, hipR = 0, hipLz = 0, hipRz = 0, kneeL = 0.1, kneeR = 0.1;
-  let shLx = 0, shRx = 0, shLz = 0, shRz = 0, elL = -0.2, elR = -0.2;
-
-  const t = (p.celeT || 0) - (p.celeDelay || 0);
-
-  // Reusable victory bounce: hops with both fists punched overhead.
-  const pump = (lt) => {
-    const per = 26, u = (lt % per) / per;
-    y = 0.62 * Math.sin(Math.PI * u);
-    shLx = shRx = -2.55; elL = elR = -1.5;                 // arms up, forearms vertical
-    const land = 1 - Math.sin(Math.PI * u);                // bend on the way down
-    kneeL = kneeR = 0.25 + 0.4 * land;
-    rx = 0.05;
-  };
-
-  if (t < 0) {
-    // A beat of anticipation before the move kicks in.
-    const d = Math.max(1, p.celeDelay || 1), u = (p.celeT || 0) / d;
-    kneeL = kneeR = 0.5 * u; hipL = hipR = -0.3 * u;
-    shLz = -0.3 * u; shRz = 0.3 * u; rx = 0.08 * u;
-  } else {
-    const k = p.celeKind;
-    if (k === "backflip") {
-      const fl = 58;
-      if (t < fl) {
-        const u = t / fl, e = ease(u), s = Math.sin(Math.PI * u);
-        y = 2.4 * s; rx = -2 * Math.PI * e;                // tuck and rotate backward
-        hipL = hipR = -1.5 * s; kneeL = kneeR = 1.95 * s;
-        shLx = shRx = -2.7; elL = elR = -0.45;
-        offX = -fwdX * 1.1 * s; offZ = -fwdZ * 1.1 * s;
-      } else pump(t - fl);
-    } else if (k === "frontflip") {
-      const fl = 56;
-      if (t < fl) {
-        const u = t / fl, e = ease(u), s = Math.sin(Math.PI * u);
-        y = 2.15 * s; rx = 2 * Math.PI * e;                // forward somersault, travels
-        hipL = hipR = -1.65 * s; kneeL = kneeR = 2.05 * s;
-        shLx = shRx = -2.3; elL = elR = -0.6;
-        offX = fwdX * 2.4 * e; offZ = fwdZ * 2.4 * e;
-      } else pump(t - fl);
-    } else if (k === "spinleap") {
-      const dur = 64, u = Math.min(1, t / dur);
-      y = 1.85 * Math.sin(Math.PI * u);
-      ry = face + p.celeSign * (p.celeTurns || 2) * 2 * Math.PI * ease(u); // pirouette
-      shLz = -1.3; shRz = 1.3; shLx = shRx = -0.25; elL = elR = -0.25;     // arms out
-      kneeL = 0.8; kneeR = 0.35; hipL = -0.25;
-      if (t >= dur) pump(t - dur);
-    } else if (k === "kneeslide") {
-      const sl = 52, rise = 16, dist = 7.6;
-      const slid = t < sl ? (1 - Math.pow(1 - t / sl, 2)) : 1; // ease-out skid
-      offX = fwdX * dist * slid; offZ = fwdZ * dist * slid;
-      if (t < sl) {
-        y = -0.42; rx = -0.55;                              // down low, leaning back
-        kneeL = 2.1; kneeR = 1.35; hipL = -0.1; hipR = -0.55;
-        shLx = shRx = -2.45; elL = elR = -0.3; shLz = -0.5; shRz = 0.5;
-      } else if (t < sl + rise) {
-        const u = (t - sl) / rise;
-        y = -0.42 * (1 - u); rx = -0.55 * (1 - u);          // pop back up
-        kneeL = 2.1 * (1 - u) + 0.25 * u; kneeR = 1.35 * (1 - u) + 0.25 * u;
-        shLx = shRx = -2.45; elL = elR = -0.3 - 1.0 * u; shLz = -0.5; shRz = 0.5;
-      } else pump(t - sl - rise);
-    } else if (k === "cartwheel") {
-      const cw = 64;
-      if (t < cw) {
-        const u = t / cw, e = ease(u), s = Math.sin(Math.PI * u);
-        rz = p.celeSign * 2 * Math.PI * e;                  // wheel sideways
-        y = 1.05 * s;
-        const d = 5.0 * e * p.celeSign;
-        offX = sideX * d; offZ = sideZ * d;
-        shLz = -1.4; shRz = 1.4;
-        const splay = Math.sin(Math.PI * Math.min(1, u * 1.3));
-        hipLz = -0.5 * splay; hipRz = 0.5 * splay;          // star the legs
-      } else {
-        const d = 5.0 * p.celeSign;
-        offX = sideX * d; offZ = sideZ * d;
-        pump(t - cw);
-      }
-    } else if (k === "trudge") {
-      // Conceding side: a slow, slumped walk back toward their shape.
-      const speed = Math.min(lenH(p.vx, p.vz), 0.22);
-      md.runPhase = (md.runPhase || 0) + Math.max(speed, 0.012) * 2.2;
-      const amp = Math.min(speed * 4.0, 0.3), sw = Math.sin(md.runPhase) * amp;
-      hipL = -sw; hipR = sw;
-      kneeL = 0.2 + Math.max(0, -Math.sin(md.runPhase)) * 0.5;
-      kneeR = 0.2 + Math.max(0,  Math.sin(md.runPhase)) * 0.5;
-      shLx = sw * 0.4; shRx = -sw * 0.4; elL = elR = -0.3;
-      shLz = -0.28; shRz = 0.28;
-      rx = 0.24;                                            // head down
-      ry = Math.atan2(p.hx - p.x, p.hz - p.z);
-    } else {
-      pump(t);                                              // plain bounce
-    }
-  }
-
-  m.position.set(p.x + offX, y, p.z + offZ);
-  m.rotation.set(rx, ry, rz);
-  if (md.leftHip) {
-    md.leftHip.rotation.x = hipL;  md.rightHip.rotation.x = hipR;
-    md.leftHip.rotation.z = hipLz; md.rightHip.rotation.z = hipRz;
-    md.leftKnee.rotation.x = kneeL; md.rightKnee.rotation.x = kneeR;
-    md.leftShoulder.rotation.x = shLx; md.rightShoulder.rotation.x = shRx;
-    md.leftShoulder.rotation.z = shLz; md.rightShoulder.rotation.z = shRz;
-    md.leftElbow.rotation.x = elL; md.rightElbow.rotation.x = elR;
-  }
-  if (md.bodyMat) { md.bodyMat.emissive.setHex(0x000000); md.bodyMat.emissiveIntensity = 0; }
-}
-
-/* ============================================================
    RENDER SYNC
    ============================================================ */
 function syncMeshes() {
@@ -2838,7 +2718,6 @@ function syncMeshes() {
     const p = players[i];
     const m = playerMeshes[i];
     if (!m) continue;
-    m.rotation.order = "XYZ";        // default; the run + celebration branches use YXZ
     m.position.set(p.x, 0, p.z);
     m.rotation.y = p.facing;
     m.rotation.z = 0;
@@ -2852,18 +2731,12 @@ function syncMeshes() {
       m.rotation.z = Math.sin(p.downTimer * 0.28) * 0.14;
       if (md.leftHip) {
         md.leftHip.rotation.x = 0.7; md.rightHip.rotation.x = -0.45;
-        md.leftHip.rotation.z = 0; md.rightHip.rotation.z = 0;
-        md.leftKnee.rotation.x = 0.9; md.rightKnee.rotation.x = 0.4;
         md.leftShoulder.rotation.x = 1.05; md.rightShoulder.rotation.x = 0.6;
-        md.leftShoulder.rotation.z = 0; md.rightShoulder.rotation.z = 0;
-        md.leftElbow.rotation.x = -0.5; md.rightElbow.rotation.x = -0.3;
         md.runAmp = 0;
       }
       if (mat) { mat.emissive.setHex(0x000000); mat.emissiveIntensity = 0; }
       continue;
     }
-    // Goal celebration: flips, spins, slides — see animateCele.
-    if (mode === "goal" && p.celeKind) { animateCele(p, m, i); continue; }
     // Tackle: tilt forward, slide low, and glow when it's the user
     if (tA > 0) {
       m.rotation.x = -0.85;
@@ -2872,12 +2745,8 @@ function syncMeshes() {
       if (md.leftHip) {
         md.leftHip.rotation.x = 0;
         md.rightHip.rotation.x = 0;
-        md.leftHip.rotation.z = 0; md.rightHip.rotation.z = 0;
-        md.leftKnee.rotation.x = 0; md.rightKnee.rotation.x = 0;
         md.leftShoulder.rotation.x = 0;
         md.rightShoulder.rotation.x = 0;
-        md.leftShoulder.rotation.z = 0; md.rightShoulder.rotation.z = 0;
-        md.leftElbow.rotation.x = -0.2; md.rightElbow.rotation.x = -0.2;
         md.runAmp = 0;
       }
       if (mat) {
@@ -2885,40 +2754,58 @@ function syncMeshes() {
         else               { mat.emissive.setHex(0xff5544); mat.emissiveIntensity = 0.4;  }
       }
     } else {
-      // Running — folding knees, bent pumping arms, a vertical bounce and a lean.
-      // This is what separates a run from the old stiff-legged march.
-      if (md.leftHip) {
-        const speed = lenH(p.vx, p.vz);
-        const targetAmp = Math.min(speed * 4.4, 0.78);
-        md.runAmp = lerp(md.runAmp || 0, targetAmp, 0.2);
-        md.runPhase = (md.runPhase || 0) + speed * 2.4;
-        const ph = md.runPhase, amp = md.runAmp;
-        const swing = Math.sin(ph) * amp;
-
-        // Hips drive the stride (+swing = left leg forward, as before).
-        md.leftHip.rotation.x  = -swing;
-        md.rightHip.rotation.x =  swing;
-        md.leftHip.rotation.z = 0; md.rightHip.rotation.z = 0;
-
-        // Knees fold during recovery — each leg flexes hardest while it's behind.
-        const kneeBase = 0.12 + amp * 0.30;
-        md.leftKnee.rotation.x  = kneeBase + (0.85 + amp * 1.7) * Math.max(0, -Math.sin(ph));
-        md.rightKnee.rotation.x = kneeBase + (0.85 + amp * 1.7) * Math.max(0,  Math.sin(ph));
-
-        // Arms pump opposite the legs, bent at the elbow; the forward arm folds more.
-        md.leftShoulder.rotation.x  =  swing;
-        md.rightShoulder.rotation.x = -swing;
-        md.leftShoulder.rotation.z = 0.14; md.rightShoulder.rotation.z = -0.14;
-        md.leftElbow.rotation.x  = -1.25 - Math.max(0, -swing) * 0.6;
-        md.rightElbow.rotation.x = -1.25 - Math.max(0,  swing) * 0.6;
-
-        // Bounce: lowest at footstrike, highest at flight (twice per stride).
-        m.position.y = Math.min(amp * 1.7, 0.30) * (0.5 - 0.5 * Math.cos(2 * ph));
-        // Lean into the run, relative to facing.
-        m.rotation.order = "YXZ";
-        m.rotation.x = Math.min(amp * 0.9, 0.16);
-      } else {
-        m.rotation.x = 0; m.position.y = 0;
+      m.rotation.x = 0;
+      m.position.y = 0;
+      const speed = lenH(p.vx, p.vz);
+      if (md.species === "gorilla") {
+        // When the ball is up the other end, the keeper leaps up and swings on
+        // the crossbar like monkey-bars; when danger nears he drops to defend.
+        const ownGX = ownGoalX(p.team);
+        const wantHang = Math.abs(ball.x - ownGX) > 38 && speed < 0.05;
+        md.hang = lerp(md.hang || 0, wantHang ? 1 : 0, 0.1);
+        const h = md.hang;
+        if (h > 0.02) {
+          const t = frame * 0.05 + (md.runPhase || 0);
+          const sway = Math.sin(t);
+          // Hoist up to grip the bar, arms straight overhead; slide onto the line.
+          m.position.y = h * 1.95;
+          m.position.x = lerp(p.x, ownGX, h * 0.92);
+          md.leftShoulder.rotation.set(-Math.PI * 0.97 * h, 0, 0.1 * h);
+          md.rightShoulder.rotation.set(-Math.PI * 0.97 * h, 0, -0.1 * h);
+          // Legs dangle and kick; whole body swings under the bar.
+          md.leftHip.rotation.x = (0.5 + sway * 0.55) * h;
+          md.rightHip.rotation.x = (0.5 - sway * 0.55) * h;
+          m.rotation.z = sway * 0.45 * h;
+          m.rotation.x = Math.sin(t * 0.7) * 0.14 * h;
+        } else if (speed > 0.025) {
+          // Knuckle-shuffle along the ground.
+          md.runAmp = lerp(md.runAmp || 0, Math.min(speed * 4, 0.55), 0.2);
+          md.runPhase = (md.runPhase || 0) + speed * 2.4;
+          const sw = Math.sin(md.runPhase) * md.runAmp;
+          md.leftShoulder.rotation.set(sw, 0, 0);
+          md.rightShoulder.rotation.set(-sw, 0, 0);
+          md.leftHip.rotation.x = -sw * 0.7;
+          md.rightHip.rotation.x = sw * 0.7;
+        } else {
+          // Stood on his line, arms up, having a little sway.
+          const t = frame * 0.06 + (md.runPhase || 0);
+          const sway = Math.sin(t) * 0.16;
+          md.leftShoulder.rotation.set(-2.35 + sway, 0, 0);
+          md.rightShoulder.rotation.set(-2.35 - sway, 0, 0);
+          md.leftHip.rotation.x = 0.2;
+          md.rightHip.rotation.x = -0.2;
+          m.rotation.z = sway * 0.5;
+        }
+      } else if (md.leftHip) {
+        // Running gait — legs swing, scaled by speed (a trot for the quadrupeds).
+        const targetAmp = Math.min(speed * 3.5, 0.5);
+        md.runAmp = lerp(md.runAmp || 0, targetAmp, 0.18);
+        md.runPhase = (md.runPhase || 0) + speed * 2.0;
+        const swing = Math.sin(md.runPhase) * md.runAmp;
+        md.leftHip.rotation.x = -swing;
+        md.rightHip.rotation.x = swing;
+        md.leftShoulder.rotation.x = swing * 0.65;
+        md.rightShoulder.rotation.x = -swing * 0.65;
       }
       if (mat) {
         if (i === passTargetIdx && i !== userIdx) {
@@ -2941,7 +2828,6 @@ function syncMeshes() {
   // Referee
   if (refMesh && ref) {
     refMesh.position.set(ref.x, 0, ref.z);
-    refMesh.rotation.order = "XYZ";
     refMesh.rotation.y = ref.facing;
     refMesh.rotation.z = 0;
     const rd = refMesh.userData;
@@ -2955,17 +2841,12 @@ function syncMeshes() {
       if (rd.cardGroup) rd.cardGroup.visible = false;
       if (rd.leftHip) { rd.leftHip.rotation.x = -0.3; rd.rightHip.rotation.x = 0.3; }
       if (rd.leftShoulder) { rd.leftShoulder.rotation.x = 0.6; rd.rightShoulder.rotation.x = 0.6; }
-      if (rd.leftKnee) { rd.leftKnee.rotation.x = 0.7; rd.rightKnee.rotation.x = 0.4; }
-      if (rd.leftElbow) { rd.leftElbow.rotation.x = -0.5; rd.rightElbow.rotation.x = -0.4; }
     } else if (ref.cardTimer > 0) {
       // Brandish: stand tall, right arm raised to the side with the card.
       refMesh.rotation.x = 0; refMesh.position.y = 0;
       if (rd.leftHip) { rd.leftHip.rotation.x = 0; rd.rightHip.rotation.x = 0; }
       if (rd.rightShoulder) { rd.rightShoulder.rotation.x = 0; rd.rightShoulder.rotation.z = 2.35; }
       if (rd.leftShoulder)  rd.leftShoulder.rotation.x = 0;
-      if (rd.leftKnee) { rd.leftKnee.rotation.x = 0.05; rd.rightKnee.rotation.x = 0.05; }
-      if (rd.rightElbow) rd.rightElbow.rotation.x = -0.1;
-      if (rd.leftElbow)  rd.leftElbow.rotation.x = -0.15;
       if (rd.cardGroup) {
         rd.cardGroup.visible = true;
         rd.cardYellow.visible = ref.cardKind === 1;
@@ -2978,17 +2859,9 @@ function syncMeshes() {
       if (rd.leftHip) {
         const speed = lenH(ref.vx, ref.vz);
         rd.runAmp = lerp(rd.runAmp || 0, Math.min(speed * 3.5, 0.45), 0.18);
-        const amp = rd.runAmp, ph = ref.runPhase, swing = Math.sin(ph) * amp;
+        const swing = Math.sin(ref.runPhase) * rd.runAmp;
         rd.leftHip.rotation.x = -swing; rd.rightHip.rotation.x = swing;
         rd.leftShoulder.rotation.x = swing * 0.6; rd.rightShoulder.rotation.x = -swing * 0.6;
-        // Fold the trailing knee on its recovery, carry the arms bent, lean in.
-        const kneeBase = 0.12 + amp * 0.25;
-        rd.leftKnee.rotation.x  = kneeBase + (0.8 + amp * 1.4) * Math.max(0, -Math.sin(ph));
-        rd.rightKnee.rotation.x = kneeBase + (0.8 + amp * 1.4) * Math.max(0,  Math.sin(ph));
-        rd.leftElbow.rotation.x  = -0.7 - Math.max(0, -swing) * 0.5;
-        rd.rightElbow.rotation.x = -0.7 - Math.max(0,  swing) * 0.5;
-        refMesh.rotation.order = "YXZ";
-        refMesh.rotation.x = Math.min(amp * 0.5, 0.10);
       }
     }
   }
@@ -3069,11 +2942,9 @@ function showOverlay(title, msg, hint, away) {
   if (title.includes("G O A L")) {
     overlayTitle.classList.add("goal");
     overlayTitle.classList.toggle("away", !!away);
-    overlay.classList.add("celebrate");
   } else {
     overlayTitle.classList.remove("goal");
     overlayTitle.classList.remove("away");
-    overlay.classList.remove("celebrate");
   }
 }
 function hideOverlay() { overlay.classList.remove("show"); }
@@ -3127,19 +2998,9 @@ function tick() {
     modeTimer--;
     for (let i = 0; i < players.length; i++) {
       const p = players[i];
-      if (p.celeKind) p.celeT = (p.celeT || 0) + 1;   // drive the celebration clock
-      if (p.celeKind && p.celeKind !== "trudge") {
-        // The scoring side flips and spins in place — animateCele owns their
-        // motion entirely, so hold the body still and just bleed momentum.
-        p.vx *= 0.6; p.vz *= 0.6;
-      } else {
-        // Conceding side (and anyone without a move) drifts back into shape;
-        // feed the step delta into vx/vz so the trudge legs match the glide.
-        const dx = (p.hx - p.x) * 0.04;
-        const dz = (p.hz - p.z) * 0.04;
-        p.x += dx; p.z += dz;
-        p.vx = dx; p.vz = dz;
-      }
+      p.x += (p.hx - p.x) * 0.05;
+      p.z += (p.hz - p.z) * 0.05;
+      p.vx *= 0.8; p.vz *= 0.8;
     }
     ball.vx *= 0.9; ball.vz *= 0.9; ball.vy *= 0.9;
     if (modeTimer <= 0) {
