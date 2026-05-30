@@ -128,6 +128,17 @@
     user-select: none;
   }
   .overlay.show { display: flex; }
+  /* During a goal the pitch is worth watching, so don't curtain it. Dim only a
+     top band behind the caption and drop the blur — the celebration plays in the
+     clear lower portion of the frame. */
+  .overlay.celebrate {
+    background: linear-gradient(to bottom,
+      rgba(0,0,0,0.62) 0%, rgba(0,0,0,0.30) 13%, rgba(0,0,0,0) 30%);
+    backdrop-filter: none;
+    justify-content: flex-start;
+    padding-top: 3.5%;
+  }
+  .overlay.celebrate p { text-shadow: 2px 2px 0 #000, 0 2px 10px rgba(0,0,0,0.9); }
   .overlay h1 {
     font-size: 56px;
     margin: 0 0 8px;
@@ -185,6 +196,25 @@
     color: #b8ccbe;
     letter-spacing: 0.22em;
   }
+  .cardtoast {
+    position: absolute;
+    left: 50%; top: 64px;
+    transform: translateX(-50%) translateY(-8px);
+    padding: 7px 16px;
+    background: rgba(5, 12, 8, 0.82);
+    border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 5px;
+    font-family: "Courier New", monospace;
+    font-size: 15px; font-weight: 800;
+    letter-spacing: 0.12em;
+    color: #ffd230;
+    white-space: nowrap;
+    pointer-events: none; user-select: none;
+    opacity: 0;
+    transition: opacity 0.18s ease, transform 0.18s ease;
+    z-index: 7;
+  }
+  .cardtoast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
   .powerbar {
     position: absolute;
     left: 50%; top: 62px;
@@ -385,6 +415,8 @@
       <div class="label" id="powerlabel">PASS</div>
     </div>
 
+    <div class="cardtoast" id="cardToast"></div>
+
     <div class="overlay" id="overlay">
       <h1 id="overlayTitle">Pitch Heroes 3D</h1>
       <p id="overlayMsg">7-a-side · two halves of 90 seconds</p>
@@ -464,6 +496,17 @@ const RULES = {
   controlSwitchHysteresis: 10.0,
   gkAutoClearAI:   22,
   gkAutoClearUser: 50,
+  // --- humour pack ---
+  magnusForce:    0.0019,   // sideways curl per unit of (spin x speed) while airborne
+  spinFromRun:    0.9,      // how much sideways run across the ball imparts curl
+  spinDecay:      0.987,    // curl bleeds off over flight
+  spinUserShot:   0.6,      // baseline banana on a user shot
+  foulChanceAway: 0.42,     // a crunching AWAY tackle that catches the man
+  foulChanceUser: 0.22,     // the user can give one away too
+  foulCooldown:   90,       // frames before the same player can foul again
+  downDuration:   72,       // how long a fouled player stays sprawled
+  refSpeed:       0.085,    // the ref is not a quick man
+  refLag:         11,       // how far off the play he trails
 };
 
 const BALL_R = 0.55;
@@ -798,12 +841,17 @@ function makePitchTexture() {
   ctx.beginPath(); ctx.arc(px(F.left  + F.spotDist), pz(0), 4, 0, Math.PI*2); ctx.fill();
   ctx.beginPath(); ctx.arc(px(F.right - F.spotDist), pz(0), 4, 0, Math.PI*2); ctx.fill();
 
-  // Penalty area "D" arcs
+  // Penalty area "D" arcs — radius matches the centre circle (the regulation
+  // 9.15m equivalent) and is centred on the penalty spot. Only the segment that
+  // falls outside the box is drawn, so the arc's two endpoints land exactly on
+  // the penalty-area front line.
+  const arcR = (F.cirR / F.length) * c.width;
+  const arcTheta = Math.acos((F.paW - F.spotDist) / F.cirR); // where the circle crosses the box edge
   ctx.beginPath();
-  ctx.arc(px(F.left  + F.spotDist), pz(0), (5.5 / F.length) * c.width, -Math.PI/2.6, Math.PI/2.6);
+  ctx.arc(px(F.left  + F.spotDist), pz(0), arcR, -arcTheta, arcTheta);
   ctx.stroke();
   ctx.beginPath();
-  ctx.arc(px(F.right - F.spotDist), pz(0), (5.5 / F.length) * c.width, Math.PI - Math.PI/2.6, Math.PI + Math.PI/2.6);
+  ctx.arc(px(F.right - F.spotDist), pz(0), arcR, Math.PI - arcTheta, Math.PI + arcTheta);
   ctx.stroke();
 
   // Corner arcs
@@ -1060,10 +1108,11 @@ const HAIR_TONES = [0x2a1a0e, 0x3d2818, 0x5a3a1f, 0x1a1a1a, 0x8b6f47, 0xc7a96f, 
 function buildPlayerMesh(team, role) {
   const grp = new THREE.Group();
   const isGK = role === "gk";
-  const bodyColor = isGK
+  const isRef = role === "ref";
+  const bodyColor = isRef ? 0x161616 : isGK
     ? (team === TEAM.HOME ? 0x1eb955 : 0x6b48b0)
     : (team === TEAM.HOME ? 0xffd230 : 0xd6322f);
-  const trimColor = isGK
+  const trimColor = isRef ? 0xffd230 : isGK
     ? 0x111111
     : (team === TEAM.HOME ? 0x8a5b06 : 0x5a1410);
   const skinColor = SKIN_TONES[Math.floor(Math.random() * SKIN_TONES.length)];
@@ -1079,7 +1128,8 @@ function buildPlayerMesh(team, role) {
   const bootMat   = new THREE.MeshStandardMaterial({ color: 0x1a1a1a,  roughness: 0.9,  flatShading: true });
   const eyeMat    = new THREE.MeshBasicMaterial({   color: 0x111111 });
 
-  // BOOTS + LEGS — children of hip pivot groups so they can swing
+  // BOOTS + LEGS — hip pivot → thigh, then a knee pivot carrying shin + foot,
+  // so the leg can fold during the running recovery instead of swinging stiff.
   const leftHip = new THREE.Group();
   leftHip.position.set(-0.2, 0.87, 0);
   grp.add(leftHip);
@@ -1087,17 +1137,29 @@ function buildPlayerMesh(team, role) {
   rightHip.position.set(0.2, 0.87, 0);
   grp.add(rightHip);
 
+  const knees = [];
   for (const hip of [leftHip, rightHip]) {
-    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.7, 0.26), skinMat);
-    leg.position.set(0, -0.35, 0);
-    leg.castShadow = true;
-    hip.add(leg);
+    const thigh = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.40, 0.26), skinMat);
+    thigh.position.set(0, -0.20, 0);
+    thigh.castShadow = true;
+    hip.add(thigh);
+
+    const knee = new THREE.Group();
+    knee.position.set(0, -0.40, 0);
+    hip.add(knee);
+    knees.push(knee);
+
+    const shin = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.40, 0.24), skinMat);
+    shin.position.set(0, -0.20, 0);
+    shin.castShadow = true;
+    knee.add(shin);
 
     const foot = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.13, 0.46), bootMat);
-    foot.position.set(0, -0.79, 0.08);
+    foot.position.set(0, -0.405, 0.10);
     foot.castShadow = true;
-    hip.add(foot);
+    knee.add(foot);
   }
+  const [leftKnee, rightKnee] = knees;
 
   // SHORTS — single chunky box covering the hips and upper legs
   const shorts = new THREE.Mesh(new THREE.BoxGeometry(0.74, 0.42, 0.46), shortsMat);
@@ -1116,7 +1178,8 @@ function buildPlayerMesh(team, role) {
   stripe.position.set(0, 1.42, 0);
   grp.add(stripe);
 
-  // ARMS — children of shoulder pivot groups so they can swing
+  // ARMS — shoulder pivot → upper arm, then an elbow pivot carrying the forearm,
+  // so arms can bend (running pump, fists in the air on a goal).
   const leftShoulder = new THREE.Group();
   leftShoulder.position.set(-0.52, 2.1, 0);
   grp.add(leftShoulder);
@@ -1124,17 +1187,24 @@ function buildPlayerMesh(team, role) {
   rightShoulder.position.set(0.52, 2.1, 0);
   grp.add(rightShoulder);
 
+  const elbows = [];
   for (const shoulder of [leftShoulder, rightShoulder]) {
-    const upper = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.56, 0.24), shirtMat);
-    upper.position.set(0, -0.28, 0);
+    const upper = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.44, 0.24), shirtMat);
+    upper.position.set(0, -0.22, 0);
     upper.castShadow = true;
     shoulder.add(upper);
 
+    const elbow = new THREE.Group();
+    elbow.position.set(0, -0.44, 0);
+    shoulder.add(elbow);
+    elbows.push(elbow);
+
     const fore = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.42, 0.22), skinMat);
-    fore.position.set(0, -0.77, 0.06);
+    fore.position.set(0, -0.21, 0.02);
     fore.castShadow = true;
-    shoulder.add(fore);
+    elbow.add(fore);
   }
+  const [leftElbow, rightElbow] = elbows;
 
   // NECK
   const neck = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.14, 0.2), skinMat);
@@ -1172,8 +1242,12 @@ function buildPlayerMesh(team, role) {
   grp.userData.bodyMat = torso.material;
   grp.userData.leftHip = leftHip;
   grp.userData.rightHip = rightHip;
+  grp.userData.leftKnee = leftKnee;
+  grp.userData.rightKnee = rightKnee;
   grp.userData.leftShoulder = leftShoulder;
   grp.userData.rightShoulder = rightShoulder;
+  grp.userData.leftElbow = leftElbow;
+  grp.userData.rightElbow = rightElbow;
   grp.userData.runPhase = Math.random() * Math.PI * 2;
   grp.userData.runAmp = 0;
   return grp;
@@ -1200,6 +1274,31 @@ function buildBallMesh() {
   );
   mesh.castShadow = true;
   return mesh;
+}
+
+// The referee — a black-kitted figure who carries a card he can wave overhead.
+function buildRef() {
+  const m = buildPlayerMesh(TEAM.HOME, "ref");
+  const cardGroup = new THREE.Group();
+  const yellow = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.34, 0.48),
+    new THREE.MeshBasicMaterial({ color: 0xffd230, side: THREE.DoubleSide })
+  );
+  const red = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.34, 0.48),
+    new THREE.MeshBasicMaterial({ color: 0xd6322f, side: THREE.DoubleSide })
+  );
+  red.visible = false;
+  // Sit the card just past the hand of the right arm.
+  cardGroup.position.set(0, -1.05, 0.12);
+  cardGroup.add(yellow);
+  cardGroup.add(red);
+  cardGroup.visible = false;
+  m.userData.rightShoulder.add(cardGroup);
+  m.userData.cardGroup = cardGroup;
+  m.userData.cardYellow = yellow;
+  m.userData.cardRed = red;
+  return m;
 }
 
 // Selected player marker — flat cyan ring on the ground around the controlled player
@@ -1250,6 +1349,10 @@ let ball; // { x, y, z, vx, vy, vz, lastTouch, kickedFrames, aftertouchFrames, a
 // player jog over while opponents keep their distance. Cleared automatically.
 let setPiece = null; // { team, x, z, frames }
 
+// The referee. Trails the play, books crunching tackles, occasionally trips.
+let ref = null;      // { x, z, vx, vz, facing, runPhase, cardTimer, cardKind, tripTimer }
+let refMesh = null;
+
 // Difficulty scales the opposition. The AI is deliberately beatable; this lets
 // "other people" pick a real challenge. Higher = tougher AWAY side.
 const DIFFICULTY = {
@@ -1266,6 +1369,7 @@ const diff = () => DIFFICULTY[diffKey];
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const lenH  = (x, z) => Math.hypot(x, z);
 const lerp  = (a, b, t) => a + (b - a) * t;
+const ease  = t => t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t + 2, 2) / 2;  // smooth in/out
 
 function teamSide(team) { return team === TEAM.HOME ? -1 : 1; }
 function ownGoalX(team) { return team === TEAM.HOME ? F.left : F.right; }
@@ -1327,7 +1431,7 @@ function setKickoffPositions(possessingTeam) {
     ball = {
       x: F.cx, y: BALL_R, z: F.cz, vx: 0, vy: 0, vz: 0,
       lastTouch: -1, kickedFrames: 0,
-      aftertouchFrames: 0, aftertouchPlayer: -1,
+      aftertouchFrames: 0, aftertouchPlayer: -1, spin: 0,
     };
   } else {
     ball.x = F.cx; ball.y = BALL_R; ball.z = F.cz;
@@ -1335,7 +1439,12 @@ function setKickoffPositions(possessingTeam) {
     ball.lastTouch = -1;
     ball.kickedFrames = 0;
     ball.aftertouchFrames = 0;
+    ball.spin = 0;
   }
+
+  // Park the ref near the centre circle, off to one side, facing play.
+  if (!ref) ref = { x: 0, z: 10, vx: 0, vz: 0, facing: Math.PI, runPhase: 0, cardTimer: 0, cardKind: 0, tripTimer: 0 };
+  else { ref.x = 0; ref.z = 10; ref.vx = ref.vz = 0; ref.cardTimer = 0; ref.tripTimer = 0; }
 
   userIdx = nearestTeamPlayerToBall(TEAM.HOME, true);
   rebuildPlayerMeshes();
@@ -1497,6 +1606,15 @@ function pickUserPlayer() {
 }
 
 function movePlayer(p, isUser, idx) {
+  // Sprawled on the turf after a foul — slide to a stop, no control.
+  if (p.downTimer && p.downTimer > 0) {
+    p.downTimer--;
+    p.x += p.vx; p.z += p.vz;
+    p.vx *= 0.86; p.vz *= 0.86;
+    p.x = clamp(p.x, F.left - 1, F.right + 1);
+    p.z = clamp(p.z, -F.width/2 - 1, F.width/2 + 1);
+    return;
+  }
   let ix = 0, iz = 0;
   if (isUser) {
     const v = readUserVector();
@@ -1587,6 +1705,21 @@ function ballPhysics() {
     ball.aftertouchFrames--;
   }
 
+  // Magnus curl — a spinning ball gets pushed sideways (perpendicular to travel),
+  // stronger in the air. This is what bends shots around the keeper.
+  if (ball.spin && Math.abs(ball.spin) > 0.001) {
+    const vx0 = ball.vx, vz0 = ball.vz;
+    const sp = lenH(vx0, vz0);
+    if (sp > 0.04) {
+      const airy = ball.y > BALL_R + 0.15 ? 1 : 0.35;
+      const f = ball.spin * sp * RULES.magnusForce * airy;
+      // perpendicular to velocity in the ground plane: (-vz, vx)/|v|
+      ball.vx += (-vz0 / sp) * f;
+      ball.vz += ( vx0 / sp) * f;
+    }
+    ball.spin *= RULES.spinDecay;
+  }
+
   // Air drag / ground friction
   if (ball.y > BALL_R + 0.15) {
     ball.vx *= RULES.ballAirDrag;
@@ -1674,6 +1807,7 @@ function playerBallInteraction() {
            Math.abs(ball.vx) + Math.abs(ball.vz) > 0.05)) {
         ball.vx = 0; ball.vy = 0; ball.vz = 0;
         ball.kickedFrames = 0;
+        ball.spin = 0;
         ball.y = BALL_R;
         const atk = p.team === TEAM.HOME ? +1 : -1;
         const ang = Math.atan2(atk, 0);
@@ -1746,6 +1880,7 @@ function playerBallInteraction() {
           ball.z = p.z + Math.cos(ang) * (snapR * 0.75);
         }
         ball.lastTouch = i;
+        ball.spin = 0;
       }
     }
   }
@@ -1894,6 +2029,26 @@ function performKick(kickerIdx, power, aimAngle, isPass, lob = false) {
   ball.kickedFrames = 18;
   ball.aftertouchFrames = effectivePass ? 0 : RULES.afterTouchFrames;
   ball.aftertouchPlayer = kickerIdx;
+
+  // Curl. A shot picks up spin from how much the kicker was moving sideways
+  // across the strike, plus a banana baseline so shots bend toward goal. Passes
+  // stay mostly true.
+  if (effectivePass) {
+    ball.spin = 0;
+  } else {
+    const perpX = Math.cos(ang), perpZ = -Math.sin(ang);     // right-hand normal to shot dir
+    const lateralRun = (k.vx * perpX + k.vz * perpZ);        // sideways component of run
+    let spin = lateralRun * RULES.spinFromRun;
+    if (isUserKick) {
+      // Bend toward the middle of the goal so it curls around the keeper.
+      const goalZ = 0, side = (ball.z > goalZ) ? -1 : 1;
+      spin += side * RULES.spinUserShot * (0.6 + Math.random() * 0.5);
+    } else {
+      spin += (Math.random() - 0.5) * RULES.spinUserShot;     // AWAY shots wobble unpredictably
+    }
+    ball.spin = clamp(spin, -1.6, 1.6);
+  }
+
   SFX.kick(effectivePower, lob);
 }
 
@@ -2240,7 +2395,7 @@ function checkGoals() {
 
 function onGoalScored(scoringTeam) {
   mode = "goal";
-  modeTimer = 130;
+  modeTimer = 175;
   SFX.whistle(0);
   SFX.goal();
   showOverlay(
@@ -2250,6 +2405,7 @@ function onGoalScored(scoringTeam) {
     scoringTeam === TEAM.AWAY
   );
   kickoffTeam = scoringTeam === TEAM.HOME ? TEAM.AWAY : TEAM.HOME;
+  startCelebrations(scoringTeam, ball.lastTouch);
 }
 
 function handleOutOfBounds() {
@@ -2287,6 +2443,7 @@ function startSetPiece(team, x, z) {
   ball.y = BALL_R;
   ball.vx = ball.vy = ball.vz = 0;
   ball.kickedFrames = 0;
+  ball.spin = 0;
   ball.lastTouch = -1;
   setPiece = { team, x: ball.x, z: ball.z, frames: 48 };
   SFX.whistle(0);
@@ -2300,9 +2457,19 @@ function updateSetPiece() {
   ball.x = sp.x; ball.z = sp.z; ball.y = BALL_R;
   ball.vx = ball.vy = ball.vz = 0; ball.kickedFrames = 0;
 
-  const taker = nearestTeamPlayerToBall(sp.team, false);
+  // Nearest team-mate who isn't flat on the turf takes the restart.
+  let taker = -1, bestD = Infinity;
   for (let i = 0; i < players.length; i++) {
     const p = players[i];
+    if (p.team !== sp.team) continue;
+    if (p.downTimer && p.downTimer > 0) continue;
+    const d = lenH(p.x - sp.x, p.z - sp.z);
+    if (d < bestD) { bestD = d; taker = i; }
+  }
+
+  for (let i = 0; i < players.length; i++) {
+    const p = players[i];
+    if (p.downTimer && p.downTimer > 0) continue; // leave the victim where they fell
     p.vx *= 0.6; p.vz *= 0.6;
     const d = lenH(p.x - sp.x, p.z - sp.z);
     if (i === taker) {
@@ -2324,6 +2491,256 @@ function updateSetPiece() {
 }
 
 /* ============================================================
+   REFEREE, FOULS & CARDS  (the humour pack)
+   ============================================================ */
+// The ref trails the play at a lag, never quite keeping up, and now and then
+// trips over his own feet. He stops to brandish a card when he books someone.
+function updateRef() {
+  if (!ref) return;
+  ref.runPhase += lenH(ref.vx, ref.vz) * 2.0;
+
+  if (ref.tripTimer > 0) { ref.tripTimer--; ref.vx *= 0.8; ref.vz *= 0.8; return; }
+  if (ref.cardTimer > 0) { ref.cardTimer--; ref.vx *= 0.8; ref.vz *= 0.8; return; }
+
+  // Aim for a spot that trails the ball, kept a respectful distance off the play.
+  let tx = ball.x, tz = ball.z + RULES.refLag;
+  const dx = tx - ref.x, dz = tz - ref.z;
+  const d = lenH(dx, dz);
+  if (d > 4) {
+    ref.vx += (dx / d) * 0.012;
+    ref.vz += (dz / d) * 0.012;
+  } else { ref.vx *= 0.9; ref.vz *= 0.9; }
+  const s = lenH(ref.vx, ref.vz);
+  if (s > RULES.refSpeed) { ref.vx *= RULES.refSpeed / s; ref.vz *= RULES.refSpeed / s; }
+  ref.x += ref.vx; ref.z += ref.vz;
+  ref.x = clamp(ref.x, F.left + 3, F.right - 3);
+  ref.z = clamp(ref.z, -F.width/2 + 3, F.width/2 + 8);
+  if (s > 0.02) ref.facing = Math.atan2(ref.vx, ref.vz);
+
+  // The occasional pratfall.
+  if (frame % 6 === 0 && Math.random() < 0.004) { ref.tripTimer = 55; ref.vx = ref.vz = 0; }
+
+  // Ball can bonk off the ref if it rolls/flies into him.
+  const bd = lenH(ball.x - ref.x, ball.z - ref.z);
+  if (bd < 1.15 && ball.y < 2.4) {
+    const nx = (ball.x - ref.x) / (bd || 1), nz = (ball.z - ref.z) / (bd || 1);
+    const sp = Math.max(0.25, lenH(ball.vx, ball.vz));
+    ball.vx = nx * sp * 0.85; ball.vz = nz * sp * 0.85;
+    ball.spin *= -0.4;
+    ball.x = ref.x + nx * 1.2; ball.z = ref.z + nz * 1.2;
+    ref.tripTimer = 40;        // he wobbles after a clattering
+    SFX.bounce(0.6);
+  }
+}
+
+function bookPlayer(offenderIdx, fouledIdx) {
+  const off = players[offenderIdx], fouled = players[fouledIdx];
+  // Sprawl the fouled player away from the tackle.
+  const ang = Math.atan2(fouled.x - off.x, fouled.z - off.z);
+  fouled.downTimer = RULES.downDuration;
+  fouled.vx = Math.sin(ang) * 0.22;
+  fouled.vz = Math.cos(ang) * 0.22;
+  tackleCD.set(offenderIdx, RULES.foulCooldown);
+
+  // Red on the rare reckless one, yellow otherwise.
+  const red = Math.random() < 0.16;
+  if (ref) {
+    ref.cardTimer = 95;
+    ref.cardKind = red ? 2 : 1;
+    ref.x = clamp(off.x + (Math.random() - 0.5) * 4, F.left + 3, F.right - 3);
+    ref.z = clamp(off.z + 5, -F.width/2 + 3, F.width/2 + 6);
+    ref.facing = Math.atan2(off.x - ref.x, off.z - ref.z);
+  }
+  SFX.whistle(0);
+  showCardToast(off.team === TEAM.AWAY ? "GRANITE" : "PITCHES", red);
+
+  // Free kick to the fouled side at the spot.
+  startSetPiece(fouled.team, fouled.x, fouled.z);
+}
+
+// Crunching tackles that catch the man rather than the ball.
+function checkFouls() {
+  if (setPiece) return;
+  for (let i = 0; i < players.length; i++) {
+    if ((tackleActive.get(i) || 0) <= 0) continue;          // only a committed lunge fouls
+    const t = players[i];
+    if (lenH(t.vx, t.vz) < 0.06) continue;                   // must be sliding in
+    const owns = lenH(t.x - ball.x, t.z - ball.z) < RULES.possessRadius * 0.9 && ball.kickedFrames === 0;
+    if (owns) continue;                                      // won the ball cleanly — no foul
+    for (let j = 0; j < players.length; j++) {
+      const o = players[j];
+      if (o.team === t.team) continue;
+      if (o.downTimer && o.downTimer > 0) continue;
+      if (lenH(t.x - o.x, t.z - o.z) > 1.35) continue;
+      const chance = t.team === TEAM.AWAY ? RULES.foulChanceAway : RULES.foulChanceUser;
+      if (Math.random() < chance) {
+        tackleActive.set(i, 0);
+        bookPlayer(i, j);
+        return;                                              // one foul per frame
+      }
+    }
+  }
+}
+
+// Brief on-screen flash when a card comes out.
+function showCardToast(teamName, red) {
+  const el = document.getElementById("cardToast");
+  if (!el) return;
+  el.textContent = (red ? "🟥 RED" : "🟨 YELLOW") + " — " + teamName + " · FREE KICK";
+  el.style.color = red ? "#ff6a5f" : "#ffd230";
+  el.classList.add("show");
+  clearTimeout(showCardToast._t);
+  showCardToast._t = setTimeout(() => el.classList.remove("show"), 2200);
+}
+
+/* ============================================================
+   GOAL CELEBRATIONS  (the extravagant bit)
+   ============================================================ */
+// On a goal, hand the scoring side a wild move each — flips, spins, a knee
+// slide, a cartwheel — and set the conceding side trudging home, heads down.
+// Purely cosmetic: it all runs off p.celeT during the "goal" mode and resets
+// at kick-off (players are rebuilt then). The scorer gets the marquee move.
+function startCelebrations(scoringTeam, scorerIdx) {
+  const KINDS = ["backflip", "frontflip", "spinleap", "kneeslide", "cartwheel", "pump"];
+  for (let i = 0; i < players.length; i++) {
+    const p = players[i];
+    if (p.downTimer && p.downTimer > 0) { p.celeKind = null; continue; } // leave the fouled where they lie
+    if (p.team === scoringTeam) {
+      let kind;
+      if (i === scorerIdx) kind = Math.random() < 0.5 ? "backflip" : "spinleap";
+      else                 kind = KINDS[Math.floor(Math.random() * KINDS.length)];
+      p.celeKind    = kind;
+      p.celeT       = 0;
+      p.celeDelay   = (i === scorerIdx) ? 0 : Math.floor(Math.random() * 22); // cascade, don't sync
+      p.celeSign    = Math.random() < 0.5 ? -1 : 1;
+      p.celeTurns   = 2 + Math.floor(Math.random() * 2);   // 2–3 full spins
+      p.celeFacing0 = (Math.random() - 0.5) * 0.7;          // roughly toward the camera
+      p.facing      = p.celeFacing0;
+    } else {
+      p.celeKind = "trudge";
+      p.celeT    = 0;
+    }
+  }
+}
+
+// Drive one player's celebration mesh from p.celeT. Owns position.y, all three
+// rotations (in YXZ so flips/cartwheels read relative to facing) and the limbs.
+function animateCele(p, m, i) {
+  const md = m.userData;
+  m.rotation.order = "YXZ";
+  const face = p.celeFacing0 || 0;
+  const fwdX = Math.sin(face), fwdZ = Math.cos(face);   // forward, relative to facing
+  const sideX = Math.cos(face), sideZ = -Math.sin(face); // player's left/right
+
+  let y = 0, rx = 0, ry = face, rz = 0, offX = 0, offZ = 0;
+  let hipL = 0, hipR = 0, hipLz = 0, hipRz = 0, kneeL = 0.1, kneeR = 0.1;
+  let shLx = 0, shRx = 0, shLz = 0, shRz = 0, elL = -0.2, elR = -0.2;
+
+  const t = (p.celeT || 0) - (p.celeDelay || 0);
+
+  // Reusable victory bounce: hops with both fists punched overhead.
+  const pump = (lt) => {
+    const per = 26, u = (lt % per) / per;
+    y = 0.62 * Math.sin(Math.PI * u);
+    shLx = shRx = -2.55; elL = elR = -1.5;                 // arms up, forearms vertical
+    const land = 1 - Math.sin(Math.PI * u);                // bend on the way down
+    kneeL = kneeR = 0.25 + 0.4 * land;
+    rx = 0.05;
+  };
+
+  if (t < 0) {
+    // A beat of anticipation before the move kicks in.
+    const d = Math.max(1, p.celeDelay || 1), u = (p.celeT || 0) / d;
+    kneeL = kneeR = 0.5 * u; hipL = hipR = -0.3 * u;
+    shLz = -0.3 * u; shRz = 0.3 * u; rx = 0.08 * u;
+  } else {
+    const k = p.celeKind;
+    if (k === "backflip") {
+      const fl = 58;
+      if (t < fl) {
+        const u = t / fl, e = ease(u), s = Math.sin(Math.PI * u);
+        y = 2.4 * s; rx = -2 * Math.PI * e;                // tuck and rotate backward
+        hipL = hipR = -1.5 * s; kneeL = kneeR = 1.95 * s;
+        shLx = shRx = -2.7; elL = elR = -0.45;
+        offX = -fwdX * 1.1 * s; offZ = -fwdZ * 1.1 * s;
+      } else pump(t - fl);
+    } else if (k === "frontflip") {
+      const fl = 56;
+      if (t < fl) {
+        const u = t / fl, e = ease(u), s = Math.sin(Math.PI * u);
+        y = 2.15 * s; rx = 2 * Math.PI * e;                // forward somersault, travels
+        hipL = hipR = -1.65 * s; kneeL = kneeR = 2.05 * s;
+        shLx = shRx = -2.3; elL = elR = -0.6;
+        offX = fwdX * 2.4 * e; offZ = fwdZ * 2.4 * e;
+      } else pump(t - fl);
+    } else if (k === "spinleap") {
+      const dur = 64, u = Math.min(1, t / dur);
+      y = 1.85 * Math.sin(Math.PI * u);
+      ry = face + p.celeSign * (p.celeTurns || 2) * 2 * Math.PI * ease(u); // pirouette
+      shLz = -1.3; shRz = 1.3; shLx = shRx = -0.25; elL = elR = -0.25;     // arms out
+      kneeL = 0.8; kneeR = 0.35; hipL = -0.25;
+      if (t >= dur) pump(t - dur);
+    } else if (k === "kneeslide") {
+      const sl = 52, rise = 16, dist = 7.6;
+      const slid = t < sl ? (1 - Math.pow(1 - t / sl, 2)) : 1; // ease-out skid
+      offX = fwdX * dist * slid; offZ = fwdZ * dist * slid;
+      if (t < sl) {
+        y = -0.42; rx = -0.55;                              // down low, leaning back
+        kneeL = 2.1; kneeR = 1.35; hipL = -0.1; hipR = -0.55;
+        shLx = shRx = -2.45; elL = elR = -0.3; shLz = -0.5; shRz = 0.5;
+      } else if (t < sl + rise) {
+        const u = (t - sl) / rise;
+        y = -0.42 * (1 - u); rx = -0.55 * (1 - u);          // pop back up
+        kneeL = 2.1 * (1 - u) + 0.25 * u; kneeR = 1.35 * (1 - u) + 0.25 * u;
+        shLx = shRx = -2.45; elL = elR = -0.3 - 1.0 * u; shLz = -0.5; shRz = 0.5;
+      } else pump(t - sl - rise);
+    } else if (k === "cartwheel") {
+      const cw = 64;
+      if (t < cw) {
+        const u = t / cw, e = ease(u), s = Math.sin(Math.PI * u);
+        rz = p.celeSign * 2 * Math.PI * e;                  // wheel sideways
+        y = 1.05 * s;
+        const d = 5.0 * e * p.celeSign;
+        offX = sideX * d; offZ = sideZ * d;
+        shLz = -1.4; shRz = 1.4;
+        const splay = Math.sin(Math.PI * Math.min(1, u * 1.3));
+        hipLz = -0.5 * splay; hipRz = 0.5 * splay;          // star the legs
+      } else {
+        const d = 5.0 * p.celeSign;
+        offX = sideX * d; offZ = sideZ * d;
+        pump(t - cw);
+      }
+    } else if (k === "trudge") {
+      // Conceding side: a slow, slumped walk back toward their shape.
+      const speed = Math.min(lenH(p.vx, p.vz), 0.22);
+      md.runPhase = (md.runPhase || 0) + Math.max(speed, 0.012) * 2.2;
+      const amp = Math.min(speed * 4.0, 0.3), sw = Math.sin(md.runPhase) * amp;
+      hipL = -sw; hipR = sw;
+      kneeL = 0.2 + Math.max(0, -Math.sin(md.runPhase)) * 0.5;
+      kneeR = 0.2 + Math.max(0,  Math.sin(md.runPhase)) * 0.5;
+      shLx = sw * 0.4; shRx = -sw * 0.4; elL = elR = -0.3;
+      shLz = -0.28; shRz = 0.28;
+      rx = 0.24;                                            // head down
+      ry = Math.atan2(p.hx - p.x, p.hz - p.z);
+    } else {
+      pump(t);                                              // plain bounce
+    }
+  }
+
+  m.position.set(p.x + offX, y, p.z + offZ);
+  m.rotation.set(rx, ry, rz);
+  if (md.leftHip) {
+    md.leftHip.rotation.x = hipL;  md.rightHip.rotation.x = hipR;
+    md.leftHip.rotation.z = hipLz; md.rightHip.rotation.z = hipRz;
+    md.leftKnee.rotation.x = kneeL; md.rightKnee.rotation.x = kneeR;
+    md.leftShoulder.rotation.x = shLx; md.rightShoulder.rotation.x = shRx;
+    md.leftShoulder.rotation.z = shLz; md.rightShoulder.rotation.z = shRz;
+    md.leftElbow.rotation.x = elL; md.rightElbow.rotation.x = elR;
+  }
+  if (md.bodyMat) { md.bodyMat.emissive.setHex(0x000000); md.bodyMat.emissiveIntensity = 0; }
+}
+
+/* ============================================================
    RENDER SYNC
    ============================================================ */
 function syncMeshes() {
@@ -2341,12 +2758,33 @@ function syncMeshes() {
     const p = players[i];
     const m = playerMeshes[i];
     if (!m) continue;
+    m.rotation.order = "XYZ";        // default; the run + celebration branches use YXZ
     m.position.set(p.x, 0, p.z);
     m.rotation.y = p.facing;
+    m.rotation.z = 0;
     const md = m.userData;
-    // Tackle: tilt forward, slide low, and glow when it's the user
     const tA = tackleActive.get(i) || 0;
     const mat = md.bodyMat;
+    // Fouled: sprawled on the turf, limbs akimbo, with a little writhe.
+    if (p.downTimer && p.downTimer > 0) {
+      m.rotation.x = -1.45;
+      m.position.y = -0.55;
+      m.rotation.z = Math.sin(p.downTimer * 0.28) * 0.14;
+      if (md.leftHip) {
+        md.leftHip.rotation.x = 0.7; md.rightHip.rotation.x = -0.45;
+        md.leftHip.rotation.z = 0; md.rightHip.rotation.z = 0;
+        md.leftKnee.rotation.x = 0.9; md.rightKnee.rotation.x = 0.4;
+        md.leftShoulder.rotation.x = 1.05; md.rightShoulder.rotation.x = 0.6;
+        md.leftShoulder.rotation.z = 0; md.rightShoulder.rotation.z = 0;
+        md.leftElbow.rotation.x = -0.5; md.rightElbow.rotation.x = -0.3;
+        md.runAmp = 0;
+      }
+      if (mat) { mat.emissive.setHex(0x000000); mat.emissiveIntensity = 0; }
+      continue;
+    }
+    // Goal celebration: flips, spins, slides — see animateCele.
+    if (mode === "goal" && p.celeKind) { animateCele(p, m, i); continue; }
+    // Tackle: tilt forward, slide low, and glow when it's the user
     if (tA > 0) {
       m.rotation.x = -0.85;
       m.position.y = -0.25;
@@ -2354,8 +2792,12 @@ function syncMeshes() {
       if (md.leftHip) {
         md.leftHip.rotation.x = 0;
         md.rightHip.rotation.x = 0;
+        md.leftHip.rotation.z = 0; md.rightHip.rotation.z = 0;
+        md.leftKnee.rotation.x = 0; md.rightKnee.rotation.x = 0;
         md.leftShoulder.rotation.x = 0;
         md.rightShoulder.rotation.x = 0;
+        md.leftShoulder.rotation.z = 0; md.rightShoulder.rotation.z = 0;
+        md.leftElbow.rotation.x = -0.2; md.rightElbow.rotation.x = -0.2;
         md.runAmp = 0;
       }
       if (mat) {
@@ -2363,19 +2805,40 @@ function syncMeshes() {
         else               { mat.emissive.setHex(0xff5544); mat.emissiveIntensity = 0.4;  }
       }
     } else {
-      m.rotation.x = 0;
-      m.position.y = 0;
-      // Running animation — swing legs and arms with gait, scaled by speed
+      // Running — folding knees, bent pumping arms, a vertical bounce and a lean.
+      // This is what separates a run from the old stiff-legged march.
       if (md.leftHip) {
         const speed = lenH(p.vx, p.vz);
-        const targetAmp = Math.min(speed * 3.5, 0.5);
-        md.runAmp = lerp(md.runAmp || 0, targetAmp, 0.18);
-        md.runPhase = (md.runPhase || 0) + speed * 2.0;
-        const swing = Math.sin(md.runPhase) * md.runAmp;
-        md.leftHip.rotation.x = -swing;        // +swing = left leg forward
-        md.rightHip.rotation.x = swing;
-        md.leftShoulder.rotation.x = swing * 0.65;   // arms opposite to legs
-        md.rightShoulder.rotation.x = -swing * 0.65;
+        const targetAmp = Math.min(speed * 4.4, 0.78);
+        md.runAmp = lerp(md.runAmp || 0, targetAmp, 0.2);
+        md.runPhase = (md.runPhase || 0) + speed * 2.4;
+        const ph = md.runPhase, amp = md.runAmp;
+        const swing = Math.sin(ph) * amp;
+
+        // Hips drive the stride (+swing = left leg forward, as before).
+        md.leftHip.rotation.x  = -swing;
+        md.rightHip.rotation.x =  swing;
+        md.leftHip.rotation.z = 0; md.rightHip.rotation.z = 0;
+
+        // Knees fold during recovery — each leg flexes hardest while it's behind.
+        const kneeBase = 0.12 + amp * 0.30;
+        md.leftKnee.rotation.x  = kneeBase + (0.85 + amp * 1.7) * Math.max(0, -Math.sin(ph));
+        md.rightKnee.rotation.x = kneeBase + (0.85 + amp * 1.7) * Math.max(0,  Math.sin(ph));
+
+        // Arms pump opposite the legs, bent at the elbow; the forward arm folds more.
+        md.leftShoulder.rotation.x  =  swing;
+        md.rightShoulder.rotation.x = -swing;
+        md.leftShoulder.rotation.z = 0.14; md.rightShoulder.rotation.z = -0.14;
+        md.leftElbow.rotation.x  = -1.25 - Math.max(0, -swing) * 0.6;
+        md.rightElbow.rotation.x = -1.25 - Math.max(0,  swing) * 0.6;
+
+        // Bounce: lowest at footstrike, highest at flight (twice per stride).
+        m.position.y = Math.min(amp * 1.7, 0.30) * (0.5 - 0.5 * Math.cos(2 * ph));
+        // Lean into the run, relative to facing.
+        m.rotation.order = "YXZ";
+        m.rotation.x = Math.min(amp * 0.9, 0.16);
+      } else {
+        m.rotation.x = 0; m.position.y = 0;
       }
       if (mat) {
         if (i === passTargetIdx && i !== userIdx) {
@@ -2394,6 +2857,61 @@ function syncMeshes() {
   // Rolling
   ballMesh.rotation.x += ball.vz / BALL_R;
   ballMesh.rotation.z -= ball.vx / BALL_R;
+
+  // Referee
+  if (refMesh && ref) {
+    refMesh.position.set(ref.x, 0, ref.z);
+    refMesh.rotation.order = "XYZ";
+    refMesh.rotation.y = ref.facing;
+    refMesh.rotation.z = 0;
+    const rd = refMesh.userData;
+    if (rd.rightShoulder) rd.rightShoulder.rotation.z = 0;
+    if (rd.leftShoulder)  rd.leftShoulder.rotation.z = 0;
+
+    if (ref.tripTimer > 0) {
+      // Faceplant.
+      refMesh.rotation.x = 1.4;
+      refMesh.position.y = -0.5;
+      if (rd.cardGroup) rd.cardGroup.visible = false;
+      if (rd.leftHip) { rd.leftHip.rotation.x = -0.3; rd.rightHip.rotation.x = 0.3; }
+      if (rd.leftShoulder) { rd.leftShoulder.rotation.x = 0.6; rd.rightShoulder.rotation.x = 0.6; }
+      if (rd.leftKnee) { rd.leftKnee.rotation.x = 0.7; rd.rightKnee.rotation.x = 0.4; }
+      if (rd.leftElbow) { rd.leftElbow.rotation.x = -0.5; rd.rightElbow.rotation.x = -0.4; }
+    } else if (ref.cardTimer > 0) {
+      // Brandish: stand tall, right arm raised to the side with the card.
+      refMesh.rotation.x = 0; refMesh.position.y = 0;
+      if (rd.leftHip) { rd.leftHip.rotation.x = 0; rd.rightHip.rotation.x = 0; }
+      if (rd.rightShoulder) { rd.rightShoulder.rotation.x = 0; rd.rightShoulder.rotation.z = 2.35; }
+      if (rd.leftShoulder)  rd.leftShoulder.rotation.x = 0;
+      if (rd.leftKnee) { rd.leftKnee.rotation.x = 0.05; rd.rightKnee.rotation.x = 0.05; }
+      if (rd.rightElbow) rd.rightElbow.rotation.x = -0.1;
+      if (rd.leftElbow)  rd.leftElbow.rotation.x = -0.15;
+      if (rd.cardGroup) {
+        rd.cardGroup.visible = true;
+        rd.cardYellow.visible = ref.cardKind === 1;
+        rd.cardRed.visible    = ref.cardKind === 2;
+      }
+    } else {
+      refMesh.rotation.x = 0; refMesh.position.y = 0;
+      if (rd.cardGroup) rd.cardGroup.visible = false;
+      if (rd.rightShoulder) rd.rightShoulder.rotation.x = 0;
+      if (rd.leftHip) {
+        const speed = lenH(ref.vx, ref.vz);
+        rd.runAmp = lerp(rd.runAmp || 0, Math.min(speed * 3.5, 0.45), 0.18);
+        const amp = rd.runAmp, ph = ref.runPhase, swing = Math.sin(ph) * amp;
+        rd.leftHip.rotation.x = -swing; rd.rightHip.rotation.x = swing;
+        rd.leftShoulder.rotation.x = swing * 0.6; rd.rightShoulder.rotation.x = -swing * 0.6;
+        // Fold the trailing knee on its recovery, carry the arms bent, lean in.
+        const kneeBase = 0.12 + amp * 0.25;
+        rd.leftKnee.rotation.x  = kneeBase + (0.8 + amp * 1.4) * Math.max(0, -Math.sin(ph));
+        rd.rightKnee.rotation.x = kneeBase + (0.8 + amp * 1.4) * Math.max(0,  Math.sin(ph));
+        rd.leftElbow.rotation.x  = -0.7 - Math.max(0, -swing) * 0.5;
+        rd.rightElbow.rotation.x = -0.7 - Math.max(0,  swing) * 0.5;
+        refMesh.rotation.order = "YXZ";
+        refMesh.rotation.x = Math.min(amp * 0.5, 0.10);
+      }
+    }
+  }
 
   // Marker — ground ring around the controlled player; yellow when in kick range
   if (userIdx >= 0 && userIdx < players.length) {
@@ -2471,9 +2989,11 @@ function showOverlay(title, msg, hint, away) {
   if (title.includes("G O A L")) {
     overlayTitle.classList.add("goal");
     overlayTitle.classList.toggle("away", !!away);
+    overlay.classList.add("celebrate");
   } else {
     overlayTitle.classList.remove("goal");
     overlayTitle.classList.remove("away");
+    overlay.classList.remove("celebrate");
   }
 }
 function hideOverlay() { overlay.classList.remove("show"); }
@@ -2527,9 +3047,19 @@ function tick() {
     modeTimer--;
     for (let i = 0; i < players.length; i++) {
       const p = players[i];
-      p.x += (p.hx - p.x) * 0.05;
-      p.z += (p.hz - p.z) * 0.05;
-      p.vx *= 0.8; p.vz *= 0.8;
+      if (p.celeKind) p.celeT = (p.celeT || 0) + 1;   // drive the celebration clock
+      if (p.celeKind && p.celeKind !== "trudge") {
+        // The scoring side flips and spins in place — animateCele owns their
+        // motion entirely, so hold the body still and just bleed momentum.
+        p.vx *= 0.6; p.vz *= 0.6;
+      } else {
+        // Conceding side (and anyone without a move) drifts back into shape;
+        // feed the step delta into vx/vz so the trudge legs match the glide.
+        const dx = (p.hx - p.x) * 0.04;
+        const dz = (p.hz - p.z) * 0.04;
+        p.x += dx; p.z += dz;
+        p.vx = dx; p.vz = dz;
+      }
     }
     ball.vx *= 0.9; ball.vz *= 0.9; ball.vy *= 0.9;
     if (modeTimer <= 0) {
@@ -2577,6 +3107,8 @@ function tick() {
   }
   playerBallInteraction();
   ballPhysics();
+  checkFouls();
+  updateRef();
 
   if (!checkGoals()) handleOutOfBounds();
 
@@ -2601,6 +3133,8 @@ ballMesh = buildBallMesh();
 scene.add(ballMesh);
 userMarker = buildMarker();
 scene.add(userMarker);
+refMesh = buildRef();
+scene.add(refMesh);
 
 setKickoffPositions(TEAM.HOME);
 mode = "menu";
