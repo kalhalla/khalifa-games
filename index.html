@@ -1,213 +1,455 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="I build Telegram mini-app games for crypto communities. Reskin ChainCheck, DRILLBIT, or Zero Sum Life for your brand in 5 days.">
-<meta property="og:title" content="Khalifa — Telegram Mini-App Games">
-<meta property="og:description" content="Reskin a live Telegram game for your community in 5 days.">
-<title>Khalifa — Telegram Mini-App Games</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Khalifa — Telegram mini-app games for crypto communities</title>
+
+<meta name="description" content="I build Telegram mini-app games for crypto communities — candle-prediction, idle mining, narrative sims. I reskin a live one for your community in 5 days: your brand, your token as the points, Telegram Stars payments wired in." />
+<!-- Link preview. Add an og:image (1200x630) when you have one and point og:url to your final domain. -->
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Khalifa — Telegram mini-app games" />
+<meta property="og:description" content="Reskin a live Telegram game for your community in 5 days. Your brand. Your token as the points. Stars payments working." />
+<meta property="og:url" content="https://khalifa.games/" />
+<meta name="twitter:card" content="summary" />
+<meta name="twitter:title" content="Khalifa — Telegram mini-app games" />
+<meta name="twitter:description" content="Reskin a live Telegram game for your community in 5 days. Your brand. Your token as the points." />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230a160f'/%3E%3Crect x='14.4' y='4' width='3.2' height='24' fill='%232ee86a'/%3E%3Crect x='10.5' y='10' width='11' height='12' rx='1.5' fill='%232ee86a'/%3E%3C/svg%3E" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+
 <style>
-*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-:root{
-  --bg:#0a0a0f;
-  --surface:#12121a;
-  --surface-hi:#1a1a24;
-  --text:#e8e6e3;
-  --dim:#7a7887;
-  --dimmer:#4a4857;
-  --accent:#00f0ff;
-  --accent-dim:rgba(0,240,255,0.12);
-  --accent-line:rgba(0,240,255,0.25);
-  --green:#22c55e;
-  --border:rgba(122,120,135,0.15);
-}
-html,body{background:var(--bg);color:var(--text);font-family:'Courier New','Space Mono',monospace;min-height:100vh;line-height:1.6}
-body{padding:40px 20px;max-width:760px;margin:0 auto}
+  :root {
+    --bg:    #07100b;
+    --panel: #0c1a12;
+    --panel2:#0a1610;
+    --ink:   #e9f2ec;
+    --muted: #7d9787;
+    --line:  rgba(120,180,140,0.14);
+    --line2: rgba(120,180,140,0.30);
+    --green: #2ee86a;
+    --green-d:#1c9a48;
+    --red:   #ff5a5f;
+    --tg:    #2aabee;
+    --gold:  #f5c451;
+    --maxw: 1080px;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Space Mono", ui-monospace, monospace;
+    font-size: 15px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+    /* faint grid + a green glow up top */
+    background-image:
+      radial-gradient(1200px 520px at 70% -8%, rgba(46,232,106,0.10), transparent 60%),
+      linear-gradient(var(--line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size: 100% 100%, 46px 46px, 46px 46px;
+    background-position: 0 0, 0 0, 0 0;
+  }
+  a { color: inherit; text-decoration: none; }
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 22px; }
 
-/* Header */
-.header{margin-bottom:56px;padding-top:20px}
-.pill{display:inline-block;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--green);border:1px solid var(--green);padding:4px 10px;border-radius:3px;margin-bottom:20px}
-.pill .dot{display:inline-block;width:6px;height:6px;background:var(--green);border-radius:50%;margin-right:6px;animation:blink 2s infinite}
-@keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}
-h1{font-size:clamp(28px,6vw,44px);font-weight:700;letter-spacing:-1px;margin-bottom:16px;line-height:1.1}
-h1 .cursor{display:inline-block;width:3px;height:0.9em;background:var(--accent);margin-left:4px;vertical-align:middle;animation:cursor 1s infinite}
-@keyframes cursor{0%,50%{opacity:1}51%,100%{opacity:0}}
-.tag{font-size:16px;color:var(--dim);max-width:560px}
-.tag em{color:var(--accent);font-style:normal}
+  /* ---------- buttons ---------- */
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: inherit; font-size: 14px; font-weight: 700;
+    letter-spacing: 0.04em;
+    padding: 12px 18px;
+    border: 1.5px solid var(--line2);
+    border-radius: 4px;
+    color: var(--ink);
+    background: transparent;
+    cursor: pointer;
+    transition: transform .12s ease, border-color .15s ease, background .15s ease, box-shadow .15s ease;
+    white-space: nowrap;
+  }
+  .btn:hover { transform: translateY(-2px); }
+  .btn:focus-visible { outline: 2px solid var(--green); outline-offset: 3px; }
+  .btn-tg { background: var(--tg); border-color: var(--tg); color: #04121c; }
+  .btn-tg:hover { box-shadow: 0 8px 26px rgba(42,171,238,0.35); }
+  .btn-green { border-color: var(--green); color: var(--green); }
+  .btn-green:hover { background: rgba(46,232,106,0.12); box-shadow: 0 8px 26px rgba(46,232,106,0.18); }
+  .btn-x:hover { border-color: var(--ink); }
 
-/* Offer box */
-.offer{margin:48px 0;padding:24px;border:1px solid var(--accent-line);background:var(--accent-dim);border-radius:6px}
-.offer-label{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--accent);margin-bottom:10px}
-.offer-headline{font-size:20px;font-weight:700;margin-bottom:10px}
-.offer-body{font-size:14px;color:var(--dim);line-height:1.7}
-.offer-body strong{color:var(--text);font-weight:700}
+  /* ---------- top bar ---------- */
+  .bar {
+    position: sticky; top: 0; z-index: 50;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px; flex-wrap: wrap;
+    padding: 14px 22px;
+    border-bottom: 1px solid var(--line);
+    background: rgba(7,16,11,0.72);
+    backdrop-filter: blur(10px);
+  }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: 0.14em; font-size: 16px; }
+  .brand-sub { color: var(--muted); font-weight: 400; letter-spacing: 0.06em; font-size: 12px; }
+  .livedot { width: 9px; height: 9px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 0 rgba(46,232,106,0.6); animation: pulse 2.2s infinite; }
+  .bar-right { display: flex; align-items: center; gap: 14px; }
+  .status { color: var(--green); font-size: 12px; letter-spacing: 0.16em; }
 
-/* Section */
-.section{margin-bottom:56px}
-.section-title{font-size:11px;letter-spacing:3px;text-transform:uppercase;color:var(--dim);margin-bottom:20px;padding-bottom:10px;border-bottom:1px solid var(--border)}
+  /* ---------- hero ---------- */
+  .hero { position: relative; overflow: hidden; border-bottom: 1px solid var(--line); }
+  .hero-inner { position: relative; z-index: 2; padding: 86px 0 70px; max-width: 760px; }
+  .prompt { color: var(--green); font-size: 13px; letter-spacing: 0.04em; margin: 0 0 26px; opacity: 0; animation: fadeUp .6s ease forwards; }
+  .cursor { display: inline-block; width: 9px; height: 15px; background: var(--green); margin-left: 4px; transform: translateY(2px); animation: blink 1.05s steps(1) infinite; }
+  .h1 {
+    font-family: "Anton", sans-serif; font-weight: 400;
+    font-size: clamp(48px, 9vw, 118px);
+    line-height: 0.92; letter-spacing: 0.005em;
+    margin: 0 0 26px; text-transform: uppercase;
+    opacity: 0; animation: fadeUp .7s ease .08s forwards;
+  }
+  .h1 .blue { color: var(--tg); }
+  .lede { color: #cdded3; font-size: clamp(15px, 1.9vw, 18px); max-width: 620px; margin: 0 0 30px; opacity: 0; animation: fadeUp .7s ease .16s forwards; }
+  .lede b { color: var(--ink); border-bottom: 2px solid var(--green); }
+  .cta-row { display: flex; gap: 12px; flex-wrap: wrap; opacity: 0; animation: fadeUp .7s ease .24s forwards; }
 
-/* Games */
-.games{display:flex;flex-direction:column;gap:16px}
-.game{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:24px;transition:all 0.2s;display:grid;grid-template-columns:1fr auto;gap:16px;align-items:start}
-.game:hover{border-color:var(--accent-line);background:var(--surface-hi)}
-.game-head{display:flex;align-items:center;gap:12px;margin-bottom:8px;flex-wrap:wrap}
-.game-name{font-size:18px;font-weight:700;letter-spacing:1px}
-.game-status{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;padding:2px 8px;border-radius:3px;font-weight:700}
-.status-live{background:rgba(34,197,94,0.15);color:var(--green);border:1px solid rgba(34,197,94,0.3)}
-.status-soon{background:rgba(122,120,135,0.12);color:var(--dim);border:1px solid var(--border)}
-.game-desc{font-size:14px;color:var(--dim);margin-bottom:8px}
-.game-meta{font-size:12px;color:var(--dimmer);font-family:'Courier New',monospace}
-.game-cta{align-self:center}
-.btn-play{display:inline-block;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:10px 16px;background:transparent;border:1px solid var(--accent);color:var(--accent);text-decoration:none;border-radius:4px;transition:all 0.2s;white-space:nowrap}
-.btn-play:hover{background:var(--accent);color:var(--bg);box-shadow:0 0 20px rgba(0,240,255,0.25)}
-.btn-soon{display:inline-block;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:10px 16px;background:transparent;border:1px solid var(--dimmer);color:var(--dim);border-radius:4px;cursor:default;white-space:nowrap}
+  /* candlestick chart decoration */
+  .candles {
+    position: absolute; right: 0; top: 0; bottom: 0; width: 52%;
+    display: flex; align-items: stretch; gap: 6px;
+    padding: 40px 24px 56px 0; z-index: 1; opacity: 0.55;
+    pointer-events: none;
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 55%);
+            mask-image: linear-gradient(90deg, transparent, #000 55%);
+  }
+  .candle { position: relative; flex: 1; min-width: 0; }
+  .wick { position: absolute; left: 50%; transform: translateX(-50%); width: 2px; }
+  .body { position: absolute; left: 14%; right: 14%; border-radius: 1px; transform-origin: bottom; animation: grow .6s ease both; }
+  .wick.up, .body.up { background: var(--green); }
+  .wick.down, .body.down { background: var(--red); }
 
-/* How it works */
-.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
-.step{padding:20px;background:var(--surface);border:1px solid var(--border);border-radius:6px}
-.step-num{font-size:11px;letter-spacing:2px;color:var(--accent);margin-bottom:10px}
-.step-title{font-size:15px;font-weight:700;margin-bottom:8px}
-.step-desc{font-size:13px;color:var(--dim);line-height:1.6}
+  /* ---------- ticker ---------- */
+  .ticker { overflow: hidden; border-bottom: 1px solid var(--line); background: var(--panel2); }
+  .ticker-track { display: inline-flex; white-space: nowrap; padding: 11px 0; animation: marquee 26s linear infinite; }
+  .ticker-track span { font-size: 12.5px; letter-spacing: 0.18em; color: var(--muted); padding: 0 4px; }
+  .ticker-track .sep { color: var(--green); }
 
-/* Price */
-.price-row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px}
-.price-tag{padding:6px 12px;background:var(--surface);border:1px solid var(--border);border-radius:3px;font-size:12px;color:var(--dim)}
-.price-tag strong{color:var(--accent);font-weight:700}
+  /* ---------- sections ---------- */
+  .sec { padding: 78px 0; border-bottom: 1px solid var(--line); }
+  .sec-head { display: flex; align-items: baseline; gap: 16px; margin-bottom: 36px; }
+  .tag { color: var(--green); font-size: 13px; letter-spacing: 0.1em; }
+  .sec-head h2 { font-family: "Anton", sans-serif; font-weight: 400; text-transform: uppercase; font-size: clamp(28px, 4.4vw, 46px); margin: 0; letter-spacing: 0.01em; }
 
-/* CTA */
-.cta{margin:56px 0 32px;padding:32px;background:var(--surface);border:1px solid var(--accent-line);border-radius:6px;text-align:center}
-.cta-headline{font-size:22px;font-weight:700;margin-bottom:12px}
-.cta-sub{font-size:14px;color:var(--dim);margin-bottom:24px}
-.cta-buttons{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
-.btn-primary{display:inline-block;font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:14px 24px;background:var(--accent);border:1px solid var(--accent);color:var(--bg);text-decoration:none;border-radius:4px;transition:all 0.2s}
-.btn-primary:hover{box-shadow:0 0 30px rgba(0,240,255,0.4);transform:translateY(-1px)}
-.btn-secondary{display:inline-block;font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:14px 24px;background:transparent;border:1px solid var(--dim);color:var(--text);text-decoration:none;border-radius:4px;transition:all 0.2s}
-.btn-secondary:hover{border-color:var(--accent);color:var(--accent)}
+  /* offer */
+  .offer-grid { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 34px; align-items: start; }
+  .offer-copy p { font-size: 16px; margin: 0 0 22px; }
+  .ticks { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+  .ticks li { position: relative; padding-left: 26px; color: #d4e3d8; }
+  .ticks li::before { content: "▸"; position: absolute; left: 0; color: var(--green); }
+  .config {
+    font-family: "Space Mono", monospace; font-size: 13.5px; line-height: 1.9;
+    background: linear-gradient(180deg, var(--panel), var(--panel2));
+    border: 1px solid var(--line2); border-radius: 6px;
+    padding: 20px 22px; margin: 0; color: #bfeccd; overflow-x: auto;
+    box-shadow: inset 0 0 60px rgba(46,232,106,0.05);
+  }
+  .config .k { color: var(--muted); }
+  .config .v { color: var(--green); }
+  .config .hr { color: var(--line2); }
+  .config .blink { color: var(--green); animation: blink 1.05s steps(1) infinite; }
 
-/* Footer */
-footer{margin-top:48px;padding-top:24px;border-top:1px solid var(--border);text-align:center;font-size:12px;color:var(--dimmer)}
-footer a{color:var(--dim);text-decoration:none}
-footer a:hover{color:var(--accent)}
+  /* games */
+  .games { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .card {
+    border: 1px solid var(--line2); border-radius: 6px;
+    background: linear-gradient(180deg, var(--panel), var(--panel2));
+    padding: 22px; display: flex; flex-direction: column; gap: 14px;
+    transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease;
+  }
+  .card:hover { transform: translateY(-4px); border-color: var(--green); box-shadow: 0 16px 40px rgba(0,0,0,0.45); }
+  .badge { align-self: flex-start; font-size: 11px; letter-spacing: 0.16em; padding: 4px 9px; border-radius: 3px; border: 1px solid var(--line2); color: var(--muted); }
+  .badge.live { color: var(--green); border-color: var(--green); display: inline-flex; align-items: center; gap: 7px; }
+  .badge.live::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--green); animation: pulse 2.2s infinite; }
+  .card h3 { font-family: "Anton", sans-serif; font-weight: 400; font-size: 27px; letter-spacing: 0.02em; margin: 0; text-transform: uppercase; }
+  .card p { color: #c3d4c8; font-size: 14px; margin: 0; flex: 1; }
+  .chips { display: flex; flex-wrap: wrap; gap: 7px; }
+  .chip { font-size: 11px; letter-spacing: 0.03em; color: var(--muted); border: 1px solid var(--line); border-radius: 3px; padding: 3px 8px; }
+  .chip.tok { color: var(--gold); border-color: rgba(245,196,81,0.3); }
+  .card-link { font-size: 13px; font-weight: 700; color: var(--tg); }
+  .card-link.muted { color: var(--muted); }
 
-@media (max-width:540px){
-  body{padding:24px 16px}
-  .header{margin-bottom:36px;padding-top:8px}
-  .game{grid-template-columns:1fr;gap:12px}
-  .game-cta{align-self:stretch}
-  .btn-play,.btn-soon{display:block;text-align:center}
-  .offer,.cta{padding:20px}
-}
+  /* steps */
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .step { border: 1px solid var(--line); border-radius: 6px; padding: 24px; background: var(--panel2); }
+  .step .num { font-family: "Anton", sans-serif; font-size: 40px; color: var(--green-d); line-height: 1; }
+  .step h4 { font-size: 13px; letter-spacing: 0.18em; color: var(--green); margin: 12px 0 8px; }
+  .step p { color: #c3d4c8; font-size: 14px; margin: 0; }
+
+  /* pricing */
+  .tiers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .tier { border: 1px solid var(--line2); border-radius: 6px; padding: 24px; background: linear-gradient(180deg, var(--panel), var(--panel2)); }
+  .tier .who { font-size: 13px; color: var(--muted); letter-spacing: 0.04em; min-height: 42px; }
+  .tier .price { font-family: "Anton", sans-serif; font-size: 34px; color: var(--green); margin-top: 10px; letter-spacing: 0.01em; }
+  .tier .price small { font-family: "Space Mono", monospace; font-size: 13px; color: var(--muted); font-weight: 400; letter-spacing: 0; }
+  .terms { margin-top: 26px; color: var(--muted); font-size: 13.5px; }
+  .terms b { color: var(--ink); }
+
+  /* final cta */
+  .cta-final { padding: 90px 0; text-align: center; }
+  .cta-final h2 { font-family: "Anton", sans-serif; font-weight: 400; text-transform: uppercase; font-size: clamp(30px, 6vw, 60px); margin: 0 0 14px; }
+  .cta-final p { color: var(--muted); margin: 0 0 28px; font-size: 16px; }
+  .cta-final .cta-row { justify-content: center; }
+
+  /* footer */
+  footer { border-top: 1px solid var(--line); padding: 30px 0 44px; }
+  footer .frow { display: flex; justify-content: space-between; gap: 14px; flex-wrap: wrap; color: var(--muted); font-size: 13px; }
+  footer a { color: var(--ink); }
+  footer .ps { color: var(--muted); }
+  footer .ps a { color: var(--green); border-bottom: 1px solid var(--line2); }
+
+  /* ---------- animations ---------- */
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes blink { 0%,50% { opacity: 1; } 50.01%,100% { opacity: 0; } }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(46,232,106,0.55); } 70% { box-shadow: 0 0 0 8px rgba(46,232,106,0); } 100% { box-shadow: 0 0 0 0 rgba(46,232,106,0); } }
+  @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+  @keyframes grow { from { transform: scaleY(0); opacity: 0; } to { transform: scaleY(1); opacity: 1; } }
+
+  /* ---------- responsive ---------- */
+  @media (max-width: 900px) {
+    .offer-grid { grid-template-columns: 1fr; }
+    .games, .steps, .tiers { grid-template-columns: 1fr; }
+    .candles { width: 70%; opacity: 0.35; }
+  }
+  @media (max-width: 560px) {
+    .brand-sub { display: none; }
+    .status { display: none; }
+    .candles { display: none; }
+    .hero-inner { padding: 60px 0 50px; }
+    .sec { padding: 56px 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+    .prompt, .h1, .lede, .cta-row { opacity: 1 !important; }
+  }
 </style>
 </head>
 <body>
 
-<div class="header">
-  <div class="pill"><span class="dot"></span>Available for reskins</div>
-  <h1>I ship Telegram mini-app games<span class="cursor"></span></h1>
-  <p class="tag">Candle-prediction, idle mining, narrative sims. <em>Live bots, real users, Stars payments working.</em> I'll reskin one for your community in five days.</p>
-</div>
+<header class="bar">
+  <a class="brand" href="/">
+    <span class="livedot" aria-hidden="true"></span>
+    KHALIFA
+    <span class="brand-sub">// telegram mini-app games</span>
+  </a>
+  <nav class="bar-right">
+    <span class="status">● AVAILABLE FOR RESKINS</span>
+    <a class="btn btn-x" href="https://x.com/khalbuildsapps" target="_blank" rel="noopener">DM ON X ↗</a>
+  </nav>
+</header>
 
-<div class="offer">
-  <div class="offer-label">The offer</div>
-  <div class="offer-headline">Your branding. Your token as the points. Live in 5 days.</div>
-  <div class="offer-body">
-    Pick a game below. I reskin it for your community — <strong>your logo, colours, copy, reward currency, leaderboard prizes</strong>. You get a live Telegram bot playing your audience every day. Flat fee, no retainer, no surprises.
+<section class="hero">
+  <div class="candles" id="candles" aria-hidden="true"></div>
+  <div class="wrap">
+    <div class="hero-inner">
+      <p class="prompt">khalifa@telegram:~$ ship --for crypto<span class="cursor"></span></p>
+      <h1 class="h1">I ship <span class="blue">Telegram</span><br>mini-app games</h1>
+      <p class="lede">Candle-prediction. Idle mining. Narrative sims. Live bots with Telegram&nbsp;Stars payments working. I reskin one for your community — your brand, your token as the points — <b>live in 5 days</b>. Flat fee. No retainer.</p>
+      <div class="cta-row">
+        <a class="btn btn-tg" href="https://t.me/ChainCheckGameBot/play" target="_blank" rel="noopener">▶ Play ChainCheck</a>
+        <a class="btn btn-green" href="https://x.com/khalbuildsapps" target="_blank" rel="noopener">Reskin yours → DM</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="ticker" aria-hidden="true">
+  <div class="ticker-track">
+    <span>AVAILABLE FOR RESKINS</span><span class="sep">◆</span>
+    <span>LIVE IN 5 DAYS</span><span class="sep">◆</span>
+    <span>YOUR TOKEN = THE POINTS</span><span class="sep">◆</span>
+    <span>TELEGRAM STARS PAYMENTS</span><span class="sep">◆</span>
+    <span>FLAT FEE · NO RETAINER</span><span class="sep">◆</span>
+    <span>FIXED SCOPE · NO SURPRISES</span><span class="sep">◆</span>
+    <span>AVAILABLE FOR RESKINS</span><span class="sep">◆</span>
+    <span>LIVE IN 5 DAYS</span><span class="sep">◆</span>
+    <span>YOUR TOKEN = THE POINTS</span><span class="sep">◆</span>
+    <span>TELEGRAM STARS PAYMENTS</span><span class="sep">◆</span>
+    <span>FLAT FEE · NO RETAINER</span><span class="sep">◆</span>
+    <span>FIXED SCOPE · NO SURPRISES</span><span class="sep">◆</span>
   </div>
 </div>
 
-<div class="section">
-  <div class="section-title">◆ The games</div>
-  <div class="games">
-
-    <div class="game">
-      <div>
-        <div class="game-head">
-          <div class="game-name">CHAINCHECK</div>
-          <div class="game-status status-live">Live</div>
+<main>
+  <section class="sec" id="offer">
+    <div class="wrap">
+      <div class="sec-head"><span class="tag">[ 01 ]</span><h2>The deal</h2></div>
+      <div class="offer-grid">
+        <div class="offer-copy">
+          <p>Pick a game. I reskin it for your community — your logo, colours, copy, reward currency and leaderboard prizes. You get a live Telegram bot playing your audience every day. Fixed scope, flat fee, five days.</p>
+          <ul class="ticks">
+            <li>Your branding, end to end</li>
+            <li>Your token wired in as the in-game points</li>
+            <li>Telegram Stars payments working out of the box</li>
+            <li>Live bot in your group, with a weekly stats report</li>
+          </ul>
         </div>
-        <div class="game-desc">Daily candle-prediction game. Read the chart, call the move, climb the leaderboard.</div>
-        <div class="game-meta">Streaks · $CHECKS currency · Stars payments · Daily seed</div>
-      </div>
-      <div class="game-cta">
-        <a href="https://t.me/ChainCheckGameBot/play" class="btn-play" target="_blank" rel="noopener">Play ↗</a>
+<pre class="config"><span class="v">reskin.config</span>
+<span class="hr">─────────────────────────</span>
+<span class="k">brand    </span> = YOUR_LOGO + COLOURS
+<span class="k">currency </span> = <span class="v">$YOUR_TOKEN</span>
+<span class="k">prizes   </span> = YOUR_LEADERBOARD
+<span class="k">ship_in  </span> = <span class="v">5 days</span>
+<span class="k">pricing  </span> = flat fee · no retainer
+<span class="k">status   </span> = ready <span class="blink">▸</span></pre>
       </div>
     </div>
+  </section>
 
-    <div class="game">
-      <div>
-        <div class="game-head">
-          <div class="game-name">DRILLBIT</div>
-          <div class="game-status status-soon">Shipping soon</div>
+  <section class="sec" id="games">
+    <div class="wrap">
+      <div class="sec-head"><span class="tag">[ 02 ]</span><h2>The games</h2></div>
+      <div class="games">
+
+        <article class="card">
+          <span class="badge live">LIVE</span>
+          <h3>ChainCheck</h3>
+          <p>Daily candle-prediction. Read the chart, call the next move, climb the leaderboard. Playable right now — try it before you commit.</p>
+          <div class="chips">
+            <span class="chip">Daily seed</span>
+            <span class="chip">Streaks</span>
+            <span class="chip tok">$CHECKS</span>
+            <span class="chip">Stars payments</span>
+          </div>
+          <a class="card-link" href="https://t.me/ChainCheckGameBot/play" target="_blank" rel="noopener">Play it on Telegram →</a>
+        </article>
+
+        <article class="card">
+          <span class="badge">IN BUILD</span>
+          <h3>Drillbit</h3>
+          <p>Tap-to-dig idle miner. Four characters, fuel loops, escalating Stars continues. Short, addictive runs built for group competition.</p>
+          <div class="chips">
+            <span class="chip">Tap mechanic</span>
+            <span class="chip">Leaderboard</span>
+            <span class="chip tok">$DBIT</span>
+            <span class="chip">Short runs</span>
+          </div>
+          <span class="card-link muted">Shipping soon</span>
+        </article>
+
+        <article class="card">
+          <span class="badge">IN BUILD</span>
+          <h3>Zero Sum Life</h3>
+          <p>Reigns-style life sim. Age 22 to 65, four stats, every choice costs something. Swipe cards, chase endings, share your run.</p>
+          <div class="chips">
+            <span class="chip">Swipe cards</span>
+            <span class="chip">Bias tracking</span>
+            <span class="chip">Endings</span>
+            <span class="chip">Share</span>
+          </div>
+          <span class="card-link muted">Shipping soon</span>
+        </article>
+
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="how">
+    <div class="wrap">
+      <div class="sec-head"><span class="tag">[ 03 ]</span><h2>How a reskin works</h2></div>
+      <div class="steps">
+        <div class="step">
+          <div class="num">01</div>
+          <h4>BRIEF</h4>
+          <p>A 30-minute call. Pick the game, the brand direction, and the reward currency — your token, promo codes, or merch.</p>
         </div>
-        <div class="game-desc">Tap-to-dig mining idle game. Four characters, fuel loops, escalating Stars continues.</div>
-        <div class="game-meta">Short runs · Leaderboard · $DBIT currency · Tap mechanic</div>
-      </div>
-      <div class="game-cta">
-        <span class="btn-soon">Soon</span>
-      </div>
-    </div>
-
-    <div class="game">
-      <div>
-        <div class="game-head">
-          <div class="game-name">ZERO SUM LIFE</div>
-          <div class="game-status status-soon">Shipping soon</div>
+        <div class="step">
+          <div class="num">02</div>
+          <h4>BUILD · 3–5 DAYS</h4>
+          <p>I reskin the game, set up your bot, and wire in your currency and leaderboard prizes. Fixed scope, no scope creep.</p>
         </div>
-        <div class="game-desc">Reigns-style life sim. Age 22 to 65. Four stats. Every choice costs something.</div>
-        <div class="game-meta">Swipe cards · Bias tracking · Ending cards · Share mechanic</div>
+        <div class="step">
+          <div class="num">03</div>
+          <h4>LAUNCH</h4>
+          <p>Live in your Telegram group. Weekly stats report. I stay on call for the first 30 days after launch.</p>
+        </div>
       </div>
-      <div class="game-cta">
-        <span class="btn-soon">Soon</span>
+    </div>
+  </section>
+
+  <section class="sec" id="price">
+    <div class="wrap">
+      <div class="sec-head"><span class="tag">[ 04 ]</span><h2>Fit &amp; price</h2></div>
+      <div class="tiers">
+        <div class="tier">
+          <div class="who">KOL &amp; VIP groups</div>
+          <div class="price">from £1,500</div>
+        </div>
+        <div class="tier">
+          <div class="who">Memecoin teams &amp; trading bots</div>
+          <div class="price">£1.5–2.5k</div>
+        </div>
+        <div class="tier">
+          <div class="who">Exchanges &amp; launchpads</div>
+          <div class="price">custom <small>/ quote</small></div>
+        </div>
+      </div>
+      <p class="terms">Payment <b>upfront</b> or <b>50/50</b>. Stablecoin, fiat, or your token. I work with crypto-native teams.</p>
+    </div>
+  </section>
+
+  <section class="cta-final">
+    <div class="wrap">
+      <h2>Want it for your community?</h2>
+      <p>DM me on X — usually a reply within 24 hours.</p>
+      <div class="cta-row">
+        <a class="btn btn-tg" href="https://x.com/khalbuildsapps" target="_blank" rel="noopener">DM on X ↗</a>
+        <a class="btn btn-green" href="https://t.me/ChainCheckGameBot/play" target="_blank" rel="noopener">▶ Play ChainCheck first</a>
       </div>
     </div>
-
-  </div>
-</div>
-
-<div class="section">
-  <div class="section-title">◆ How a reskin works</div>
-  <div class="steps">
-    <div class="step">
-      <div class="step-num">01 / BRIEF</div>
-      <div class="step-title">30-minute call</div>
-      <div class="step-desc">Pick the game. Pick the brand direction. Pick the reward currency (your token, promo codes, merch).</div>
-    </div>
-    <div class="step">
-      <div class="step-num">02 / BUILD</div>
-      <div class="step-title">3–5 days</div>
-      <div class="step-desc">I reskin the game, set up your bot, wire in your currency and leaderboard prizes.</div>
-    </div>
-    <div class="step">
-      <div class="step-num">03 / LAUNCH</div>
-      <div class="step-title">Ship to your community</div>
-      <div class="step-desc">Live bot in your Telegram group. Weekly stats report. I stay on call for the first 30 days.</div>
-    </div>
-  </div>
-</div>
-
-<div class="section">
-  <div class="section-title">◆ Fit &amp; price</div>
-  <div class="price-row">
-    <div class="price-tag">KOL VIP groups · <strong>from £1,500</strong></div>
-    <div class="price-tag">Trading bots &amp; memecoin teams · <strong>£1,500–2,500</strong></div>
-    <div class="price-tag">Exchanges &amp; launchpads · <strong>custom</strong></div>
-  </div>
-  <p class="tag" style="font-size:14px">Payment upfront or 50/50 split. Stablecoin, fiat, or your token. I work with crypto-native teams.</p>
-</div>
-
-<div class="cta">
-  <div class="cta-headline">Want to see it work for your community?</div>
-  <div class="cta-sub">DM me on X. Usually reply within 24h.</div>
-  <div class="cta-buttons">
-    <a href="https://x.com/khalbuildsapps" class="btn-primary" target="_blank" rel="noopener">DM on X →</a>
-    <a href="https://t.me/ChainCheckGameBot/play" class="btn-secondary" target="_blank" rel="noopener">Try ChainCheck</a>
-  </div>
-</div>
+  </section>
+</main>
 
 <footer>
-  Khalifa · Builds Telegram mini-app games · <a href="https://x.com/khalbuildsapps" target="_blank" rel="noopener">@khalbuildsapps</a>
+  <div class="wrap frow">
+    <div>KHALIFA — builds Telegram mini-app games · <a href="https://x.com/khalbuildsapps" target="_blank" rel="noopener">@khalbuildsapps</a></div>
+    <div class="ps">p.s. — a 3D football game I built for fun → <a href="/pitch-heroes-3d.html">Pitch Heroes 3D</a></div>
+  </div>
 </footer>
 
+<script>
+  // Decorative candlestick chart in the hero — built from a tiny random walk.
+  (function () {
+    var c = document.getElementById("candles");
+    if (!c) return;
+    var N = 22, prev = 50;
+    for (var i = 0; i < N; i++) {
+      var open = prev;
+      var close = Math.max(8, Math.min(92, open + (Math.random() - 0.48) * 22));
+      prev = close;
+      var hi = Math.min(96, Math.max(open, close) + Math.random() * 9);
+      var lo = Math.max(4, Math.min(open, close) - Math.random() * 9);
+      var up = close >= open;
+      var bot = Math.min(open, close), top = Math.max(open, close);
+
+      var candle = document.createElement("div");
+      candle.className = "candle";
+
+      var wick = document.createElement("div");
+      wick.className = "wick " + (up ? "up" : "down");
+      wick.style.bottom = lo + "%";
+      wick.style.height = (hi - lo) + "%";
+
+      var body = document.createElement("div");
+      body.className = "body " + (up ? "up" : "down");
+      body.style.bottom = bot + "%";
+      body.style.height = Math.max(1.6, top - bot) + "%";
+      body.style.animationDelay = (i * 0.045) + "s";
+
+      candle.appendChild(wick);
+      candle.appendChild(body);
+      c.appendChild(candle);
+    }
+  })();
+</script>
 </body>
 </html>
