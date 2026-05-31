@@ -455,7 +455,7 @@ body.cine-2d-active .cam-buttons { display: none; }
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.2.7';
+  const BUILD_VERSION = 'v0.2.8';
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -677,31 +677,80 @@ body.cine-2d-active .cam-buttons { display: none; }
            float nxy0 = mix(nx00, nx10, f.y);
            float nxy1 = mix(nx01, nx11, f.y);
            return mix(nxy0, nxy1, f.z);
+         }
+         // Multi-octave scalar height that drives the bump (normal
+         // perturbation) below. This is shading only — it never moves a
+         // vertex, so the floor stays geometrically flat and stays out
+         // of the shadow map (no return of the self-shadow furrows).
+         // Numbers are world-space feature sizes: ~0.67m, ~0.33m, ~0.20m.
+         // The finest octave is the grain you read up close; it's faded
+         // out by distance in the normal stage so it can't ever alias on
+         // the far floor.
+         float regolithHeight(vec3 wp){
+           return valueNoise(wp * 1.5) * 0.55
+                + valueNoise(wp * 3.0) * 0.30
+                + valueNoise(wp * 5.0) * 0.15;
+         }
+         // Three.js-style derivative bump: turns a screen-space height
+         // gradient into a perturbed normal using the view-space position
+         // derivatives. No tangents, no UVs, no bump texture required.
+         vec3 perturbRegolithNormal(vec3 surfPos, vec3 surfN, vec2 dHdxy){
+           vec3 vSigmaX = dFdx(surfPos);
+           vec3 vSigmaY = dFdy(surfPos);
+           vec3 R1 = cross(vSigmaY, surfN);
+           vec3 R2 = cross(surfN, vSigmaX);
+           float fDet = dot(vSigmaX, R1);
+           vec3 vGrad = sign(fDet) * (dHdxy.x * R1 + dHdxy.y * R2);
+           return normalize(abs(fDet) * surfN - vGrad);
          }`
       )
       .replace(
         '#include <color_fragment>',
         `#include <color_fragment>
          {
-           // Two octaves only. The third octave (3.6cm features) was
-           // smaller than the screen-pixel coverage at typical view
-           // distance and aliased into parallel stripe artefacts —
-           // the eye reads regular bands rather than the procedural
-           // pattern. Keeping noise feature sizes safely above the
-           // pixel footprint (50cm and 2.5m) avoids aliasing entirely.
-           // Pebbles supply the close-zoom detail.
-           float SCALE_COARSE = 0.4;     // ~2.5m features, slow mottling
-           float SCALE_FINE   = 2.0;     // ~50cm features, dust-grain texture
-           float coarse = valueNoise(vWorldPos_regolith * SCALE_COARSE);
-           float fine   = valueNoise(vWorldPos_regolith * SCALE_FINE);
-           float n = (coarse - 0.5) * 0.20 + (fine - 0.5) * 0.16;
+           // Albedo mottling — three safe octaves (all >= ~33cm, well
+           // above the pixel footprint, so none of them alias). This is
+           // only the slow tonal variation; the relief and grain come
+           // from the bump in the normal stage below, NOT from colour.
+           // Bumped contrast a little since the flat-shaded floor read
+           // as too clean.
+           float coarse = valueNoise(vWorldPos_regolith * 0.4);   // ~2.5m
+           float med    = valueNoise(vWorldPos_regolith * 1.5);   // ~0.67m
+           float fine   = valueNoise(vWorldPos_regolith * 3.0);   // ~0.33m
+           float n = (coarse - 0.5) * 0.26
+                   + (med    - 0.5) * 0.18
+                   + (fine   - 0.5) * 0.12;
            diffuseColor.rgb *= (1.0 + n);
+         }`
+      )
+      .replace(
+        '#include <normal_fragment_begin>',
+        `#include <normal_fragment_begin>
+         {
+           // Procedural bump. Bends the lighting normal to fake fine
+           // regolith relief on the geometrically-flat floor; under the
+           // grazing sun this is what produces the Apollo-photo micro-
+           // shadow stipple. BUMP_STRENGTH is THE knob — higher reads
+           // rougher. The distance fade keeps the far floor calm and
+           // stops the fine octave shimmering once it drops below a pixel.
+           float BUMP_STRENGTH = 0.32;
+           float bumpFade = 1.0 - smoothstep(8.0, 45.0, length(vViewPosition));
+           float bumpScale = BUMP_STRENGTH * bumpFade;
+           if (bumpScale > 0.0) {
+             float H = regolithHeight(vWorldPos_regolith);
+             vec2 dHdxy = vec2(dFdx(H), dFdy(H)) * bumpScale;
+             normal = perturbRegolithNormal(-vViewPosition, normal, dHdxy);
+           }
          }`
       );
   };
+  // Derivative bump needs screen-space derivatives. Core in WebGL2
+  // (the default context), so this is a no-op there; the flag only
+  // matters on a WebGL1 fallback.
+  regolith.extensions = { derivatives: true };
   // Assign a unique key so Three.js doesn't share the compiled program
   // with other Lambert materials (which would skip our injection).
-  regolith.customProgramCacheKey = () => 'regolith-noise-v3';
+  regolith.customProgramCacheKey = () => 'regolith-noise-v4';
 
   // ============================================================
   // SHACKLETON SCENE — a named boundary, not (yet) a module.
@@ -1182,6 +1231,7 @@ body.cine-2d-active .cam-buttons { display: none; }
   // mesh's centre fan into a starburst. Smooth-shaded, the floor
   // reads as a continuous surface that the regolith noise can paint.
   innerSurfaceMat.flatShading = false;
+  innerSurfaceMat.extensions = { derivatives: true };   // ensure WebGL1 fallback keeps dFdx for the bump
   const innerSurface = new THREE.Mesh(buildInnerSurface(), innerSurfaceMat);
   // castShadow=false: the floor is dead flat and casts no useful shadow
   // (nothing sits below it), but as a CASTER it self-shadowed along the
