@@ -455,7 +455,7 @@ body.cine-2d-active .cam-buttons { display: none; }
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.2.1';
+  const BUILD_VERSION = 'v0.2.2';
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -1094,9 +1094,21 @@ body.cine-2d-active .cam-buttons { display: none; }
     for (let ring = 1; ring <= INNER_FLOOR_RINGS; ring++) {
       const t = ring / INNER_FLOOR_RINGS;
       // Quadratic spacing so rings cluster near the floor edge
-      const r = CRATER_FLOOR * (t * t * 0.7 + t * 0.3);
+      const r_base = CRATER_FLOOR * (t * t * 0.7 + t * 0.3);
+      // Local ring spacing — used to scale radial jitter so inner
+      // (closely-spaced) rings aren't jittered into each other.
+      const t_prev = Math.max(0, (ring - 1) / INNER_FLOOR_RINGS);
+      const r_prev = CRATER_FLOOR * (t_prev * t_prev * 0.7 + t_prev * 0.3);
+      const ringSpacing = Math.max(0.3, r_base - r_prev);
       for (let i = 0; i < INNER_SEGS; i++) {
-        const a = (i / INNER_SEGS) * Math.PI * 2;
+        // Per-vertex angular and radial jitter breaks the polar
+        // grid's concentric-ring visual. Each vertex is offset by
+        // up to half a segment angle and ~35% of the ring spacing,
+        // so adjacent triangles no longer form clean circular bands.
+        const aJit = (rng(ring * 911 + i * 13 + 1.7) - 0.5) * (Math.PI * 2 / INNER_SEGS) * 0.8;
+        const rJit = (rng(ring * 547 + i * 29 + 3.1) - 0.5) * ringSpacing * 0.7;
+        const a = (i / INNER_SEGS) * Math.PI * 2 + aJit;
+        const r = Math.max(0.5, r_base + rJit);
         const x = Math.cos(a) * r;
         const z = Math.sin(a) * r;
         positions.push(x, -CRATER_DEPTH + floorHeight(x, z), z);
@@ -1660,6 +1672,81 @@ body.cine-2d-active .cam-buttons { display: none; }
     const y = -CRATER_DEPTH + floorHeight(x, z);
     placeBoulder(x, y, z, diameter, i + 0.9);
   }
+
+  // Dense pebble layer — many thousands of tiny rocks for the
+  // Apollo-photo regolith texture. Uses InstancedMesh so the whole
+  // layer is two draw calls (one per material), not 4000 individual
+  // meshes. Per-instance position, rotation, scale baked into matrices.
+  // Distribution is uniform-on-disk via sqrt(rng) so density stays
+  // even from centre to floor edge.
+  const PEBBLE_COUNT_MID   = 2400;
+  const PEBBLE_COUNT_LIGHT = 1600;
+  const pebbleGeom         = new THREE.IcosahedronGeometry(1, 0);
+  const pebblesMid   = new THREE.InstancedMesh(pebbleGeom, M.rockMid,   PEBBLE_COUNT_MID);
+  const pebblesLight = new THREE.InstancedMesh(pebbleGeom, M.rockLight, PEBBLE_COUNT_LIGHT);
+  const _pebbleMat   = new THREE.Matrix4();
+  const _pebblePos   = new THREE.Vector3();
+  const _pebbleEul   = new THREE.Euler();
+  const _pebbleQuat  = new THREE.Quaternion();
+  const _pebbleScl   = new THREE.Vector3();
+  function emitPebble(target, idx, seed) {
+    // Reject samples that fall in exclusion zones — retry until we
+    // get a valid one or give up after 8 attempts (then skip).
+    let x = 0, z = 0, ok = false;
+    for (let tries = 0; tries < 8; tries++) {
+      const a = rng(seed + tries * 17 + 0.1) * Math.PI * 2;
+      const r = Math.sqrt(rng(seed + tries * 17 + 0.2)) * (CRATER_FLOOR - 4);
+      x = Math.cos(a) * r;
+      z = Math.sin(a) * r;
+      const dPeak = Math.hypot(x - PEAK_CENTER_X, z - PEAK_CENTER_Z);
+      if (dPeak < PEAK_BASE_R + 0.5) continue;
+      if (inWreckZone(x, z)) continue;
+      if (inFlyerZone(x, z)) continue;
+      ok = true;
+      break;
+    }
+    if (!ok) {
+      // Fallback: place far from origin where exclusions are unlikely
+      const a = rng(seed + 0.99) * Math.PI * 2;
+      const r = CRATER_FLOOR * 0.7;
+      x = Math.cos(a) * r;
+      z = Math.sin(a) * r;
+    }
+    const y = -CRATER_DEPTH + floorHeight(x, z);
+    // Long-tail size: mostly 0.06-0.18m, occasional 0.3m chunks
+    const sizeRoll = rng(seed + 0.41);
+    const sz       = 0.06 + sizeRoll * sizeRoll * 0.32;
+    // Asymmetric scale so pebbles read as flat-ish stones
+    const sx = sz * (0.7 + rng(seed + 0.51) * 0.7);
+    const sy = sz * (0.4 + rng(seed + 0.61) * 0.5);
+    const szz = sz * (0.7 + rng(seed + 0.71) * 0.7);
+    _pebblePos.set(x, y + sy * 0.5, z);
+    _pebbleEul.set(
+      rng(seed + 0.81) * Math.PI * 2,
+      rng(seed + 0.83) * Math.PI * 2,
+      rng(seed + 0.85) * Math.PI * 2
+    );
+    _pebbleQuat.setFromEuler(_pebbleEul);
+    _pebbleScl.set(sx, sy, szz);
+    _pebbleMat.compose(_pebblePos, _pebbleQuat, _pebbleScl);
+    target.setMatrixAt(idx, _pebbleMat);
+  }
+  for (let i = 0; i < PEBBLE_COUNT_MID; i++) {
+    emitPebble(pebblesMid, i, i + 50000);
+  }
+  for (let i = 0; i < PEBBLE_COUNT_LIGHT; i++) {
+    emitPebble(pebblesLight, i, i + 60000);
+  }
+  pebblesMid.instanceMatrix.needsUpdate   = true;
+  pebblesLight.instanceMatrix.needsUpdate = true;
+  // Pebbles don't cast shadows — too many tiny shadow contributions
+  // tank framerate, and the visual benefit is marginal at this scale.
+  pebblesMid.castShadow    = false;
+  pebblesMid.receiveShadow = true;
+  pebblesLight.castShadow    = false;
+  pebblesLight.receiveShadow = true;
+  root.add(pebblesMid);
+  root.add(pebblesLight);
 
   // Outer-zone boulder helper retained for the outer plain.
   function bigRock(x, z, sx, sy, sz, ry, mat, shadow) {
