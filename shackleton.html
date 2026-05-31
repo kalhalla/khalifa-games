@@ -455,7 +455,7 @@ body.cine-2d-active .cam-buttons { display: none; }
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.2.3';
+  const BUILD_VERSION = 'v0.2.4';
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -1004,7 +1004,10 @@ body.cine-2d-active .cam-buttons { display: none; }
   // transition zone so the steep slope reads cleanly. Per-vertex
   // angular noise on the rim gives an irregular silhouette.
   // ============================================================
-  const FLOOR_NOISE_AMP   = 0.03;
+  const FLOOR_NOISE_AMP   = 0.0;    // floor is geometrically flat
+                                    // — Apollo-photo flatness, texture
+                                    // comes from the noise shader and
+                                    // from pebbles, not from undulation
   const FLOOR_EDGE_TAPER  = 40.0;
   const WALL_RIM_NOISE    = 6.0;    // rim radial jitter amplitude (m)
   const WALL_HEIGHT_NOISE = 4.5;    // mid-wall vertical jitter amplitude (m)
