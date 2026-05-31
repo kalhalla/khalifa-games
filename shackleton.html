@@ -455,7 +455,7 @@ body.cine-2d-active .cam-buttons { display: none; }
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.3.0';
+  const BUILD_VERSION = 'v0.3.1';
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -1255,6 +1255,31 @@ body.cine-2d-active .cam-buttons { display: none; }
     geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
     geom.setIndex(indices);
     geom.computeVertexNormals();
+
+    // Floor normals, analytic. computeVertexNormals averages face
+    // normals, and on the long thin centre-fan triangles that average
+    // is garbage the moment the floor has relief — it smears into the
+    // radial starburst. The floor is a pure height field y =
+    // floorHeight(x,z), so its true normal is normalize(-dH/dx,1,-dH/dz),
+    // correct no matter how the triangle is shaped. Overwrite the
+    // floor-zone vertices (centre + floor rings) with it; the wall keeps
+    // its computed normals (no singularity there).
+    {
+      const normAttr = geom.attributes.normal;
+      const floorVertCount = 1 + INNER_FLOOR_RINGS * INNER_SEGS;
+      const eps = 0.75;
+      for (let vi = 0; vi < floorVertCount; vi++) {
+        const x = positions[vi * 3];
+        const z = positions[vi * 3 + 2];
+        const hx = floorHeight(x + eps, z) - floorHeight(x - eps, z);
+        const hz = floorHeight(x, z + eps) - floorHeight(x, z - eps);
+        const nx = -hx / (2 * eps), ny = 1.0, nz = -hz / (2 * eps);
+        const inv = 1 / Math.hypot(nx, ny, nz);
+        normAttr.setXYZ(vi, nx * inv, ny * inv, nz * inv);
+      }
+      normAttr.needsUpdate = true;
+    }
+
     return geom;
   }
 
