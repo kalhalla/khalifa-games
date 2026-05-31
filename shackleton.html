@@ -455,7 +455,7 @@ body.cine-2d-active .cam-buttons { display: none; }
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.2.5';
+  const BUILD_VERSION = 'v0.2.6';
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -540,17 +540,20 @@ body.cine-2d-active .cam-buttons { display: none; }
   Object.assign(sun.shadow.camera, { left:-260, right:260, top:260, bottom:-260, near:0.5, far:600 });
   // Shadow bias settings.
   //
-  // Both biases left at 0. Negative `bias` produces peter-panning
-  // (bright halos where cast shadows should touch the ground) on
-  // small objects and at the wall-floor seam — the user-visible
-  // "light leak". Positive `normalBias` produces halos around
-  // object contact points (bright pixels where shadow should be
-  // black). Either one is worse than the surface-acne problem
-  // they're meant to solve. Leaving both at 0 keeps shadow geometry
-  // honest; if acne returns at the wall-floor seam, fix the wall
-  // mesh itself rather than reinstate either bias.
+  // normalBias = 0.05 added in v0.2.6 to kill shadow-map acne on the
+  // now-flat floor. The shadow map is 4096² over a 520m frustum, so
+  // each texel is ~12.7cm world space; on a perfectly flat surface
+  // with bias=0, the texel grid self-shadows itself, projecting from
+  // the light direction as parallel bands across the floor.
+  //
+  // Previously bias and normalBias were both 0 because the floor had
+  // heightfield variation that masked the texel grid; v0.2.4 flattened
+  // the floor for the Apollo-photo look and exposed the underlying
+  // shadow acne. A small normalBias trades the acne for mild
+  // peter-panning halos at contact points — much smaller artefact.
+  // bias stays at 0 to keep contact-point shadows honest.
   sun.shadow.bias = 0;
-  sun.shadow.normalBias = 0;
+  sun.shadow.normalBias = 0.05;
   scene.add(sun);
 
   function makeEarthTexture() {
