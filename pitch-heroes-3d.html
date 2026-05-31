@@ -175,6 +175,40 @@
     color: #9ab09f;
     letter-spacing: 0.2em;
   }
+  /* Full-time "play again" button. The overlay is pointer-events:none so taps fall
+     through to the canvas during the menu/kick-off/goal screens; this button flips
+     pointer-events back on for itself. It is display:none by default and shown only
+     at full time (toggled in showOverlay), so it never appears mid-match. It lives
+     inside .stage, which always fits the screen, so it is reachable without
+     scrolling on a phone — where the footer Restart sits below the fold. */
+  .overlay .playagain {
+    display: none;
+    margin-top: 22px;
+    pointer-events: auto;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #07120b;
+    background: var(--home);
+    border: none;
+    border-radius: 8px;
+    padding: 14px 30px;
+    box-shadow: 0 6px 0 #b8961f, 0 10px 22px rgba(0,0,0,0.5);
+    transition: transform 0.06s ease, box-shadow 0.06s ease;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .overlay .playagain:hover { background: #ffdd55; }
+  .overlay .playagain:active {
+    transform: translateY(3px);
+    box-shadow: 0 3px 0 #b8961f, 0 5px 12px rgba(0,0,0,0.5);
+  }
+  @media (max-height: 600px) {
+    .overlay .playagain { font-size: 16px; padding: 13px 26px; margin-top: 14px; }
+  }
   .hudclock {
     position: absolute;
     left: 50%; top: 10px;
@@ -447,6 +481,7 @@
     <div class="overlay" id="overlay">
       <h1 id="overlayTitle">Pitch Heroes 3D</h1>
       <p id="overlayMsg">7-a-side · two halves of 90 seconds</p>
+      <button class="playagain" id="playAgainBtn" type="button">Play again</button>
       <p class="hint" id="overlayHint">Press SPACE to kick off</p>
     </div>
   </div>
@@ -3082,6 +3117,11 @@ const overlay      = document.getElementById("overlay");
 const overlayTitle = document.getElementById("overlayTitle");
 const overlayMsg   = document.getElementById("overlayMsg");
 const overlayHint  = document.getElementById("overlayHint");
+const playAgainBtn = document.getElementById("playAgainBtn");
+// Click works for mouse and touch alike; the viewport meta disables the legacy
+// tap delay, so it fires instantly. SFX.ensure() doubles as the audio-unlock
+// gesture in case the player muted/unmuted before the match ended.
+if (playAgainBtn) playAgainBtn.addEventListener("click", () => { SFX.ensure(); restart(); });
 const clockEl      = document.getElementById("clock");
 const periodEl     = document.getElementById("period");
 const hudTimeEl    = document.getElementById("hudTime");
@@ -3105,6 +3145,7 @@ function showOverlay(title, msg, hint, away) {
   overlayTitle.textContent = title;
   overlayMsg.textContent = msg;
   overlayHint.textContent = hint;
+  if (playAgainBtn) playAgainBtn.style.display = title.includes("FULL TIME") ? "inline-flex" : "none";
   if (title.includes("G O A L")) {
     overlayTitle.classList.add("goal");
     overlayTitle.classList.toggle("away", !!away);
@@ -3240,7 +3281,7 @@ function tick() {
     } else {
       mode = "fulltime";
       SFX.whistle(3);
-      showOverlay("FULL TIME", `${scoreHome}  —  ${scoreAway}`, "Press R to play again");
+      showOverlay("FULL TIME", `${scoreHome}  —  ${scoreAway}`, IS_MOBILE ? "" : "or press R to play again");
     }
   }
 }
