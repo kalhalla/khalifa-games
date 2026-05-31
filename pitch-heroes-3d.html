@@ -136,6 +136,31 @@
     user-select: none;
   }
   .overlay.show { display: flex; }
+  /* On-pitch button to peek at the league table mid-match. Lives in the HUD layer
+     (top-right, clear of the scoreboard) and is shown only while a match is
+     actively playing; opening it pauses the match. */
+  .tablebtn {
+    position: absolute;
+    top: 46px; right: 10px;
+    z-index: 7;
+    display: none;
+    pointer-events: auto;
+    padding: 7px 13px;
+    font-family: "Courier New", monospace;
+    font-weight: 700; font-size: 12px; letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #d6f3e6;
+    background: rgba(6, 16, 11, 0.72);
+    border: 1px solid rgba(120, 200, 170, 0.55);
+    border-radius: 6px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .tablebtn:hover  { background: rgba(10, 26, 18, 0.82); }
+  .tablebtn:active { transform: translateY(1px); }
+  @media (max-height: 600px), (max-width: 560px) {
+    .tablebtn { top: 44px; right: 8px; padding: 11px 15px; }
+  }
   /* During a goal the pitch is worth watching, so don't curtain it. Dim only a
      top band behind the caption and drop the blur — the celebration plays in the
      clear lower portion of the frame. */
@@ -553,6 +578,8 @@
     </div>
 
     <div class="cardtoast" id="cardToast"></div>
+
+    <button class="tablebtn" id="tableBtn" type="button">Table</button>
 
     <div class="overlay" id="overlay">
       <h1 id="overlayTitle">Pitch Heroes 3D</h1>
@@ -1860,6 +1887,30 @@ function advance() {
   else startSeason();                               // menu (no save) or season end → a fresh season
 }
 
+// View the league table on demand. Only from active play; it pauses the match
+// (the loop holds on "viewtable") and resumes exactly where it froze.
+let tableReturnMode = "play";
+function openTable() {
+  if (mode !== "play") return;
+  SFX.ensure();
+  tableReturnMode = mode;
+  mode = "viewtable";
+  showOverlay("LEAGUE TABLE",
+    `Matchday ${season.round + 1} of ${season.totalRounds} \u00b7 v ${awayName}`,
+    IS_MOBILE ? "Tap Resume to play on" : "Press T or Esc to resume");
+  leagueBox.innerHTML = renderStandings();
+  leagueBox.style.display = "block";
+  overlay.classList.add("standings");
+  leagueBox.scrollTop = 0;
+  playAgainBtn.textContent = "Resume";
+  playAgainBtn.style.display = "inline-flex";
+}
+function closeTable() {
+  if (mode !== "viewtable") return;
+  hideOverlay();
+  mode = tableReturnMode || "play";
+}
+
 /* ============================================================
    PERSISTENCE — the season survives a reload via localStorage.
    Checkpoint is full time (between matchdays), never mid-match: a
@@ -1923,6 +1974,8 @@ const onKey = (e, down) => {
   if (down) SFX.ensure();
   keys[e.code] = down;
   if (e.code === "KeyR" && down && (mode === "matchend" || mode === "seasonend" || mode === "menu")) advance();
+  if (e.code === "KeyT" && down) { if (mode === "play") openTable(); else if (mode === "viewtable") closeTable(); }
+  if (e.code === "Escape" && down && mode === "viewtable") closeTable();
   if (e.code === "KeyM" && down) {
     const on = SFX.toggle();
     const b = document.getElementById("muteBtn");
@@ -3423,7 +3476,12 @@ const leagueBox    = document.getElementById("leagueBox");
 // Click works for mouse and touch alike; the viewport meta disables the legacy
 // tap delay, so it fires instantly. SFX.ensure() doubles as the audio-unlock
 // gesture in case the player muted/unmuted before the match ended.
-if (playAgainBtn) playAgainBtn.addEventListener("click", () => { SFX.ensure(); advance(); });
+if (playAgainBtn) playAgainBtn.addEventListener("click", () => {
+  SFX.ensure();
+  if (mode === "viewtable") closeTable(); else advance();
+});
+const tableBtn = document.getElementById("tableBtn");
+if (tableBtn) tableBtn.addEventListener("click", openTable);
 const clockEl      = document.getElementById("clock");
 const periodEl     = document.getElementById("period");
 const hudTimeEl    = document.getElementById("hudTime");
@@ -3477,6 +3535,10 @@ function loop(now) {
   syncMeshes();
   updateCamera();
   renderer.render(scene, camera);
+  if (tableBtn) {
+    const d = (mode === "play") ? "inline-flex" : "none";
+    if (tableBtn.style.display !== d) tableBtn.style.display = d;
+  }
   requestAnimationFrame(loop);
 }
 
@@ -3552,7 +3614,7 @@ function tick() {
     return;
   }
 
-  if (mode === "fulltime" || mode === "matchend" || mode === "seasonend") return;
+  if (mode === "fulltime" || mode === "matchend" || mode === "seasonend" || mode === "viewtable") return;
 
   // play
   // A restart is resolving: walk the taker to the pinned ball, then go live.
