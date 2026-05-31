@@ -455,7 +455,7 @@ body.cine-2d-active .cam-buttons { display: none; }
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.2.6';
+  const BUILD_VERSION = 'v0.2.7';
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -553,7 +553,9 @@ body.cine-2d-active .cam-buttons { display: none; }
   // peter-panning halos at contact points — much smaller artefact.
   // bias stays at 0 to keep contact-point shadows honest.
   sun.shadow.bias = 0;
-  sun.shadow.normalBias = 0.05;
+  sun.shadow.normalBias = 0;   // floor no longer casts (see innerSurface);
+                               // the banding was self-shadow, not acne, so
+                               // no bias is needed and 0 keeps contacts honest
   scene.add(sun);
 
   function makeEarthTexture() {
@@ -1181,7 +1183,13 @@ body.cine-2d-active .cam-buttons { display: none; }
   // reads as a continuous surface that the regolith noise can paint.
   innerSurfaceMat.flatShading = false;
   const innerSurface = new THREE.Mesh(buildInnerSurface(), innerSurfaceMat);
-  innerSurface.castShadow = true;
+  // castShadow=false: the floor is dead flat and casts no useful shadow
+  // (nothing sits below it), but as a CASTER it self-shadowed along the
+  // texel grid and drew the parallel-furrow banding. Matches outerSurface,
+  // already false. The wall band (r=200..240) loses its inward shadow —
+  // a thin rim effect 200m out, not the play space. Every object shadow
+  // is a separate caster and unaffected.
+  innerSurface.castShadow = false;
   innerSurface.receiveShadow = true;
   root.add(innerSurface);
 
