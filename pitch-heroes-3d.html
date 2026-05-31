@@ -209,6 +209,82 @@
   @media (max-height: 600px) {
     .overlay .playagain { font-size: 16px; padding: 13px 26px; margin-top: 14px; }
   }
+  /* League standings screen. Shown between matchdays and at season end. The table
+     scrolls inside its own box (capped height) so the Play/Next button below it is
+     always on the pitch and never needs scrolling to reach — same rule as the
+     full-time button. The .standings class shrinks the heading so the table fits. */
+  .overlay.standings h1 { font-size: 30px; margin-bottom: 4px; }
+  .overlay.standings p  { font-size: 13px; margin: 0 0 2px; }
+  .overlay.standings .hint { margin-top: 9px; font-size: 11px; }
+  .overlay.standings .playagain { margin-top: 9px; }
+  .overlay .leaguebox {
+    display: none;
+    pointer-events: auto;
+    touch-action: pan-y;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    width: min(94%, 460px);
+    max-height: 44%;
+    margin: 6px 0 2px;
+    background: rgba(5, 12, 8, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 6px;
+  }
+  .overlay .leaguebox table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: "Courier New", monospace;
+    font-size: 12px;
+    color: #cdd8cf;
+  }
+  .overlay .leaguebox th, .overlay .leaguebox td {
+    padding: 2px 5px; text-align: center; white-space: nowrap;
+  }
+  .overlay .leaguebox thead th {
+    position: sticky; top: 0;
+    background: #0c1610;
+    color: #8aa097; font-weight: 700; font-size: 10px; letter-spacing: 0.06em;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+  }
+  .overlay .leaguebox td.club, .overlay .leaguebox th.club { text-align: left; }
+  .overlay .leaguebox td.pos  { color: #8aa097; }
+  .overlay .leaguebox td.pts  { font-weight: 800; color: #fff; }
+  .overlay .leaguebox tr.you td { background: rgba(255, 210, 48, 0.16); color: #ffe07a; }
+  .overlay .leaguebox .dot {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    margin-right: 6px; vertical-align: middle;
+    box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.3);
+  }
+  @media (max-height: 600px) {
+    .overlay.standings h1 { font-size: 21px; }
+    .overlay .leaguebox { max-height: 48%; font-size: 11px; }
+    .overlay .leaguebox thead th { font-size: 9px; }
+  }
+  @media (max-width: 560px) {
+    /* Narrow portrait. The base 56px title wraps on a ~358px-wide pitch and the
+       centred overlay then spills up over the scoreboard, so shrink titles to a
+       single line. Goal titles stay punchy. */
+    .overlay h1 { font-size: 30px; }
+    .overlay.celebrate h1 { font-size: 42px; }
+    .overlay p { font-size: 13px; }
+    .overlay .hint { margin-top: 12px; font-size: 12px; }
+    /* The full table can't fit inside the short pitch letterbox at a readable
+       size, but there is plenty of empty screen below it in portrait. Lift the
+       standings screen out of the stage to cover the whole viewport — no ancestor
+       establishes a containing block, so fixed resolves against the viewport. */
+    .overlay.standings {
+      position: fixed;
+      background: rgba(0, 0, 0, 0.82);
+      backdrop-filter: blur(3px);
+      padding: 22px 12px;
+    }
+    .overlay.standings h1 { font-size: 26px; margin-bottom: 6px; }
+    .overlay.standings p  { font-size: 12px; }
+    .overlay.standings .hint { margin-top: 12px; }
+    .overlay.standings .leaguebox { max-height: 62vh; width: min(96%, 440px); }
+    .overlay .leaguebox table { font-size: 11px; }
+    .overlay .leaguebox th, .overlay .leaguebox td { padding: 2px 4px; }
+  }
   .hudclock {
     position: absolute;
     left: 50%; top: 10px;
@@ -458,8 +534,8 @@
       </div>
       <div class="team away">
         <span class="score" id="scoreAway">0</span>
-        <span>Goal Diggers</span>
-        <span class="swatch away"></span>
+        <span id="awayName">Goal Diggers</span>
+        <span class="swatch away" id="awaySwatch"></span>
       </div>
     </div>
 
@@ -481,6 +557,7 @@
     <div class="overlay" id="overlay">
       <h1 id="overlayTitle">Pitch Heroes 3D</h1>
       <p id="overlayMsg">7-a-side · two halves of 90 seconds</p>
+      <div class="leaguebox" id="leagueBox"></div>
       <button class="playagain" id="playAgainBtn" type="button">Play again</button>
       <p class="hint" id="overlayHint">Press SPACE to kick off</p>
     </div>
@@ -495,11 +572,11 @@
   </div>
 
   <div class="footer">
-    <span>Sons of Pitches (yellow) attacks the far goal · Goal Diggers (red) attacks the near goal</span>
+    <span id="matchup">Sons of Pitches (yellow) attacks the far goal · Goal Diggers (red) attacks the near goal</span>
     <span>
       <button class="btn" id="diffBtn">AI: NORMAL</button>
       <button class="btn" id="muteBtn">SOUND: ON</button>
-      <button class="btn" id="restart">Restart</button>
+      <button class="btn" id="restart">New Season</button>
       <button class="btn" id="fsBtn">Fullscreen</button>
     </span>
   </div>
@@ -1258,11 +1335,11 @@ function buildPlayerMesh(team, role) {
   const isGK = role === "gk";
   const isRef = role === "ref";
   const bodyColor = isRef ? 0x161616 : isGK
-    ? (team === TEAM.HOME ? 0x1eb955 : 0x6b48b0)
-    : (team === TEAM.HOME ? 0xffd230 : 0xd6322f);
+    ? (team === TEAM.HOME ? 0x1eb955 : awayKit.gk)
+    : (team === TEAM.HOME ? 0xffd230 : awayKit.shirt);
   const trimColor = isRef ? 0xffd230 : isGK
     ? 0x111111
-    : (team === TEAM.HOME ? 0x8a5b06 : 0x5a1410);
+    : (team === TEAM.HOME ? 0x8a5b06 : awayKit.trim);
   const skinColor = SKIN_TONES[Math.floor(Math.random() * SKIN_TONES.length)];
   const hairColor = HAIR_TONES[Math.floor(Math.random() * HAIR_TONES.length)];
 
@@ -1512,6 +1589,32 @@ let diffKey = "normal";
 const diff = () => DIFFICULTY[diffKey];
 
 /* ============================================================
+   LEAGUE — a season of one-off matches wrapped around the match
+   engine. CLUBS[0] is always the human (Sons of Pitches, yellow,
+   home every week). The human's matches are played for real; the
+   other fixtures each matchday are simulated from club strength,
+   so the table is a coherent single round-robin. Add or rename
+   clubs freely — keep the count EVEN (the round-robin assumes it).
+   ============================================================ */
+const CLUBS = [
+  { name: "Sons of Pitches",      color: 0xffd230, css: "#ffd230", str: 0.55 },  // 0 = you
+  { name: "Redrum Rovers",        color: 0x2f6fd6, css: "#2f6fd6", str: 0.55 },
+  { name: "Dribblingham United",  color: 0x9b2d4f, css: "#9b2d4f", str: 0.55 },
+  { name: "Nutmeg City",          color: 0xd6329e, css: "#d6329e", str: 0.55 },
+  { name: "Offside Albion",       color: 0x7a3fd6, css: "#7a3fd6", str: 0.55 },
+  { name: "Royston Vasey Rovers", color: 0xe8772f, css: "#e8772f", str: 0.55 },
+  { name: "Madchester United",    color: 0x9aa3a0, css: "#9aa3a0", str: 0.55 },
+  { name: "Goal Diggers",         color: 0xd6322f, css: "#d6322f", str: 0.55 },
+];
+
+// Current opponent identity, read by buildPlayerMesh and the goal/scoreboard text.
+// Defaults match the classic look shown on the menu before a season starts.
+let awayName = "Goal Diggers";
+let awayKit  = { shirt: 0xd6322f, trim: 0x5a1410, gk: 0x6b48b0 };
+
+const season = { rounds: [], totalRounds: 0, round: 0, opp: -1, otherFixtures: [], table: [] };
+
+/* ============================================================
    HELPERS
    ============================================================ */
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
@@ -1598,18 +1701,216 @@ function setKickoffPositions(possessingTeam) {
   rebuildPlayerMeshes();
 }
 
-function restart() {
+// ---- colour helpers ----
+function cssHex(i) { return "#" + (i >>> 0).toString(16).padStart(6, "0").slice(-6); }
+function darken(i, f) {
+  const r = (i >> 16) & 255, g = (i >> 8) & 255, b = i & 255, d = v => Math.round(v * (1 - f));
+  return (d(r) << 16) | (d(g) << 8) | d(b);
+}
+
+// ---- schedule + simulation ----
+function shuffle(a) {
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+// Circle method: slots[0] (the human) is the fixed pivot, so the human plays every
+// round and pairs[0] is always [0, opponent]. Returns rounds of [a,b] pairs.
+function circleMethod(slots) {
+  const n = slots.length, arr = slots.slice(), rounds = [];
+  for (let r = 0; r < n - 1; r++) {
+    const pairs = [];
+    for (let i = 0; i < n / 2; i++) pairs.push([arr[i], arr[n - 1 - i]]);
+    rounds.push(pairs);
+    const fixed = arr[0], rest = arr.slice(1);
+    rest.unshift(rest.pop());                 // rotate the non-pivot teams
+    arr.length = 0; arr.push(fixed, ...rest);
+  }
+  return rounds;
+}
+function simGoals(att, def) {
+  // Poisson draw (Knuth) around an expected goals tuned by the strength gap.
+  const lambda = clamp(0.95 + (att - def) * 2.1, 0.18, 4.2);
+  const L = Math.exp(-lambda);
+  let k = 0, p = 1;
+  do { k++; p *= Math.random(); } while (p > L);
+  return Math.min(k - 1, 7);
+}
+function simFixture(a, b) { return { a: simGoals(CLUBS[a].str, CLUBS[b].str), b: simGoals(CLUBS[b].str, CLUBS[a].str) }; }
+
+function recordResult(a, b, ga, gb) {
+  const ta = season.table[a], tb = season.table[b];
+  ta.P++; tb.P++; ta.GF += ga; ta.GA += gb; tb.GF += gb; tb.GA += ga;
+  if (ga > gb)      { ta.W++; tb.L++; ta.Pts += 3; }
+  else if (ga < gb) { tb.W++; ta.L++; tb.Pts += 3; }
+  else              { ta.D++; tb.D++; ta.Pts++; tb.Pts++; }
+}
+function sortedTable() {
+  return CLUBS.map((_, i) => i).sort((x, y) => {
+    const A = season.table[x], B = season.table[y];
+    return (B.Pts - A.Pts) || ((B.GF - B.GA) - (A.GF - A.GA)) || (B.GF - A.GF) ||
+           CLUBS[x].name.localeCompare(CLUBS[y].name);
+  });
+}
+function renderStandings() {
+  let rows = "";
+  sortedTable().forEach((i, idx) => {
+    const t = season.table[i], gd = t.GF - t.GA, gds = (gd > 0 ? "+" : "") + gd;
+    rows += `<tr${i === 0 ? " class='you'" : ""}>` +
+      `<td class='pos'>${idx + 1}</td>` +
+      `<td class='club'><span class='dot' style='background:${CLUBS[i].css}'></span>${CLUBS[i].name}</td>` +
+      `<td>${t.P}</td><td>${t.W}</td><td>${t.D}</td><td>${t.L}</td><td>${gds}</td><td class='pts'>${t.Pts}</td></tr>`;
+  });
+  return `<table><thead><tr><th></th><th class='club'>Club</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GD</th><th>Pts</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+function ordinal(n) { const s = ["th", "st", "nd", "rd"], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); }
+
+// ---- season flow ----
+function buildSeason() {
+  for (let i = 1; i < CLUBS.length; i++) CLUBS[i].str = +(0.34 + Math.random() * 0.5).toFixed(2);
+  season.table = CLUBS.map(() => ({ P: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0, Pts: 0 }));
+  const slots = [0, ...shuffle(CLUBS.map((_, i) => i).slice(1))];
+  season.rounds = circleMethod(slots);
+  season.totalRounds = season.rounds.length;
+  season.round = 0;
+}
+function startSeason() { buildSeason(); beginFixture(); savedCandidate = null; saveSeason(); }
+
+function nextOpponentName() {
+  const round = season.rounds[season.round] || [];
+  for (const [a, b] of round) { if (a === 0) return CLUBS[b].name; if (b === 0) return CLUBS[a].name; }
+  return "";
+}
+function updateMatchupText() {
+  const el = document.getElementById("matchup");
+  if (el) el.textContent = `Sons of Pitches attacks the far goal · ${awayName} attacks the near goal`;
+}
+
+// Set up the human's match for the current round, configure the opponent's kit and
+// name, reset the clock, and show the matchday card.
+function beginFixture() {
+  const round = season.rounds[season.round];
+  let opp = -1; const others = [];
+  for (const [a, b] of round) {
+    if (a === 0) opp = b;
+    else if (b === 0) opp = a;
+    else others.push([a, b]);
+  }
+  season.opp = opp;
+  season.otherFixtures = others;
+
+  const club = CLUBS[opp];
+  awayName = club.name;
+  awayKit = { shirt: club.color, trim: darken(club.color, 0.5), gk: 0x2b3340 };
+  document.getElementById("awayName").textContent = club.name;
+  const sw = document.getElementById("awaySwatch"); if (sw) sw.style.background = club.css;
+  updateMatchupText();
+
   scoreHome = 0; scoreAway = 0;
   document.getElementById("scoreHome").textContent = "0";
   document.getElementById("scoreAway").textContent = "0";
   period = 1; gameTime = 0;
-  kickoffTeam = TEAM.HOME;
-  setKickoffPositions(kickoffTeam);
-  mode = "kickoff";
-  modeTimer = 60;
-  showOverlay("KICK OFF", "First half", "Press SPACE or move to begin");
-  updateClock();
   document.getElementById("period").textContent = "FIRST HALF";
+  kickoffTeam = TEAM.HOME;
+  setKickoffPositions(kickoffTeam);     // rebuilds meshes with the new awayKit
+  mode = "kickoff";
+  modeTimer = 150;                      // a touch longer so the fixture card reads
+  showOverlay(`MATCHDAY ${season.round + 1}`,
+    `Sons of Pitches  v  ${club.name}`,
+    IS_MOBILE ? "Tap KICK or move to start" : "Press SPACE or move to kick off");
+  updateClock();
+}
+
+// Called at full time of the human's match: bank the real result, simulate the
+// rest of the matchday, then show the table with a Next match / New season button.
+function endMatch() {
+  recordResult(0, season.opp, scoreHome, scoreAway);
+  for (const [a, b] of season.otherFixtures) { const r = simFixture(a, b); recordResult(a, b, r.a, r.b); }
+  season.round++;
+
+  const word = scoreHome > scoreAway ? "Won" : scoreHome < scoreAway ? "Lost" : "Drew";
+
+  if (season.round < season.totalRounds) {
+    mode = "matchend";
+    showOverlay("FULL TIME",
+      `${word} ${scoreHome}\u2013${scoreAway} v ${awayName}`,
+      `Up next: ${nextOpponentName()}`);
+    playAgainBtn.textContent = "Next match";
+    saveSeason();                              // checkpoint: result banked, next round queued
+  } else {
+    mode = "seasonend";
+    const order = sortedTable(), champ = CLUBS[order[0]].name, youWon = order[0] === 0;
+    showOverlay(youWon ? "CHAMPIONS!" : "SEASON OVER",
+      youWon ? "Sons of Pitches win the league!" : `${champ} win the league`,
+      `You finished ${ordinal(order.indexOf(0) + 1)} of ${CLUBS.length}`);
+    if (youWon) { overlayTitle.style.color = "#ffd230"; SFX.goal(); }
+    playAgainBtn.textContent = "New season";
+    clearSave();                               // season over — nothing to resume
+  }
+  leagueBox.innerHTML = renderStandings();
+  leagueBox.style.display = "block";
+  overlay.classList.add("standings");
+  leagueBox.scrollTop = 0;
+  playAgainBtn.style.display = "inline-flex";
+}
+
+// The Next match / New season button and the R key both route through here.
+function advance() {
+  if (mode === "matchend") beginFixture();          // season.round already points at the next round
+  else if (mode === "menu" && savedCandidate) resumeSeason();
+  else startSeason();                               // menu (no save) or season end → a fresh season
+}
+
+/* ============================================================
+   PERSISTENCE — the season survives a reload via localStorage.
+   Checkpoint is full time (between matchdays), never mid-match: a
+   league naturally rests at the whistle, and saving live ball/player
+   state buys nothing. We store the schedule, the table, the current
+   round, and the per-club strengths (the remaining simulated fixtures
+   need them). Every call is guarded so a browser with storage walled
+   off (private mode, sandboxed iframe) just runs in memory.
+   ============================================================ */
+const LEAGUE_KEY = "pitchHeroes.league.v1";
+let storageOK = true;
+try { localStorage.setItem("__ph_test__", "1"); localStorage.removeItem("__ph_test__"); }
+catch (e) { storageOK = false; }
+let savedCandidate = null;   // a valid resumable save found at boot, or null
+
+function saveSeason() {
+  if (!storageOK) return;
+  try {
+    localStorage.setItem(LEAGUE_KEY, JSON.stringify({
+      v: 1, n: CLUBS.length,
+      round: season.round, totalRounds: season.totalRounds,
+      rounds: season.rounds, table: season.table,
+      str: CLUBS.map(c => c.str),
+    }));
+  } catch (e) { storageOK = false; }
+}
+function clearSave() { if (!storageOK) return; try { localStorage.removeItem(LEAGUE_KEY); } catch (e) {} }
+function loadSeason() {
+  if (!storageOK) return null;
+  let raw; try { raw = localStorage.getItem(LEAGUE_KEY); } catch (e) { storageOK = false; return null; }
+  if (!raw) return null;
+  try {
+    const d = JSON.parse(raw);
+    if (!d || d.v !== 1 || d.n !== CLUBS.length) return null;            // different format or roster size
+    if (!Array.isArray(d.rounds) || !Array.isArray(d.table) || !Array.isArray(d.str)) return null;
+    if (d.table.length !== CLUBS.length || d.str.length !== CLUBS.length) return null;
+    if (typeof d.round !== "number" || typeof d.totalRounds !== "number") return null;
+    if (d.round < 0 || d.round >= d.totalRounds) return null;            // finished/garbage → ignore
+    return d;
+  } catch (e) { return null; }
+}
+function resumeSeason() {
+  const d = savedCandidate;
+  if (!d) { startSeason(); return; }
+  season.rounds = d.rounds;
+  season.totalRounds = d.totalRounds;
+  season.round = d.round;
+  season.table = d.table;
+  for (let i = 0; i < CLUBS.length; i++) CLUBS[i].str = d.str[i];
+  savedCandidate = null;
+  beginFixture();
 }
 
 /* ============================================================
@@ -1621,7 +1922,7 @@ const onKey = (e, down) => {
   if (block.includes(e.code)) e.preventDefault();
   if (down) SFX.ensure();
   keys[e.code] = down;
-  if (e.code === "KeyR" && down && (mode === "fulltime" || mode === "menu")) restart();
+  if (e.code === "KeyR" && down && (mode === "matchend" || mode === "seasonend" || mode === "menu")) advance();
   if (e.code === "KeyM" && down) {
     const on = SFX.toggle();
     const b = document.getElementById("muteBtn");
@@ -1630,7 +1931,7 @@ const onKey = (e, down) => {
 };
 addEventListener("keydown", e => onKey(e, true));
 addEventListener("keyup",   e => onKey(e, false));
-document.getElementById("restart").addEventListener("click", restart);
+document.getElementById("restart").addEventListener("click", startSeason);
 document.getElementById("muteBtn").addEventListener("click", () => {
   SFX.ensure();
   const on = SFX.toggle();
@@ -2554,7 +2855,7 @@ function onGoalScored(scoringTeam) {
   SFX.goal();
   showOverlay(
     "G O A L !",
-    scoringTeam === TEAM.HOME ? "Sons of Pitches score" : "Goal Diggers score",
+    (scoringTeam === TEAM.HOME ? "Sons of Pitches" : awayName) + " score",
     `${scoreHome}  —  ${scoreAway}`,
     scoringTeam === TEAM.AWAY
   );
@@ -3118,10 +3419,11 @@ const overlayTitle = document.getElementById("overlayTitle");
 const overlayMsg   = document.getElementById("overlayMsg");
 const overlayHint  = document.getElementById("overlayHint");
 const playAgainBtn = document.getElementById("playAgainBtn");
+const leagueBox    = document.getElementById("leagueBox");
 // Click works for mouse and touch alike; the viewport meta disables the legacy
 // tap delay, so it fires instantly. SFX.ensure() doubles as the audio-unlock
 // gesture in case the player muted/unmuted before the match ended.
-if (playAgainBtn) playAgainBtn.addEventListener("click", () => { SFX.ensure(); restart(); });
+if (playAgainBtn) playAgainBtn.addEventListener("click", () => { SFX.ensure(); advance(); });
 const clockEl      = document.getElementById("clock");
 const periodEl     = document.getElementById("period");
 const hudTimeEl    = document.getElementById("hudTime");
@@ -3145,15 +3447,19 @@ function showOverlay(title, msg, hint, away) {
   overlayTitle.textContent = title;
   overlayMsg.textContent = msg;
   overlayHint.textContent = hint;
-  if (playAgainBtn) playAgainBtn.style.display = title.includes("FULL TIME") ? "inline-flex" : "none";
+  // Reset the optional league widgets every call; endMatch() opts them back in.
+  if (playAgainBtn) playAgainBtn.style.display = "none";
+  if (leagueBox) { leagueBox.style.display = "none"; leagueBox.innerHTML = ""; }
+  overlay.classList.remove("standings");
   if (title.includes("G O A L")) {
     overlayTitle.classList.add("goal");
     overlayTitle.classList.toggle("away", !!away);
     overlay.classList.add("celebrate");
+    overlayTitle.style.color = away ? cssHex(awayKit.shirt) : "";   // away goal in the opponent's colour
   } else {
-    overlayTitle.classList.remove("goal");
-    overlayTitle.classList.remove("away");
+    overlayTitle.classList.remove("goal", "away");
     overlay.classList.remove("celebrate");
+    overlayTitle.style.color = "";
   }
 }
 function hideOverlay() { overlay.classList.remove("show"); }
@@ -3181,7 +3487,7 @@ function tick() {
     if (keys.Space || keys.ArrowUp || keys.ArrowDown || keys.ArrowLeft || keys.ArrowRight ||
         keys.KeyW || keys.KeyA || keys.KeyS || keys.KeyD ||
         touchState.kickDown || touchState.active) {
-      mode = "play"; hideOverlay(); SFX.whistle(1);
+      if (savedCandidate) resumeSeason(); else startSeason();
     }
     return;
   }
@@ -3226,7 +3532,7 @@ function tick() {
       setKickoffPositions(kickoffTeam);
       mode = "kickoff";
       modeTimer = 90;
-      showOverlay("KICK OFF", kickoffTeam === TEAM.HOME ? "Sons of Pitches restart" : "Goal Diggers restart", "Press SPACE or move");
+      showOverlay("KICK OFF", kickoffTeam === TEAM.HOME ? "Sons of Pitches restart" : awayName + " restart", "Press SPACE or move");
     }
     return;
   }
@@ -3246,7 +3552,7 @@ function tick() {
     return;
   }
 
-  if (mode === "fulltime") return;
+  if (mode === "fulltime" || mode === "matchend" || mode === "seasonend") return;
 
   // play
   // A restart is resolving: walk the taker to the pinned ball, then go live.
@@ -3279,9 +3585,8 @@ function tick() {
       SFX.whistle(3);
       showOverlay("HALF TIME", `${scoreHome}  —  ${scoreAway}`, "Sides switch in 2 seconds");
     } else {
-      mode = "fulltime";
       SFX.whistle(3);
-      showOverlay("FULL TIME", `${scoreHome}  —  ${scoreAway}`, IS_MOBILE ? "" : "or press R to play again");
+      endMatch();
     }
   }
 }
@@ -3298,12 +3603,21 @@ scene.add(refMesh);
 
 setKickoffPositions(TEAM.HOME);
 mode = "menu";
-showOverlay(
-  "PITCH HEROES 3D",
-  IS_MOBILE ? "Drag to move · tap KICK to pass · hold KICK to shoot"
-            : "Move: arrows / WASD · tap SPACE to pass · hold SPACE to shoot",
-  IS_MOBILE ? "Tap anywhere to kick off" : "Press SPACE or move to kick off"
-);
+savedCandidate = loadSeason();
+if (savedCandidate) {
+  showOverlay(
+    "PITCH HEROES 3D",
+    `League in progress · Matchday ${savedCandidate.round + 1} of ${savedCandidate.totalRounds}`,
+    IS_MOBILE ? "Tap to continue · New Season resets" : "Press SPACE to continue · New Season resets"
+  );
+} else {
+  showOverlay(
+    "PITCH HEROES 3D",
+    IS_MOBILE ? "Drag to move · tap KICK to pass · hold KICK to shoot"
+              : "Move: arrows / WASD · tap SPACE to pass · hold SPACE to shoot",
+    IS_MOBILE ? "Tap anywhere to kick off" : "Press SPACE or move to kick off"
+  );
+}
 updateClock();
 
 requestAnimationFrame(loop);
