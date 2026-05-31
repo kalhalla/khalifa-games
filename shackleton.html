@@ -455,7 +455,7 @@ body.cine-2d-active .cam-buttons { display: none; }
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.2.2';
+  const BUILD_VERSION = 'v0.2.3';
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -678,20 +678,28 @@ body.cine-2d-active .cam-buttons { display: none; }
         '#include <color_fragment>',
         `#include <color_fragment>
          {
-           float SCALE_FINE   = 6.0;     // grain pattern frequency
-           float SCALE_COARSE = 0.7;     // slow mottle frequency
-           float fine   = valueNoise(vWorldPos_regolith * SCALE_FINE);
-           float coarse = valueNoise(vWorldPos_regolith * SCALE_COARSE);
-           // Re-centre to ±0.5, weight, sum.
-           float n = (fine - 0.5) * 0.10 + (coarse - 0.5) * 0.06;
-           // Apply as multiplicative shade. 1 + n in roughly [0.92, 1.08].
+           // Three octaves of value noise sampled in world space.
+           // Coarse (~1.4m) for slow mottling; fine (~17cm) for
+           // pebble-shadow scale; superfine (~3.5cm) so the surface
+           // still has visible grain at close zoom. Total range
+           // ~±27% — strong enough to read clearly without looking
+           // painted on.
+           float SCALE_COARSE    = 0.7;
+           float SCALE_FINE      = 6.0;
+           float SCALE_SUPERFINE = 28.0;
+           float coarse    = valueNoise(vWorldPos_regolith * SCALE_COARSE);
+           float fine      = valueNoise(vWorldPos_regolith * SCALE_FINE);
+           float superfine = valueNoise(vWorldPos_regolith * SCALE_SUPERFINE);
+           float n = (coarse    - 0.5) * 0.18
+                   + (fine      - 0.5) * 0.22
+                   + (superfine - 0.5) * 0.14;
            diffuseColor.rgb *= (1.0 + n);
          }`
       );
   };
   // Assign a unique key so Three.js doesn't share the compiled program
   // with other Lambert materials (which would skip our injection).
-  regolith.customProgramCacheKey = () => 'regolith-noise-v1';
+  regolith.customProgramCacheKey = () => 'regolith-noise-v2';
 
   // ============================================================
   // SHACKLETON SCENE — a named boundary, not (yet) a module.
@@ -1164,6 +1172,11 @@ body.cine-2d-active .cam-buttons { display: none; }
   // horizon. No seam, no material discontinuity.
   const innerSurfaceMat = regolith.clone();
   innerSurfaceMat.side = THREE.DoubleSide;   // back-face visible during exit/entry near rim
+  // Smooth shading on the floor — flatShading was crushing the
+  // procedural noise under per-facet normals, and turning the polar
+  // mesh's centre fan into a starburst. Smooth-shaded, the floor
+  // reads as a continuous surface that the regolith noise can paint.
+  innerSurfaceMat.flatShading = false;
   const innerSurface = new THREE.Mesh(buildInnerSurface(), innerSurfaceMat);
   innerSurface.castShadow = true;
   innerSurface.receiveShadow = true;
