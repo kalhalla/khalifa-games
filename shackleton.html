@@ -455,7 +455,7 @@ body.cine-2d-active .cam-buttons { display: none; }
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.2.8';
+  const BUILD_VERSION = 'v0.2.9';
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -1055,27 +1055,55 @@ body.cine-2d-active .cam-buttons { display: none; }
   // transition zone so the steep slope reads cleanly. Per-vertex
   // angular noise on the rim gives an irregular silhouette.
   // ============================================================
-  const FLOOR_NOISE_AMP   = 0.0;    // floor is geometrically flat
-                                    // — Apollo-photo flatness, texture
-                                    // comes from the noise shader and
-                                    // from pebbles, not from undulation
+  const FLOOR_NOISE_AMP   = 0.9;    // gentle macro undulation (~±0.4m).
+                                    // Re-enabled in v0.2.9 now the floor
+                                    // no longer casts shadows (v0.2.7), so
+                                    // relief can't band. Value-noise based
+                                    // (see floorHeight) — NOT summed sines,
+                                    // which made the regular ripple that
+                                    // got this zeroed back in v0.2.4.
   const FLOOR_EDGE_TAPER  = 40.0;
   const WALL_RIM_NOISE    = 6.0;    // rim radial jitter amplitude (m)
   const WALL_HEIGHT_NOISE = 4.5;    // mid-wall vertical jitter amplitude (m)
 
+  // Deterministic 2D value noise for the floor undulation. Mirrors the
+  // GLSL valueNoise in the regolith shader (smoothstep-interpolated grid
+  // hash) so the macro geometry and the shader grain share a visual
+  // language. Returns 0..1.
+  function fhHash(ix, iz) {
+    const h = Math.sin(ix * 127.1 + iz * 311.7) * 43758.5453;
+    return h - Math.floor(h);
+  }
+  function fhNoise(x, z) {
+    const ix = Math.floor(x), iz = Math.floor(z);
+    let fx = x - ix, fz = z - iz;
+    fx = fx * fx * (3 - 2 * fx);
+    fz = fz * fz * (3 - 2 * fz);
+    const n00 = fhHash(ix, iz),     n10 = fhHash(ix + 1, iz);
+    const n01 = fhHash(ix, iz + 1), n11 = fhHash(ix + 1, iz + 1);
+    const nx0 = n00 + (n10 - n00) * fx;
+    const nx1 = n01 + (n11 - n01) * fx;
+    return nx0 + (nx1 - nx0) * fz;
+  }
+
   // Surface elevation on the floor of the crater, relative to the
   // crater floor datum (y = -CRATER_DEPTH world). Returns 0 at the
-  // floor edge (r >= CRATER_FLOOR) and small noise elsewhere.
-  // Tapered near the edge so the floor seats flush against the
-  // wall transition without a visible step.
+  // floor edge (r >= CRATER_FLOOR), tapered so the floor seats flush
+  // against the wall transition without a step.
+  //
+  // v0.2.9: two macro value-noise octaves — ~14m gentle rolls plus ~6m
+  // shallow dimples — at small amplitude (~8-10deg max slope). This is
+  // what reads as surface at mid-to-far distance under the grazing sun.
+  // Macro only: anything finer would under-sample the ~1.6m floor mesh
+  // and facet, so fine grain is left to the shader bump. Value noise,
+  // not summed sines, so there's no periodic ripple.
   function floorHeight(x, z) {
     const r = Math.hypot(x, z);
     if (r >= CRATER_FLOOR) return 0;
     const tEdge = Math.min(1, (CRATER_FLOOR - r) / FLOOR_EDGE_TAPER);
-    const noise =
-      Math.sin(x * 0.31 + z * 0.47 + 1.10) * FLOOR_NOISE_AMP +
-      Math.sin(x * 0.71 - z * 0.41 + 2.30) * FLOOR_NOISE_AMP * 0.6 +
-      Math.sin(x * 1.27 + z * 0.93 + 0.70) * FLOOR_NOISE_AMP * 0.4;
+    const big   = fhNoise(x / 14.0,        z / 14.0)        - 0.5;   // ~14m rolls
+    const small = fhNoise(x / 6.0 + 19.3,  z / 6.0 - 7.1)   - 0.5;   // ~6m dimples
+    const noise = (big * 0.62 + small * 0.30) * FLOOR_NOISE_AMP;
     return noise * tEdge;
   }
 
