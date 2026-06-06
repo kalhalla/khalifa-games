@@ -1,0 +1,12 @@
+{
+  "redirects": [
+    { "source": "/pitch-heroes-3d.html",  "destination": "/fitba-crazy/",          "permanent": true },
+    { "source": "/pitch-heroes-title.png","destination": "/fitba-crazy/title.png", "permanent": true },
+    { "source": "/stuntmania_76.html",    "destination": "/stuntmania/",           "permanent": true },
+    { "source": "/stuntmania-title.png",  "destination": "/stuntmania/title.png",  "permanent": true },
+    { "source": "/shackleton.html",       "destination": "/shackleton/",           "permanent": true },
+    { "source": "/shackleton-title.png",  "destination": "/shackleton/title.png",  "permanent": true },
+    { "source": "/WildSoccer.html",       "destination": "/wildsoccer/",           "permanent": true },
+    { "source": "/glider-title.png",      "destination": "/glider/title.png",      "permanent": true }
+  ]
+}
