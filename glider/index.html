@@ -4,10 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>GLIDER — endless soaring over alpine valleys and island archipelagos</title>
-<meta name="description" content="A free browser soaring game. Trade altitude for speed, ride thermals and ridge lift, thread golden rings, and fly as far as physics allows. Two endless worlds. No download.">
+<meta name="description" content="A free browser soaring game. Trade altitude for speed, ride thermals and ridge lift, thread golden rings, and fly as far as physics allows. Two endless worlds plus a daily flight — one seed, every pilot, resets at midnight UTC. No download.">
 <link rel="canonical" href="https://khalifa.games/glider/">
 <meta property="og:title" content="GLIDER">
-<meta property="og:description" content="Endless soaring in your browser — thermals, ridge lift, ring chains, two procedural worlds.">
+<meta property="og:description" content="Endless soaring in your browser — thermals, ridge lift, ring chains, and a shared daily flight.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://khalifa.games/glider/">
 <meta property="og:image" content="https://khalifa.games/glider/social.png">
@@ -82,6 +82,47 @@
     color: #8de08a; border: 2px solid #8de08a; font-size: 13px;
   }
   #menuHint { margin-top: 24px; font-size: 12px; opacity: .65; letter-spacing: .06em; }
+  #mapDaily { border-color: rgba(255,215,106,.45); }
+  #mapDaily:hover { border-color: #ffd76a; }
+  #mapDaily .mapGo { color: #ffd76a; border-color: #ffd76a; }
+  .dailyStripeDefault { background: linear-gradient(105deg, #1d2a44 0%, #58441c 45%, #ffd76a 100%); }
+  #dailyTag {
+    top: 66px; left: 0; right: 0; text-align: center; display: none;
+    font-size: 12px; color: #ffd76a; letter-spacing: .2em;
+  }
+  #death {
+    position: absolute; inset: 0; display: none; z-index: 25;
+    align-items: center; justify-content: center;
+    background: rgba(8,16,28,.45); font-family: "Trebuchet MS", sans-serif;
+  }
+  body.dead #death { display: flex; }
+  body.menu #death { display: none !important; }
+  #deathCard {
+    background: rgba(12,22,36,.88); border: 2px solid rgba(255,255,255,.25);
+    border-radius: 18px; padding: 24px 34px 20px; text-align: center; color: #fff;
+    min-width: 270px; box-shadow: 0 12px 48px rgba(0,0,0,.45);
+  }
+  #deathTitle { font-size: 12px; letter-spacing: .24em; opacity: .75; }
+  #deathDist { font-size: 46px; font-weight: 700; margin: 4px 0 2px; text-shadow: 0 2px 12px rgba(0,0,0,.4); }
+  #deathSub { font-size: 13px; opacity: .85; }
+  #deathBest { font-size: 13px; color: #ffd76a; margin: 10px 0 18px; letter-spacing: .06em; }
+  .dbtn {
+    display: inline-block; padding: 10px 22px; border-radius: 10px; margin: 0 6px;
+    border: 2px solid rgba(255,255,255,.5); font-weight: 700; font-size: 13px;
+    letter-spacing: .12em; cursor: pointer; user-select: none; -webkit-user-select: none;
+  }
+  .dbtn:hover { background: rgba(255,255,255,.08); }
+  .dbtn.go { border-color: #8de08a; color: #8de08a; }
+  #deathHint { margin-top: 14px; font-size: 11px; opacity: .55; }
+  #preStart {
+    position: absolute; inset: 0; display: none; z-index: 28;
+    flex-direction: column; align-items: center; justify-content: center;
+    background: rgba(8,16,28,.5); color: #fff; text-align: center;
+    font-family: "Trebuchet MS", sans-serif; letter-spacing: .18em;
+  }
+  body.prestart #preStart { display: flex; }
+  #preTitle { font-size: 32px; font-weight: 700; text-shadow: 0 4px 18px rgba(0,0,0,.5); }
+  #preSub { font-size: 13px; opacity: .85; margin-top: 12px; line-height: 1.9; }
   #vvm {
     position: absolute; display: none; width: 20px; height: 20px;
     border: 2px solid rgba(150,255,176,.9); border-radius: 50%;
@@ -141,6 +182,21 @@
 <div class="hud" id="liftbox"><span id="tarrow">&#10148;</span> lift <span id="tdist"></span></div>
 <div class="hud" id="coach"></div>
 <div id="vvm"></div>
+<div class="hud" id="dailyTag">DAILY FLIGHT · <span id="dailyTagDate"></span></div>
+<div id="death">
+  <div id="deathCard">
+    <div id="deathTitle">FLIGHT OVER</div>
+    <div id="deathDist">0.00 km</div>
+    <div id="deathSub"></div>
+    <div id="deathBest"></div>
+    <div class="dbtn" id="btnShare">SHARE</div><div class="dbtn go" id="btnAgain">FLY AGAIN</div>
+    <div id="deathHint">R restarts · M for worlds</div>
+  </div>
+</div>
+<div id="preStart">
+  <div id="preTitle">DAILY FLIGHT</div>
+  <div id="preSub"><span id="preDate"></span> · same sky for everyone<br>tap or press any key to launch</div>
+</div>
 <div id="menu">
   <div id="menuTitle">GLIDER</div>
   <div id="menuSub">— choose your world —</div>
@@ -159,8 +215,15 @@
       <div class="mapBest" id="bestCoastal">not yet flown</div>
       <div class="mapGo">FLY &#9656;</div>
     </div>
+    <div class="mapCard" id="mapDaily">
+      <div class="mapName">DAILY FLIGHT</div>
+      <div class="mapTag" id="dailyMeta">one seed per day · resets midnight UTC</div>
+      <div class="mapStripe dailyStripeDefault" id="dailyStripe"></div>
+      <div class="mapBest" id="bestDaily">not yet flown today</div>
+      <div class="mapGo">FLY &#9656;</div>
+    </div>
   </div>
-  <div id="menuHint">1 / 2 or tap a card &nbsp;·&nbsp; M in flight returns here</div>
+  <div id="menuHint">1 / 2 / 3 or tap a card &nbsp;·&nbsp; M in flight returns here</div>
 </div>
 <script type="module">
 import * as THREE from "./three.module.min.js";
@@ -385,6 +448,92 @@ function buildGlider(THREE) {
   }
 
   return group;
+}
+
+// buildWreck — turn a built glider into four break-apart pieces for the
+// high-speed crash animation: forward fuselage (+nose +canopy), tail boom
+// (+fin +stab), left wing, right wing. Pieces are classified by bounding box
+// (not child order, so the model can be re-sculpted without breaking this),
+// split triangle-by-triangle at the break planes, and recentered so they
+// tumble about their own centroids. All source materials are DoubleSide, so
+// the open fracture faces render for free.
+//
+// Returns [{ group, offset }] — `offset` is the piece centroid in glider-local
+// space; spawn at gliderPos + offset.applyQuaternion(gliderQuat).
+function buildWreck(THREE, glider) {
+  const BREAK_Z = -1.1;                       // where the tail boom snaps
+
+  // partition a non-indexed geometry's triangles by centroid against a plane
+  function splitTris(geo, axisIdx, t) {
+    const p = geo.attributes.position.array;
+    const lo = [], hi = [];
+    for (let i = 0; i < p.length; i += 9) {
+      const c = (p[i + axisIdx] + p[i + 3 + axisIdx] + p[i + 6 + axisIdx]) / 3;
+      const dst = c < t ? lo : hi;
+      for (let k = 0; k < 9; k++) dst.push(p[i + k]);
+    }
+    const mk = (arr) => {
+      if (!arr.length) return null;
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(arr, 3));
+      g.computeVertexNormals();
+      return g;
+    };
+    return [mk(lo), mk(hi)];
+  }
+
+  // classify the donor meshes by shape, never by order
+  const meshes = [];
+  glider.traverse(o => { if (o.isMesh && o.parent === glider) meshes.push(o); });
+  let wing = null, fuse = null, canopy = null, nose = null;
+  const tipL = [], tipR = [], tail = [], stripes = [];
+  for (const m of meshes) {
+    m.geometry.computeBoundingBox();
+    const bb = m.geometry.boundingBox;
+    if (bb.max.x > 6 && bb.min.x < -6) wing = m;
+    else if (bb.min.x > 6) tipR.push(m);
+    else if (bb.max.x < -6) tipL.push(m);
+    else if (m.material.transparent) canopy = m;
+    else if (bb.max.z - bb.min.z > 5) fuse = m;
+    else if (bb.min.z > 3.0) nose = m;
+    else if (bb.max.z < -2) tail.push(m);     // fin, stab, stab tips
+    else stripes.push(m);                     // flank stripes: span the break
+  }
+
+  const [wingLeftG, wingRightG] = splitTris(wing.geometry, 0, 0);
+  const [boomG, frontG] = splitTris(fuse.geometry, 2, BREAK_Z);
+  const pieces = [];                           // [{group, offset}]
+
+  function makePiece(parts) {                  // parts: [geometry, material]
+    const grp = new THREE.Group();
+    const bb = new THREE.Box3();
+    for (const [g] of parts) { g.computeBoundingBox(); bb.union(g.boundingBox); }
+    const c = bb.getCenter(new THREE.Vector3());
+    for (const [g, mat] of parts) {
+      g.translate(-c.x, -c.y, -c.z);
+      const mesh = new THREE.Mesh(g, mat);
+      mesh.castShadow = true;
+      grp.add(mesh);
+    }
+    pieces.push({ group: grp, offset: c });
+    return grp;
+  }
+
+  const stripeSplit = stripes.map(s => splitTris(s.geometry, 2, BREAK_Z));
+  makePiece([
+    [frontG, fuse.material],
+    [nose.geometry.clone(), nose.material],
+    [canopy.geometry.clone(), canopy.material],
+    ...stripeSplit.map(([, f], i) => f ? [[f, stripes[i].material]] : []).flat(),
+  ]);
+  makePiece([
+    [boomG, fuse.material],
+    ...tail.map(m => [m.geometry.clone(), m.material]),
+    ...stripeSplit.map(([b], i) => b ? [[b, stripes[i].material]] : []).flat(),
+  ]);
+  makePiece([[wingLeftG, wing.material], ...tipL.map(m => [m.geometry.clone(), m.material])]);
+  makePiece([[wingRightG, wing.material], ...tipR.map(m => [m.geometry.clone(), m.material])]);
+  return pieces;
 }
 
 
@@ -741,7 +890,7 @@ function createWorld(THREE, opts = {}) {
 
   // ---------- water, sky, clouds ------------------------------------------
   const water = new THREE.Mesh(
-    new THREE.PlaneGeometry(2400, 2400),
+    new THREE.PlaneGeometry(8000, 8000),   // far past the fog wall from any altitude: no visible edge
     new THREE.MeshStandardMaterial({
       color: isCoast ? 0x1f8fd4 : 0x4db5e6,
       transparent: true, opacity: isCoast ? 0.8 : 0.75, roughness: 0.15, metalness: 0.3,
@@ -776,25 +925,103 @@ function createWorld(THREE, opts = {}) {
   );
   group.add(sky);
 
-  const cloudMat = new THREE.MeshStandardMaterial({
-    color: 0xffffff, flatShading: true, roughness: 1, emissive: 0xb8c8e0, emissiveIntensity: 0.35,
+  // the ONE cloud species of this sky — used by the drifting scenery clouds
+  // below and by air.js for the cumulus cap on every thermal. The look is
+  // painted, not lit: white tops and shadowed grey-blue bases baked into
+  // vertex colors on an unlit material, so a cloud reads the same from every
+  // angle (real lighting went dark olive seen from below). All clouds cast
+  // shadows; the baked dark underside is the same story told from above.
+  function makeCloudGeo(variant) {
+    const rng = mulberry32(0x9e3779b9 ^ (variant * 0x85ebca6b));
+    const puffs = [];                            // [x, y, z, size, ySquash]
+    const cores = [];
+    const N = 6 + (variant % 2);
+    for (let i = 0; i < N; i++) {                // core mass: big in the middle,
+      const t = (i / (N - 1)) * 2 - 1;           // centres low so EVERY puff is
+      const s = 0.55 + 0.5 * (1 - Math.abs(t)) + rng() * 0.18;   // cut by the base plane
+      const c = [t * 1.5 + (rng() - 0.5) * 0.3,
+                 0.04 + (1 - Math.abs(t)) * 0.34 + rng() * 0.08,
+                 (rng() - 0.5) * 0.7, s, 0.62];
+      puffs.push(c); cores.push(c);
+    }
+    puffs.push([(rng() - 0.5) * 0.5, 0.5 + rng() * 0.15, (rng() - 0.5) * 0.3,
+                0.5 + rng() * 0.2, 0.62]);       // crown
+    for (let i = 0; i < 3; i++)                  // wide pancake skirt past the mass
+      puffs.push([(rng() - 0.5) * 3.0, 0.0, (rng() - 0.5) * 1.0,
+                  0.5 + rng() * 0.3, 0.38]);
+    // cauliflower florets: small lumps sprinkled over each core's upper surface
+    for (const [cx, cy, cz, cs] of cores) {
+      const n = 4 + (rng() * 3 | 0);
+      for (let k = 0; k < n; k++) {
+        const az = rng() * 6.283, el = rng() * 1.1;        // bias toward the sunlit top
+        const fs = cs * (0.26 + rng() * 0.2);
+        puffs.push([cx + Math.cos(az) * Math.cos(el) * cs * 0.85,
+                    cy + Math.sin(el) * cs * 0.55,
+                    cz + Math.sin(az) * Math.cos(el) * cs * 0.78,
+                    fs, 0.72]);
+      }
+    }
+    let ico = new THREE.IcosahedronGeometry(1, 1);          // 80 faces per puff
+    if (ico.index) ico = ico.toNonIndexed();
+    const p = ico.attributes.position.array;
+    const pos = [], minY = -0.06;   // the condensation level: one flat plane, wall to wall
+    for (const [bx, by, bz, s, ys] of puffs)
+      for (let i = 0; i < p.length; i += 3)
+        pos.push(p[i] * s + bx,
+                 Math.max(p[i + 1] * s * ys + by, minY),     // flat cumulus base
+                 p[i + 2] * s + bz);
+    // bake the shading per face: white where the sun reaches (high AND on the
+    // outer hull), shadowed grey-blue in the crevices between lumps and on the
+    // base — clouds cast shadows, so they wear one
+    const base = { r: 0.54, g: 0.60, b: 0.72 }, top = { r: 1, g: 1, b: 0.985 };
+    let maxY = 0; for (let i = 1; i < pos.length; i += 3) if (pos[i] > maxY) maxY = pos[i];
+    const FACES_PER_PUFF = p.length / 9;
+    const col = new Float32Array(pos.length);
+    for (let f = 0; f < pos.length; f += 9) {              // per face (non-indexed)
+      const fx = (pos[f] + pos[f + 3] + pos[f + 6]) / 3;
+      const fy = (pos[f + 1] + pos[f + 4] + pos[f + 7]) / 3;
+      const fz = (pos[f + 2] + pos[f + 5] + pos[f + 8]) / 3;
+      const h = sstep(0.0, 0.6, (fy - minY) / (maxY - minY));
+      // crevice test, exact: a face is shadowed when it sits inside a
+      // NEIGHBOURING puff — that's where lumps meet, at any height
+      const own = (f / 9 / FACES_PER_PUFF) | 0;
+      let occ = 0;
+      for (let q = 0; q < puffs.length; q++) {
+        if (q === own) continue;
+        const [bx, by, bz, s, ys] = puffs[q];
+        const nd = Math.sqrt(((fx - bx) / s) ** 2 + ((fy - by) / (s * ys)) ** 2 + ((fz - bz) / s) ** 2);
+        const o = 1 - Math.min(1, Math.max(0, (nd - 0.62) / 0.33));   // only truly buried faces shade
+        if (o > occ) occ = o;
+      }
+      const hRaw = (fy - minY) / (maxY - minY);
+      const lit = Math.min(1, 0.18 + 0.82 * h) * (1 - 0.82 * occ);
+      const t = Math.max(lit, sstep(0.8, 0.98, hRaw) * (1 - 0.6 * occ));  // sunlit crown, but seams survive
+      const jitter = (rng() - 0.5) * 0.08 * (1 - 0.45 * t); // gentle facet shimmer survives on top
+      for (let v = 0; v < 9; v += 3) {
+        col[f + v]     = base.r + (top.r - base.r) * t + jitter;
+        col[f + v + 1] = base.g + (top.g - base.g) * t + jitter;
+        col[f + v + 2] = base.b + (top.b - base.b) * t + jitter;
+      }
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    g.computeVertexNormals();
+    return g;
+  }
+  const cloudGeos = [makeCloudGeo(0), makeCloudGeo(1), makeCloudGeo(2)];
+  const cloudMat = new THREE.MeshBasicMaterial({
+    vertexColors: true, transparent: true, opacity: 0.85,   // denser clouds need the contrast
+    depthWrite: true,                            // self-occlude: no jumbled inner facets
   });
+
   const cloudRng = mulberry32(seed * 7 + 3);
   const clouds = [];
   for (let i = 0; i < 12; i++) {
-    const parts = [];
-    const blobs = 3 + (cloudRng() * 4) | 0;
-    for (let b = 0; b < blobs; b++) {
-      const g = new THREE.IcosahedronGeometry(8 + cloudRng() * 14, 0);
-      g.scale(1.6 + cloudRng(), 0.45 + cloudRng() * 0.2, 1 + cloudRng() * 0.5);
-      g.translate((b - blobs / 2) * 16 + cloudRng() * 8, cloudRng() * 6, cloudRng() * 12 - 6);
-      const p = (g.index ? g.toNonIndexed() : g).getAttribute('position');
-      for (let v = 0; v < p.array.length; v++) parts.push(p.array[v]);
-    }
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(parts, 3));
-    geo.computeVertexNormals();
-    const m = new THREE.Mesh(geo, cloudMat);
+    const m = new THREE.Mesh(cloudGeos[(cloudRng() * 3) | 0], cloudMat);
+    const cs = 26 + cloudRng() * 30;             // 120–260 m wide, kin to the thermal caps
+    m.scale.set(cs, cs * (0.6 + cloudRng() * 0.2), cs * (0.75 + cloudRng() * 0.3));
+    m.rotation.y = cloudRng() * 6.28;
     m.position.set((cloudRng() - 0.5) * 1300, 170 + cloudRng() * 130, cloudRng() * 1400 - 300);
     m.userData.drift = 1 + cloudRng() * 2;
     m.castShadow = true;
@@ -852,7 +1079,7 @@ function createWorld(THREE, opts = {}) {
     for (const m of clouds) { m.position.x -= dx; m.position.z -= dz; }
   }
 
-  return { group, height, surfaceNormal, riverCenter, update, rebase, chunkSize: CHUNK, sunDir: SUN_DIR, colors: { skyHorizon: SKY_HORIZON } };
+  return { group, height, surfaceNormal, riverCenter, update, rebase, chunkSize: CHUNK, sunDir: SUN_DIR, colors: { skyHorizon: SKY_HORIZON }, cloudGeos, cloudMat };
 }
 
 
@@ -903,17 +1130,25 @@ function createAir(THREE, world, opts = {}) {
   const CELL = 350, CELL_RADIUS = 2;          // 5×5 cells ≈ 875 m reach
   const thermals = new Map();                  // "ix,iz" -> thermal | null
 
+  // coastal maps are mostly water, and water never thermals — so the land
+  // that exists works harder: higher spawn rate, and up to four sample tries
+  // per cell so an island cell isn't lost to one unlucky splash in the sea.
+  const SPAWN = opts.map === 'coastal' ? 0.78 : 0.6;
   function makeThermalData(ix, iz) {
     // ix/iz are generation-space cell indices → deterministic forever;
     // the stored position is render-space
     const rng = mulberry32(((ix * 73856093) ^ (iz * 19349663) ^ (seed * 2654435761)) | 0);
-    if (rng() > 0.9) return null;                              // nearly every cell
-    const x = ix * CELL + rng() * CELL - originX, z = iz * CELL + rng() * CELL - originZ;
-    const ground = world.height(x, z);
+    if (rng() > SPAWN) return null;                            // fewer, bigger columns
+    let x = 0, z = 0, ground = -1;
+    for (let t = 0; t < 4 && ground < 2; t++) {
+      x = ix * CELL + rng() * CELL - originX;
+      z = iz * CELL + rng() * CELL - originZ;
+      ground = world.height(x, z);
+    }
     if (ground < 2) return null;                               // never over water
     return {
       x, z, ground,
-      radius: 50 + rng() * 55,
+      radius: 80 + rng() * 60,                                 // inner-half plateau 40–70 m: a banked circle fits
       strength: 6 + rng() * 8,
       top: Math.max(ground + 130, 150 + rng() * 250),
       visual: null,
@@ -944,6 +1179,10 @@ function createAir(THREE, world, opts = {}) {
     side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending,
   });
 
+  // cumulus caps reuse the world's single cloud species (see world.js):
+  // same painted geometry, same material, same shadows — one sky, one cloud.
+  const cloudGeos = world.cloudGeos, cloudMat = world.cloudMat;
+
   function makeVisual() {
     const g = new THREE.Group();
     const pts = new THREE.BufferGeometry();
@@ -956,9 +1195,11 @@ function createAir(THREE, world, opts = {}) {
       birds.push(m); g.add(m);
     }
     const beacon = new THREE.Mesh(beaconGeo, beaconMat);
-    g.add(points, beacon);
+    const cloud = new THREE.Mesh(cloudGeos[0], cloudMat);
+    cloud.castShadow = true;
+    g.add(points, beacon, cloud);
     group.add(g);
-    return { group: g, points, birds, beacon, speeds: new Float32Array(PARTICLES) };
+    return { group: g, points, birds, beacon, cloud, speeds: new Float32Array(PARTICLES) };
   }
 
   function attachVisual(th) {
@@ -977,6 +1218,12 @@ function createAir(THREE, world, opts = {}) {
     v.beacon.visible = assistOn;
     v.beacon.scale.set(th.radius * 0.55, th.top - th.ground, th.radius * 0.55);
     v.beacon.position.set(th.x, (th.ground + th.top) / 2, th.z);
+    const f1 = th.phase / 6.28, f2 = (th.phase * 7.13) % 1;     // deterministic jitter
+    v.cloud.geometry = cloudGeos[Math.floor(f1 * 3) % 3];
+    const cs = th.radius * 0.55;                 // ~2.5× the thermal radius: wider than the column
+    v.cloud.scale.set(cs, cs * (0.62 + 0.18 * f2), cs * (0.78 + 0.3 * f1));
+    v.cloud.rotation.y = th.phase;
+    v.cloud.position.set(th.x, th.top + cs * 0.2, th.z);
     th.visual = v;
   }
 
@@ -1061,6 +1308,7 @@ function createAir(THREE, world, opts = {}) {
         bird.rotation.y = -a;                                   // face the tangent
         bird.scale.y = 0.25 + 0.95 * Math.abs(Math.sin(time * 7 + b * 1.3)); // flap
       }
+      v.cloud.position.y = th.top + v.cloud.scale.y * 0.2 + Math.sin(time * 0.4 + th.phase) * 2;
     }
   }
 
@@ -1292,17 +1540,18 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-const wind = windForSeed(THREE, 7);
+let seed = 7;                                   // 7 = the fixed "classic" worlds
+let wind = windForSeed(THREE, seed);
 let mapId = 'alpine';
-let world = createWorld(THREE, { seed: 7, wind, map: mapId });
+let world = createWorld(THREE, { seed, wind, map: mapId });
 scene.add(world.group);
-let air = createAir(THREE, world, { seed: 7, wind });
+let air = createAir(THREE, world, { seed, wind, map: mapId });
 scene.add(air.group);
-let rings = createRings(THREE, world, { seed: 7 });
+let rings = createRings(THREE, world, { seed });
 scene.add(rings.group);
 
-function switchMap(id) {
-  if (id === mapId) return;
+function rebuildWorld(id, newSeed) {
+  if (id === mapId && newSeed === seed) return;
   for (const g of [world.group, air.group, rings.group]) {
     scene.remove(g);
     g.traverse(o => {
@@ -1311,15 +1560,17 @@ function switchMap(id) {
     });
   }
   mapId = id;
-  world = createWorld(THREE, { seed: 7, wind, map: mapId });
+  seed = newSeed;
+  wind = windForSeed(THREE, seed);
+  world = createWorld(THREE, { seed, wind, map: mapId });
   scene.add(world.group);
-  air = createAir(THREE, world, { seed: 7, wind });
+  air = createAir(THREE, world, { seed, wind, map: mapId });
   scene.add(air.group);
-  rings = createRings(THREE, world, { seed: 7 });
+  rings = createRings(THREE, world, { seed });
   scene.add(rings.group);
   scene.fog.color.copy(world.colors.skyHorizon);
 }
-scene.fog = new THREE.Fog(world.colors.skyHorizon, 240, 820);
+scene.fog = new THREE.Fog(world.colors.skyHorizon, 230, 780);  // terrain ends at 840 m: stay safely inside it
 
 const sun = new THREE.DirectionalLight(0xfff4e0, 2.4);
 sun.castShadow = true;
@@ -1376,14 +1627,35 @@ const quat = new THREE.Quaternion();
 let pitchRate = 0, rollRate = 0;
 let distance = 0, flightTime = 0, dead = false, deadTimer = 0, scrapeFlash = 0, lastAir = 0, wasInLift = false;
 // scoring: multiplier = 1 + ground-rush bonus + ring/save bonus (the latter decays)
-let score = 0, multiplier = 1, grBonus = 0, bonus = 0, decayTimer = 0, chain = 0;
-let thermalEntryAlt = null, ringFlash = 0, saveFlash = 0;
+let score = 0, multiplier = 1, grBonus = 0, bonus = 0, decayTimer = 0, chain = 0, peakMult = 1;
+let thermalEntryAlt = null, ringFlash = 0, saveFlash = 0, panelShown = false;
 const bests = { alpine: { dist: 0, time: 0, score: 0 }, coastal: { dist: 0, time: 0, score: 0 } };
 try {  // persists on a real host; sandboxed previews just skip this
   const saved = JSON.parse(localStorage.getItem('glider.bests') || '{}');
   for (const k of ['alpine', 'coastal']) if (saved[k]) Object.assign(bests[k], saved[k]);
 } catch (e) {}
 function saveBests() { try { localStorage.setItem('glider.bests', JSON.stringify(bests)); } catch (e) {} }
+
+// ---------- daily flight: one seed per UTC day, same sky for everyone ----------
+let daily = false;
+function dailySeed() {
+  const d = new Date();
+  return d.getUTCFullYear() * 10000 + (d.getUTCMonth() + 1) * 100 + d.getUTCDate();
+}
+const dailyMapId = s => (s % 2 ? 'alpine' : 'coastal');
+const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+function dailyLabel() {
+  const d = new Date();
+  return d.getUTCDate() + ' ' + MONTHS[d.getUTCMonth()];
+}
+function todayStr() { return new Date().toISOString().slice(0, 10); }   // UTC
+const MAP_NAMES = { alpine: 'ALPINE VALLEY', coastal: 'COASTAL ARCHIPELAGO' };
+let dailyBest = { date: todayStr(), dist: 0, time: 0, score: 0 };
+try {
+  const s = JSON.parse(localStorage.getItem('glider.daily') || 'null');
+  if (s && s.date === todayStr()) dailyBest = s;                        // stale days reset
+} catch (e) {}
+function saveDaily() { try { localStorage.setItem('glider.daily', JSON.stringify(dailyBest)); } catch (e) {} }
 let deathMsg = '';
 const pPrev = new THREE.Vector3();
 
@@ -1398,36 +1670,54 @@ function respawn() {
   quat.identity();
   pitchRate = rollRate = 0;
   distance = 0; flightTime = 0; dead = false;
-  score = 0; multiplier = 1; grBonus = 0; bonus = 0; decayTimer = 0; chain = 0;
+  score = 0; multiplier = 1; grBonus = 0; bonus = 0; decayTimer = 0; chain = 0; peakMult = 1;
   thermalEntryAlt = null; ringFlash = saveFlash = 0; deathMsg = '';
+  panelShown = false;
+  document.body.classList.remove('dead');
+  clearWreck();
+  glider.visible = true;
   world.update(pos, 0);
 }
-respawn();
+// (initial respawn happens in the boot block at the bottom, after the wreck
+// system exists — clearWreck() touches its state)
 
 // ---------- input ----------
 const keys = {};
 let touchPitch = 0, touchRoll = 0, touchTuck = false;   // analog, from the joystick/buttons
-let inMenu = false;
+let inMenu = false, holdStart = false, newBest = false;
 function openMenu() {
   inMenu = true;
   document.body.classList.add('menu');
   glider.visible = false;
   $('bestAlpine').textContent = bests.alpine.dist > 0 ? 'best ' + (bests.alpine.dist / 1000).toFixed(2) + ' km' : 'not yet flown';
   $('bestCoastal').textContent = bests.coastal.dist > 0 ? 'best ' + (bests.coastal.dist / 1000).toFixed(2) + ' km' : 'not yet flown';
+  const ds = dailySeed(), dm = dailyMapId(ds);
+  $('dailyMeta').textContent = dailyLabel() + ' · ' + MAP_NAMES[dm] + ' · same sky for everyone';
+  $('dailyStripe').className = 'mapStripe ' + (dm === 'alpine' ? 'alpineStripe' : 'coastStripe');
+  $('bestDaily').textContent = (dailyBest.date === todayStr() && dailyBest.score > 0)
+    ? 'today\u2019s best ' + Math.round(dailyBest.score).toLocaleString('en')
+    : 'not yet flown today';
 }
-function startGame(id) {
-  switchMap(id);
+function startGame(id, asDaily) {
+  daily = !!asDaily;
+  holdStart = false;
+  document.body.classList.remove('prestart');
+  rebuildWorld(id, daily ? dailySeed() : 7);
   inMenu = false;
   document.body.classList.remove('menu');
+  $('dailyTag').style.display = daily ? '' : 'none';
+  if (daily) $('dailyTagDate').textContent = dailyLabel();
   glider.visible = true;
   respawn();
   applyView();
 }
+function startDaily() { startGame(dailyMapId(dailySeed()), true); }
 addEventListener('keydown', e => {
   keys[e.code] = true;
   if (inMenu) {
     if (e.code === 'Digit1') startGame('alpine');
     if (e.code === 'Digit2') startGame('coastal');
+    if (e.code === 'Digit3') startDaily();
     return;
   }
   if (e.code === 'KeyR') respawn();
@@ -1447,7 +1737,13 @@ const F = new THREE.Vector3(), U = new THREE.Vector3(), R = new THREE.Vector3();
 const qTmp = new THREE.Quaternion(), vTmp = new THREE.Vector3(), acc = new THREE.Vector3();
 
 function physicsStep(dt) {
-  if (dead) { deadTimer -= dt; if (deadTimer <= 0) respawn(); return; }
+  updateBurst(dt);
+  if (dead) {
+    updateWreck(dt);
+    deadTimer -= dt;
+    if (deadTimer <= 0 && !panelShown) showDeathPanel();
+    return;
+  }
 
   // input → target rates → smoothed actual rates
   const kPitch = ((keys.KeyW || keys.ArrowUp) ? 1 : 0) - ((keys.KeyS || keys.ArrowDown) ? 1 : 0);
@@ -1543,6 +1839,7 @@ function physicsStep(dt) {
       if (grBonus === 0 && bonus === 0) chain = 0;
     }
     multiplier = 1 + grBonus + bonus;
+    if (multiplier > peakMult) peakMult = multiplier;
     if (dz > 0) score += dz * multiplier;
   }
   ringFlash = Math.max(0, ringFlash - dt);
@@ -1558,16 +1855,31 @@ function physicsStep(dt) {
       vel.multiplyScalar(0.7);
       if (vel.y < 0) vel.y = 0;
       scrapeFlash = 0.4;
+      spawnBurst(pos, vel, 0.22, false);
     } else {
-      dead = true; deadTimer = 1.6;
-      const best = bests[mapId];
-      const sc = Math.round(score), pb = sc > best.score;
-      best.dist = Math.max(best.dist, distance);
-      best.time = Math.max(best.time, flightTime);
-      best.score = Math.max(best.score, sc);
-      deathMsg = (distance / 1000).toFixed(2) + ' km · score ' + sc.toLocaleString()
-        + (pb ? '  ★ NEW BEST' : '  · best ' + Math.round(best.score).toLocaleString());
-      saveBests();
+      dead = true; deadTimer = 0.5; panelShown = false;   // drains at 0.3× → ~1.7 s slow-mo
+      const impactSpeed = vel.length();
+      const onWater = world.height(pos.x, pos.z) <= 0.4;
+      spawnBurst(pos, vel, Math.min(1, impactSpeed / 40), onWater);
+      if (impactSpeed > 22) breakUp(impactSpeed);          // hard hits shed wings and tail
+      if (cockpit) cockpit = false;                        // the cinematic is external
+      const sc = Math.round(score);
+      if (daily) {
+        if (dailyBest.date !== todayStr())                 // UTC rolled over mid-session
+          dailyBest = { date: todayStr(), dist: 0, time: 0, score: 0 };
+        newBest = sc > dailyBest.score;
+        dailyBest.dist = Math.max(dailyBest.dist, distance);
+        dailyBest.time = Math.max(dailyBest.time, flightTime);
+        dailyBest.score = Math.max(dailyBest.score, sc);
+        saveDaily();
+      } else {
+        const best = bests[mapId];
+        newBest = sc > best.score;
+        best.dist = Math.max(best.dist, distance);
+        best.time = Math.max(best.time, flightTime);
+        best.score = Math.max(best.score, sc);
+        saveBests();
+      }
       playWhump();
     }
   }
@@ -1682,7 +1994,7 @@ function updateHUD() {
   const inLift = lastAir > 2.5 && !dead;
   if (inLift && !wasInLift) playWhump();
   wasInLift = inLift;
-  $('msg').textContent = dead ? deathMsg
+  $('msg').textContent = dead ? ''
     : saveFlash > 0 ? '+SAVE  ·  +1×'
     : ringFlash > 0 ? 'RING ×' + chain
     : scrapeFlash > 0 ? 'scrape!'
@@ -2047,6 +2359,150 @@ function updateMotes(dt) {
   moteGeo.attributes.position.needsUpdate = true;
 }
 
+// ---------- crash wreckage: hard impacts shed wings, tail, and fuselage ----------
+const wreck = buildWreck(THREE, glider).map(p => ({
+  group: p.group, offset: p.offset,
+  vel: new THREE.Vector3(), ang: new THREE.Vector3(), live: false,
+}));
+const wreckGroup = new THREE.Group();
+for (const p of wreck) { p.group.visible = false; wreckGroup.add(p.group); }
+scene.add(wreckGroup);
+let wreckActive = false;
+const qW = new THREE.Quaternion(), vW = new THREE.Vector3();
+
+function breakUp(impactSpeed) {
+  wreckActive = true;
+  glider.visible = false;
+  const k = Math.min(1.6, impactSpeed / 30);              // harder hit, wilder debris
+  for (const p of wreck) {
+    p.live = true; p.group.visible = true;
+    p.group.position.copy(pos).add(vW.copy(p.offset).applyQuaternion(quat));
+    p.group.quaternion.copy(quat);
+    // carry most of the impact momentum, spray outward from the hull, pop upward
+    p.vel.copy(vel).multiplyScalar(0.55)
+      .addScaledVector(vW.copy(p.offset).applyQuaternion(quat).normalize(), 4 + 7 * k * Math.random());
+    p.vel.y += (3 + 6 * Math.random()) * k;
+    p.ang.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(14 * k);
+  }
+}
+function clearWreck() {
+  if (!wreckActive) return;
+  wreckActive = false;
+  for (const p of wreck) { p.live = false; p.group.visible = false; }
+}
+function updateWreck(dt) {
+  if (!wreckActive) return;
+  for (const p of wreck) {
+    if (!p.live) continue;
+    p.vel.y -= 9.8 * dt;
+    p.vel.multiplyScalar(Math.max(0, 1 - 0.35 * dt));     // air drag on tumbling junk
+    p.group.position.addScaledVector(p.vel, dt);
+    const w = p.ang.length();
+    if (w > 0.01) {
+      qW.setFromAxisAngle(vW.copy(p.ang).multiplyScalar(1 / w), w * dt);
+      p.group.quaternion.premultiply(qW).normalize();
+    }
+    const g = Math.max(0, world.height(p.group.position.x, p.group.position.z));
+    if (p.group.position.y < g + 0.35) {                  // bounce, scrub, settle
+      p.group.position.y = g + 0.35;
+      if (p.vel.y < 0) p.vel.y *= -0.3;
+      p.vel.x *= 0.6; p.vel.z *= 0.6;
+      p.ang.multiplyScalar(0.5);
+      if (p.vel.lengthSq() < 1.2) p.vel.set(0, 0, 0);
+    }
+  }
+}
+
+// ---------- impact burst: dust on land, spray on water ----------
+const BURST_N = 160;
+const burstGeo = new THREE.BufferGeometry();
+const burstPos = new Float32Array(BURST_N * 3);
+const burstVel = new Float32Array(BURST_N * 3);
+burstGeo.setAttribute('position', new THREE.BufferAttribute(burstPos, 3));
+const burstMat = new THREE.PointsMaterial({
+  color: 0xc9b390, size: 1.5, sizeAttenuation: true,
+  transparent: true, opacity: 0, depthWrite: false,
+});
+const burst = new THREE.Points(burstGeo, burstMat);
+burst.frustumCulled = false;
+burst.visible = false;
+scene.add(burst);
+let burstLife = 0, burstSpan = 1, burstGroundY = 0;
+
+function spawnBurst(at, v, intensity, onWater) {
+  burstMat.color.setHex(onWater ? 0xdef2fb : 0xc9b390);
+  burstSpan = 1.1 + intensity * 0.8;
+  burstLife = burstSpan;
+  burstGroundY = Math.max(0, world.height(at.x, at.z)) + 0.2;
+  burst.visible = true;
+  const s = 6 + 26 * intensity;
+  for (let i = 0; i < BURST_N; i++) {
+    burstPos[i * 3] = at.x; burstPos[i * 3 + 1] = at.y; burstPos[i * 3 + 2] = at.z;
+    const a = Math.random() * Math.PI * 2, r = Math.pow(Math.random(), 0.4);
+    burstVel[i * 3]     = Math.cos(a) * r * s + v.x * 0.25;
+    burstVel[i * 3 + 1] = (0.25 + Math.random() * 0.95) * s * 0.8;
+    burstVel[i * 3 + 2] = Math.sin(a) * r * s + v.z * 0.25;
+  }
+  burstGeo.attributes.position.needsUpdate = true;
+}
+function updateBurst(dt) {
+  if (burstLife <= 0) return;
+  burstLife -= dt;
+  for (let i = 0; i < BURST_N; i++) {
+    burstVel[i * 3 + 1] -= 14 * dt;                       // heavier than air, lighter than rocks
+    burstVel[i * 3] *= 1 - 1.2 * dt;
+    burstVel[i * 3 + 2] *= 1 - 1.2 * dt;
+    burstPos[i * 3]     += burstVel[i * 3] * dt;
+    burstPos[i * 3 + 1] += burstVel[i * 3 + 1] * dt;
+    burstPos[i * 3 + 2] += burstVel[i * 3 + 2] * dt;
+    if (burstPos[i * 3 + 1] < burstGroundY) { burstPos[i * 3 + 1] = burstGroundY; burstVel[i * 3 + 1] = 0; }
+  }
+  burstMat.opacity = Math.max(0, burstLife / burstSpan) * 0.9;
+  if (burstLife <= 0) burst.visible = false;
+  burstGeo.attributes.position.needsUpdate = true;
+}
+
+// ---------- death panel + share ----------
+function showDeathPanel() {
+  panelShown = true;
+  const sc = Math.round(score);
+  $('deathTitle').textContent = daily ? 'DAILY FLIGHT · ' + dailyLabel() : MAP_NAMES[mapId];
+  $('deathDist').textContent = (distance / 1000).toFixed(2) + ' km';
+  $('deathSub').textContent = sc.toLocaleString('en') + ' pts · '
+    + Math.round(flightTime) + ' s aloft · peak ×' + peakMult.toFixed(1);
+  const b = daily ? dailyBest : bests[mapId];
+  const bsc = Math.round(b.score);
+  $('deathBest').textContent = newBest ? '\u2605 NEW BEST'
+    : 'best ' + bsc.toLocaleString('en') + '  (' + (sc - bsc).toLocaleString('en') + ')';
+  $('btnShare').textContent = 'SHARE';
+  document.body.classList.add('dead');
+}
+function shareText() {
+  const m = new Date(), mon = MONTHS[m.getUTCMonth()];
+  const title = daily
+    ? 'GLIDER \u2014 Daily ' + m.getUTCDate() + ' ' + mon.charAt(0) + mon.slice(1).toLowerCase()
+    : 'GLIDER \u2014 ' + (mapId === 'alpine' ? 'Alpine Valley' : 'Coastal Archipelago');
+  const stats = '\u{1FA82} ' + (distance / 1000).toFixed(2) + ' km · '
+    + Math.round(score).toLocaleString('en') + ' pts · ' + Math.round(flightTime) + ' s aloft';
+  return title + '\n' + stats + '\nhttps://khalifa.games/glider/' + (daily ? '?daily' : '');
+}
+async function doShare() {
+  const text = shareText();
+  const ok = msg => { $('btnShare').textContent = msg; };
+  if (navigator.share) {
+    try { await navigator.share({ text }); ok('SHARED \u2713'); return; }
+    catch (e) { if (e.name === 'AbortError') return; }    // sheet dismissed: not an error
+  }
+  try { await navigator.clipboard.writeText(text); ok('COPIED \u2713'); return; } catch (e) {}
+  try {                                                    // ancient-browser fallback
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    document.execCommand('copy');
+    ta.remove(); ok('COPIED \u2713');
+  } catch (e) { ok('COPY FAILED'); }
+}
+
 // ---------- main loop ----------
 const FIXED_DT = 1 / 60;
 let accum = 0, last = performance.now();
@@ -2067,7 +2523,8 @@ function frame(now) {
     requestAnimationFrame(frame);
     return;
   }
-  const scale = dead ? 0.3 : 1;                          // slow-mo death
+  if (holdStart) accum = 0;                              // deep-link pre-start: hold physics
+  const scale = dead ? (panelShown ? 1 : 0.3) : 1;       // slow-mo impact, then real time
   while (accum >= FIXED_DT) {
     physicsStep(FIXED_DT * scale);
     scrapeFlash = Math.max(0, scrapeFlash - FIXED_DT);
@@ -2090,6 +2547,10 @@ function frame(now) {
     world.rebase(dx, dz); air.rebase(dx, dz); rings.rebase(dx, dz);
     pos.x -= dx; pos.z -= dz;
     camPos.x -= dx; camPos.z -= dz;
+    if (burst.visible) {
+      for (let i = 0; i < BURST_N; i++) { burstPos[i * 3] -= dx; burstPos[i * 3 + 2] -= dz; }
+      burstGeo.attributes.position.needsUpdate = true;
+    }
   }
   sun.position.copy(pos).addScaledVector(world.sunDir, 560);
   sun.target.position.copy(pos);
@@ -2105,9 +2566,27 @@ function frame(now) {
 }
 applyAssist();
 applyView();
+respawn();                                       // seed the menu fly-over position
 $('mapAlpine').addEventListener('click', () => { startAudio(); startGame('alpine'); });
 $('mapCoastal').addEventListener('click', () => { startAudio(); startGame('coastal'); });
-openMenu();
+$('mapDaily').addEventListener('click', () => { startAudio(); startDaily(); });
+$('btnAgain').addEventListener('click', () => { if (dead) respawn(); });
+$('btnShare').addEventListener('click', doShare);
+function releaseStart() {
+  if (!holdStart) return;
+  holdStart = false;
+  document.body.classList.remove('prestart');
+}
+addEventListener('keydown', releaseStart);
+addEventListener('pointerdown', releaseStart);
+if (new URLSearchParams(location.search).has('daily')) {
+  startDaily();                                  // straight into today's sky
+  holdStart = true;                              // …but wait for a hand on the stick
+  $('preDate').textContent = dailyLabel();
+  document.body.classList.add('prestart');
+} else {
+  openMenu();
+}
 requestAnimationFrame(frame);
 
 </script>
