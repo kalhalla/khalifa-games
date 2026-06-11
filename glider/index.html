@@ -90,6 +90,16 @@
     top: 66px; left: 0; right: 0; text-align: center; display: none;
     font-size: 12px; color: #ffd76a; letter-spacing: .2em;
   }
+  #objective {
+    top: 66px; left: 0; right: 0; text-align: center; display: none;
+    font-size: 13px; color: #8de08a; letter-spacing: .14em; font-weight: 700;
+    text-shadow: 0 2px 8px rgba(0,0,0,.6);
+  }
+  body.school #objective { display: block; }
+  body.school.dead #objective, body.school.menu #objective { display: none !important; }
+  #mapSchool { border-color: rgba(141,224,138,.45); }
+  #mapSchool:hover { border-color: #8de08a; }
+  .schoolStripe { background: linear-gradient(105deg, #2a6de0 0%, #cfe8ff 30%, #9cc45a 62%, #f4f7f2 78%, #4f8f33 100%); }
   #death {
     position: absolute; inset: 0; display: none; z-index: 25;
     align-items: center; justify-content: center;
@@ -160,12 +170,66 @@
   }
   .tbtn.pressed { background: rgba(255,220,150,.45); }
   #btnRestart { background: rgba(255,120,90,.20); }
+  /* loader: pure HTML/CSS, visible the instant the page parses */
+  #loader {
+    position: fixed; inset: 0; z-index: 99; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 10px;
+    background: linear-gradient(#1d2a44 0%, #58441c 70%, #8a5a20 100%);
+    font-family: "Trebuchet MS", sans-serif; color: #fff;
+    transition: opacity .6s; pointer-events: none;
+  }
+  #loader.done { opacity: 0; }
+  #loadTitle { font-size: 52px; font-weight: 700; letter-spacing: .28em; text-shadow: 0 4px 24px rgba(0,0,0,.5); }
+  #loadSub { font-size: 13px; letter-spacing: .2em; opacity: .8; animation: loadPulse 1.6s ease-in-out infinite; }
+  @keyframes loadPulse { 0%, 100% { opacity: .45; } 50% { opacity: .95; } }
+  /* pause */
+  #pause {
+    position: absolute; inset: 0; display: none; z-index: 24;
+    align-items: center; justify-content: center;
+    background: rgba(8,16,28,.55); font-family: "Trebuchet MS", sans-serif; color: #fff;
+  }
+  body.paused #pause { display: flex; }
+  #pauseCard { text-align: center; }
+  #pauseTitle { font-size: 34px; font-weight: 700; letter-spacing: .3em; margin-bottom: 18px; }
+  #pauseHint { margin-top: 14px; font-size: 12px; opacity: .65; letter-spacing: .08em; }
+  #btnPauseHud {
+    top: 14px; right: 14px; left: auto; cursor: pointer; pointer-events: auto;
+    font-size: 15px; padding: 6px 10px; border-radius: 8px;
+    background: rgba(12,22,36,.5); border: 1px solid rgba(255,255,255,.25);
+  }
+  body.dead #btnPauseHud, body.menu #btnPauseHud, body.paused #btnPauseHud { display: none; }
+  #menuMute {
+    margin-top: 12px; display: inline-block; cursor: pointer; font-size: 12px;
+    letter-spacing: .1em; opacity: .75; border: 1px solid rgba(255,255,255,.3);
+    border-radius: 8px; padding: 6px 14px;
+  }
 </style>
 </head>
 <body>
+<div id="loader">
+  <div id="loadTitle">GLIDER</div>
+  <div id="loadSub">reading the wind&hellip;</div>
+</div>
+<script>
+  // pre-module safety net: if the engine fails to load, say so instead of hanging
+  window.addEventListener('error', function () {
+    if (window.__gliderBooted) return;
+    var s = document.getElementById('loadSub');
+    if (s) { s.textContent = 'failed to load — please refresh'; s.style.animation = 'none'; }
+  }, true);
+</script>
 <div class="hud" id="top"><b id="dist">0.00 km</b><div class="dim"><span id="time">0 s</span> aloft &nbsp;·&nbsp; <span id="mult">×1.0</span> &nbsp;·&nbsp; <span id="score">0</span></div></div>
 <div class="hud" id="left"><span id="spd">0 m/s</span> &nbsp;·&nbsp; <span id="alt">0 m</span> AGL</div>
-<div class="hud" id="right">W/S pitch · A/D roll · C view<br>Shift tuck · R restart · T assist <b id="assistState">ON</b><div class="dim">hold a dive, then zoom-climb</div></div>
+<div class="hud" id="right">W/S pitch · A/D roll · C view<br>Shift tuck · R restart · P pause · T assist <b id="assistState">ON</b><div class="dim">hold a dive, then zoom-climb</div></div>
+<div class="hud" id="btnPauseHud">&#10074;&#10074;</div>
+<div id="pause">
+  <div id="pauseCard">
+    <div id="pauseTitle">PAUSED</div>
+    <div class="dbtn go" id="btnResume">RESUME</div>
+    <div class="dbtn" id="btnMute">SOUND ON</div>
+    <div id="pauseHint">P resumes · M for worlds</div>
+  </div>
+</div>
 <div class="hud" id="msg"></div>
 <div id="touch">
   <div id="joy"><div id="joyKnob"></div></div>
@@ -179,8 +243,9 @@
 </div>
 <div id="vbar"><div id="vfill"></div></div>
 <div class="hud" id="windbox"><span id="warrow">&#10148;</span> wind</div>
-<div class="hud" id="liftbox"><span id="tarrow">&#10148;</span> lift <span id="tdist"></span></div>
+<div class="hud" id="liftbox"><span id="tarrow">&#10148;</span> <span id="tlabel">lift</span> <span id="tdist"></span></div>
 <div class="hud" id="coach"></div>
+<div class="hud" id="objective"></div>
 <div id="vvm"></div>
 <div class="hud" id="dailyTag">DAILY FLIGHT · <span id="dailyTagDate"></span></div>
 <div id="death">
@@ -201,6 +266,13 @@
   <div id="menuTitle">GLIDER</div>
   <div id="menuSub">— choose your world —</div>
   <div id="menuCards">
+    <div class="mapCard" id="mapSchool">
+      <div class="mapName">FLIGHT SCHOOL</div>
+      <div class="mapTag">glide &middot; turn &middot; lift &middot; land &middot; ~3 minutes</div>
+      <div class="mapStripe schoolStripe"></div>
+      <div class="mapBest" id="bestSchool">new pilot? start here</div>
+      <div class="mapGo">LEARN &#9656;</div>
+    </div>
     <div class="mapCard" id="mapAlpine">
       <div class="mapName">ALPINE VALLEY</div>
       <div class="mapTag">high peaks · river thermals · ridge winds</div>
@@ -223,7 +295,8 @@
       <div class="mapGo">FLY &#9656;</div>
     </div>
   </div>
-  <div id="menuHint">1 / 2 / 3 or tap a card &nbsp;·&nbsp; M in flight returns here</div>
+  <div id="menuHint">1 / 2 / 3 / 4 or tap a card &nbsp;·&nbsp; M in flight returns here</div>
+  <div id="menuMute">SOUND ON</div>
 </div>
 <script type="module">
 import * as THREE from "./three.module.min.js";
@@ -1017,15 +1090,33 @@ function createWorld(THREE, opts = {}) {
 
   const cloudRng = mulberry32(seed * 7 + 3);
   const clouds = [];
-  for (let i = 0; i < 12; i++) {
+  for (let i = 0; i < 20; i++) {
     const m = new THREE.Mesh(cloudGeos[(cloudRng() * 3) | 0], cloudMat);
-    const cs = 26 + cloudRng() * 30;             // 120–260 m wide, kin to the thermal caps
+    const cs = 24 + cloudRng() * 32;             // 110–260 m wide, kin to the thermal caps
     m.scale.set(cs, cs * (0.6 + cloudRng() * 0.2), cs * (0.75 + cloudRng() * 0.3));
     m.rotation.y = cloudRng() * 6.28;
-    m.position.set((cloudRng() - 0.5) * 1300, 170 + cloudRng() * 130, cloudRng() * 1400 - 300);
+    m.position.set((cloudRng() - 0.5) * 1500, 165 + cloudRng() * 150, cloudRng() * 1500 - 350);
     m.userData.drift = 1 + cloudRng() * 2;
     m.castShadow = true;
     clouds.push(m);
+    group.add(m);
+  }
+
+  // a second deck: long thin cirrus far above the cumulus and above every
+  // possible thermal top (400 m + cap), so altitude never confuses them for
+  // lift. Same painted species crushed flat, faded, and fog-washed — the
+  // upper sky gets depth without getting a gameplay meaning.
+  const cirrusMat = new THREE.MeshBasicMaterial({
+    vertexColors: true, transparent: true, opacity: 0.45, depthWrite: false,
+  });
+  for (let i = 0; i < 8; i++) {
+    const m = new THREE.Mesh(cloudGeos[(cloudRng() * 3) | 0], cirrusMat);
+    const len = 75 + cloudRng() * 50;            // ~350–570 m long streaks
+    m.scale.set(len, 6 + cloudRng() * 3, 22 + cloudRng() * 16);
+    m.rotation.y = (cloudRng() - 0.5) * 0.7;     // loosely aligned, like real cirrus
+    m.position.set((cloudRng() - 0.5) * 1700, 470 + cloudRng() * 110, cloudRng() * 1600 - 350);
+    m.userData.drift = 0.4 + cloudRng() * 0.7;   // high air, lazy drift
+    clouds.push(m);                              // shares the wrap + rebase path
     group.add(m);
   }
 
@@ -1062,8 +1153,8 @@ function createWorld(THREE, opts = {}) {
 
     for (const m of clouds) {
       m.position.x += m.userData.drift * dt;
-      if (m.position.z < playerPos.z - 500) { m.position.z += 1900; m.position.x = playerPos.x + (cloudRng() - 0.5) * 1300; }
-      if (m.position.x > playerPos.x + 800) m.position.x -= 1600;
+      if (m.position.z < playerPos.z - 550) { m.position.z += 2100; m.position.x = playerPos.x + (cloudRng() - 0.5) * 1500; }
+      if (m.position.x > playerPos.x + 900) m.position.x -= 1800;
     }
   }
 
@@ -1190,7 +1281,7 @@ function createAir(THREE, world, opts = {}) {
     const points = new THREE.Points(pts, dotMat);
     points.frustumCulled = false;
     const birds = [];
-    for (let b = 0; b < 3; b++) {
+    for (let b = 0; b < 4; b++) {
       const m = new THREE.Mesh(birdGeo, birdMat);
       birds.push(m); g.add(m);
     }
@@ -1288,6 +1379,7 @@ function createAir(THREE, world, opts = {}) {
     }
 
     updateStreaks(playerPos, dt);
+    updateFlocks(playerPos, dt, time);
 
     // animate
     for (const th of thermals.values()) {
@@ -1303,8 +1395,8 @@ function createAir(THREE, world, opts = {}) {
       for (let b = 0; b < v.birds.length; b++) {
         const bird = v.birds[b];
         const a = th.phase + time * (0.55 + b * 0.12) + b * 2.1;
-        const r = th.radius * (0.45 + b * 0.12);
-        bird.position.set(th.x + Math.cos(a) * r, th.top - 18 - b * 9 + Math.sin(time * 1.7 + b) * 2, th.z + Math.sin(a) * r);
+        const r = th.radius * (0.4 + b * 0.11);
+        bird.position.set(th.x + Math.cos(a) * r, th.top - 16 - b * 7 + Math.sin(time * 1.7 + b) * 2, th.z + Math.sin(a) * r);
         bird.rotation.y = -a;                                   // face the tangent
         bird.scale.y = 0.25 + 0.95 * Math.abs(Math.sin(time * 7 + b * 1.3)); // flap
       }
@@ -1357,6 +1449,57 @@ function createAir(THREE, world, opts = {}) {
     streakGeo.attributes.position.needsUpdate = true;
   }
 
+  // ---------- ambient flocks --------------------------------------------------
+  // Birds that are scenery, not signal. Thermal birds circle near their tops;
+  // these fly lines — low, in loose echelon, weaving gently with the valley.
+  // Different altitude band, different motion: nobody chases one of these into
+  // a thermal that isn't there. One InstancedMesh = one draw call for all.
+  const FLOCKS = 4, FLOCK_SIZE = 5;
+  const flockMesh = new THREE.InstancedMesh(birdGeo, birdMat, FLOCKS * FLOCK_SIZE);
+  flockMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  flockMesh.frustumCulled = false;
+  group.add(flockMesh);
+  const flocks = [];
+  const fM = new THREE.Matrix4(), fP = new THREE.Vector3(), fQ = new THREE.Quaternion(),
+        fS = new THREE.Vector3(), fUp = new THREE.Vector3(0, 1, 0);
+  function spawnFlock(f, px, pz, ahead) {
+    f.x = px + (Math.random() - 0.5) * 800;
+    f.z = pz + (ahead ? 320 + Math.random() * 320 : (Math.random() - 0.2) * 500);
+    f.heading = (Math.random() - 0.5) * 2.6;          // 0 = +Z; mostly crossing the corridor
+    f.speed = 10 + Math.random() * 6;
+    f.phase = Math.random() * 6.28;
+    f.y = Math.max(0, world.height(f.x, f.z)) + 40 + Math.random() * 35;
+  }
+  for (let i = 0; i < FLOCKS; i++) { const f = {}; spawnFlock(f, 0, 0, false); flocks.push(f); }
+
+  function updateFlocks(playerPos, dt, time) {
+    let idx = 0;
+    for (const f of flocks) {
+      f.heading += Math.sin(time * 0.11 + f.phase) * 0.12 * dt;   // weave, never circle
+      const dx = Math.sin(f.heading), dz = Math.cos(f.heading);
+      f.x += dx * f.speed * dt;
+      f.z += dz * f.speed * dt;
+      // terrain-following: look at the ground here and ahead, clear the higher
+      const tg = Math.max(0, world.height(f.x, f.z), world.height(f.x + dx * 70, f.z + dz * 70));
+      const ty = tg + 42 + 14 * Math.sin(time * 0.14 + f.phase);
+      f.y += (ty - f.y) * Math.min(1, 1.6 * dt);
+      if (f.z < playerPos.z - 380 || Math.abs(f.x - playerPos.x) > 850)
+        spawnFlock(f, playerPos.x, playerPos.z, true);
+      for (let b = 0; b < FLOCK_SIZE; b++) {
+        const row = (b + 1) >> 1, side = (b & 1) ? 1 : -1;        // loose echelon V
+        const back = row * 5.5, lat = side * row * 4.2;
+        fP.set(f.x - dx * back + dz * lat,
+               f.y - row * 0.8 + Math.sin(time * 1.5 + b * 1.9 + f.phase) * 1.6,
+               f.z - dz * back - dx * lat);
+        fQ.setFromAxisAngle(fUp, f.heading);
+        fS.set(0.9, 0.25 + 0.95 * Math.abs(Math.sin(time * 6.2 + f.phase + b * 1.45)), 0.9);
+        fM.compose(fP, fQ, fS);
+        flockMesh.setMatrixAt(idx++, fM);
+      }
+    }
+    flockMesh.instanceMatrix.needsUpdate = true;
+  }
+
   function nearestThermal(p) {
     let best = null, bd = Infinity;
     for (const th of thermals.values()) {
@@ -1384,6 +1527,7 @@ function createAir(THREE, world, opts = {}) {
     const sp = streakGeo.attributes.position.array;
     for (let i = 0; i < sp.length; i += 3) { if (sp[i + 1] > -9000) { sp[i] -= dx; sp[i + 2] -= dz; } }
     streakGeo.attributes.position.needsUpdate = true;
+    for (const f of flocks) { f.x -= dx; f.z -= dz; }   // matrices rebuilt next frame
   }
 
   function setAssist(on) {
@@ -1527,11 +1671,297 @@ function createRings(THREE, world, opts = {}) {
 }
 
 
+// strips.js — grass landing strips for DRIFT. At most one per ~1.7 km cell,
+// found by hunting for naturally flat dry ground and draping a mowed ribbon
+// over it: genHeight is never modified and no existing RNG stream is touched,
+// so terrain, thermals, rings, and every daily seed stay byte-identical.
+// Threshold bars, a centreline, a windsock that reads the run's wind, and
+// floating approach chevrons on a ~1:7 slope toward the near threshold.
+//
+// Usage:   const strips = createStrips(THREE, world, { seed, wind });
+//          scene.add(strips.group);
+//          // per frame:  strips.update(playerPos, dt, time)
+//          // landing:    strips.query(x, z)      -> strip | null
+//          // guidance:   strips.nearest(p)       -> { strip, dist } | null
+
+function createStrips(THREE, world, opts = {}) {
+  const seed = opts.seed ?? 7;
+  const wind = opts.wind || new THREE.Vector3(8, 0, 0);
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = (a + 0x6d2b79f5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  const group = new THREE.Group();
+  let originX = 0, originZ = 0;
+
+  const CELL = 1400, RADIUS = 1;                  // 3×3 cells live around the player
+  const LEN = 130, WID = 18;                      // strip footprint, metres
+  const strips = new Map();                       // "ix,iz" -> strip | null
+
+  // deterministic search: 28 candidate centres × 5 headings per cell. Grass
+  // strips slope all the time — what kills a landing is roughness. So fit the
+  // mean slope along each candidate line and judge the residual around it,
+  // plus a cross-slope and a max-grade limit. Measured (4 000 random valley
+  // lines): even the flattest 1% span ~6 m raw, but detrend and the best few
+  // percent sit within ±2.6 m — that is what a strip is.
+  function makeStripData(ix, iz) {
+    const rng = mulberry32(((ix * 92837111) ^ (iz * 689287499) ^ (seed * 283923481)) | 0);
+    let best = null;
+    const hs = new Float64Array(9);
+    for (let t = 0; t < 36; t++) {
+      // half the candidates hug the river: the carve that digs the channel is
+      // the only thing in the alpine world that planes terrain flat, so the
+      // banks and lakeshores are where real strips live. The other half stay
+      // uniform — that is what finds the coastal plateau tops. River picks
+      // that fall outside this cell are skipped, so neighbouring cells can
+      // never double-claim the same bank.
+      const cz = iz * CELL + (0.12 + 0.76 * rng()) * CELL - originZ;
+      let cx;
+      if (t & 1) {
+        const side = rng() < 0.5 ? -1 : 1, off = 40 + rng() * 190;
+        cx = world.riverCenter(cz) + side * off;
+        const lo = ix * CELL - originX, hi = lo + CELL;
+        if (cx < lo + 80 || cx > hi - 80) continue;
+      } else {
+        cx = ix * CELL + (0.12 + 0.76 * rng()) * CELL - originX;
+      }
+      for (const hd of [0, 0.4, -0.4, 0.8, -0.8]) {
+        const dx = Math.sin(hd), dz = Math.cos(hd);             // along
+        const px = dz, pz = -dx;                                // across
+        let wet = false, lsum = 0, rsum = 0;
+        for (let i = 0; i < 9 && !wet; i++) {
+          const a = (i / 8 - 0.5) * LEN;
+          const hc = world.height(cx + dx * a, cz + dz * a);
+          const hl = world.height(cx + dx * a - px * WID * 0.5, cz + dz * a - pz * WID * 0.5);
+          const hr = world.height(cx + dx * a + px * WID * 0.5, cz + dz * a + pz * WID * 0.5);
+          if (hc < 2.5 || hl < 2.5 || hr < 2.5) { wet = true; break; }
+          hs[i] = hc; lsum += hl; rsum += hr;
+        }
+        if (wet) continue;
+        const slope = (hs[8] - hs[0]) / LEN;
+        if (Math.abs(slope) > 0.075) continue;                  // > ~4.3°: too steep
+        if (Math.abs(lsum - rsum) / 9 > 2.2) continue;          // cross-slope
+        const mid = (hs[0] + hs[8]) / 2;
+        if (mid > 60) continue;                                 // stay off the high walls
+        let resid = 0;
+        for (let i = 0; i < 9; i++) {
+          const a = (i / 8 - 0.5) * LEN;
+          const r = Math.abs(hs[i] - (mid + slope * a));
+          if (r > resid) resid = r;
+        }
+        if (resid > 4.2) continue;                              // lumpy: no strip here
+        if (!best || resid < best.flat)
+          best = { x: cx, z: cz, heading: hd, flat: resid, h: mid };
+      }
+    }
+    return best ? { ...best, visual: null } : null;
+  }
+
+  // ---------- presentation -------------------------------------------------
+  const SEGL = 14, SEGW = 2;
+  const STRIP_VERTS = SEGL * SEGW * 2 * 3;
+  const stripMat = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.95 });
+  const sockMat = new THREE.MeshStandardMaterial({ color: 0xff7a30, roughness: 0.7, flatShading: true });
+  const poleMat = new THREE.MeshStandardMaterial({ color: 0xe8e6e0, roughness: 0.6, flatShading: true });
+  const chevMat = new THREE.MeshBasicMaterial({
+    color: 0xffe9a8, transparent: true, opacity: 0.5,
+    side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+  const chevGeo = (() => {                       // flat "V" pointing local +Z
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute([
+      -4.5, 0, -2.5,   0, 0, 2.5,   -0.9, 0, -2.5,
+       0.9, 0, -2.5,   0, 0, 2.5,    4.5, 0, -2.5,
+    ], 3));
+    return g;
+  })();
+  const C_GRASS = new THREE.Color(0x9cc45a), C_GRASS2 = new THREE.Color(0x8ab84e);
+  const C_WHITE = new THREE.Color(0xf4f7f2);
+  const dashMat = new THREE.MeshBasicMaterial({ color: 0xf4f7f2 });
+  const DASHES = 5;
+  const visualPool = [];
+
+  function makeVisual() {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(STRIP_VERTS * 3), 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(STRIP_VERTS * 3), 3));
+    const mesh = new THREE.Mesh(geo, stripMat);
+    mesh.receiveShadow = true;
+    const dashGeo = new THREE.BufferGeometry();   // 5 flat centreline dashes, 2 tris each
+    dashGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(DASHES * 6 * 3), 3));
+    const dashes = new THREE.Mesh(dashGeo, dashMat);
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.12, 6, 6), poleMat);
+    const sock = new THREE.Mesh(new THREE.ConeGeometry(0.55, 2.6, 6), sockMat);
+    const chevrons = [];
+    for (let i = 0; i < 3; i++) { const c = new THREE.Mesh(chevGeo, chevMat); chevrons.push(c); }
+    const g = new THREE.Group();
+    g.add(mesh, dashes, pole, sock, ...chevrons);
+    group.add(g);
+    return { group: g, mesh, dashes, pole, sock, chevrons };
+  }
+
+  function attachVisual(s) {
+    const v = visualPool.pop() || makeVisual();
+    v.group.visible = true;
+    v.group.position.set(0, 0, 0);               // world coords baked into verts
+    const dx = Math.sin(s.heading), dz = Math.cos(s.heading);
+    const px = dz, pz = -dx;
+    const pos = v.mesh.geometry.attributes.position.array;
+    const col = v.mesh.geometry.attributes.color.array;
+    // corner heights, draped 0.3 m over the terrain
+    const H = [];
+    for (let j = 0; j <= SEGW; j++)
+      for (let i = 0; i <= SEGL; i++) {
+        const a = i / SEGL - 0.5, b = j / SEGW - 0.5;
+        H.push(world.height(s.x + dx * a * LEN + px * b * WID, s.z + dz * a * LEN + pz * b * WID) + 0.3);
+      }
+    let k = 0;
+    const put = (i, j) => {
+      const a = i / SEGL - 0.5, b = j / SEGW - 0.5;
+      pos[k++] = s.x + dx * a * LEN + px * b * WID;
+      pos[k++] = H[j * (SEGL + 1) + i];
+      pos[k++] = s.z + dz * a * LEN + pz * b * WID;
+    };
+    let f = 0;
+    const paint = (c) => { for (let t = 0; t < 9; t += 3) { col[f + t] = c.r; col[f + t + 1] = c.g; col[f + t + 2] = c.b; } f += 9; };
+    for (let j = 0; j < SEGW; j++) {
+      for (let i = 0; i < SEGL; i++) {
+        put(i, j); put(i, j + 1); put(i + 1, j + 1);
+        put(i, j); put(i + 1, j + 1); put(i + 1, j);
+        // white threshold bars at both ends, mowing stripes between
+        const c = (i === 0 || i === SEGL - 1) ? C_WHITE : ((i & 1) ? C_GRASS : C_GRASS2);
+        paint(c); paint(c);
+      }
+    }
+    v.mesh.geometry.attributes.position.needsUpdate = true;
+    v.mesh.geometry.attributes.color.needsUpdate = true;
+    v.mesh.geometry.computeVertexNormals();
+    v.mesh.geometry.computeBoundingSphere();
+    // centreline dashes: thin flat quads draped 0.45 over the terrain
+    const dp = v.dashes.geometry.attributes.position.array;
+    let dk = 0;
+    for (let d = 0; d < DASHES; d++) {
+      const a0 = -0.36 + d * 0.18, a1 = a0 + 0.085;        // along, as fraction of LEN
+      const corner = (a, w) => {
+        const wx = s.x + dx * a * LEN + px * w, wz = s.z + dz * a * LEN + pz * w;
+        return [wx, world.height(wx, wz) + 0.45, wz];
+      };
+      const c00 = corner(a0, -0.7), c01 = corner(a0, 0.7), c10 = corner(a1, -0.7), c11 = corner(a1, 0.7);
+      dp.set([...c00, ...c01, ...c11, ...c00, ...c11, ...c10], dk); dk += 18;
+    }
+    v.dashes.geometry.attributes.position.needsUpdate = true;
+    v.dashes.geometry.computeBoundingSphere();
+    // windsock on the right edge at midfield, cone tip blown downwind
+    const sx = s.x + px * (WID / 2 + 7), sz = s.z + pz * (WID / 2 + 7);
+    const sh = world.height(sx, sz);
+    v.pole.position.set(sx, sh + 3, sz);
+    const wl = Math.hypot(wind.x, wind.z) || 1;
+    v.sock.position.set(sx + (wind.x / wl) * 1.4, sh + 5.7, sz + (wind.z / wl) * 1.4);
+    v.sock.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0),
+      new THREE.Vector3(wind.x / wl, 0.12, wind.z / wl).normalize());
+    // approach chevrons climb a ~1:7 slope back from the near (-heading)
+    // threshold, anchored to the threshold's true height (strips can slope)
+    const thX = s.x - dx * (LEN / 2), thZ = s.z - dz * (LEN / 2);
+    const thH = world.height(thX, thZ);
+    for (let i = 0; i < 3; i++) {
+      const d = 70 + i * 60;
+      v.chevrons[i].position.set(thX - dx * d, thH + 2.5 + d * 0.14, thZ - dz * d);
+      v.chevrons[i].rotation.y = s.heading;      // V opens toward the strip
+    }
+    s.visual = v;
+  }
+
+  function releaseVisual(s) {
+    if (!s.visual) return;
+    s.visual.group.visible = false;
+    visualPool.push(s.visual);
+    s.visual = null;
+  }
+
+  // ---------- queries --------------------------------------------------------
+  function query(x, z) {
+    for (const s of strips.values()) {
+      if (!s) continue;
+      const rx = x - s.x, rz = z - s.z;
+      const dx = Math.sin(s.heading), dz = Math.cos(s.heading);
+      const u = rx * dx + rz * dz, w = rx * dz - rz * dx;
+      if (Math.abs(u) < LEN / 2 + 6 && Math.abs(w) < WID / 2 + 2) return s;
+    }
+    return null;
+  }
+  function nearest(p) {
+    let best = null, bd = Infinity;
+    for (const s of strips.values()) {
+      if (!s) continue;
+      const d = Math.hypot(p.x - s.x, p.z - s.z);
+      if (d < bd) { bd = d; best = s; }
+    }
+    return best && { strip: best, dist: bd };
+  }
+
+  // ---------- streaming + animation ------------------------------------------
+  function update(playerPos, dt, time = 0) {
+    const cix = Math.floor((playerPos.x + originX) / CELL), ciz = Math.floor((playerPos.z + originZ) / CELL);
+    const needed = new Set();
+    for (let dz = -RADIUS; dz <= RADIUS; dz++)
+      for (let dx = -RADIUS; dx <= RADIUS; dx++)
+        needed.add((cix + dx) + ',' + (ciz + dz));
+    for (const [key, s] of strips) {
+      if (!needed.has(key)) { if (s) releaseVisual(s); strips.delete(key); }
+    }
+    for (const key of needed) {
+      if (strips.has(key)) continue;
+      const [ix, iz] = key.split(',').map(Number);
+      const s = makeStripData(ix, iz);
+      strips.set(key, s);
+      if (s) attachVisual(s);
+    }
+    const pulse = 0.3 + 0.25 * (0.5 + 0.5 * Math.sin(time * 2.2));
+    chevMat.opacity = pulse;
+  }
+
+  function rebase(dx, dz) {
+    originX += dx; originZ += dz;
+    for (const s of strips.values()) {
+      if (!s) continue;
+      s.x -= dx; s.z -= dz;
+      if (s.visual) {
+        for (const geo of [s.visual.mesh.geometry, s.visual.dashes.geometry]) {
+          const pos = geo.attributes.position.array;
+          for (let i = 0; i < pos.length; i += 3) { pos[i] -= dx; pos[i + 2] -= dz; }
+          geo.attributes.position.needsUpdate = true;
+          geo.computeBoundingSphere();
+        }
+        s.visual.pole.position.x -= dx; s.visual.pole.position.z -= dz;
+        s.visual.sock.position.x -= dx; s.visual.sock.position.z -= dz;
+        for (const c of s.visual.chevrons) { c.position.x -= dx; c.position.z -= dz; }
+      }
+    }
+  }
+
+  return { group, update, query, nearest, rebase, length: LEN, width: WID };
+}
+
+
 // demo-glue.js — flyable demo wiring: simplified DRIFT flight model, chase
 // camera with FOV ramp, HUD, crash + respawn. Expects buildGlider() and
 // createWorld() in scope, THREE imported.
 
 const IS_TOUCH = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
+
+// ---------- portal target: make_portals.py rewrites the next line ----------
+const PORTAL = 'web';                            // 'web' | 'poki' | 'crazygames'
+// portals forbid external links in-game; the web build keeps the share URL
+const SHARE_URL = PORTAL === 'web' ? '\nhttps://khalifa.games/glider/' : '';
+const portalHooks = {                            // Phase 2 fills these per SDK
+  gameplayStart() {},
+  gameplayStop() {},
+};
+
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
 renderer.setSize(innerWidth, innerHeight);
@@ -1549,10 +1979,12 @@ let air = createAir(THREE, world, { seed, wind, map: mapId });
 scene.add(air.group);
 let rings = createRings(THREE, world, { seed });
 scene.add(rings.group);
+let strips = createStrips(THREE, world, { seed, wind });
+scene.add(strips.group);
 
 function rebuildWorld(id, newSeed) {
   if (id === mapId && newSeed === seed) return;
-  for (const g of [world.group, air.group, rings.group]) {
+  for (const g of [world.group, air.group, rings.group, strips.group]) {
     scene.remove(g);
     g.traverse(o => {
       if (o.geometry) o.geometry.dispose();
@@ -1568,6 +2000,8 @@ function rebuildWorld(id, newSeed) {
   scene.add(air.group);
   rings = createRings(THREE, world, { seed });
   scene.add(rings.group);
+  strips = createStrips(THREE, world, { seed, wind });
+  scene.add(strips.group);
   scene.fog.color.copy(world.colors.skyHorizon);
 }
 scene.fog = new THREE.Fog(world.colors.skyHorizon, 230, 780);  // terrain ends at 840 m: stay safely inside it
@@ -1629,6 +2063,8 @@ let distance = 0, flightTime = 0, dead = false, deadTimer = 0, scrapeFlash = 0, 
 // scoring: multiplier = 1 + ground-rush bonus + ring/save bonus (the latter decays)
 let score = 0, multiplier = 1, grBonus = 0, bonus = 0, decayTimer = 0, chain = 0, peakMult = 1;
 let thermalEntryAlt = null, ringFlash = 0, saveFlash = 0, panelShown = false;
+// landing: rolling = on the ground bleeding speed; landed = run ended on a strip
+let rolling = false, landed = false, landGrade = '', landBonusPct = 0;
 const bests = { alpine: { dist: 0, time: 0, score: 0 }, coastal: { dist: 0, time: 0, score: 0 } };
 try {  // persists on a real host; sandboxed previews just skip this
   const saved = JSON.parse(localStorage.getItem('glider.bests') || '{}');
@@ -1673,7 +2109,10 @@ function respawn() {
   score = 0; multiplier = 1; grBonus = 0; bonus = 0; decayTimer = 0; chain = 0; peakMult = 1;
   thermalEntryAlt = null; ringFlash = saveFlash = 0; deathMsg = '';
   panelShown = false;
+  rolling = false; landed = false; landGrade = ''; landBonusPct = 0;
+  if (school) startLesson(0);
   document.body.classList.remove('dead');
+  if (window.__gliderBooted) portalHooks.gameplayStart();
   clearWreck();
   glider.visible = true;
   world.update(pos, 0);
@@ -1685,8 +2124,34 @@ function respawn() {
 const keys = {};
 let touchPitch = 0, touchRoll = 0, touchTuck = false;   // analog, from the joystick/buttons
 let inMenu = false, holdStart = false, newBest = false;
+// ---------- pause: explicit (P / button) and automatic (iframe blur) ----------
+let paused = false;
+function pauseGame() {
+  if (paused || inMenu || dead || holdStart) return;
+  paused = true;
+  document.body.classList.add('paused');
+  portalHooks.gameplayStop();
+  if (actx) actx.suspend();
+}
+function resumeGame() {
+  if (!paused) return;
+  paused = false;
+  document.body.classList.remove('paused');
+  portalHooks.gameplayStart();
+  if (actx) actx.resume();
+}
+function togglePause() { paused ? resumeGame() : pauseGame(); }
+// portals embed the game in an iframe: losing focus must silence and freeze it
+function onBlurred() {
+  if (!inMenu && !dead && !holdStart) pauseGame();
+  else if (actx) actx.suspend();                 // menus go quiet too
+}
+addEventListener('blur', onBlurred);
+document.addEventListener('visibilitychange', () => { if (document.hidden) onBlurred(); });
+addEventListener('focus', () => { if (!paused && actx) actx.resume(); });
 function openMenu() {
   inMenu = true;
+  portalHooks.gameplayStop();
   document.body.classList.add('menu');
   glider.visible = false;
   $('bestAlpine').textContent = bests.alpine.dist > 0 ? 'best ' + (bests.alpine.dist / 1000).toFixed(2) + ' km' : 'not yet flown';
@@ -1697,12 +2162,18 @@ function openMenu() {
   $('bestDaily').textContent = (dailyBest.date === todayStr() && dailyBest.score > 0)
     ? 'today\u2019s best ' + Math.round(dailyBest.score).toLocaleString('en')
     : 'not yet flown today';
+  let grad = false;
+  try { grad = !!localStorage.getItem('glider.school'); } catch (e) {}
+  $('bestSchool').textContent = grad ? '\u2713 graduated' : 'new pilot? start here';
 }
-function startGame(id, asDaily) {
+function startGame(id, asDaily, asSchool) {
   daily = !!asDaily;
+  school = !!asSchool;
   holdStart = false;
   document.body.classList.remove('prestart');
-  rebuildWorld(id, daily ? dailySeed() : 7);
+  document.body.classList.toggle('school', school);
+  if (school) { assist = true; applyAssist(); }            // training wheels on
+  rebuildWorld(id, daily ? dailySeed() : (school ? SCHOOL_SEED : 7));
   inMenu = false;
   document.body.classList.remove('menu');
   $('dailyTag').style.display = daily ? '' : 'none';
@@ -1715,11 +2186,14 @@ function startDaily() { startGame(dailyMapId(dailySeed()), true); }
 addEventListener('keydown', e => {
   keys[e.code] = true;
   if (inMenu) {
-    if (e.code === 'Digit1') startGame('alpine');
-    if (e.code === 'Digit2') startGame('coastal');
-    if (e.code === 'Digit3') startDaily();
+    if (e.code === 'Digit1') startGame('alpine', false, true);
+    if (e.code === 'Digit2') startGame('alpine');
+    if (e.code === 'Digit3') startGame('coastal');
+    if (e.code === 'Digit4') startDaily();
     return;
   }
+  if (e.code === 'KeyP') { togglePause(); return; }
+  if (paused) { if (e.code === 'KeyM') { resumeGame(); openMenu(); } return; }
   if (e.code === 'KeyR') respawn();
   if (e.code === 'KeyT') toggleAssist();
   if (e.code === 'KeyC') toggleView();
@@ -1741,9 +2215,10 @@ function physicsStep(dt) {
   if (dead) {
     updateWreck(dt);
     deadTimer -= dt;
-    if (deadTimer <= 0 && !panelShown) showDeathPanel();
+    if (deadTimer <= 0 && !panelShown) (landed ? showLandedPanel() : showDeathPanel());
     return;
   }
+  if (rolling) { groundRoll(dt); return; }
 
   // input → target rates → smoothed actual rates
   const kPitch = ((keys.KeyW || keys.ArrowUp) ? 1 : 0) - ((keys.KeyS || keys.ArrowDown) ? 1 : 0);
@@ -1848,6 +2323,19 @@ function physicsStep(dt) {
   // ground / water
   const ground = Math.max(0, world.height(pos.x, pos.z)); // water level caps at 0
   if (pos.y < ground + 0.6) {
+    // a strip touchdown beats every other outcome: slow sink, wings level
+    if (strips.query(pos.x, pos.z) && vel.y > -5.5 && Math.abs(U.y) > 0.85) {
+      rolling = true;
+      const sink = -vel.y;
+      landGrade = sink < 1.2 ? 'BUTTER' : sink < 2.8 ? 'SMOOTH' : 'FIRM';
+      landBonusPct = sink < 1.2 ? 0.10 : sink < 2.8 ? 0.06 : 0.03;
+      pos.y = ground + 0.6;
+      vel.y = 0;
+      scrapeFlash = 0.4;
+      spawnBurst(pos, vel, 0.2, false);
+      playWhump(0.16 + Math.min(0.2, sink * 0.05));
+      return;
+    }
     const n = world.surfaceNormal(pos.x, pos.z);
     const gentle = n.y > (assist ? 0.86 : 0.92) && Math.abs(vel.y) < (assist ? 7 : 5) && world.height(pos.x, pos.z) > 0.4;
     if (gentle) {                                          // scrape
@@ -1863,33 +2351,84 @@ function physicsStep(dt) {
       spawnBurst(pos, vel, Math.min(1, impactSpeed / 40), onWater);
       if (impactSpeed > 22) breakUp(impactSpeed);          // hard hits shed wings and tail
       if (cockpit) cockpit = false;                        // the cinematic is external
-      const sc = Math.round(score);
-      if (daily) {
-        if (dailyBest.date !== todayStr())                 // UTC rolled over mid-session
-          dailyBest = { date: todayStr(), dist: 0, time: 0, score: 0 };
-        newBest = sc > dailyBest.score;
-        dailyBest.dist = Math.max(dailyBest.dist, distance);
-        dailyBest.time = Math.max(dailyBest.time, flightTime);
-        dailyBest.score = Math.max(dailyBest.score, sc);
-        saveDaily();
-      } else {
-        const best = bests[mapId];
-        newBest = sc > best.score;
-        best.dist = Math.max(best.dist, distance);
-        best.time = Math.max(best.time, flightTime);
-        best.score = Math.max(best.score, sc);
-        saveBests();
-      }
+      recordRun();
       playWhump();
     }
   }
 }
 
+// ---------- ground roll: friction to a stop, then the landed panel ----------
+function groundRoll(dt) {
+  const sp = vel.length();
+  const decel = Math.min(sp / dt, 3.5 + 0.08 * sp);        // never reverses
+  if (sp > 0.01) vel.addScaledVector(vTmp.copy(vel).normalize(), -decel * dt);
+  pos.addScaledVector(vel, dt);
+  const g = world.height(pos.x, pos.z);
+  if (g < 0.4) {                                           // rolled off into water
+    rolling = false;
+    dead = true; deadTimer = 0.5; panelShown = false;
+    spawnBurst(pos, vel, 0.5, true);
+    recordRun(); playWhump();
+    return;
+  }
+  pos.y = g + 0.6;
+  // settle: wings level, nose along the roll direction, slightly down
+  if (vel.lengthSq() > 1) {
+    qTmp.setFromUnitVectors(vTmp.set(0, 0, 1), F.copy(vel).normalize());
+    quat.slerp(qTmp, Math.min(1, 3 * dt));
+  }
+  flightTime += dt;                                        // the clock runs to wheels-stop
+  if (vel.length() < 1.2) {
+    vel.set(0, 0, 0);
+    rolling = false; landed = true;
+    score *= 1 + landBonusPct;                             // bank the run
+    dead = true; deadTimer = 0.6; panelShown = false;      // reuse the panel flow, no wreck
+    recordRun();
+    playChime(2);
+  }
+}
+
+// shared run-end bookkeeping: bests + daily, used by crash and landing alike
+function recordRun() {
+  if (school) { newBest = false; return; }                 // practice never counts
+  const sc = Math.round(score);
+  if (daily) {
+    if (dailyBest.date !== todayStr())                     // UTC rolled over mid-session
+      dailyBest = { date: todayStr(), dist: 0, time: 0, score: 0 };
+    newBest = sc > dailyBest.score;
+    dailyBest.dist = Math.max(dailyBest.dist, distance);
+    dailyBest.time = Math.max(dailyBest.time, flightTime);
+    dailyBest.score = Math.max(dailyBest.score, sc);
+    saveDaily();
+  } else {
+    const best = bests[mapId];
+    newBest = sc > best.score;
+    best.dist = Math.max(best.dist, distance);
+    best.time = Math.max(best.time, flightTime);
+    best.score = Math.max(best.score, sc);
+    saveBests();
+  }
+}
+
 // ---------- audio: wind, vario, whump ----------
-let actx = null, windGain, windFilter, varioOsc, varioGain, noiseBuf;
+let actx = null, windGain, windFilter, varioOsc, varioGain, noiseBuf, masterGain;
+let muted = false;
+try { muted = localStorage.getItem('glider.muted') === '1'; } catch (e) {}
+function applyMute() {
+  if (masterGain) masterGain.gain.value = muted ? 0 : 1;
+  try { localStorage.setItem('glider.muted', muted ? '1' : '0'); } catch (e) {}
+  for (const id of ['btnMute', 'menuMute']) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = muted ? 'SOUND OFF' : 'SOUND ON';
+  }
+}
+function toggleMute() { muted = !muted; applyMute(); }
 function startAudio() {
   if (actx) { if (actx.state === 'suspended') actx.resume(); return; }  // iOS re-suspends on backgrounding
   actx = new (window.AudioContext || window.webkitAudioContext)();
+  masterGain = actx.createGain();
+  masterGain.gain.value = muted ? 0 : 1;
+  masterGain.connect(actx.destination);
   noiseBuf = actx.createBuffer(1, actx.sampleRate * 2, actx.sampleRate);
   const d = noiseBuf.getChannelData(0);
   for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
@@ -1897,23 +2436,23 @@ function startAudio() {
   src.buffer = noiseBuf; src.loop = true;
   windFilter = actx.createBiquadFilter(); windFilter.type = 'lowpass';
   windGain = actx.createGain(); windGain.gain.value = 0;
-  src.connect(windFilter).connect(windGain).connect(actx.destination);
+  src.connect(windFilter).connect(windGain).connect(masterGain);
   src.start();
   varioOsc = actx.createOscillator(); varioOsc.type = 'sine';
   varioGain = actx.createGain(); varioGain.gain.value = 0;
-  varioOsc.connect(varioGain).connect(actx.destination);
+  varioOsc.connect(varioGain).connect(masterGain);
   varioOsc.start();
   if (actx.state === 'suspended') actx.resume();   // iOS: contexts are born suspended
 }
-function playWhump() {
+function playWhump(vol = 0.5) {
   if (!actx) return;
   const src = actx.createBufferSource(); src.buffer = noiseBuf;
   const f = actx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 140; f.Q.value = 1.4;
   const g = actx.createGain();
   g.gain.setValueAtTime(0.0001, actx.currentTime);
-  g.gain.exponentialRampToValueAtTime(0.5, actx.currentTime + 0.06);
+  g.gain.exponentialRampToValueAtTime(vol, actx.currentTime + 0.06);
   g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime + 0.5);
-  src.connect(f).connect(g).connect(actx.destination);
+  src.connect(f).connect(g).connect(masterGain);
   src.start(); src.stop(actx.currentTime + 0.6);
 }
 function playChime(chain) {
@@ -1926,7 +2465,7 @@ function playChime(chain) {
   g.gain.setValueAtTime(0.0001, actx.currentTime);
   g.gain.exponentialRampToValueAtTime(0.22, actx.currentTime + 0.02);
   g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime + 0.35);
-  o.connect(g).connect(actx.destination);
+  o.connect(g).connect(masterGain);
   o.start(); o.stop(actx.currentTime + 0.4);
 }
 function updateAudio(now) {
@@ -2016,13 +2555,22 @@ function updateHUD() {
   // wind arrow relative to heading
   const rel = Math.atan2(air.wind.x, air.wind.z) - Math.atan2(F.x, F.z);
   $('warrow').style.transform = 'rotate(' + (-rel * 180 / Math.PI - 90) + 'deg)'; // -90: glyph points right, 0 = tailwind-up
-  // lift compass: bearing + distance to the nearest thermal (assist only)
-  const nt = assist ? air.nearestThermal(pos) : null;
-  $('liftbox').style.display = nt ? '' : 'none';
-  if (nt) {
-    const trel = Math.atan2(nt.thermal.x - pos.x, nt.thermal.z - pos.z) - Math.atan2(F.x, F.z);
+  // guidance compass: lesson goal in school, nearest thermal otherwise
+  let gx = null, gz = null, glabel = 'lift';
+  if (school && lesson === 1) { gx = gate.position.x; gz = gate.position.z; glabel = 'gate'; }
+  else if (school && lesson === 3) {
+    const ns = strips.nearest(pos);
+    if (ns) { gx = ns.strip.x; gz = ns.strip.z; glabel = 'strip'; }
+  } else {
+    const nt = (assist || school) ? air.nearestThermal(pos) : null;
+    if (nt) { gx = nt.thermal.x; gz = nt.thermal.z; }
+  }
+  $('liftbox').style.display = gx !== null ? '' : 'none';
+  if (gx !== null) {
+    const trel = Math.atan2(gx - pos.x, gz - pos.z) - Math.atan2(F.x, F.z);
     $('tarrow').style.transform = 'rotate(' + (-trel * 180 / Math.PI - 90) + 'deg)';
-    $('tdist').textContent = (nt.dist | 0) + ' m';
+    $('tlabel').textContent = glabel;
+    $('tdist').textContent = (Math.hypot(gx - pos.x, gz - pos.z) | 0) + ' m';
   }
 }
 
@@ -2298,6 +2846,79 @@ function updateCoach(dt) {
   else if (flightTime > 45) show('tuck', (IS_TOUCH ? 'Hold TUCK' : 'Hold SHIFT') + ' in a dive, then pull up to zoom-climb', true);
 }
 
+// ---------- flight school: four short lessons, ending on the strip ----------
+// glide → turn → lift → land. Fixed seed so every student gets the same
+// friendly sky; nothing is recorded to bests — practice never counts.
+const SCHOOL_SEED = 41;            // verified: thermal near launch, strip in the first valley
+let school = false;
+let lesson = -1, lessonDist0 = 0, lessonThermal = null, lessonAlt = 0;
+
+const gate = (() => {
+  const g = new THREE.Group();
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(16, 1.3, 8, 30),
+    new THREE.MeshBasicMaterial({ color: 0xffd23a, transparent: true, opacity: 0.9 })
+  );
+  const pillar = new THREE.Mesh(
+    new THREE.CylinderGeometry(2.5, 2.5, 220, 10, 1, true),
+    new THREE.MeshBasicMaterial({
+      color: 0xffd23a, transparent: true, opacity: 0.10,
+      side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending,
+    })
+  );
+  pillar.position.y = 90;
+  g.add(ring, pillar);
+  g.visible = false;
+  return g;
+})();
+scene.add(gate);
+
+const LESSON_TEXT = [
+  'LESSON 1 · GLIDE — hold a steady nose, fly 350 m',
+  'LESSON 2 · TURN — bank through the golden gate',
+  'LESSON 3 · LIFT — ride the thermal up',
+  'LESSON 4 · LAND — touch down on the strip: slow, wings level',
+];
+function placeGate() {
+  F.set(0, 0, 1).applyQuaternion(quat);
+  const hd = Math.atan2(F.x, F.z);
+  // open the turn toward the river so the gate stays in the friendly valley
+  const side = (world.riverCenter(pos.z + 300) - pos.x) > 0 ? 1 : -1;
+  const a = hd + side * 0.55;
+  const gx = pos.x + Math.sin(a) * 300, gz = pos.z + Math.cos(a) * 300;
+  const gy = Math.max(Math.max(0, world.height(gx, gz)) + 35, pos.y - 30);
+  gate.position.set(gx, gy, gz);
+  gate.rotation.y = a;                       // ring faces the approach
+  gate.visible = true;
+}
+function startLesson(n) {
+  lesson = n;
+  gate.visible = false;
+  lessonThermal = null;
+  if (n === 0) lessonDist0 = distance;
+  if (n === 1) placeGate();
+  $('objective').textContent = LESSON_TEXT[n] || '';
+}
+function updateSchool(dt) {
+  if (!school || dead || rolling || inMenu || lesson < 0) return;
+  if (lesson === 0 && distance - lessonDist0 >= 350) { playChime(1); startLesson(1); }
+  else if (lesson === 1) {
+    if (pos.distanceTo(gate.position) < 18) { playChime(2); startLesson(2); }
+    else if (pos.z > gate.position.z + 280) placeGate();   // sailed past: a fresh gate, no shame
+  } else if (lesson === 2) {
+    if (!lessonThermal || Math.hypot(pos.x - lessonThermal.x, pos.z - lessonThermal.z) > 950) {
+      const nt = air.nearestThermal(pos);
+      if (nt) {
+        lessonThermal = nt.thermal;
+        lessonAlt = Math.min(lessonThermal.top - 30, Math.max(lessonThermal.ground + 140, pos.y + 80));
+        $('objective').textContent = 'LESSON 3 · LIFT — circle in the thermal up to ' + Math.round(lessonAlt) + ' m';
+      }
+    }
+    if (lessonThermal && pos.y >= lessonAlt) { playChime(3); startLesson(3); }
+  }
+  // lesson 4 completes in groundRoll: a landing while in school graduates
+}
+
 // ---------- mobile controls ----------
 (function setupTouch() {
   if (IS_TOUCH) document.body.classList.add('touch');
@@ -2466,7 +3087,17 @@ function updateBurst(dt) {
 // ---------- death panel + share ----------
 function showDeathPanel() {
   panelShown = true;
+  portalHooks.gameplayStop();
   const sc = Math.round(score);
+  if (school) {
+    $('deathTitle').textContent = 'FLIGHT SCHOOL';
+    $('deathDist').textContent = 'every pilot bends one';
+    $('deathSub').textContent = 'lesson ' + (lesson + 1) + ' of 4 — no harm done';
+    $('deathBest').textContent = '';
+    $('btnShare').textContent = 'SHARE';
+    document.body.classList.add('dead');
+    return;
+  }
   $('deathTitle').textContent = daily ? 'DAILY FLIGHT · ' + dailyLabel() : MAP_NAMES[mapId];
   $('deathDist').textContent = (distance / 1000).toFixed(2) + ' km';
   $('deathSub').textContent = sc.toLocaleString('en') + ' pts · '
@@ -2478,14 +3109,38 @@ function showDeathPanel() {
   $('btnShare').textContent = 'SHARE';
   document.body.classList.add('dead');
 }
+function showLandedPanel() {
+  panelShown = true;
+  portalHooks.gameplayStop();
+  const sc = Math.round(score);
+  if (school) {
+    $('deathTitle').textContent = '\u2605 FLIGHT SCHOOL COMPLETE';
+    $('deathDist').textContent = landGrade + ' landing';
+    $('deathSub').textContent = 'glide · turn · lift · land — you know the sky now';
+    $('deathBest').textContent = 'pick a world and fly for real';
+    try { localStorage.setItem('glider.school', '1'); } catch (e) {}
+  } else {
+    $('deathTitle').textContent = (daily ? 'DAILY FLIGHT · ' + dailyLabel() : MAP_NAMES[mapId]) + ' · LANDED';
+    $('deathDist').textContent = (distance / 1000).toFixed(2) + ' km';
+    $('deathSub').textContent = landGrade + ' touchdown +' + Math.round(landBonusPct * 100) + '% · '
+      + sc.toLocaleString('en') + ' pts · ' + Math.round(flightTime) + ' s';
+    const b = daily ? dailyBest : bests[mapId];
+    const bsc = Math.round(b.score);
+    $('deathBest').textContent = newBest ? '\u2605 NEW BEST'
+      : 'best ' + bsc.toLocaleString('en') + '  (' + (sc - bsc).toLocaleString('en') + ')';
+  }
+  $('btnShare').textContent = 'SHARE';
+  document.body.classList.add('dead');
+}
 function shareText() {
   const m = new Date(), mon = MONTHS[m.getUTCMonth()];
   const title = daily
     ? 'GLIDER \u2014 Daily ' + m.getUTCDate() + ' ' + mon.charAt(0) + mon.slice(1).toLowerCase()
     : 'GLIDER \u2014 ' + (mapId === 'alpine' ? 'Alpine Valley' : 'Coastal Archipelago');
   const stats = '\u{1FA82} ' + (distance / 1000).toFixed(2) + ' km · '
-    + Math.round(score).toLocaleString('en') + ' pts · ' + Math.round(flightTime) + ' s aloft';
-  return title + '\n' + stats + '\nhttps://khalifa.games/glider/' + (daily ? '?daily' : '');
+    + Math.round(score).toLocaleString('en') + ' pts · ' + Math.round(flightTime) + ' s aloft'
+    + (landed ? ' · landed (' + landGrade.toLowerCase() + ')' : '');
+  return title + '\n' + stats + (SHARE_URL ? SHARE_URL + (daily ? '?daily' : '') : '');
 }
 async function doShare() {
   const text = shareText();
@@ -2515,17 +3170,25 @@ function frame(now) {
     const t = now / 1000 * 0.07;
     world.update(pos, FIXED_DT);
     air.update(pos, FIXED_DT, now / 1000);
+    strips.update(pos, FIXED_DT, now / 1000);
     camera.position.set(pos.x + Math.sin(t) * 300, pos.y + 110, pos.z + Math.cos(t) * 300);
     camera.up.set(0, 1, 0);
     camera.lookAt(pos.x, Math.max(20, pos.y - 60), pos.z);
     camera.fov += (58 - camera.fov) * 0.05;
     camera.updateProjectionMatrix();
     renderer.render(scene, camera);
+    hideLoader();
+    requestAnimationFrame(frame);
+    return;
+  }
+  if (paused) {                                          // frozen, but still painted
+    accum = 0;
+    renderer.render(scene, camera);
     requestAnimationFrame(frame);
     return;
   }
   if (holdStart) accum = 0;                              // deep-link pre-start: hold physics
-  const scale = dead ? (panelShown ? 1 : 0.3) : 1;       // slow-mo impact, then real time
+  const scale = dead ? ((panelShown || landed) ? 1 : 0.3) : 1;   // slow-mo impact; landings run real time
   while (accum >= FIXED_DT) {
     physicsStep(FIXED_DT * scale);
     scrapeFlash = Math.max(0, scrapeFlash - FIXED_DT);
@@ -2537,6 +3200,8 @@ function frame(now) {
   world.update(pos, FIXED_DT);
   air.update(pos, FIXED_DT, now / 1000);
   rings.update(pos, FIXED_DT, now / 1000);
+  strips.update(pos, FIXED_DT, now / 1000);
+  updateSchool(FIXED_DT);
   updateMotes(FIXED_DT);
   updateAudio(now);
   // floating origin: every ~10 km, teleport the universe back toward zero so
@@ -2545,7 +3210,8 @@ function frame(now) {
   if (Math.abs(pos.x) > 10000 || Math.abs(pos.z) > 10000) {
     const dx = Math.trunc(pos.x / world.chunkSize) * world.chunkSize;
     const dz = Math.trunc(pos.z / world.chunkSize) * world.chunkSize;
-    world.rebase(dx, dz); air.rebase(dx, dz); rings.rebase(dx, dz);
+    world.rebase(dx, dz); air.rebase(dx, dz); rings.rebase(dx, dz); strips.rebase(dx, dz);
+    if (gate.visible) { gate.position.x -= dx; gate.position.z -= dz; }
     pos.x -= dx; pos.z -= dz;
     camPos.x -= dx; camPos.z -= dz;
     if (burst.visible) {
@@ -2561,16 +3227,31 @@ function frame(now) {
   updateVVM();
   updateHUD();
   renderer.render(scene, camera);
+  hideLoader();
   applyAssist();
   applyView();
   requestAnimationFrame(frame);
 }
 applyAssist();
 applyView();
+applyMute();
 respawn();                                       // seed the menu fly-over position
+window.__gliderBooted = true;
+let loaderHidden = false;
+function hideLoader() {
+  if (loaderHidden) return;
+  loaderHidden = true;
+  $('loader').classList.add('done');
+}
+$('btnPauseHud').addEventListener('pointerdown', e => { e.preventDefault(); togglePause(); });
+$('btnResume').addEventListener('click', resumeGame);
+$('btnMute').addEventListener('click', e => { e.stopPropagation(); toggleMute(); });
+$('menuMute').addEventListener('click', () => { startAudio(); toggleMute(); });
+$('pause').addEventListener('click', e => { if (e.target === $('pause')) resumeGame(); });
 $('mapAlpine').addEventListener('click', () => { startAudio(); startGame('alpine'); });
 $('mapCoastal').addEventListener('click', () => { startAudio(); startGame('coastal'); });
 $('mapDaily').addEventListener('click', () => { startAudio(); startDaily(); });
+$('mapSchool').addEventListener('click', () => { startAudio(); startGame('alpine', false, true); });
 $('btnAgain').addEventListener('click', () => { if (dead) respawn(); });
 $('btnShare').addEventListener('click', doShare);
 function releaseStart() {
