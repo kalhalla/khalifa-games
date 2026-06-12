@@ -11,7 +11,7 @@
 
 <!-- Share card. og:url and image URLs are ABSOLUTE — they assume khalifa.games.
      title.png lives in this game folder alongside this file. -->
-<meta name="description" content="A fast 3D arcade football game you can play right in your browser. Sons of Pitches vs Goal Diggers — two halves, ninety seconds each." />
+<meta name="description" content="A fast 3D arcade football game you can play right in your browser. Take Bampot Rovers from the Mud League to the Crown League — fifteen idiots, five tiers, ninety-second halves." />
 <meta property="og:type" content="website" />
 <meta property="og:site_name" content="Khalifa" />
 <meta property="og:title" content="Fitba Crazy — 7-a-side arcade football" />
@@ -281,6 +281,9 @@
     margin-right: 6px; vertical-align: middle;
     box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.3);
   }
+  /* The team sheet carries six stat bars and a one-liner per row — give it
+     more width and height than the bare table needs, where the screen allows. */
+  .overlay .leaguebox:has(.sheet) { width: min(94%, 560px); max-height: 58%; }
   @media (max-height: 600px) {
     .overlay.standings h1 { font-size: 21px; }
     .overlay .leaguebox { max-height: 48%; font-size: 11px; }
@@ -577,6 +580,148 @@
   }
   /* Narrow screens (portrait phones): top-anchor instead of floating mid-screen,
      and keep the scoreboard/footer compact and tidy. */
+  /* ---- TEAM SHEET (career squad screen, rendered inside .leaguebox) ---- */
+  .leaguebox .sheet { padding: 4px 6px 6px; font-family: "Courier New", monospace; }
+  .sheet .srow {
+    display: flex; align-items: center; gap: 7px;
+    padding: 5px 6px; margin: 3px 0; border-radius: 5px;
+    background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);
+    cursor: pointer; text-align: left; user-select: none;
+  }
+  .sheet .srow.bench { opacity: 0.45; border-style: dashed; }
+  .sheet .srow.susp  { opacity: 0.35; cursor: not-allowed; }
+  .sheet .pos {
+    flex: 0 0 26px; text-align: center; font-weight: 800; font-size: 10px;
+    color: #0b130d; background: #8aa097; border-radius: 3px; padding: 2px 0;
+  }
+  .sheet .srow.bench .pos { background: #3a463e; color: #8aa097; }
+  .sheet .who { flex: 1 1 auto; min-width: 0; }
+  .sheet .nm { font-size: 12px; font-weight: 800; color: #eef3ee; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sheet .nm small { color: #8aa097; font-weight: 400; }
+  .sheet .bio { font-size: 10px; color: #93a89b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sheet .tag { color: #ffd230; }
+  .sheet .tag.red { color: #ff6a5f; }
+  .sheet .bars { display: grid; grid-template-columns: repeat(3, 34px); gap: 2px 5px; flex: 0 0 auto; }
+  .sheet .bar { height: 4px; background: rgba(255,255,255,0.12); border-radius: 2px; position: relative; }
+  .sheet .bar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 2px; background: #2ee860; }
+  .sheet .bar.lo i { background: #e8772f; }
+  .sheet .bar.mad i { background: #d6329e; }
+  .sheet .blab { font-size: 7px; letter-spacing: 0.04em; color: #66796d; line-height: 1; margin-top: 1px; text-align: left; }
+  .sheet .gtally { flex: 0 0 30px; text-align: right; font-size: 10px; color: #ffd230; }
+  .sheet .shead { font-size: 10px; color: #8aa097; letter-spacing: 0.08em; margin: 5px 2px 2px; text-align: left; }
+  .leaguebox .headline {
+    font-family: Georgia, "Times New Roman", serif; font-style: italic;
+    font-size: 13px; color: #ffe07a; padding: 7px 10px 2px; text-align: center;
+  }
+  .leaguebox .newsline { font-size: 11px; color: #aebfb3; padding: 2px 10px 6px; text-align: center; font-family: "Courier New", monospace; }
+  .leaguebox .newsline b { color: #eef3ee; }
+
+  /* Swap mode: valid counterparts glow; everything else holds still. */
+  .sheet .srow.swappable {
+    border-color: #ffd230; border-style: solid; opacity: 1; cursor: pointer;
+    box-shadow: 0 0 0 1px rgba(255,210,48,0.55), 0 0 14px rgba(255,210,48,0.25);
+  }
+
+  /* Player card — portrait + big stats. */
+  .pcardwrap {
+    position: fixed; inset: 0; z-index: 40; display: none;
+    align-items: center; justify-content: center;
+    background: rgba(0, 0, 0, 0.55); pointer-events: auto;
+  }
+  .pcardwrap.show { display: flex; }
+  .pcard {
+    position: relative; width: min(92%, 460px); max-height: 92%;
+    overflow-y: auto; -webkit-overflow-scrolling: touch;
+    display: flex; gap: 14px; padding: 16px;
+    background: linear-gradient(160deg, #18291e, #0b1510);
+    border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 12px;
+    font-family: "Courier New", monospace; color: #eef3ee;
+    box-shadow: 0 22px 60px rgba(0, 0, 0, 0.65);
+    animation: cardin 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.15);
+  }
+  @keyframes cardin { from { transform: scale(0.55) rotate(-7deg); opacity: 0; } }
+  .pcard .cleft { flex: 0 0 142px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .pcard img {
+    width: 142px; height: 164px; object-fit: contain; border-radius: 10px;
+    background: radial-gradient(circle at 50% 28%, #2c4a36, #14241a 70%);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+  }
+  .pcard .crole { font-size: 10px; letter-spacing: 0.08em; color: #8aa097; text-align: center; }
+  .pcard .cright { flex: 1 1 auto; min-width: 0; }
+  .pcard .cnm { font-size: 19px; font-weight: 800; line-height: 1.15; }
+  .pcard .cnick { font-size: 13px; font-style: italic; color: #ffd230; margin-top: 1px; }
+  .pcard .cstatus { font-size: 11px; color: #ff6a5f; font-weight: 800; letter-spacing: 0.05em; margin-top: 4px; }
+  .pcard .cstat {
+    display: grid; grid-template-columns: 64px 1fr 30px; gap: 8px;
+    align-items: center; margin-top: 7px; font-size: 12px; color: #aebfb3;
+  }
+  .pcard .cstat b { font-size: 16px; color: #eef3ee; text-align: right; }
+  .pcard .cbar { height: 9px; background: rgba(255,255,255,0.12); border-radius: 5px; position: relative; }
+  .pcard .cbar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 5px; background: #2ee860; }
+  .pcard .cbar.lo i { background: #e8772f; }
+  .pcard .cbar.mad i { background: #d6329e; }
+  .pcard .crec { margin-top: 10px; font-size: 12px; color: #ffd230; }
+  .pcard .cline { margin-top: 7px; font-size: 12px; font-style: italic; color: #93a89b; }
+  .pcard .cswap { margin-top: 12px; width: 100%; font-size: 13px; padding: 8px; }
+  .pcard .cx {
+    position: absolute; top: 8px; right: 8px; width: 28px; height: 28px;
+    border-radius: 50%; border: 1px solid rgba(255,255,255,0.25);
+    background: rgba(255,255,255,0.08); color: #eef3ee; font-size: 13px; cursor: pointer;
+  }
+  @media (max-width: 560px) {
+    .pcard { flex-direction: column; align-items: center; padding: 14px; }
+    .pcard .cleft { flex: 0 0 auto; }
+    .pcard .cright { flex: 0 0 auto; width: 100%; }
+  }
+
+  /* ---- Trading-card lightbox ---- */
+  .cardlb {
+    position: fixed; inset: 0; z-index: 50; display: none;
+    align-items: center; justify-content: center; flex-direction: column; gap: 12px;
+    background: rgba(0, 0, 0, 0.82); pointer-events: auto;
+  }
+  .cardlb.show { display: flex; }
+  .cardlb img {
+    display: block;
+    max-height: 82vh; max-width: min(92vw, 420px);
+    width: auto; height: auto;
+    border-radius: 14px;
+    box-shadow: 0 28px 80px rgba(0,0,0,0.9);
+    animation: cardin 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.15);
+  }
+  .cardlb-btns { display: flex; gap: 10px; }
+  .cardlb-btns .btn { min-width: 130px; font-size: 13px; padding: 9px 16px; }
+
+  /* The local paper — spins onto the screen at full time. */
+  .leaguebox .paper {
+    margin: 8px auto 6px; width: min(94%, 400px);
+    background: #f3ecd9; color: #18150f;
+    font-family: Georgia, "Times New Roman", serif;
+    padding: 12px 14px 13px; border-radius: 2px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55), inset 0 0 40px rgba(120, 100, 60, 0.18);
+    transform: rotate(-1.3deg);
+    animation: paperspin 0.85s cubic-bezier(0.16, 0.85, 0.3, 1);
+  }
+  @keyframes paperspin {
+    from { transform: rotate(-1085deg) scale(0.02); opacity: 0; }
+    60%  { opacity: 1; }
+    to   { transform: rotate(-1.3deg) scale(1); }
+  }
+  .paper .masthead {
+    font-weight: 900; letter-spacing: 0.12em; text-align: center;
+    font-size: 17px; border-bottom: 2px solid #18150f; padding-bottom: 3px;
+  }
+  .paper .pdate {
+    font-size: 9px; letter-spacing: 0.1em; text-align: center; text-transform: uppercase;
+    border-bottom: 1px solid rgba(24, 21, 15, 0.4); padding: 2px 0 3px; margin-bottom: 7px;
+  }
+  .paper .phead { font-size: 21px; font-weight: 900; line-height: 1.08; text-align: center; margin: 0 0 7px; }
+  .paper .pline { font-size: 11.5px; text-align: center; padding: 1px 0; }
+  .paper .pline b { font-weight: 800; }
+  .paper .pfoot {
+    margin-top: 7px; padding-top: 4px; border-top: 1px solid rgba(24, 21, 15, 0.4);
+    font-size: 8.5px; letter-spacing: 0.06em; text-align: center; color: #5c5444; text-transform: uppercase;
+  }
   @media (max-width: 560px) {
     body { align-items: flex-start; }
     .scoreboard { gap: 8px; padding: 3px 9px; }
@@ -598,7 +743,7 @@
     <div class="scoreboard">
       <div class="team home">
         <span class="swatch home"></span>
-        <span>Sons of Pitches</span>
+        <span id="homeName">Bampot Rovers</span>
         <span class="score" id="scoreHome">0</span>
       </div>
       <div class="time">
@@ -649,11 +794,11 @@
   </div>
 
   <div class="footer">
-    <span id="matchup">Sons of Pitches (yellow) attacks the far goal · Goal Diggers (red) attacks the near goal</span>
+    <span id="matchup">Bampot Rovers attack the far goal</span>
     <span>
-      <button class="btn" id="diffBtn">AI: NORMAL</button>
+      <button class="btn" id="leagueBadge" type="button">Mud League</button>
       <button class="btn" id="muteBtn">SOUND: ON</button>
-      <button class="btn" id="restart">New Season</button>
+      <button class="btn" id="restart">New Career</button>
       <button class="btn" id="fsBtn">Fullscreen</button>
     </span>
   </div>
@@ -1664,7 +1809,7 @@ function updateGoalShot() {
 const SKIN_TONES = [0xf2c79c, 0xd9a373, 0xa9694a, 0x7a4527, 0xefd1a8, 0xc8956d];
 const HAIR_TONES = [0x2a1a0e, 0x3d2818, 0x5a3a1f, 0x1a1a1a, 0x8b6f47, 0xc7a96f, 0x5b3a1c];
 
-function buildPlayerMesh(team, role) {
+function buildPlayerMesh(team, role, ch = null) {
   const grp = new THREE.Group();
   const isGK = role === "gk";
   const isRef = role === "ref";
@@ -1674,8 +1819,10 @@ function buildPlayerMesh(team, role) {
   const trimColor = isRef ? 0xffd230 : isGK
     ? 0x111111
     : (team === TEAM.HOME ? 0x8a5b06 : awayKit.trim);
-  const skinColor = SKIN_TONES[Math.floor(Math.random() * SKIN_TONES.length)];
-  const hairColor = HAIR_TONES[Math.floor(Math.random() * HAIR_TONES.length)];
+  // Named characters keep the same face and build every match — that's how
+  // you learn to spot Big Gaz at a glance. Everyone else stays randomised.
+  const skinColor = (ch && ch.look.skin) || SKIN_TONES[Math.floor(Math.random() * SKIN_TONES.length)];
+  const hairColor = (ch && ch.look.hair) || HAIR_TONES[Math.floor(Math.random() * HAIR_TONES.length)];
 
   // One material instance per part-class per player — so the per-player
   // emissive used for tackle/pass-target highlighting stays local.
@@ -1799,6 +1946,11 @@ function buildPlayerMesh(team, role) {
   grp.add(nose);
 
   grp.userData.bodyMat = torso.material;
+  // Body shape: Big Gaz is a wardrobe, Sparks is a whippet, Briggs is bald.
+  if (ch) {
+    if (ch.look.bald) hair.visible = false;
+    grp.scale.set(ch.look.w || 1, ch.look.h || 1, ch.look.w || 1);
+  }
   grp.userData.leftHip = leftHip;
   grp.userData.rightHip = rightHip;
   grp.userData.leftKnee = leftKnee;
@@ -1921,26 +2073,32 @@ let refMesh = null;
 // so the player's remaining edge is mechanics (aftertouch, charged shots),
 // not pace. fwdRun is how far ahead of the ball AWAY forwards make their runs.
 const DIFFICULTY = {
-  easy:   { label: "EASY",   awaySpeed: 0.52, homeSpeed: 1.12, shootHesitate: 0.62, passHesitate: 0.42, aimWobble: 0.55, tackleWhiff: 0.66, fwdRun: 3.5 },
-  normal: { label: "NORMAL", awaySpeed: 0.70, homeSpeed: 1.08, shootHesitate: 0.45, passHesitate: 0.30, aimWobble: 0.40, tackleWhiff: 0.55, fwdRun: 4.5 },
-  hard:   { label: "HARD",   awaySpeed: 0.93, homeSpeed: 1.02, shootHesitate: 0.15, passHesitate: 0.12, aimWobble: 0.22, tackleWhiff: 0.32, fwdRun: 6.0 },
-  legend: { label: "LEGEND", awaySpeed: 1.00, homeSpeed: 1.00, shootHesitate: 0.02, passHesitate: 0.02, aimWobble: 0.08, tackleWhiff: 0.12, fwdRun: 9.0 },
+  // Everyone can run — even the Mud League. What separates the tiers is how
+  // badly they play: hesitation, wild aim, whiffed tackles, soft shots. The
+  // climb tightens the errors, not the legs.
+  mud:    { label: "MUD",    awaySpeed: 0.78, homeSpeed: 1.10, shootHesitate: 0.38, passHesitate: 0.25, aimWobble: 0.50, tackleWhiff: 0.48, fwdRun: 4.5, shotPow: [0.62, 0.95] },
+  easy:   { label: "EASY",   awaySpeed: 0.84, homeSpeed: 1.08, shootHesitate: 0.28, passHesitate: 0.18, aimWobble: 0.38, tackleWhiff: 0.40, fwdRun: 5.5, shotPow: [0.68, 1.02] },
+  normal: { label: "NORMAL", awaySpeed: 0.90, homeSpeed: 1.05, shootHesitate: 0.18, passHesitate: 0.12, aimWobble: 0.27, tackleWhiff: 0.30, fwdRun: 6.5, shotPow: [0.74, 1.08] },
+  hard:   { label: "HARD",   awaySpeed: 0.96, homeSpeed: 1.02, shootHesitate: 0.09, passHesitate: 0.07, aimWobble: 0.16, tackleWhiff: 0.20, fwdRun: 7.5, shotPow: [0.82, 1.14] },
+  legend: { label: "LEGEND", awaySpeed: 1.00, homeSpeed: 1.00, shootHesitate: 0.02, passHesitate: 0.02, aimWobble: 0.07, tackleWhiff: 0.10, fwdRun: 9.0, shotPow: [0.88, 1.20] },
 };
-let diffKey = "normal";
+// The pyramid tier (5 = bottom) IS the difficulty. No manual override: the
+// climb is the ramp, and a club's strength modulates within the tier.
+const TIER_DIFF = { 5: "mud", 4: "easy", 3: "normal", 2: "hard", 1: "legend" };
+let diffKey = TIER_DIFF[5];
+function setTierDifficulty() { diffKey = TIER_DIFF[career.tier] || "normal"; }
 
-// The tier sets the baseline; the opponent's club strength (str 0.34–0.84,
-// rolled per season in buildSeason) modulates it for the current fixture.
-// Strong clubs run faster, hesitate less, aim tighter and whiff fewer
-// tackles; weak clubs the reverse. AWAY pace is capped at parity (1.0) so
-// even the best LEGEND side never out-legs the player. Recomputed by
-// beginFixture() and when the AI button changes tier; while no fixture is
-// live (attract screen) diff() falls back to the raw tier.
+// The tier sets the baseline; the opponent's club strength (str 0.30–0.88,
+// rolled at career start and drifting season to season) modulates it for the
+// current fixture. Strong clubs run faster, hesitate less, aim tighter and
+// whiff fewer tackles; weak clubs the reverse. AWAY pace is capped at parity
+// (1.0) so even the best Crown League side never out-legs the player.
 let matchDiff = null;
 function computeMatchDiff() {
   const base = DIFFICULTY[diffKey];
   const str  = (season.opp >= 0 && CLUBS[season.opp]) ? CLUBS[season.opp].str : 0.55;
-  const t     = clamp((str - 0.34) / 0.50, 0, 1);   // 0 = weakest club … 1 = strongest
-  const sharp = lerp(1.35, 0.65, t);                // error multiplier: sloppy … sharp
+  const t     = clamp((str - 0.30) / 0.58, 0, 1);   // 0 = weakest club … 1 = strongest
+  const sharp = lerp(1.25, 0.70, t);                // error multiplier: sloppy … sharp
   matchDiff = {
     label: base.label,
     awaySpeed:     clamp(base.awaySpeed + (t - 0.5) * 0.14, 0.40, 1.00),
@@ -1950,35 +2108,675 @@ function computeMatchDiff() {
     aimWobble:     clamp(base.aimWobble     * sharp, 0.03, 0.80),
     tackleWhiff:   clamp(base.tackleWhiff   * sharp, 0.06, 0.85),
     fwdRun:        base.fwdRun,
+    shotPow:       base.shotPow,
   };
 }
 const diff = () => matchDiff || DIFFICULTY[diffKey];
 
 /* ============================================================
-   LEAGUE — a season of one-off matches wrapped around the match
-   engine. CLUBS[0] is always the human (Sons of Pitches, yellow,
-   home every week). The human's matches are played for real; the
-   other fixtures each matchday are simulated from club strength,
-   so the table is a coherent single round-robin. Add or rename
-   clubs freely — keep the count EVEN (the round-robin assumes it).
+   THE PYRAMID — five tiers of eight. You are Bampot Rovers,
+   and you start at the bottom. Win promotion (top two) to climb;
+   finish in the bottom two and you go back down. Each tier's name
+   sets the tone and TIER_DIFF sets the opposition. The 39 AI clubs
+   live in PYRAMID (7 share your league; 8 in each of the others)
+   and travel between tiers with you at season's end.
    ============================================================ */
-const CLUBS = [
-  { name: "Sons of Pitches",      color: 0xffd230, css: "#ffd230", str: 0.55 },  // 0 = you
-  { name: "Redrum Rovers",        color: 0x2f6fd6, css: "#2f6fd6", str: 0.55 },
-  { name: "Dribblingham United",  color: 0x9b2d4f, css: "#9b2d4f", str: 0.55 },
-  { name: "Nutmeg City",          color: 0xd6329e, css: "#d6329e", str: 0.55 },
-  { name: "Offside Albion",       color: 0x7a3fd6, css: "#7a3fd6", str: 0.55 },
-  { name: "Royston Vasey Rovers", color: 0xe8772f, css: "#e8772f", str: 0.55 },
-  { name: "Madchester United",    color: 0x9aa3a0, css: "#9aa3a0", str: 0.55 },
-  { name: "Goal Diggers",         color: 0xd6322f, css: "#d6322f", str: 0.55 },
-];
+const MYCLUB = { name: "Bampot Rovers", short: "BAMPOT", color: 0xffd230, css: "#ffd230", str: 0.55 };
+const TIER_NAMES = { 5: "Mud League", 4: "Gaffer's Division", 3: "Concrete League", 2: "Glory Championship", 1: "Crown League" };
 
-// Current opponent identity, read by buildPlayerMesh and the goal/scoreboard text.
-// Defaults match the classic look shown on the menu before a season starts.
-let awayName = "Goal Diggers";
-let awayKit  = { shirt: 0xd6322f, trim: 0x5a1410, gk: 0x6b48b0 };
+// [name, kitColour, strength band offset 0..1 within the tier]
+const PYRAMID_DEF = {
+  5: [ ["Dog & Duck Albion",     0xd6322f], ["Puddleton Athletic",   0x2f6fd6],
+       ["East Barrow Casuals",   0x9b2d4f], ["Bogside Albion",       0x4f7a3a],
+       ["Tinpot Town",           0x9aa3a0], ["Lower Piddock FC",     0x7a3fd6],
+       ["Allotment United",      0xe8772f] ],
+  4: [ ["Muckton Rovers",        0x6b4226], ["Ragbury Athletic",     0xd6329e],
+       ["Layby Rangers",         0x2fa8a0], ["Sons of Pitches",      0x3a8f3a],
+       ["Chip Van Rovers",       0xc0392b], ["Drizzlefield Town",    0x5d6d7e],
+       ["Portacabin Town",       0x8e6f3e], ["Bailiff End Rovers",   0x34495e] ],
+  3: [ ["Grimthorpe Rovers",     0x4a4a4a], ["Motorway Albion",      0xe8772f],
+       ["Biscuit Town FC",       0xc8956d], ["Goal Diggers",         0xd6322f],
+       ["Scaffold Albion",       0xf1c40f], ["Roundabout City",      0x2f6fd6],
+       ["Offside Albion",        0x7a3fd6], ["Pylon View FC",        0x16a085] ],
+  2: [ ["Kingsport United",      0x8b1a2b], ["Redbridge Dynamo",     0xd6322f],
+       ["Madchester United",     0x9aa3a0], ["Dribblingham United",  0x9b2d4f],
+       ["Nutmeg City",           0xd6329e], ["Rustwick United",      0xb15a2a],
+       ["Royston Vasey Rovers",  0xe8772f], ["Wetherton Wednesday",  0x2c5aa0] ],
+  1: [ ["New Money City",        0x35d0c5], ["St Jude's Academicals",0x4b3f72],
+       ["Crown Park Royal",      0x6c3483], ["Redrum Rovers",        0x2f6fd6],
+       ["Stadium of Retail FC",  0xb03a8f], ["Old Empire Athletic",  0x7d6608],
+       ["Kestrel Velocity",      0x1f618d], ["Gilded Wanderers",     0xc9a227] ],
+};
+const TIER_STR_BAND = { 5: [0.34, 0.46], 4: [0.42, 0.54], 3: [0.50, 0.62], 2: [0.58, 0.72], 1: [0.66, 0.84] };
+
+function freshPyramid() {
+  const pyr = {};
+  for (const t of [5, 4, 3, 2, 1]) {
+    const [lo, hi] = TIER_STR_BAND[t];
+    pyr[t] = PYRAMID_DEF[t].map(([name, color]) =>
+      ({ name, color, css: cssHex(color), str: +(lo + Math.random() * (hi - lo)).toFixed(2) }));
+  }
+  return pyr;
+}
+
+// CLUBS is the ACTIVE league: you at index 0, plus the seven AI clubs of your
+// current tier. Rebuilt each season; everything downstream (fixtures, kits,
+// table, sim) reads it exactly as before.
+let CLUBS = [MYCLUB];
+function rebuildActiveLeague() {
+  for (const c of career.pyramid[career.tier]) c.css = cssHex(c.color);
+  CLUBS = [MYCLUB, ...career.pyramid[career.tier]];
+}
+
+/* ============================================================
+   THE SQUAD — eight named idiots, legends and liabilities. Each
+   one is a handful of stats (1–10) the engine actually reads:
+   pace and stamina drive their legs, pas/skl/pow shape every kick
+   you take while controlling them, and madness governs fouls,
+   keeper flaps and how often trouble finds them. One dry line
+   each; the matches write the rest of their story.
+   ============================================================ */
+const SQUAD = [
+  // ---- Goalkeepers (3) ----
+  { id: "flapwell", name: "Kev Flapwell",     nick: "",          age: 35, pos: "GK",
+    pace: 4, pow: 5, skl: 3, pas: 4, sta: 6, mad: 7, rank: 0,
+    card: "cards/01-Kev-Flapwell-Goalkeeper.png",
+    line: "Brilliant or catastrophic. No third setting.",
+    look: { skin: 0xefd1a8, hair: 0x8b6f47, w: 1.04, h: 1.0 } },
+  { id: "dunn",     name: "Walter Dunn",      nick: "The Wall",  age: 44, pos: "GK",
+    pace: 2, pow: 6, skl: 3, pas: 2, sta: 3, mad: 1, rank: 0,
+    card: "cards/01-Walter-Dunn-Goalkeeper.png",
+    line: "Retired in 2014. Nobody told him.",
+    look: { skin: 0xf2c79c, hair: 0x9aa3a0, w: 1.08, h: 1.0 } },
+  { id: "eze",      name: "Ozzy Eze",         nick: "",          age: 19, pos: "GK",
+    pace: 6, pow: 4, skl: 4, pas: 5, sta: 8, mad: 5, rank: 0,
+    card: "cards/03-Ozzy-Ezze-Goalkeeper.png",
+    line: "Six foot five and still growing. Allegedly.",
+    look: { skin: 0x7a4527, hair: 0x1a1a1a, w: 0.96, h: 1.08 } },
+  // ---- Defenders (4) ----
+  { id: "briggs",   name: "Baz Briggs",       nick: "The Clamp", age: 32, pos: "DF",
+    pace: 5, pow: 9, skl: 2, pas: 3, sta: 7, mad: 9, rank: 1,
+    card: "cards/04-Baz-Briggs-Defender.png",
+    line: "More suspensions than goals. Proud of both.",
+    look: { skin: 0xc8956d, bald: true, w: 1.10, h: 1.0 } },
+  { id: "mulligan", name: "Mick Mulligan",    nick: "Two Knees", age: 39, pos: "DF",
+    pace: 2, pow: 6, skl: 5, pas: 9, sta: 3, mad: 2, rank: 1,
+    card: "cards/05-Mick-Mulligan-Defender.png",
+    line: "Nearly joined a big club in 2009. Mentions it.",
+    look: { skin: 0xf2c79c, hair: 0x9aa3a0, w: 1.02, h: 0.98 } },
+  { id: "mcbride",  name: "Dougie McBride",   nick: "",          age: 34, pos: "DF",
+    pace: 3, pow: 8, skl: 3, pas: 5, sta: 8, mad: 6, rank: 1,
+    card: "cards/06-Dougie-McBride-Defender.png",
+    line: "Heads everything. Once, briefly, the referee.",
+    look: { skin: 0xefd1a8, hair: 0xa0522d, w: 1.08, h: 1.0 } },
+  { id: "tiny",     name: "Tiny McCall",      nick: "",          age: 27, pos: "DF",
+    pace: 5, pow: 7, skl: 4, pas: 4, sta: 7, mad: 7, rank: 1,
+    card: "cards/07-Tiny-McCall-Defender.png",
+    line: "Six foot seven. Answers only to Tiny.",
+    look: { skin: 0xd9a373, hair: 0x3d2818, w: 1.18, h: 1.08 } },
+  // ---- Midfielders (4) ----
+  { id: "patel",    name: "Nicky Patel",      nick: "Needles",   age: 24, pos: "MF",
+    pace: 6, pow: 2, skl: 8, pas: 8, sta: 6, mad: 4, rank: 2,
+    card: "cards/08-Nicky-Patel-Midfielder.png",
+    line: "Five-a-side genius. Allergic to tracking back.",
+    look: { skin: 0xa9694a, hair: 0x1a1a1a, w: 0.94, h: 0.97 } },
+  { id: "plummer",  name: "Terry Plummer",    nick: "Plug",      age: 28, pos: "MF",
+    pace: 5, pow: 5, skl: 4, pas: 5, sta: 9, mad: 3, rank: 2,
+    card: "cards/09-Plug-Midfielder.png",
+    line: "Good at nothing. Needed for everything.",
+    look: { skin: 0xd9a373, hair: 0x3d2818, w: 1.0, h: 1.0 } },
+  { id: "okafor",   name: "Vinnie Okafor",    nick: "",          age: 23, pos: "MF",
+    pace: 7, pow: 6, skl: 5, pas: 6, sta: 9, mad: 3, rank: 2,
+    card: "cards/10-Vinnie-Okafor-Midfielder.png",
+    line: "Runs all day. Direction optional.",
+    look: { skin: 0x7a4527, hair: 0x1a1a1a, w: 1.0, h: 1.0 } },
+  { id: "hardacre", name: "Pep Hardacre",     nick: "",          age: 31, pos: "MF",
+    pace: 4, pow: 3, skl: 7, pas: 9, sta: 5, mad: 2, rank: 2,
+    card: "cards/11-Pep-Hardacre-Midfielder.png",
+    line: "Watched one documentary. Now a visionary.",
+    look: { skin: 0xefd1a8, hair: 0x2a1a0e, w: 0.96, h: 1.0 } },
+  // ---- Forwards (4) ----
+  { id: "sparks",   name: "Jayden Sparks",    nick: "",          age: 17, pos: "FW",
+    pace: 9, pow: 3, skl: 8, pas: 5, sta: 7, mad: 6, rank: 3,
+    card: "cards/12-Jayden-Sparks-Midfielder.png",
+    line: "Local wonderkid. Celebrates too early.",
+    look: { skin: 0x7a4527, hair: 0x1a1a1a, w: 0.92, h: 0.95 } },
+  { id: "donnelly", name: "Gaz Donnelly",     nick: "Big Gaz",   age: 30, pos: "FW",
+    pace: 4, pow: 9, skl: 3, pas: 4, sta: 5, mad: 5, rank: 3,
+    card: "cards/13-Gaz-Donnelly-Forward.png",
+    line: "Built like a fridge-freezer. Plays like one.",
+    look: { skin: 0xf2c79c, hair: 0x5a3a1f, w: 1.16, h: 1.02 } },
+  { id: "lorenzo",  name: "Lorenzo da Silva-Smith", nick: "",    age: 21, pos: "FW",
+    pace: 7, pow: 4, skl: 9, pas: 6, sta: 4, mad: 8, rank: 3,
+    card: "cards/14-Lorenzo-Da-Silva-Smith-Forward.png",
+    line: "Had trials in Portugal. Allegedly.",
+    look: { skin: 0xd9a373, hair: 0x2a1a0e, w: 0.98, h: 1.0 } },
+  { id: "crisp",    name: "Frankie Crisp",    nick: "",          age: 26, pos: "FW",
+    pace: 8, pow: 4, skl: 6, pas: 4, sta: 6, mad: 5, rank: 3,
+    card: "cards/15-Frankie-Crisp-Forward.png",
+    line: "Man of the match once, in 2019. It's framed.",
+    look: { skin: 0xf2c79c, hair: 0x5a3a1f, w: 0.98, h: 1.0 } },
+];
+const CH = {}; SQUAD.forEach((c, i) => { c.idx = i; CH[c.id] = c; });
+
+// Mutable per-character state. Season stats reset each season; career stats
+// don't. mods are next-match-only stat nudges from squad events; susp counts
+// matches still to serve. All of it travels in the save.
+function freshSquadState() {
+  const s = {};
+  for (const c of SQUAD) s[c.id] = { g: 0, gAll: 0, apps: 0, yc: 0, susp: 0, mods: {}, grow: {} };
+  return s;
+}
+function chState(ch) { return career.squad[ch.id]; }
+function chStat(ch, key) {
+  const s = career.squad && career.squad[ch.id];
+  const m = (s && s.mods[key]) || 0;
+  const g = (s && s.grow && s.grow[key]) || 0;
+  return clamp(ch[key] + g + m, 1, 10);
+}
+function chSurname(ch) { const p = ch.name.split(" "); return p[p.length - 1]; }
+// Per-character movement: pace sets the ceiling, stamina decides how much of
+// it survives the second half. Mick at 39 fades; Terry never stops.
+function chPaceMult(p) {
+  let m = 0.86 + chStat(p.ch, "pace") * 0.030;
+  if (period === 2) m *= 0.86 + chStat(p.ch, "sta") * 0.016;
+  return m;
+}
+
+// The starting seven: one goalkeeper and six outfielders, chosen by id from
+// the fifteen. careerLineup translates the pick into squad indices aligned to
+// FORMATION slots (gk, def, def, mid, mid, mid, fwd) — outfielders sorted by
+// rank, so a back-heavy pick defends and a forward-heavy pick doesn't.
+const DEFAULT_XI = ["flapwell", "briggs", "mulligan", "patel", "plummer", "sparks", "donnelly"];
+let xi = DEFAULT_XI.slice();
+let careerLineup = null;
+function isGKid(id) { return CH[id] && CH[id].pos === "GK"; }
+function validXI(arr) {
+  if (!Array.isArray(arr) || arr.length !== 7) return false;
+  if (new Set(arr).size !== 7) return false;
+  let gk = 0;
+  for (const id of arr) { if (!CH[id]) return false; if (isGKid(id)) gk++; }
+  return gk === 1;
+}
+function buildLineup() {
+  if (!validXI(xi)) xi = DEFAULT_XI.slice();
+  const gk  = SQUAD.find(c => xi.includes(c.id) && c.pos === "GK");
+  const out = SQUAD.filter(c => xi.includes(c.id) && c.pos !== "GK")
+                   .sort((a, b) => a.rank - b.rank || a.idx - b.idx);
+  careerLineup = [gk.idx, ...out.map(c => c.idx)];
+}
+// Suspensions: one served per matchday (the rest queue — fixture congestion,
+// says the FA). The server is pulled from the seven and the best free
+// like-for-like deputy steps in. With three keepers, even Flapwell can sit.
+let servingId = null;
+function applySuspensions() {
+  servingId = null;
+  for (const id of xi) { if (chState(CH[id]).susp > 0) { servingId = id; break; } }
+  if (!servingId) {
+    for (const c of SQUAD) { if (!xi.includes(c.id) && chState(c).susp > 0) { servingId = c.id; break; } }
+  }
+  if (servingId && xi.includes(servingId)) {
+    const gk = isGKid(servingId);
+    const rep = SQUAD.find(c => !xi.includes(c.id) && isGKid(c.id) === gk && chState(c).susp === 0)
+             || SQUAD.find(c => !xi.includes(c.id) && isGKid(c.id) === gk);
+    if (rep) xi[xi.indexOf(servingId)] = rep.id;
+    else servingId = null;                       // can't happen with this squad, but never strand the XI
+  }
+  buildLineup();
+}
+
+/* ============================================================
+   MATCH LOG — what actually happened out there. Goals, cards and
+   keeper flaps get recorded as they occur; full time turns them
+   into suspensions, a scorer line and one dry headline. The match
+   writes the story so the game doesn't have to.
+   ============================================================ */
+const matchLog = { scorers: [], cardLines: [], reds: [], yells: [], flaps: 0 };
+function resetMatchLog() {
+  matchLog.scorers = []; matchLog.cardLines = [];
+  matchLog.reds = []; matchLog.yells = []; matchLog.flaps = 0;
+}
+function matchNote(kind) { if (kind === "flap") matchLog.flaps++; }
+
+function recordGoal(ch, ownGoal) {
+  if (ownGoal) { matchLog.scorers.push({ og: true }); return; }
+  if (!ch) return;
+  matchLog.scorers.push({ id: ch.id });
+  const s = chState(ch); s.g++; s.gAll++;
+}
+function recordCard(ch, red) {
+  if (!ch) return;
+  const nm = chSurname(ch);
+  if (red) { matchLog.reds.push(ch.id);  matchLog.cardLines.push(`\ud83d\udfe5 ${nm} sent off`); }
+  else     { matchLog.yells.push(ch.id); matchLog.cardLines.push(`\ud83d\udfe8 ${nm} booked`); }
+}
+// Full time: reds become bans, a third booking of the season becomes a ban.
+function settleCards() {
+  for (const id of matchLog.reds) {
+    chState(CH[id]).susp++;
+    matchLog.cardLines.push(`${chSurname(CH[id])} banned for the next match`);
+  }
+  for (const id of matchLog.yells) {
+    const s = chState(CH[id]); s.yc++;
+    if (s.yc >= 3) {
+      s.yc = 0; s.susp++;
+      matchLog.cardLines.push(`${chSurname(CH[id])} suspended \u2014 three bookings`);
+    }
+  }
+}
+
+function scorerSummary() {
+  const tally = {}; let og = 0;
+  for (const s of matchLog.scorers) { if (s.og) og++; else tally[s.id] = (tally[s.id] || 0) + 1; }
+  const bits = Object.keys(tally).map(id =>
+    tally[id] > 1 ? `${chSurname(CH[id])} \u00d7${tally[id]}` : chSurname(CH[id]));
+  if (og) bits.push(og > 1 ? `o.g. \u00d7${og}` : "o.g.");
+  return bits.join(", ");
+}
+function topScorer() {
+  let best = null;
+  for (const c of SQUAD) { const g = chState(c).g; if (g > 0 && (!best || g > chState(best).g)) best = c; }
+  return best;
+}
+
+// One headline per match, deadpan local-paper voice. The most specific
+// story wins: a hat-trick or a Briggs dismissal beats a generic result.
+function makeHeadline() {
+  const MY = MYCLUB.name.split(" ")[0];
+  const gd = scoreHome - scoreAway;
+  let hat = null; { const t = {};
+    for (const s of matchLog.scorers) if (!s.og) { t[s.id] = (t[s.id] || 0) + 1; if (t[s.id] >= 3) hat = CH[s.id]; } }
+  const red = matchLog.reds.length ? CH[matchLog.reds[0]] : null;
+  const gk = careerLineup ? SQUAD[careerLineup[0]] : CH.flapwell;
+  const pools = [];
+  if (hat) pools.push([
+    `${chSurname(hat)} scores three. Investigation ongoing.`,
+    `Hat-trick for ${chSurname(hat)}. Family \u201cnot surprised\u201d.`,
+  ]);
+  if (red && red.id === "briggs") pools.push([
+    "Briggs sent off. Fans applaud the commitment.",
+    "Briggs receives fourth formal warning from local council.",
+    "Panel calls Briggs tackle \u201cgeologically significant\u201d.",
+  ]);
+  else if (red) pools.push([
+    `${chSurname(red)} sees red. ${chSurname(red)} disagrees.`,
+  ]);
+  if (gd > 0 && scoreAway === 0 && matchLog.flaps === 0) pools.push(
+    chStat(gk, "mad") >= 6 ? [
+      `${chSurname(gk)} clean sheet described as statistical incident.`,
+      `Clean sheet. Nobody more surprised than ${chSurname(gk)}.`,
+    ] : [
+      `${chSurname(gk)} keeps a clean sheet. Declines comment.`,
+      `Nothing got past ${chSurname(gk)}. Nothing usually does.`,
+    ]);
+  if (matchLog.flaps >= 2) pools.push([
+    `${chSurname(gk)} drops two. Catches blame for both.`,
+  ]);
+  if (gd >= 3) pools.push([
+    `${awayName} dismantled. Council to assess wreckage.`,
+    `${MY} win big. Locals suspicious.`,
+  ]);
+  else if (gd > 0) pools.push([
+    `${MY} win ugly. Again.`,
+    "Three points. Style points withheld.",
+    `Narrow win. Gaffer calls it \u201ca masterclass\u201d.`,
+  ]);
+  else if (gd === 0) pools.push([
+    "Honours even. Honour debatable.",
+    `Draw with ${awayName}. Both gaffers claim moral victory.`,
+  ]);
+  else if (gd <= -3) pools.push([
+    `${awayName} run riot. ${MY} run nowhere.`,
+    "Heavy defeat. Tea urn under review.",
+  ]);
+  else pools.push([
+    `Defeat by ${awayName}'s hands. And feet.`,
+    `${MY} lose. Performance \u201cunder internal review\u201d.`,
+  ]);
+  const pool = pools[0];
+  return pool[(Math.random() * pool.length) | 0];
+}
+
+/* ============================================================
+   SQUAD EVENTS — between matchdays, something happens. Each event
+   nudges one or two stats for the NEXT match only (mods clear at
+   the following full time). About 60% of matchdays roll one.
+   ============================================================ */
+const EVENTS = [
+  { line: "Briggs starts a tunnel argument. With his own team.",                fx: { briggs:   { pow: 1, mad: 1 } } },
+  { line: "Mulligan gives a \u201cback in my day\u201d speech. Sparks visibly ages.", fx: { sparks: { mad: 1 }, mulligan: { pas: 1 } } },
+  { line: "Flapwell forgets his gloves. Insists it's tactical.",                fx: { flapwell: { mad: 2 } } },
+  { line: "Donnelly eats three pies before kick-off. Declares himself fuelled.",fx: { donnelly: { pow: 1, sta: -2 } } },
+  { line: "Lorenzo posts a training montage. Training not pictured.",           fx: { lorenzo:  { skl: 1, pas: -1 } } },
+  { line: "Sparks goes viral. Now refuses to pass to anyone offline.",          fx: { sparks:   { pace: 1, mad: 1 } } },
+  { line: "Plummer fixes the team bus with a spoon. Morale soars.",             fx: { plummer:  { pow: 1, pas: 1 } } },
+  { line: "Patel buys boots that cost more than the stand. They work.",         fx: { patel:    { pas: 1 } } },
+  { line: "Mulligan's knee makes a new noise. The physio names it.",            fx: { mulligan: { pace: -1 } } },
+  { line: "Briggs apologises to a referee. Squad deeply unsettled.",            fx: { briggs:   { mad: -2, pow: -1 } } },
+  { line: "Donnelly tries a diet. The diet is \u201cfewer pies\u201d.",          fx: { donnelly: { sta: 2, pow: -1 } } },
+  { line: "Lorenzo's agent calls. Nobody knew Lorenzo had an agent.",           fx: { lorenzo:  { skl: 2, sta: -1 } } },
+  { line: "Sparks up late finishing homework. Coursework due, apparently.",     fx: { sparks:   { sta: -1 } } },
+  { line: "Flapwell studies a DVD of his own saves. Confidence restored.",      fx: { flapwell: { mad: -2 } } },
+  { line: "Dunn polishes his 2009 winners' medal. Twice.",                      fx: { dunn:     { mad: -1, pas: 1 } } },
+  { line: "Eze grows another inch. Doorframes on alert.",                       fx: { eze:      { pow: 1, skl: -1 } } },
+  { line: "McBride heads a bin in training. The bin started it.",               fx: { mcbride:  { pow: 1, mad: 1 } } },
+  { line: "Tiny gets stuck in the team bus. Again.",                            fx: { tiny:     { mad: 1 } } },
+  { line: "Okafor runs to the away ground by mistake. Arrives first.",          fx: { okafor:   { sta: 1, pas: -1 } } },
+  { line: "Hardacre invents a formation. Nobody can play in it.",               fx: { hardacre: { pas: 1, sta: -1 } } },
+  { line: "Crisp re-frames his man-of-the-match photo. Same photo.",            fx: { crisp:    { skl: 1, mad: 1 } } },
+];
+function rollSquadEvent() {
+  if (Math.random() > 0.6) return null;
+  const ev = EVENTS[(Math.random() * EVENTS.length) | 0];
+  for (const id in ev.fx) {
+    const mods = chState(CH[id]).mods;
+    for (const k in ev.fx[id]) mods[k] = (mods[k] || 0) + ev.fx[id][k];
+  }
+  return ev.line;
+}
+
+/* ============================================================
+   WORLD MOVEMENT — season's end shuffles the pyramid. Top two go
+   up, bottom two go down, in every case swapping with the weakest
+   above / strongest below so each tier keeps its headcount. Your
+   own promotion or relegation moves career.tier and displaces one
+   extra club to keep your league at seven AI sides.
+   ============================================================ */
+function applyWorldMovement(order, pos) {
+  const t = career.tier, pyr = career.pyramid, n = CLUBS.length;
+  const moved = new Set();
+  const weakest   = arr => { let b = null; for (const c of arr) if (!moved.has(c) && (!b || c.str < b.str)) b = c; return b; };
+  const strongest = arr => { let b = null; for (const c of arr) if (!moved.has(c) && (!b || c.str > b.str)) b = c; return b; };
+  const shift = (club, from, to) => {
+    const a = pyr[from]; const i = a.indexOf(club);
+    if (i >= 0) a.splice(i, 1);
+    pyr[to].push(club); moved.add(club);
+  };
+
+  let dir = 0;
+  if (pos <= 1 && t > 1) dir = 1;
+  else if (pos >= n - 2 && t < 5) dir = -1;
+
+  const finishers = order.map(i => CLUBS[i]);
+  const aiUp   = (t > 1) ? finishers.slice(0, 2).filter(c => c !== MYCLUB) : [];
+  const aiDown = (t < 5) ? finishers.slice(n - 2).filter(c => c !== MYCLUB) : [];
+
+  for (const club of aiUp)   { const d = weakest(pyr[t - 1]);   if (d) shift(d, t - 1, t); shift(club, t, t - 1); }
+  for (const club of aiDown) { const u = strongest(pyr[t + 1]); if (u) shift(u, t + 1, t); shift(club, t, t + 1); }
+
+  if (dir === 1) {                 // up you go — one club from above drops into your old tier
+    const d = weakest(pyr[t - 1]);
+    if (d) shift(d, t - 1, t);
+    career.tier = t - 1;
+    career.promotions++;
+  } else if (dir === -1) {         // down you go — the best of below takes your old slot
+    const u = strongest(pyr[t + 1]);
+    if (u) shift(u, t + 1, t);
+    career.tier = t + 1;
+  }
+  return { dir };
+}
+
+/* ============================================================
+   GROWTH — one quiet improvement most summers, weighted to youth.
+   Characters grow in character: Mick never gets faster, Briggs
+   never gets calmer, Sparks slowly learns the rest of the game.
+   ============================================================ */
+const GROW_POOLS = {
+  sparks:   ["skl", "pas", "pow"],  lorenzo:  ["pas", "sta"],
+  patel:    ["skl", "pas"],         plummer:  ["pow", "pas", "skl"],
+  donnelly: ["skl", "pas"],         briggs:   ["pas"],
+  mulligan: ["pas"],                flapwell: ["pas"],
+  dunn:     ["pas"],                eze:      ["skl", "pas", "pow"],
+  mcbride:  ["pas", "skl"],         tiny:     ["skl", "pas"],
+  okafor:   ["skl", "pas"],         hardacre: ["skl"],
+  crisp:    ["pow", "pas"],
+};
+const STAT_NAMES = { pace: "Pace", pow: "Power", skl: "Skill", pas: "Passing", sta: "Stamina", mad: "Madness" };
+function applyGrowth() {
+  const cands = [];
+  for (const c of SQUAD) {
+    const pool = GROW_POOLS[c.id].filter(k => chStat(c, k) < 10);
+    if (pool.length) cands.push({ c, pool, w: Math.max(1, 40 - c.age) });
+  }
+  if (!cands.length || Math.random() < 0.25) return null;   // some summers, nothing improves
+  let total = 0; for (const x of cands) total += x.w;
+  let r = Math.random() * total, pick = cands[0];
+  for (const x of cands) { r -= x.w; if (r <= 0) { pick = x; break; } }
+  const stat = pick.pool[(Math.random() * pick.pool.length) | 0];
+  const s = chState(pick.c);
+  s.grow[stat] = (s.grow[stat] || 0) + 1;
+  return `${chSurname(pick.c)} improves over the summer \u2014 ${STAT_NAMES[stat]} ${chStat(pick.c, stat) - 1} \u2192 ${chStat(pick.c, stat)}`;
+}
+
+/* ============================================================
+   TEAM SHEET — fifteen rows in two sections: the starting seven
+   and the bench. Tap any player and his CARD flips up: the actual
+   in-game low-poly model rendered as a portrait, his six stats at
+   a legible size, season and career record, and the one dry line.
+   Swapping runs through the card: SWAP HIM OUT/IN, then pick the
+   counterpart (keepers for keepers, outfielders for outfielders).
+   ============================================================ */
+function statBars(c) {
+  const order = [["pace","PAC"],["pow","POW"],["skl","SKL"],["pas","PAS"],["sta","STA"],["mad","MAD"]];
+  return "<div class='bars'>" + order.map(([k, lab]) => {
+    const v = chStat(c, k);
+    const cls = k === "mad" ? " mad" : (v <= 3 ? " lo" : "");
+    return `<div><div class='bar${cls}'><i style='width:${v * 10}%'></i></div><div class='blab'>${lab}</div></div>`;
+  }).join("") + "</div>";
+}
+let swapFor = null;          // a swap is in progress for this player id
+function swapTargets(id) {
+  // Valid counterparts: opposite side of the sheet, same group, not serving.
+  const gk = isGKid(id), inXI = xi.includes(id);
+  return SQUAD.filter(c => c.id !== id && c.id !== servingId &&
+                           isGKid(c.id) === gk && xi.includes(c.id) !== inXI)
+              .map(c => c.id);
+}
+function sheetRow(c, targets) {
+  const st = chState(c);
+  const serving = c.id === servingId;
+  const benched = !xi.includes(c.id);
+  const swappable = targets && targets.includes(c.id);
+  const cls = "srow" + (serving ? " susp" : benched ? " bench" : "") + (swappable ? " swappable" : "");
+  let up = 0, dn = 0;
+  for (const k in st.mods) { if (st.mods[k] > 0) up += st.mods[k]; else dn -= st.mods[k]; }
+  const tags =
+    (serving ? " <span class='tag red'>SUSPENDED</span>"
+             : st.susp > 0 ? " <span class='tag red'>BAN QUEUED</span>" : "") +
+    (up ? " <span class='tag'>\u25b2</span>" : "") +
+    (dn ? " <span class='tag red'>\u25bc</span>" : "");
+  const nick = c.nick ? ` <small>\u201c${c.nick}\u201d</small>` : "";
+  const g = st.g ? `\u26bd${st.g}` : "";
+  return `<div class='${cls}' data-id='${c.id}'>` +
+    `<div class='pos'>${benched ? c.pos : c.pos}</div>` +
+    `<div class='who'><div class='nm'>${c.name}${nick} <small>${c.age}</small>${tags}</div>` +
+    `<div class='bio'>${c.line}</div></div>` +
+    statBars(c) +
+    `<div class='gtally'>${g}</div></div>`;
+}
+let sheetWired = false;
+function onSheetTap(e) {
+  if (mode !== "teamsheet") return;
+  const row = e.target.closest(".srow");
+  if (!row) { if (swapFor) { swapFor = null; showTeamSheet(); } return; }
+  const id = row.getAttribute("data-id");
+  if (!id || !CH[id]) return;
+  if (swapFor) {
+    if (row.classList.contains("swappable")) {
+      const i = xi.indexOf(swapFor), j = xi.indexOf(id);
+      if (i >= 0) xi[i] = id;          // starter out, tapped bench man in
+      else if (j >= 0) xi[j] = swapFor; // bench man in for the tapped starter
+      buildLineup();
+    }
+    swapFor = null;
+    showTeamSheet();
+    return;
+  }
+  openCard(id);
+}
+function showTeamSheet() {
+  if (!sheetWired) { sheetWired = true; leagueBox.addEventListener("click", onSheetTap); }
+  const targets = swapFor ? swapTargets(swapFor) : null;
+  const hint = swapFor
+    ? `Pick who ${chSurname(CH[swapFor])} ${xi.includes(swapFor) ? "makes way for" : "replaces"}`
+    : (IS_MOBILE ? "Tap a player for his card" : "Click a player for his card \u00b7 R to kick off");
+  showOverlay(`MATCHDAY ${season.round + 1}`, `${MYCLUB.name}  v  ${awayName}`, hint);
+  const starters = SQUAD.filter(c => xi.includes(c.id))
+    .sort((a, b) => (a.pos === "GK" ? -1 : a.rank) - (b.pos === "GK" ? -1 : b.rank) || a.idx - b.idx);
+  const bench = SQUAD.filter(c => !xi.includes(c.id))
+    .sort((a, b) => (a.pos === "GK" ? -1 : a.rank) - (b.pos === "GK" ? -1 : b.rank) || a.idx - b.idx);
+  leagueBox.innerHTML = "<div class='sheet'>" +
+    "<div class='shead'>STARTING SEVEN \u2014 YOU PLAY AS ALL OF THEM</div>" +
+    starters.map(c => sheetRow(c, targets)).join("") +
+    "<div class='shead'>THE BENCH</div>" +
+    bench.map(c => sheetRow(c, targets)).join("") +
+    "</div>";
+  leagueBox.style.display = "block";
+  overlay.classList.add("standings");
+  if (!swapFor) leagueBox.scrollTop = 0;
+  playAgainBtn.textContent = "Kick off";
+  playAgainBtn.style.display = "inline-flex";
+}
+
+/* ============================================================
+   PLAYER CARD — the portrait is the in-game model itself: the
+   character's mesh rendered once to an image on a second tiny
+   WebGL canvas and cached. Stats at full size, season + career
+   record, the dry line, and the swap button.
+   ============================================================ */
+const portraitCache = {};
+let portraitGL = null;
+function playerPortrait(ch) {
+  if (portraitCache[ch.id]) return portraitCache[ch.id];
+  try {
+    if (!portraitGL) {
+      const r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+      r.setSize(260, 300);
+      const scene = new THREE.Scene();
+      scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+      const sun = new THREE.DirectionalLight(0xffffff, 0.85);
+      sun.position.set(4, 7, 6);
+      scene.add(sun);
+      portraitGL = { r, scene, cam: new THREE.PerspectiveCamera(28, 260 / 300, 0.1, 200) };
+    }
+    const g = portraitGL;
+    const mesh = buildPlayerMesh(TEAM.HOME, ch.pos === "GK" ? "gk" : "fwd", ch);
+    mesh.rotation.y = 0.55;                       // three-quarter pose
+    g.scene.add(mesh);
+    const box = new THREE.Box3().setFromObject(mesh);
+    const size = box.getSize(new THREE.Vector3());
+    const c = box.getCenter(new THREE.Vector3());
+    const dist = size.y * 2.0;
+    g.cam.position.set(c.x + dist * 0.18, c.y + size.y * 0.16, c.z + dist);
+    g.cam.lookAt(c.x, c.y + size.y * 0.02, c.z);
+    g.r.render(g.scene, g.cam);
+    const url = g.r.domElement.toDataURL("image/png");
+    g.scene.remove(mesh);
+    portraitCache[ch.id] = url;
+    return url;
+  } catch (e) { return ""; }
+}
+let cardWrap = null;
+let cardLB  = null;   // trading-card lightbox
+
+function ensureCard() {
+  if (cardWrap) return;
+  cardWrap = document.createElement("div");
+  cardWrap.className = "pcardwrap";
+  document.querySelector(".stage").appendChild(cardWrap);
+  cardWrap.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-act]");
+    if (btn) {
+      const act = btn.getAttribute("data-act");
+      if (act === "swap") { swapFor = btn.getAttribute("data-id"); closeCard(); showTeamSheet(); }
+      else closeCard();
+      return;
+    }
+    if (!e.target.closest(".pcard")) closeCard();   // backdrop tap
+  });
+}
+
+function ensureCardLB() {
+  if (cardLB) return;
+  cardLB = document.createElement("div");
+  cardLB.className = "cardlb";
+  document.querySelector(".stage").appendChild(cardLB);
+  cardLB.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-act]");
+    if (!btn) { closeCard(); return; }
+    const act = btn.getAttribute("data-act");
+    if (act === "swap") { swapFor = btn.getAttribute("data-id"); closeCard(); showTeamSheet(); }
+    else closeCard();
+  });
+}
+
+function cardStat(c, key, label) {
+  const v = chStat(c, key), base = c[key];
+  const cls = key === "mad" ? " mad" : (v <= 3 ? " lo" : "");
+  const delta = v > base ? " <span class='tag'>\u25b2</span>" : v < base ? " <span class='tag red'>\u25bc</span>" : "";
+  return `<div class='cstat'><span>${label}</span>` +
+    `<div class='cbar${cls}'><i style='width:${v * 10}%'></i></div><b>${v}${delta}</b></div>`;
+}
+
+function openCard(id) {
+  const c = CH[id];
+  const st = chState(c);
+  const serving = id === servingId;
+  const starter = xi.includes(id);
+
+  // If the player has a trading card image, show the lightbox version.
+  if (c.card) {
+    ensureCardLB();
+    const swapLabel = starter ? "SWAP HIM OUT" : "SWAP HIM IN";
+    const swapBtn   = serving ? "" :
+      `<button class='btn' data-act='swap' data-id='${id}'>${swapLabel}</button>`;
+    const closeBtn  = `<button class='btn' data-act='close'>\u2715 CLOSE</button>`;
+    cardLB.innerHTML =
+      `<img src='${c.card}' alt='${c.name}'>` +
+      `<div class='cardlb-btns'>${swapBtn}${closeBtn}</div>`;
+    cardLB.classList.add("show");
+    return;
+  }
+
+  // Fallback: original stat-popup for players without a card image.
+  ensureCard();
+  const nick = c.nick ? `<div class='cnick'>\u201c${c.nick}\u201d</div>` : "";
+  const status = serving
+    ? "<div class='cstatus'>SUSPENDED \u2014 SITS THIS ONE OUT</div>"
+    : st.susp > 0 ? "<div class='cstatus'>BAN QUEUED \u2014 PLAYS FOR NOW</div>" : "";
+  const img = playerPortrait(c);
+  const button = serving ? "" :
+    `<button class='btn cswap' data-act='swap' data-id='${id}'>${starter ? "SWAP HIM OUT" : "SWAP HIM IN"}</button>`;
+  cardWrap.innerHTML =
+    `<div class='pcard'>` +
+      `<button class='cx' data-act='close'>\u2715</button>` +
+      `<div class='cleft'>` +
+        (img ? `<img src='${img}' alt=''>` : "") +
+        `<div class='crole'>${c.pos === "GK" ? "GOALKEEPER" : c.pos === "DF" ? "DEFENDER" : c.pos === "MF" ? "MIDFIELDER" : "FORWARD"} \u00b7 AGE ${c.age}</div>` +
+      `</div>` +
+      `<div class='cright'>` +
+        `<div class='cnm'>${c.name}</div>` + nick + status +
+        cardStat(c, "pace", "PACE") + cardStat(c, "pow", "POWER") + cardStat(c, "skl", "SKILL") +
+        cardStat(c, "pas", "PASSING") + cardStat(c, "sta", "STAMINA") + cardStat(c, "mad", "MADNESS") +
+        `<div class='crec'>SEASON \u26bd ${st.g} \u00b7 CAREER \u26bd ${st.gAll} \u00b7 APPS ${st.apps}</div>` +
+        `<div class='cline'>${c.line}</div>` +
+        button +
+      `</div>` +
+    `</div>`;
+  cardWrap.classList.add("show");
+}
+
+function closeCard() {
+  if (cardWrap) { cardWrap.classList.remove("show"); cardWrap.innerHTML = ""; }
+  if (cardLB)   { cardLB.classList.remove("show");   cardLB.innerHTML = ""; }
+}
 
 const season = { rounds: [], totalRounds: 0, round: 0, opp: -1, otherFixtures: [], table: [] };
+
+// Current opponent identity, read by buildPlayerMesh and the goal/scoreboard text.
+let awayName = "Dog & Duck Albion";
+let awayKit  = { shirt: 0xd6322f, trim: 0x5a1410, gk: 0x6b48b0 };
 
 /* ============================================================
    HELPERS
@@ -2002,7 +2800,7 @@ function isHomeAttacking(team) { return team === TEAM.HOME; }
    SETUP / RESET
    ============================================================ */
 function createTeam(team) {
-  return FORMATION.map(f => {
+  return FORMATION.map((f, fi) => {
     // HOME starts on the left (low x); the sides swap at half-time via sideFlip.
     const onLeft = (team === TEAM.HOME) === (sideFlip > 0);
     const fx = onLeft ? f.x : 1 - f.x;
@@ -2013,6 +2811,9 @@ function createTeam(team) {
       x, z, vx: 0, vz: 0,
       hx: x, hz: z,
       team, role: f.role,
+      // The named character occupying this shirt (HOME only). Slot order in
+      // careerLineup matches FORMATION, so index fi is the mapping.
+      ch: (team === TEAM.HOME && careerLineup) ? SQUAD[careerLineup[fi]] : null,
       // facing: angle for three.js rotation.y (0 = facing +Z, PI/2 = +X)
       facing: face,
       lastInputAngle: face,
@@ -2025,7 +2826,7 @@ function rebuildPlayerMeshes() {
   for (const m of playerMeshes) scene.remove(m);
   playerMeshes = [];
   for (const p of players) {
-    const m = buildPlayerMesh(p.team, p.role);
+    const m = buildPlayerMesh(p.team, p.role, p.ch);
     m.position.set(p.x, 0, p.z);
     m.rotation.y = p.facing;
     scene.add(m);
@@ -2143,14 +2944,27 @@ function ordinal(n) { const s = ["th", "st", "nd", "rd"], v = n % 100; return n 
 
 // ---- season flow ----
 function buildSeason() {
-  for (let i = 1; i < CLUBS.length; i++) CLUBS[i].str = +(0.34 + Math.random() * 0.5).toFixed(2);
+  // Strengths persist on the clubs now (they travel through promotion and
+  // relegation) — each new season just drifts them a touch so the league
+  // never quite repeats itself.
+  for (let i = 1; i < CLUBS.length; i++)
+    CLUBS[i].str = +clamp(CLUBS[i].str + (Math.random() - 0.5) * 0.05, 0.30, 0.88).toFixed(2);
+  MYCLUB.str = clamp(0.40 + (5 - career.tier) * 0.09, 0.40, 0.78);  // for the sim's eyes only
   season.table = CLUBS.map(() => ({ P: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0, Pts: 0 }));
   const slots = [0, ...shuffle(CLUBS.map((_, i) => i).slice(1))];
   season.rounds = circleMethod(slots);
   season.totalRounds = season.rounds.length;
   season.round = 0;
+  for (const c of SQUAD) { const s = chState(c); s.g = 0; s.yc = 0; }
 }
-function startSeason() { buildSeason(); beginFixture(); savedCandidate = null; saveSeason(); }
+function startSeason() {
+  setTierDifficulty();
+  rebuildActiveLeague();
+  buildSeason();
+  beginFixture();
+  savedCandidate = null;
+  saveSeason();
+}
 
 function nextOpponentName() {
   const round = season.rounds[season.round] || [];
@@ -2159,11 +2973,17 @@ function nextOpponentName() {
 }
 function updateMatchupText() {
   const el = document.getElementById("matchup");
-  if (el) el.textContent = `Sons of Pitches attacks the far goal · ${awayName} attacks the near goal`;
+  if (el) el.textContent = `${TIER_NAMES[career.tier]} \u00b7 Season ${career.seasonNo} \u00b7 ${MYCLUB.name} v ${awayName}`;
+}
+function updateLeagueBadge() {
+  const b = document.getElementById("leagueBadge");
+  if (b) b.textContent = TIER_NAMES[career.tier];
 }
 
-// Set up the human's match for the current round, configure the opponent's kit and
-// name, reset the clock, and show the matchday card.
+// Set up the human's match for the current round, configure the opponent's
+// kit and name — then hand over to the TEAM SHEET. You're the gaffer: the
+// sheet shows your eight, who's suspended, who's carrying an event, and
+// lets you pick which outfielder sits before kicking off.
 function beginFixture() {
   const round = season.rounds[season.round];
   let opp = -1; const others = [];
@@ -2174,6 +2994,7 @@ function beginFixture() {
   }
   season.opp = opp;
   season.otherFixtures = others;
+  setTierDifficulty();
   computeMatchDiff();                   // tier × this opponent's club strength
 
   const club = CLUBS[opp];
@@ -2182,7 +3003,19 @@ function beginFixture() {
   document.getElementById("awayName").textContent = club.name;
   const sw = document.getElementById("awaySwatch"); if (sw) sw.style.background = club.css;
   updateMatchupText();
+  updateLeagueBadge();
 
+  applySuspensions();
+  mode = "teamsheet";
+  showTeamSheet();
+}
+
+// The gaffer has named the side — reset the match state and go to kickoff.
+function confirmTeamSheet() {
+  closeCard();
+  swapFor = null;
+  buildLineup();
+  resetMatchLog();
   scoreHome = 0; scoreAway = 0;
   document.getElementById("scoreHome").textContent = "0";
   document.getElementById("scoreAway").textContent = "0";
@@ -2190,24 +3023,39 @@ function beginFixture() {
   sideFlip = 1;                          // first half: HOME attacks +x
   document.getElementById("period").textContent = "FIRST HALF";
   kickoffTeam = TEAM.HOME;
-  setKickoffPositions(kickoffTeam);     // rebuilds meshes with the new awayKit
+  setKickoffPositions(kickoffTeam);     // rebuilds meshes with the new awayKit + lineup
   mode = "kickoff";
-  modeTimer = 150;                      // a touch longer so the fixture card reads
+  modeTimer = 150;
   showOverlay(`MATCHDAY ${season.round + 1}`,
-    `Sons of Pitches  v  ${club.name}`,
+    `${MYCLUB.name}  v  ${awayName}`,
     IS_MOBILE ? "Tap KICK or move to start" : "Press SPACE or move to kick off");
   updateClock();
 }
 
 // Called at full time of the human's match: bank the real result, simulate the
-// rest of the matchday, then show the table with a Next match / New season button.
+// rest of the matchday, settle cards and suspensions, roll a squad event, write
+// the headline, then show the table with a Next match / New season button.
 function endMatch() {
   coachRetire();             // first full match done — the coach's job is over
   recordResult(0, season.opp, scoreHome, scoreAway);
   for (const [a, b] of season.otherFixtures) { const r = simFixture(a, b); recordResult(a, b, r.a, r.b); }
   season.round++;
 
+  // Bank appearances, serve bans, convert this match's cards into new ones,
+  // clear last match's event mods and roll the next event.
+  for (const idx of careerLineup) chState(SQUAD[idx]).apps++;
+  if (servingId) chState(CH[servingId]).susp = Math.max(0, chState(CH[servingId]).susp - 1);
+  settleCards();
+  for (const c of SQUAD) chState(c).mods = {};
+  const eventLine = (season.round < season.totalRounds) ? rollSquadEvent() : null;
+  const headline = makeHeadline();
+
   const word = scoreHome > scoreAway ? "Won" : scoreHome < scoreAway ? "Lost" : "Drew";
+  const lines = [];
+  lines.push(`<b>${MYCLUB.name} ${scoreHome}\u2013${scoreAway} ${awayName}</b>`);
+  if (matchLog.scorers.length) lines.push(`\u26bd ${scorerSummary()}`);
+  if (matchLog.cardLines.length) lines.push(matchLog.cardLines.join(" \u00b7 "));
+  if (eventLine) lines.push(`<i>${eventLine}</i>`);
 
   if (season.round < season.totalRounds) {
     mode = "matchend";
@@ -2217,20 +3065,79 @@ function endMatch() {
     playAgainBtn.textContent = "Next match";
     saveSeason();                              // checkpoint: result banked, next round queued
   } else {
-    mode = "seasonend";
-    const order = sortedTable(), champ = CLUBS[order[0]].name, youWon = order[0] === 0;
-    showOverlay(youWon ? "CHAMPIONS!" : "SEASON OVER",
-      youWon ? "Sons of Pitches win the league!" : `${champ} win the league`,
-      `You finished ${ordinal(order.indexOf(0) + 1)} of ${CLUBS.length}`);
-    if (youWon) { overlayTitle.style.color = "#ffd230"; SFX.goal(); }
-    playAgainBtn.textContent = "New season";
-    clearSave();                               // season over — nothing to resume
-    career.seasons++;
-    if (youWon) career.titles++;
-    saveCareer();
-    showCareerLine();                          // after showOverlay's reset above
+    endSeason(headline, lines);
+    return;
   }
-  leagueBox.innerHTML = renderStandings();
+  const dateline = `${TIER_NAMES[career.tier]} \u00b7 Season ${career.seasonNo} \u00b7 Matchday ${season.round} of ${season.totalRounds}`;
+  leagueBox.innerHTML = buildPaper(dateline, headline, lines) + renderStandings();
+  leagueBox.style.display = "block";
+  overlay.classList.add("standings");
+  leagueBox.scrollTop = 0;
+  playAgainBtn.style.display = "inline-flex";
+}
+
+// The local rag. One spin per full time.
+function buildPaper(dateline, headline, lines) {
+  return `<div class='paper'>` +
+    `<div class='masthead'>THE BAMPOT BUGLE</div>` +
+    `<div class='pdate'>${dateline}</div>` +
+    `<h2 class='phead'>${headline}</h2>` +
+    lines.map(l => `<div class='pline'>${l}</div>`).join("") +
+    `<div class='pfoot'>Incorporating the Allotment Gazette \u00b7 Price: one bovril</div>` +
+    `</div>`;
+}
+
+// Season over: settle the table, move clubs (and you) through the pyramid,
+// hand out a little growth, and bank the career.
+function endSeason(headline, lines) {
+  mode = "seasonend";
+  const order = sortedTable();
+  const pos = order.indexOf(0);
+  const champ = CLUBS[order[0]].name;
+  const youWon = pos === 0;
+  const tierName = TIER_NAMES[career.tier];
+  const dateline = `${tierName} \u00b7 Season ${career.seasonNo} \u00b7 Final day`;
+
+  career.seasons++;
+  if (youWon) { career.titles++; if (career.tier === 1) career.crowns++; }
+
+  const movement = applyWorldMovement(order, pos);   // mutates the pyramid + career.tier
+  const growth = applyGrowth();
+
+  let title, msg, hint;
+  if (youWon && movement.dir === 0 && career.tier === 1) {
+    title = "CROWN LEAGUE CHAMPIONS";
+    msg = `${MYCLUB.name} are champions of everything`;
+    hint = `From the Mud League to the summit \u00b7 Season ${career.seasonNo}`;
+  } else if (movement.dir === 1) {
+    title = youWon ? "CHAMPIONS \u2014 PROMOTED!" : "PROMOTED!";
+    msg = `Up to the ${TIER_NAMES[career.tier]}`;
+    hint = `Finished ${ordinal(pos + 1)} in the ${tierName}`;
+  } else if (movement.dir === -1) {
+    title = "RELEGATED";
+    msg = `Down to the ${TIER_NAMES[career.tier]}`;
+    hint = `Finished ${ordinal(pos + 1)} in the ${tierName}`;
+  } else {
+    title = youWon ? "CHAMPIONS!" : "SEASON OVER";
+    msg = youWon ? `${MYCLUB.name} win the ${tierName}!` : `${champ} win the ${tierName}`;
+    hint = `You finished ${ordinal(pos + 1)} of ${CLUBS.length}`;
+  }
+  showOverlay(title, msg, hint);
+  if (youWon || movement.dir === 1) { overlayTitle.style.color = "#ffd230"; SFX.goal(); }
+  if (movement.dir === -1) overlayTitle.style.color = "#ff6a5f";
+  playAgainBtn.textContent = "New season";
+
+  career.seasonNo++;
+  clearSave();                               // season over — the career record carries on
+  saveCareer();
+  showCareerLine();                          // after showOverlay's reset above
+
+  if (movement.dir === 1) lines.push(`<b>\u2191 ${MYCLUB.name} go up</b>`);
+  if (movement.dir === -1) lines.push(`<b>\u2193 ${MYCLUB.name} go down</b>`);
+  const top = topScorer();
+  if (top) lines.push(`Top scorer: <b>${top.name}</b> \u2014 ${chState(top).g}`);
+  if (growth) lines.push(`<i>${growth}</i>`);
+  leagueBox.innerHTML = buildPaper(dateline, headline, lines) + renderStandings();
   leagueBox.style.display = "block";
   overlay.classList.add("standings");
   leagueBox.scrollTop = 0;
@@ -2239,7 +3146,8 @@ function endMatch() {
 
 // The Next match / New season button and the R key both route through here.
 function advance() {
-  if (mode === "matchend") beginFixture();          // season.round already points at the next round
+  if (mode === "teamsheet") confirmTeamSheet();
+  else if (mode === "matchend") beginFixture();     // season.round already points at the next round
   else if (mode === "menu" && savedCandidate) resumeSeason();
   else startSeason();                               // menu (no save) or season end → a fresh season
 }
@@ -2252,7 +3160,7 @@ function openTable() {
   SFX.ensure();
   tableReturnMode = mode;
   mode = "viewtable";
-  showOverlay("LEAGUE TABLE",
+  showOverlay(TIER_NAMES[career.tier].toUpperCase(),
     `Matchday ${season.round + 1} of ${season.totalRounds} \u00b7 v ${awayName}`,
     IS_MOBILE ? "Tap Resume to play on" : "Press T or Esc to resume");
   leagueBox.innerHTML = renderStandings();
@@ -2277,22 +3185,102 @@ function closeTable() {
    need them). Every call is guarded so a browser with storage walled
    off (private mode, sandboxed iframe) just runs in memory.
    ============================================================ */
-const LEAGUE_KEY = "fitbaCrazy.league.v1";
+const LEAGUE_KEY = "fitbaCrazy.league.v3";
+const CAREER_KEY = "fitbaCrazy.career.v2";
 let storageOK = true;
 try { localStorage.setItem("__ph_test__", "1"); localStorage.removeItem("__ph_test__"); }
 catch (e) { storageOK = false; }
 let savedCandidate = null;   // a valid resumable save found at boot, or null
 
+/* ============================================================
+   CAREER — the world-state singleton. The pyramid (39 AI clubs
+   and their strengths), your tier, the squad's career record
+   (goals, apps, bans, growth) and the trophy cabinet all live
+   here and outlive any one season.
+   ============================================================ */
+function freshCareer() {
+  return { seasons: 0, titles: 0, crowns: 0, promotions: 0, tier: 5, seasonNo: 1,
+           pyramid: freshPyramid(), squad: freshSquadState() };
+}
+let career = freshCareer();
+
+function packPyr() {
+  const o = {};
+  for (const t of [5, 4, 3, 2, 1]) o[t] = career.pyramid[t].map(c => [c.name, c.color, c.str]);
+  return o;
+}
+function unpackPyr(o) {
+  if (!o) return null;
+  const pyr = {}; let count = 0;
+  for (const t of [5, 4, 3, 2, 1]) {
+    if (!Array.isArray(o[t])) return null;
+    pyr[t] = o[t].map(a => ({ name: String(a[0]), color: a[1] | 0, css: cssHex(a[1] | 0), str: +a[2] || 0.4 }));
+    count += pyr[t].length;
+  }
+  return count === 39 ? pyr : null;
+}
+
+function saveCareer() {
+  if (!storageOK) return;
+  try {
+    const sq = {};
+    for (const c of SQUAD) {
+      const s = chState(c);
+      sq[c.id] = { gAll: s.gAll, apps: s.apps, susp: s.susp, grow: s.grow };
+    }
+    localStorage.setItem(CAREER_KEY, JSON.stringify({
+      v: 2, seasons: career.seasons, titles: career.titles, crowns: career.crowns,
+      promotions: career.promotions, tier: career.tier, seasonNo: career.seasonNo,
+      pyr: packPyr(), squad: sq,
+    }));
+  } catch (e) {}
+}
+function loadCareer() {
+  if (!storageOK) return;
+  try {
+    const d = JSON.parse(localStorage.getItem(CAREER_KEY) || "null");
+    if (!d || d.v !== 2) return;
+    const tier = [1, 2, 3, 4, 5].includes(d.tier) ? d.tier : 5;
+    const pyr = unpackPyr(d.pyr);
+    if (!pyr || pyr[tier].length !== 7) return;   // my tier must hold seven AI clubs
+    const squad = freshSquadState();
+    for (const c of SQUAD) {
+      const s = d.squad && d.squad[c.id]; if (!s) continue;
+      squad[c.id].gAll = Math.max(0, s.gAll | 0);
+      squad[c.id].apps = Math.max(0, s.apps | 0);
+      squad[c.id].susp = Math.max(0, s.susp | 0);
+      if (s.grow && typeof s.grow === "object") squad[c.id].grow = s.grow;
+    }
+    career = { seasons: Math.max(0, d.seasons | 0), titles: Math.max(0, d.titles | 0),
+               crowns: Math.max(0, d.crowns | 0), promotions: Math.max(0, d.promotions | 0),
+               tier, seasonNo: Math.max(1, d.seasonNo | 0), pyramid: pyr, squad };
+  } catch (e) {}
+}
+
+/* ============================================================
+   LEAGUE SAVE — the season in progress. Checkpoint is full time
+   (between matchdays), never mid-match. Stores the schedule, the
+   table, the active clubs and the squad's season state (goals,
+   bookings, event mods, who's benched). The career save is
+   written at the same moment so the two files always agree.
+   ============================================================ */
 function saveSeason() {
   if (!storageOK) return;
   try {
+    const sq = {};
+    for (const c of SQUAD) {
+      const s = chState(c);
+      sq[c.id] = { g: s.g, yc: s.yc, mods: s.mods };
+    }
     localStorage.setItem(LEAGUE_KEY, JSON.stringify({
-      v: 1, n: CLUBS.length, dk: diffKey,
+      v: 3, tier: career.tier, seasonNo: career.seasonNo,
       round: season.round, totalRounds: season.totalRounds,
       rounds: season.rounds, table: season.table,
-      str: CLUBS.map(c => c.str),
+      clubs: CLUBS.slice(1).map(c => [c.name, c.color, c.str]),
+      sq, xi,
     }));
   } catch (e) { storageOK = false; }
+  saveCareer();
 }
 function clearSave() { if (!storageOK) return; try { localStorage.removeItem(LEAGUE_KEY); } catch (e) {} }
 function loadSeason() {
@@ -2301,9 +3289,10 @@ function loadSeason() {
   if (!raw) return null;
   try {
     const d = JSON.parse(raw);
-    if (!d || d.v !== 1 || d.n !== CLUBS.length) return null;            // different format or roster size
-    if (!Array.isArray(d.rounds) || !Array.isArray(d.table) || !Array.isArray(d.str)) return null;
-    if (d.table.length !== CLUBS.length || d.str.length !== CLUBS.length) return null;
+    if (!d || d.v !== 3) return null;
+    if (d.tier !== career.tier || d.seasonNo !== career.seasonNo) return null;  // out of step with the career file
+    if (!Array.isArray(d.rounds) || !Array.isArray(d.table) || !Array.isArray(d.clubs)) return null;
+    if (d.table.length !== 8 || d.clubs.length !== 7) return null;
     if (typeof d.round !== "number" || typeof d.totalRounds !== "number") return null;
     if (d.round < 0 || d.round >= d.totalRounds) return null;            // finished/garbage → ignore
     return d;
@@ -2312,44 +3301,33 @@ function loadSeason() {
 function resumeSeason() {
   const d = savedCandidate;
   if (!d) { startSeason(); return; }
+  // The league save carries its own copy of the active clubs — restore them
+  // into the pyramid so identities, kits and strengths line up exactly.
+  career.pyramid[career.tier] = d.clubs.map(a =>
+    ({ name: String(a[0]), color: a[1] | 0, css: cssHex(a[1] | 0), str: +a[2] || 0.4 }));
+  rebuildActiveLeague();
+  setTierDifficulty();
   season.rounds = d.rounds;
   season.totalRounds = d.totalRounds;
   season.round = d.round;
   season.table = d.table;
-  for (let i = 0; i < CLUBS.length; i++) CLUBS[i].str = d.str[i];
-  // Restore the tier the season was being played at — unless the player has
-  // already cycled the AI button this session, in which case their pick wins.
-  if (!diffTouched && d.dk && DIFFICULTY[d.dk]) { diffKey = d.dk; updateDiffBtn(); }
+  for (const c of SQUAD) {
+    const s = d.sq && d.sq[c.id]; if (!s) continue;
+    chState(c).g = Math.max(0, s.g | 0);
+    chState(c).yc = Math.max(0, s.yc | 0);
+    if (s.mods && typeof s.mods === "object") chState(c).mods = s.mods;
+  }
+  if (validXI(d.xi)) xi = d.xi.slice();
   savedCandidate = null;
   beginFixture();
 }
 
-/* ============================================================
-   CAREER — an all-time record that outlives any one season:
-   seasons completed and titles won. Same storage guards as the
-   league save. Shown on the boot menu and the season-end card.
-   ============================================================ */
-const CAREER_KEY = "fitbaCrazy.career.v1";
-const career = { seasons: 0, titles: 0 };
-(function loadCareer() {
-  if (!storageOK) return;
-  try {
-    const d = JSON.parse(localStorage.getItem(CAREER_KEY) || "null");
-    if (d && typeof d.seasons === "number" && typeof d.titles === "number") {
-      career.seasons = Math.max(0, d.seasons | 0);
-      career.titles  = Math.max(0, d.titles  | 0);
-    }
-  } catch (e) {}
-})();
-function saveCareer() {
-  if (!storageOK) return;
-  try { localStorage.setItem(CAREER_KEY, JSON.stringify(career)); } catch (e) {}
-}
 function showCareerLine() {
-  if (!careerLine || career.seasons === 0) return;
+  if (!careerLine) return;
+  if (career.seasons === 0 && career.tier === 5) return;
   const s = career.seasons, t = career.titles;
   careerLine.textContent =
-    `CAREER · ${s} SEASON${s === 1 ? "" : "S"} · ${t} TITLE${t === 1 ? "" : "S"}`;
+    `CAREER \u00b7 ${s} SEASON${s === 1 ? "" : "S"} \u00b7 ${t} TITLE${t === 1 ? "" : "S"} \u00b7 ${TIER_NAMES[career.tier].toUpperCase()}`;
   careerLine.style.display = "block";
 }
 
@@ -2443,7 +3421,7 @@ const onKey = (e, down) => {
   if (block.includes(e.code)) e.preventDefault();
   if (down) SFX.ensure();
   keys[e.code] = down;
-  if (e.code === "KeyR" && down && (mode === "matchend" || mode === "seasonend" || mode === "menu")) advance();
+  if (e.code === "KeyR" && down && (mode === "matchend" || mode === "seasonend" || mode === "menu" || mode === "teamsheet")) advance();
   if (e.code === "KeyT" && down) { if (mode === "play") openTable(); else if (mode === "viewtable") closeTable(); }
   if (e.code === "Escape" && down && mode === "viewtable") closeTable();
   if (e.code === "KeyM" && down) {
@@ -2454,24 +3432,39 @@ const onKey = (e, down) => {
 };
 addEventListener("keydown", e => onKey(e, true));
 addEventListener("keyup",   e => onKey(e, false));
-document.getElementById("restart").addEventListener("click", startSeason);
+// New Career wipes everything — pyramid, squad record, trophies — so it
+// arms on the first tap and only fires on a second tap within four seconds.
+// (No confirm(): sandboxed iframes on game portals block it.)
+let resetArm = 0;
+document.getElementById("restart").addEventListener("click", () => {
+  const b = document.getElementById("restart");
+  const live = career.seasons > 0 || career.seasonNo > 1 || season.round > 0 || !!savedCandidate;
+  if (live && Date.now() - resetArm > 4000) {
+    resetArm = Date.now();
+    b.textContent = "Wipe career?";
+    setTimeout(() => { b.textContent = "New Career"; }, 4000);
+    return;
+  }
+  resetArm = 0;
+  b.textContent = "New Career";
+  if (storageOK) { try { localStorage.removeItem(LEAGUE_KEY); localStorage.removeItem(CAREER_KEY); } catch (e) {} }
+  career = freshCareer();
+  xi = DEFAULT_XI.slice();
+  swapFor = null;
+  closeCard();
+  savedCandidate = null;
+  updateLeagueBadge();
+  startSeason();
+});
 document.getElementById("muteBtn").addEventListener("click", () => {
   SFX.ensure();
   const on = SFX.toggle();
   document.getElementById("muteBtn").textContent = "SOUND: " + (on ? "ON" : "OFF");
 });
-function updateDiffBtn() {
-  const b = document.getElementById("diffBtn");
-  if (b) b.textContent = "AI: " + DIFFICULTY[diffKey].label;
-}
-let diffTouched = false;   // user picked a tier this session; resume won't override it
-document.getElementById("diffBtn").addEventListener("click", () => {
-  const order = ["easy", "normal", "hard", "legend"];
-  diffKey = order[(order.indexOf(diffKey) + 1) % order.length];
-  diffTouched = true;
-  computeMatchDiff();                      // applies to the fixture in progress too
-  updateDiffBtn();
-  if (season.totalRounds > 0 && season.round < season.totalRounds) saveSeason(); // tier travels with a live season
+// The league badge doubles as the table button: tap to peek mid-match.
+document.getElementById("leagueBadge").addEventListener("click", () => {
+  if (mode === "play") openTable();
+  else if (mode === "viewtable") closeTable();
 });
 
 // Touch
@@ -2628,6 +3621,7 @@ function movePlayer(p, isUser, idx) {
   if (p.role !== "gk") {
     if (p.team === TEAM.HOME) speedCap *= diff().homeSpeed;     // home advantage
     if (p.team === TEAM.AWAY) speedCap *= diff().awaySpeed;     // opposition pace by difficulty
+    if (p.ch) speedCap *= chPaceMult(p);                        // who's wearing the shirt matters
   }
   if (idx === userIdx)      speedCap *= 1.08;          // active player edge
   if (tActive > 0) {
@@ -2823,6 +3817,21 @@ function playerBallInteraction() {
           continue;
         }
         // CATCH — gather it dead into the cradle, facing away from goal.
+        // Unless this is Flapwell, whose hands answer to madness: a real shot
+        // sometimes squirms loose in front of him. Heroically unreliable.
+        if (p.ch && towardGoal && shotSpeed > 0.35 &&
+            Math.random() < 0.03 + chStat(p.ch, "mad") * 0.009) {
+          const side = ball.z >= 0 ? 0.6 : -0.6;
+          ball.vx = atk * (0.16 + Math.random() * 0.10);
+          ball.vz = side * (0.10 + Math.random() * 0.12);
+          ball.vy = 0.07;
+          ball.spin = 0;
+          ball.kickedFrames = 10;
+          ball.lastTouch = i;
+          matchNote("flap");
+          SFX.bounce(0.7);
+          continue;
+        }
         ball.vx = 0; ball.vy = 0; ball.vz = 0;
         ball.kickedFrames = 0;
         ball.spin = 0;
@@ -3028,6 +4037,18 @@ function performKick(kickerIdx, power, aimAngle, isPass, lob = false) {
     ang = Math.atan2(goalX - k.x, aimZ - k.z);
   }
 
+  // Character feet. A Mulligan pass is a laser; a Briggs pass is a rumour.
+  // Power adds or trims raw striking force on shots. Both subtle by design —
+  // assists still carry the kick, the character just colours it.
+  if (k.ch) {
+    if (effectivePass) {
+      ang += (Math.random() - 0.5) * (10 - chStat(k.ch, "pas")) * 0.012;
+    } else {
+      effectivePower = Math.min(effectivePower * (0.94 + chStat(k.ch, "pow") * 0.012),
+                                RULES.userShotMax * 1.05);
+    }
+  }
+
   // Compute velocity vector
   const horiz = effectivePower;
   ball.vx = Math.sin(ang) * horiz;
@@ -3073,8 +4094,10 @@ function performKick(kickerIdx, power, aimAngle, isPass, lob = false) {
     let spin = lateralRun * RULES.spinFromRun;
     if (isUserKick) {
       // Bend toward the middle of the goal so it curls around the keeper.
+      // High skill keeps the banana under control; low skill lets it riot.
       const goalZ = 0, side = (ball.z > goalZ) ? -1 : 1;
-      spin += side * RULES.spinUserShot * (0.6 + Math.random() * 0.5);
+      const tame = k.ch ? (1.35 - chStat(k.ch, "skl") * 0.09) : 1;
+      spin += side * RULES.spinUserShot * (0.6 + Math.random() * 0.5 * tame);
     } else {
       spin += (Math.random() - 0.5) * RULES.spinUserShot;     // AWAY shots wobble unpredictably
     }
@@ -3303,6 +4326,63 @@ function aiBrain() {
     // ---- OUTFIELD ----
     const isChaser = (p.team === TEAM.HOME && i === nearestHome) || (p.team === TEAM.AWAY && i === nearestAway);
 
+    // HOME AI team-mate on the ball: keep the move alive. They drive forward,
+    // play the forward pass after a beat, and have a go now and then when
+    // close in. Without this branch they drifted to their formation anchor
+    // with the ball glued to their feet — statues in possession.
+    if (i === ballHolder && p.team === TEAM.HOME) {
+      const gX = attackGoalX(p.team), gZ = F.cz;
+      const distToGoal = lenH(gX - p.x, gZ - p.z);
+      p._holdF = (p._holdF || 0) + 1;
+      if (p._holdF > 26) {
+        p._holdF = 0;
+        if (distToGoal < 15 && Math.random() < 0.5) {
+          // Within range: shoot at the corner away from the keeper. Your
+          // team-mates are competent — the aim is tight.
+          let tz = gZ;
+          const gkOpp = players.find(q => q.team !== p.team && q.role === "gk");
+          if (gkOpp) tz = gZ + (gkOpp.z >= gZ ? -1 : 1) * F.goalW * 0.34;
+          const ang = Math.atan2(gX - p.x, tz - p.z) + (Math.random() - 0.5) * 0.12;
+          performKick(i, RULES.kickPowerMax * lerp(0.80, 1.05, Math.random()), ang, false, false);
+        } else {
+          const targetIdx = aiPickTeammatePass(p, i);
+          if (targetIdx !== -1) {
+            const t = players[targetIdx];
+            const ang = Math.atan2(t.x + t.vx * 8 - p.x, t.z + t.vz * 8 - p.z) + (Math.random() - 0.5) * 0.10;
+            performKick(i, RULES.kickPowerMin + 0.45, ang, true, false);
+          }
+        }
+        continue;
+      }
+      // Between decisions: drive at goal through the ball, swerving round the
+      // nearest presser. Steering relative to the ball (not the player) keeps
+      // the run collecting the ball instead of orbiting it.
+      const gAng = Math.atan2(gX - ball.x, gZ - ball.z);
+      const ang = Math.atan2(ball.x + Math.sin(gAng) * 1.2 - p.x,
+                             ball.z + Math.cos(gAng) * 1.2 - p.z);
+      let ix = Math.sin(ang), iz = Math.cos(ang);
+      let nearestOp = null, nd = Infinity;
+      for (let j = 0; j < players.length; j++) {
+        const op = players[j];
+        if (op.team === p.team || op.role === "gk") continue;
+        const dd = lenH(op.x - p.x, op.z - p.z);
+        if (dd < nd) { nd = dd; nearestOp = op; }
+      }
+      if (nearestOp && nd < 7) {
+        ix = ix * 0.65 - ((nearestOp.x - p.x) / nd) * 0.5;
+        iz = iz * 0.65 - ((nearestOp.z - p.z) / nd) * 0.5;
+      }
+      let m = lenH(ix, iz);
+      if (m < 0.35 && nearestOp) {
+        const side = (p.z - nearestOp.z) >= 0 ? 1 : -1;
+        ix = Math.sin(ang) * 0.45;
+        iz = Math.cos(ang) * 0.45 + side * 0.9;
+        m = lenH(ix, iz);
+      }
+      if (m > 0) { p._aiIX = ix / m; p._aiIZ = iz / m; }
+      continue;
+    }
+
     // AWAY ball-holder: shoot/pass/dribble
     if (i === ballHolder && p.team === TEAM.AWAY) {
       const gX = attackGoalX(p.team), gZ = F.cz;
@@ -3318,7 +4398,11 @@ function aiBrain() {
       }
 
       let action = "dribble";
-      if (facingGoal && distToGoal < 22 && clearShotLine(p.x, p.z, gX, gZ, p.team)) action = "shoot";
+      // Shoot on a clear line — or punt hopefully through traffic anyway.
+      // Waiting for a genuinely clear line against seven bodies means never
+      // shooting, which is exactly what the old AI did.
+      if (facingGoal && distToGoal < 24 &&
+          (clearShotLine(p.x, p.z, gX, gZ, p.team) || Math.random() < 0.35)) action = "shoot";
       else if (pressDist < 3.2) action = "pass";
 
       // Lacking skill: AWAY frequently hesitates instead of committing.
@@ -3326,9 +4410,15 @@ function aiBrain() {
       else if (action === "pass" && Math.random() < diff().passHesitate) action = "dribble";
 
       if (action === "shoot") {
-        const baseAng = Math.atan2(gX - p.x, gZ - p.z);
-        const ang = baseAng + (Math.random() - 0.5) * diff().aimWobble;  // wild aim, tighter on hard
-        const power = lerp(RULES.kickPowerMax * 0.55, RULES.kickPowerMax * 0.75, Math.random());
+        // Aim at the corner away from the keeper — they're trying to score,
+        // not pass to him. Wobble then degrades the placement by tier.
+        let tz = gZ;
+        const gkOpp = players.find(q => q.team !== p.team && q.role === "gk");
+        if (gkOpp) tz = gZ + (gkOpp.z >= gZ ? -1 : 1) * F.goalW * 0.34;
+        const baseAng = Math.atan2(gX - p.x, tz - p.z);
+        const ang = baseAng + (Math.random() - 0.5) * diff().aimWobble;
+        const [lo, hi] = diff().shotPow;
+        const power = lerp(RULES.kickPowerMax * lo, RULES.kickPowerMax * hi, Math.random());
         performKick(i, power, ang, false, false);
       } else if (action === "pass") {
         const targetIdx = aiPickTeammatePass(p, i);
@@ -3341,10 +4431,16 @@ function aiBrain() {
           performKick(i, RULES.kickPowerMin + 0.4, ang, true, shouldLob);
         } else {
           const ang = Math.atan2(gX - p.x, gZ - p.z) + (Math.random() - 0.5) * 0.35;
-          performKick(i, RULES.kickPowerMax * 0.6, ang, false, false);
+          performKick(i, RULES.kickPowerMax * diff().shotPow[0], ang, false, false);
         }
       } else {
-        const ang = Math.atan2(gX - p.x, gZ - p.z);
+        // Steer through a point just beyond the BALL toward goal — never at
+        // the goal from the player's own position. A dribbler who aims "at
+        // goal" with the ball a stride behind him walks away from it, gets
+        // dragged back by the chase logic, and orbits a dead ball forever.
+        const gAng = Math.atan2(gX - ball.x, gZ - ball.z);
+        const ang = Math.atan2(ball.x + Math.sin(gAng) * 1.2 - p.x,
+                               ball.z + Math.cos(gAng) * 1.2 - p.z);
         let ix = Math.sin(ang), iz = Math.cos(ang);
         let nearestOp = null, nd = Infinity;
         for (let j = 0; j < players.length; j++) {
@@ -3409,10 +4505,19 @@ function aiBrain() {
       p._aiIZ = (dz / d) * easing;
     }
 
-    // Occasional slide tackle by AWAY chasers
+    // Occasional slide tackle by AWAY chasers — and by HOME characters whose
+    // madness gets the better of them. This is how Briggs collects bookings
+    // even when you're controlling someone else.
     if (isChaser && p.team === TEAM.AWAY) {
       const dB = lenH(p.x - ball.x, p.z - ball.z);
       if (dB < 2.2 && ball.y < 1.4 && (tackleCD.get(i) || 0) === 0 && Math.random() < 0.04) {
+        tryTackle(i);
+      }
+    } else if (isChaser && p.team === TEAM.HOME && p.ch && i !== userIdx &&
+               ballTeam === TEAM.AWAY) {
+      const dB = lenH(p.x - ball.x, p.z - ball.z);
+      if (dB < 2.2 && ball.y < 1.4 && (tackleCD.get(i) || 0) === 0 &&
+          Math.random() < 0.004 + chStat(p.ch, "mad") * 0.005) {
         tryTackle(i);
       }
     }
@@ -3433,28 +4538,40 @@ function checkGoals() {
   const leftTeam  = sideFlip > 0 ? TEAM.AWAY : TEAM.HOME;
   const rightTeam = sideFlip > 0 ? TEAM.HOME : TEAM.AWAY;
   const scorer = inLeft ? leftTeam : rightTeam;
+  // Who actually touched it last — the named scorer, or an own goal.
+  let scorerCh = null, ownGoal = false;
+  if (ball.lastTouch !== -1) {
+    const lp = players[ball.lastTouch];
+    if (lp.team !== scorer) ownGoal = true;
+    else if (scorer === TEAM.HOME && lp.ch) scorerCh = lp.ch;
+  }
   if (scorer === TEAM.HOME) {
     scoreHome++;
     document.getElementById("scoreHome").textContent = String(scoreHome);
+    recordGoal(scorerCh, ownGoal);
   } else {
     scoreAway++;
     document.getElementById("scoreAway").textContent = String(scoreAway);
   }
-  onGoalScored(scorer);
+  onGoalScored(scorer, scorerCh, ownGoal);
   return true;
 }
 
-function onGoalScored(scoringTeam) {
+function onGoalScored(scoringTeam, scorerCh, ownGoal) {
   mode = "goal";
   modeTimer = 175;
   SFX.whistle(0);
   SFX.goal();
-  showOverlay(
-    "G O A L !",
-    (scoringTeam === TEAM.HOME ? "Sons of Pitches" : awayName) + " score",
-    `${scoreHome}  —  ${scoreAway}`,
-    scoringTeam === TEAM.AWAY
-  );
+  let line;
+  if (scoringTeam === TEAM.HOME) {
+    line = scorerCh ? `${scorerCh.name} scores!`
+         : ownGoal  ? `An own goal! ${MYCLUB.name} will take it`
+         : `${MYCLUB.name} score`;
+  } else {
+    line = ownGoal ? `Oh no. ${awayName} score off one of ours` : `${awayName} score`;
+  }
+  showOverlay("G O A L !", line, `${scoreHome}  —  ${scoreAway}`,
+    scoringTeam === TEAM.AWAY);
   kickoffTeam = scoringTeam === TEAM.HOME ? TEAM.AWAY : TEAM.HOME;
   launchBallIntoNet(scoringTeam);
   startCelebrations(scoringTeam, ball.lastTouch);
@@ -3624,7 +4741,8 @@ function bookPlayer(offenderIdx, fouledIdx) {
     ref.facing = Math.atan2(off.x - ref.x, off.z - ref.z);
   }
   SFX.whistle(0);
-  showCardToast(off.team === TEAM.AWAY ? "GRANITE" : "PITCHES", red);
+  showCardToast(off, red);
+  if (off.ch) recordCard(off.ch, red);
 
   // Free kick to the fouled side at the spot.
   startSetPiece(fouled.team, fouled.x, fouled.z);
@@ -3644,7 +4762,9 @@ function checkFouls() {
       if (o.team === t.team) continue;
       if (o.downTimer && o.downTimer > 0) continue;
       if (lenH(t.x - o.x, t.z - o.z) > 1.35) continue;
-      const chance = t.team === TEAM.AWAY ? RULES.foulChanceAway : RULES.foulChanceUser;
+      const t0 = players[i];
+      let chance = t0.team === TEAM.AWAY ? RULES.foulChanceAway : RULES.foulChanceUser;
+      if (t0.ch) chance *= 0.55 + chStat(t0.ch, "mad") * 0.10;   // Briggs lives here
       if (Math.random() < chance) {
         tackleActive.set(i, 0);
         bookPlayer(i, j);
@@ -3654,11 +4774,14 @@ function checkFouls() {
   }
 }
 
-// Brief on-screen flash when a card comes out.
-function showCardToast(teamName, red) {
+// Brief on-screen flash when a card comes out. Named players get named;
+// the away side is booked as a club (their players have no names yet).
+function showCardToast(offender, red) {
   const el = document.getElementById("cardToast");
   if (!el) return;
-  el.textContent = (red ? "🟥 RED" : "🟨 YELLOW") + " — " + teamName + " · FREE KICK";
+  const who = offender.ch ? chSurname(offender.ch).toUpperCase()
+                          : awayName.split(" ")[0].toUpperCase();
+  el.textContent = (red ? "🟥 RED" : "🟨 YELLOW") + " — " + who + " · FREE KICK";
   el.style.color = red ? "#ff6a5f" : "#ffd230";
   el.classList.add("show");
   clearTimeout(showCardToast._t);
@@ -4250,7 +5373,7 @@ function tick() {
       setKickoffPositions(kickoffTeam);
       mode = "kickoff";
       modeTimer = 90;
-      showOverlay("KICK OFF", kickoffTeam === TEAM.HOME ? "Sons of Pitches restart" : awayName + " restart", "Press SPACE or move");
+      showOverlay("KICK OFF", kickoffTeam === TEAM.HOME ? MYCLUB.name + " restart" : awayName + " restart", "Press SPACE or move");
     }
     return;
   }
@@ -4271,7 +5394,7 @@ function tick() {
     return;
   }
 
-  if (mode === "fulltime" || mode === "matchend" || mode === "seasonend" || mode === "viewtable") return;
+  if (mode === "fulltime" || mode === "matchend" || mode === "seasonend" || mode === "viewtable" || mode === "teamsheet") return;
 
   // play
   // A restart is resolving: walk the taker to the pinned ball, then go live.
@@ -4322,20 +5445,32 @@ scene.add(refMesh);
 
 setKickoffPositions(TEAM.HOME);
 mode = "menu";
+loadCareer();
+rebuildActiveLeague();
+setTierDifficulty();
+updateLeagueBadge();
 savedCandidate = loadSeason();
-if (savedCandidate) {
-  showOverlay(
-    "FITBA CRAZY",
-    `League in progress · Matchday ${savedCandidate.round + 1} of ${savedCandidate.totalRounds}`,
-    IS_MOBILE ? "Tap to continue · New Season resets" : "Press SPACE to continue · New Season resets"
-  );
-} else {
-  showOverlay(
-    "FITBA CRAZY",
-    IS_MOBILE ? "Drag to move · tap KICK to pass · hold KICK to shoot"
-              : "Move: arrows / WASD · tap SPACE to pass · hold SPACE to shoot",
-    IS_MOBILE ? "Tap anywhere to kick off" : "Press SPACE or move to kick off"
-  );
+{
+  const bootTier = TIER_NAMES[career.tier];
+  if (savedCandidate) {
+    showOverlay(
+      "FITBA CRAZY",
+      `${bootTier} \u00b7 Season ${career.seasonNo} \u00b7 Matchday ${savedCandidate.round + 1} of ${savedCandidate.totalRounds}`,
+      IS_MOBILE ? "Tap to continue \u00b7 New Career resets" : "Press SPACE to continue \u00b7 New Career resets"
+    );
+  } else if (career.seasons > 0 || career.seasonNo > 1) {
+    showOverlay(
+      "FITBA CRAZY",
+      `${MYCLUB.name} \u00b7 ${bootTier} \u00b7 Season ${career.seasonNo}`,
+      IS_MOBILE ? "Tap anywhere to start the season" : "Press SPACE or move to start the season"
+    );
+  } else {
+    showOverlay(
+      "FITBA CRAZY",
+      "Take Bampot Rovers from the Mud League to the Crown League",
+      IS_MOBILE ? "Tap anywhere to begin" : "Press SPACE or move to begin"
+    );
+  }
 }
 showCareerLine();
 updateClock();
