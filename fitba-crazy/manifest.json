@@ -1,0 +1,24 @@
+{
+  "name": "Fitba Crazy",
+  "short_name": "Fitba Crazy",
+  "description": "Take Bampot Rovers from the Mud League to the Crown League. Free. No install.",
+  "start_url": "/fitba-crazy/",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0b1410",
+  "theme_color": "#ffd230",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
