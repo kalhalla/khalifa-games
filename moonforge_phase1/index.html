@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Moonforge: Phase 1 Prototype</title>
+  <link rel="stylesheet" href="./src/styles.css" />
+</head>
+<body>
+  <div id="app">
+    <canvas id="game"></canvas>
+
+    <div id="hud">
+      <div class="panel title">
+        <h1>MOONFORGE</h1>
+        <p>Phase 1 — First Mass Driver</p>
+      </div>
+
+      <div class="panel">
+        <h2>Resources</h2>
+        <div class="grid">
+          <span>Power</span><strong id="power">0</strong>
+          <span>Regolith</span><strong id="regolith">0</strong>
+          <span>Ice</span><strong id="ice">0</strong>
+          <span>Oxygen</span><strong id="oxygen">0</strong>
+          <span>Aluminium</span><strong id="aluminium">0</strong>
+          <span>Funding</span><strong id="funding">0</strong>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Build</h2>
+        <button data-build="solar">Solar Array <small>£80 / +12 power</small></button>
+        <button data-build="excavator">Excavator <small>£120 / regolith</small></button>
+        <button data-build="ice">Ice Harvester <small>£140 / ice</small></button>
+        <button data-build="refinery">Aluminium Refinery <small>£220 / aluminium</small></button>
+        <button data-build="oxygen">Oxygen Plant <small>£180 / oxygen</small></button>
+        <button data-build="massDriver">Mass Driver <small>£600 + 80 aluminium</small></button>
+      </div>
+
+      <div class="panel">
+        <h2>Mission</h2>
+        <ol id="objectives">
+          <li data-obj="power">Generate 30 power</li>
+          <li data-obj="regolith">Mine 100 regolith</li>
+          <li data-obj="oxygen">Produce 40 oxygen</li>
+          <li data-obj="aluminium">Produce 80 aluminium</li>
+          <li data-obj="massDriver">Build the mass driver</li>
+          <li data-obj="launch">Launch first payload</li>
+        </ol>
+        <button id="launchBtn" disabled>Launch payload to orbit</button>
+      </div>
+
+      <div class="panel">
+        <h2>Controls</h2>
+        <p><b>WASD</b> move camera · <b>Q/E</b> rotate · <b>Mouse wheel</b> zoom · <b>Click build button</b> place module</p>
+      </div>
+    </div>
+
+    <div id="message">Bootstrap a lunar industrial base. Build power first.</div>
+  </div>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.182.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.182.0/examples/jsm/"
+      }
+    }
+  </script>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
