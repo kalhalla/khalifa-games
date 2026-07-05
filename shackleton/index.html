@@ -513,6 +513,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
 <script>
 (function(){
   'use strict';
@@ -524,7 +525,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.2.5';  // follow-frustum shadows, double hull skin, cone-not-cake peak
+  const BUILD_VERSION = 'v0.2.6';  // faceted summit platform, seated astronaut clone in the Flyer
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -1372,9 +1373,31 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     const RINGS = 24;    // up from 16
     const positions = [];
     const indices   = [];
-    // Off-centre apex vertex — its X/Z offset breaks the four-fold
-    // visual symmetry that previously made the top read as a cross.
-    positions.push(0.7, PEAK_HEIGHT + 0.6, -1.1);
+    // ── SUMMIT CAP — faceted platform, not a point ──
+    // The old cap was one off-axis apex vertex fanning down to the
+    // rim: a tent. The reference summit is a broken rocky PLATFORM.
+    // So the cap is now a small polar grid: a centre vertex at
+    // platform height, two interior rings with per-vertex height
+    // and radial jitter (irregular facets underfoot; collision
+    // stays flat at PEAK_HEIGHT, deviation ≤ ±0.35m), then the
+    // existing rough rim ring at SUMMIT_R whose ±1.5m jitter gives
+    // broken parapet blocks — some above the deck, some crumbled
+    // below it. Vertex layout: [centre, capA, capB, rim, body×RINGS],
+    // every ring SEGS wide, so one uniform quad loop stitches all.
+    positions.push(0.35, PEAK_HEIGHT + 0.15, -0.5);   // centre — near-flat, slightly proud
+    const capRings = [
+      { r: SUMMIT_R * 0.45, hJ: 0.30, rJ: 0.45, seed: 860 },
+      { r: SUMMIT_R * 0.80, hJ: 0.35, rJ: 0.55, seed: 880 },
+    ];
+    for (const cap of capRings) {
+      for (let i = 0; i < SEGS; i++) {
+        const a = (i / SEGS) * Math.PI * 2
+                + (rng(cap.seed * 3 + i) - 0.5) * (Math.PI * 2 / SEGS) * 0.35;
+        const r_v = cap.r + (rng(cap.seed + i) - 0.5) * 2 * cap.rJ;
+        const h_v = PEAK_HEIGHT + (rng(cap.seed + 40 + i) - 0.5) * 2 * cap.hJ;
+        positions.push(Math.cos(a) * r_v, h_v, Math.sin(a) * r_v);
+      }
+    }
     for (let ring = 0; ring <= RINGS; ring++) {
       const tt = ring / RINGS;
       const r_base = SUMMIT_R + (PEAK_BASE_R - SUMMIT_R) * tt;
@@ -1435,12 +1458,17 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
         positions.push(Math.cos(a) * r_v, h_v, Math.sin(a) * r_v);
       }
     }
+    // Centre fan onto cap ring A.
     for (let i = 0; i < SEGS; i++) {
       const i1 = 1 + i;
       const i2 = 1 + ((i + 1) % SEGS);
       indices.push(0, i2, i1);
     }
-    for (let ring = 0; ring < RINGS; ring++) {
+    // Uniform quad loop over ALL consecutive ring pairs: capA→capB,
+    // capB→rim, rim→body₁, … bodyₙ₋₁→bodyₙ. Total rings = 2 caps +
+    // (RINGS+1) rim/body rings; every ring is SEGS wide.
+    const totalRingCount = 2 + RINGS + 1;
+    for (let ring = 0; ring < totalRingCount - 1; ring++) {
       const a0 = 1 + ring * SEGS;
       const a1 = 1 + (ring + 1) * SEGS;
       for (let i = 0; i < SEGS; i++) {
@@ -2156,6 +2184,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
 
   let astronaut = null;
   let mixer = null;
+  let seatedMixer = null;   // drives the seated Flyer clone independently
   const animClips = {};        // name -> AnimationAction
   let activeAction = null;
   let astronautRoot = null;    // The transform we move (astronaut model is parented to this)
@@ -2263,36 +2292,55 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     }
 
     // ============================================================
-    // SEATED ASTRONAUT — currently disabled.
+    // SEATED ASTRONAUT — live clone.
     //
-    // Two earlier paths attempted this:
-    //   1. SkeletonUtils.clone() of the GLTF rig with bone rotations
-    //      applied for a seated pose. Stalled on Mixamo's local-axis
-    //      conventions — every iteration broke a different limb.
-    //   2. Primitive box figure assembled in seated pose. Worked but
-    //      proportions read poorly — couldn't be confidently called
-    //      "a person" from a distance.
+    // History: two earlier attempts failed. (1) SkeletonUtils clone
+    // with bone rotations applied BY HAND for a seated pose —
+    // stalled on Mixamo's local-axis conventions. (2) Primitive box
+    // figure — read poorly. The plan became "external Blender pose".
     //
-    // Current plan: external Blender pose. The standing astronaut GLB
-    // gets posed in Blender (legs forward, left hand forward, right
-    // hand at side, etc.) and the deformed mesh is exported as a
-    // separate GLB. That GLB then gets loaded here and parented under
-    // the Flyer.
+    // This version sidesteps the old failure entirely: the GLB
+    // carries a Crouch_Loop CLIP, so the pose comes from the
+    // animation system (which owns the axis conventions), not from
+    // manual bone math. A SkeletonUtils clone gets its own mixer,
+    // plays Crouch_Loop, and sits at the left seat. The existing
+    // boarding/exit code toggles .visible on
+    // flyer.userData.seatedAstronaut and needs no changes.
     //
-    // For now: empty Group stub. The boarding/exit code toggles
-    // .visible on flyer.userData.seatedAstronaut; with an empty Group
-    // those toggles are harmless no-ops. The Flyer reads as an open
-    // frame with no pilot inside during flight — visibly incomplete
-    // but not visibly broken.
-    //
-    // When the posed GLB is ready: replace this block with a
-    // GLTFLoader call, parent the resulting scene under the Flyer at
-    // local position (-0.40, seatY, seatZ), scale to match the
-    // standing astronaut. One turn of work to wire in.
+    // Tunables for the screenshot loop:
+    //   SEATED_LOCAL — position in flyer space. y drops the crouch
+    //     onto the seat pan (seat top ≈ 1.03 local); z shifts him
+    //     forward off the seat back.
+    //   SEATED_YAW — facing. Seats face +Z.
     // ============================================================
     {
+      const SEATED_LOCAL = { x: -0.40, y: 0.72, z: 0.18 };
+      const SEATED_YAW   = 0;
       const seatedRoot = new THREE.Group();
       seatedRoot.visible = false;
+      if (typeof THREE.SkeletonUtils !== 'undefined') {
+        const seatedClone = THREE.SkeletonUtils.clone(gltf.scene);
+        seatedClone.traverse(o => {
+          if (o.isMesh || o.isSkinnedMesh) { o.castShadow = true; o.frustumCulled = false; }
+        });
+        seatedClone.rotation.y = -Math.PI / 2;   // same pre-rotation as the walking rig
+        seatedRoot.add(seatedClone);
+        seatedRoot.scale.setScalar(0.5);
+        seatedRoot.position.set(SEATED_LOCAL.x, SEATED_LOCAL.y, SEATED_LOCAL.z);
+        seatedRoot.rotation.y = SEATED_YAW;
+        // Independent mixer — the walking rig's mixer must not drive
+        // these bones. Crouch_Loop poses him; the slow loop reads as
+        // a pilot shifting in his seat.
+        seatedMixer = new THREE.AnimationMixer(seatedClone);
+        const crouch = gltf.animations.find(c => c.name === 'Crouch_Loop');
+        if (crouch) {
+          const act = seatedMixer.clipAction(crouch);
+          act.play();
+          act.timeScale = 0.5;
+        }
+      } else {
+        console.warn('[flyer] SkeletonUtils unavailable — seat stays empty');
+      }
       flyer.add(seatedRoot);
       flyer.userData.seatedAstronaut = seatedRoot;
     }
@@ -10880,6 +10928,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       updateCinematic(dt);
     }
     if (mixer) mixer.update(dt);
+    if (seatedMixer) seatedMixer.update(dt);
     updateEntities(dt);              // entity registry — additive pass
     updateDust(dt);
     updateFlyerParticles(dt);
