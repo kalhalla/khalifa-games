@@ -524,7 +524,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.2.2';  // root-relative asset paths — assets live at /assets/, game at /shackleton/
+  const BUILD_VERSION = 'v0.2.3';  // wreck scale 1.35x, prone lift, opening camera fix, vignette soften
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -7876,11 +7876,26 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
 
   const starship = buildStarshipWreck();
   const STARSHIP_X = 8, STARSHIP_Z = -2;
+  // ── WRECK SCALE ──
+  // The wreck reads too small against the reference imagery. Scaling
+  // the group about its origin multiplies every internal offset by S,
+  // so all EXTERNAL world-anchored companions (ramp, colliders, debris
+  // field, refill panel) must scale their offsets from the same origin
+  // by the same S to stay congruent. The wreckX/wreckZ/wreckY helpers
+  // below do exactly that. WRECK_LIFT preserves today's burial depth:
+  // the hull sinks by HULL_R (2.2m) below its origin, so a scaled hull
+  // sinks 2.2·(S−1) deeper unless lifted by the same amount.
+  const WRECK_SCALE = 1.35;                       // single knob
+  const WRECK_LIFT  = 2.2 * (WRECK_SCALE - 1);    // keeps hull bottom where it is now
+  const wreckX = (dx) => STARSHIP_X + dx * WRECK_SCALE;
+  const wreckZ = (dz) => STARSHIP_Z + dz * WRECK_SCALE;
+  const wreckY = (h)  => -CRATER_DEPTH + WRECK_LIFT + h * WRECK_SCALE;   // h = old height above floor
+  starship.scale.setScalar(WRECK_SCALE);
   // The wreck rests on its side; the hull bottom is at local +X = HULL_R
   // (= 2.2m), which after the -π/2 Z rotation becomes world -Y of HULL_R
-  // below the wreck origin. To have the hull bottom flush with the
-  // crater floor, set ship.y = -CRATER_DEPTH + HULL_R.
-  starship.position.set(STARSHIP_X, -CRATER_DEPTH + 2.2, STARSHIP_Z);
+  // below the wreck origin. The boot-time position.set below (game
+  // state section) is authoritative; this matches it.
+  starship.position.set(STARSHIP_X, -CRATER_DEPTH + WRECK_LIFT, STARSHIP_Z);
   scene.add(starship);
   cameraOccluders.push(starship);
   // groundClampLanderFeet is a no-op when padPivots is empty (the
@@ -7901,14 +7916,14 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       flatShading: true
     });
     const ramp = new THREE.Mesh(
-      new THREE.BoxGeometry(1.2, 0.06, 2.7),   // width, thick, length
+      new THREE.BoxGeometry(1.2, 0.06, 2.7 * WRECK_SCALE),   // length spans the scaled gap
       rampMat
     );
-    // Anchor points (world space). Ground end is buried 10cm below
-    // the regolith so it pokes up; breach end sits at the bottom
-    // edge of the entry hole on the south face of the wreck.
-    const groundEnd = new THREE.Vector3(STARSHIP_X + 4, -CRATER_DEPTH - 0.1, STARSHIP_Z + 4.6);
-    const breachEnd = new THREE.Vector3(STARSHIP_X + 4, -CRATER_DEPTH + 1.5, STARSHIP_Z + 2.4);
+    // Anchor points (world space), offsets scaled with the wreck so
+    // the plate still runs from regolith to the breach hole's lower
+    // edge. Ground end buried 10cm so it pokes up.
+    const groundEnd = new THREE.Vector3(wreckX(4), -CRATER_DEPTH - 0.1, wreckZ(4.6));
+    const breachEnd = new THREE.Vector3(wreckX(4), wreckY(1.5), wreckZ(2.4));
     ramp.position.copy(groundEnd).add(breachEnd).multiplyScalar(0.5);
     // lookAt orients the box so its local -Z axis points at the
     // target. Box length is along Z, so this aligns the long axis
@@ -7931,9 +7946,9 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // positions visually clips. To be tightened later with hole-aware
   // collision once entry is reliably working.
   {
-    const wreckTopY = -CRATER_DEPTH + 4.5;
-    addCollider(STARSHIP_X + 1,  STARSHIP_Z, 1.2, wreckTopY);  // engine end
-    addCollider(STARSHIP_X + 13, STARSHIP_Z, 1.2, wreckTopY);  // nose end
+    const wreckTopY = wreckY(4.5);
+    addCollider(wreckX(1),  STARSHIP_Z, 1.2 * WRECK_SCALE, wreckTopY);  // engine end
+    addCollider(wreckX(13), STARSHIP_Z, 1.2 * WRECK_SCALE, wreckTopY);  // nose end
   }
 
   // ============================================================
@@ -7948,9 +7963,9 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // to disconnect. Replaces the previous "auto-fill while near".
   // ============================================================
   const REFILL_PANEL_POS = new THREE.Vector3(
-    6.0,                                  // slightly toward engine end
+    wreckX(-2),                           // slightly toward engine end, tracks wreck scale
     -CRATER_DEPTH,                        // sits on the crater floor
-    0.6                                   // just south of the wreck's flank
+    wreckZ(2.6)                           // just south of the wreck's flank
   );
   const refillPanel = (function buildRefillPanel() {
     const g = new THREE.Group();
@@ -8024,8 +8039,8 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       // along the ship axis at impact.
       const dx = Math.cos(a) * (3.0 + rng(i + 71100) * 6.0);
       const dz = Math.sin(a) * (1.6 + rng(i + 71200) * 3.0);
-      const wx = STARSHIP_X + dx;
-      const wz = STARSHIP_Z + dz;
+      const wx = STARSHIP_X + dx * WRECK_SCALE;
+      const wz = STARSHIP_Z + dz * WRECK_SCALE;
       if (Math.hypot(dx, dz) < 2.5) continue;
       if (Math.hypot(wx, wz) > CRATER_FLOOR - 1.0) continue;
       // Plate: long edge 0.6..1.6m, perp edge 0.4..1.1m, thickness 0.05..0.12m
@@ -9107,7 +9122,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   //   OPEN_PRONE_LIFT  — raise if the body sinks into the regolith
   // ============================================================
   const OPEN_PRONE_PITCH = Math.PI / 2;   // face-down pitch on root
-  const OPEN_PRONE_LIFT  = 0.15;          // metres above ground while prone
+  const OPEN_PRONE_LIFT  = 0.32;          // metres above ground while prone — body half-depth
   const OPEN_BLACK_DUR   = 3.8;           // seconds of black + HUD before reveal
   const OPEN_PUSH1_DUR   = 1.05;          // first push + slip
   const OPEN_RISE_DUR    = 3.0;           // second push → standing
@@ -9207,7 +9222,11 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     outLook.set(hx, hy, hz);
   }
   function _openingChaseCam(outPos, outLook) {
-    const yaw = player.heading, pitch = -0.30;
+    // POSITIVE pitch lifts the camera above the player (vertOffset
+    // adds to y). The previous −0.30 put the target 2.3m underground;
+    // gameplay's per-frame terrain clamp hid the error, but the rise
+    // lerp has no clamp and swung the camera below the floor.
+    const yaw = player.heading, pitch = 0.30;
     const horiz = camDist * Math.cos(pitch);
     const vert  = camDist * Math.sin(pitch);
     outPos.set(player.pos.x - Math.sin(yaw) * horiz,
@@ -9226,7 +9245,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     // Snap the chase-cam state to match the camera we hand over, so
     // updateCamera's first frame continues seamlessly.
     camYaw = player.heading;
-    camPitch = -0.30;
+    camPitch = 0.30;   // matches _openingChaseCam — elevated behind, zero pop
     const vg = $('opening-vignette'); if (vg) vg.style.opacity = '0';
     const pr = $('opening-prompt');   if (pr) pr.classList.remove('on');
     setAnimation('Idle_Breath');
@@ -9250,9 +9269,11 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       opening.alarmTimer = (opening.phase === 'black') ? 1.7 : 2.6;
     }
 
-    // Red vignette pulse — breathes at ~0.55Hz once the world is visible.
+    // Red vignette pulse — breathes at ~0.55Hz once the world is
+    // visible. Capped low: at full strength it tinted the whole sky
+    // pink rather than reading as an in-helmet warning.
     if (vignette && opening.phase !== 'black') {
-      const pulse = 0.45 + 0.35 * Math.sin(t * 3.4);
+      const pulse = 0.28 + 0.22 * Math.sin(t * 3.4);
       vignette.style.opacity = Math.max(0, pulse).toFixed(3);
     }
 
@@ -9338,6 +9359,10 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
         );
         if (p > 0.65) setAnimation('Idle_Breath');
         camera.position.lerpVectors(opening.camFrom, opening.camTo, e);
+        // Terrain clamp on the lerp path — the camera must never
+        // dip under the floor mid-swing, whatever the endpoints do.
+        const gY = shackletonScene.getGroundY(camera.position.x, camera.position.z);
+        if (camera.position.y < gY + 0.6) camera.position.y = gY + 0.6;
         const lk = opening.lookFrom.clone().lerp(opening.lookTo, e);
         camera.lookAt(lk);
         if (p >= 1) {
@@ -9398,7 +9423,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // Starship sits at landed position from frame 0 (was: -CRATER_DEPTH,
   // descended in over 35s). Robots and crates are visible from frame 0
   // (was: hidden until robot_emerge phase).
-  starship.position.set(8, cine.landY, -2);
+  starship.position.set(8, cine.landY + WRECK_LIFT, -2);
   groundClampLanderFeet(starship);
   // (Robots and crates default-visible — no longer hidden at boot.)
 
@@ -9729,7 +9754,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     // Starship in landed position. Crew hatch swung open (the astronaut
     // already exited via PNG cinematic, so the door reads as "open" in 3D).
     // Cargo ramp CLOSED — its deployment is the first beat of robot_emerge.
-    starship.position.set(8, cine.landY, -2);
+    starship.position.set(8, cine.landY + WRECK_LIFT, -2);
     groundClampLanderFeet(starship);
     starship.userData.crewHatchPivot.rotation.y = -1.6;
     starship.userData.rampPivot.rotation.x = starship.userData.rampClosedX;
@@ -9793,7 +9818,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     // Snap to fully-emerged state: only R0 on the surface (at home),
     // the FLYER crate UNFOLDED (lid + walls flat on ground), and the
     // Flyer fully assembled at its rest position.
-    starship.position.set(8, cine.landY, -2);
+    starship.position.set(8, cine.landY + WRECK_LIFT, -2);
     groundClampLanderFeet(starship);
     starship.userData.crewHatchPivot.rotation.y = -1.6;
     starship.userData.rampPivot.rotation.x = starship.userData.rampDeployedX;
