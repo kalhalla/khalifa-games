@@ -337,6 +337,65 @@ body.cine-2d-active .cam-buttons { display: none; }
   0%, 100% { opacity: 0.45; }
   50%      { opacity: 0.85; }
 }
+
+/* ============================================================
+   MEMORY FRAGMENT SYSTEM — overlay, text styles per speaker.
+   See SHACKLETON_MEMORY_SPEC.md §4 (speakers) and §10 (visual).
+   ============================================================ */
+body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: filter 0.6s ease; }
+.world-canvas { transition: filter 0.8s ease; }
+#memory-overlay { position: fixed; inset: 0; z-index: 60; pointer-events: none;
+  background: rgba(0,0,0,0.35); opacity: 0; transition: opacity 0.6s ease;
+  display: flex; align-items: center; justify-content: center; }
+#memory-overlay.on { opacity: 1; }
+#memory-flash { position: fixed; inset: 0; z-index: 62; pointer-events: none; opacity: 0; }
+#memory-text { max-width: 640px; width: 86%; text-align: center;
+  font-family: 'Courier New', monospace; }
+.mem-line { opacity: 0; transition: opacity 0.2s ease; margin: 10px 0; line-height: 1.5; }
+.mem-line.show { opacity: 1; }
+.mem-line.sp-ambient    { font-style: italic; color: rgba(255,255,255,0.62); font-size: 17px; letter-spacing: 1px; }
+.mem-line.sp-michel     { color: #ffffff; font-size: 21px; letter-spacing: 0.5px; }
+.mem-line.sp-michel::before, .mem-line.sp-michel::after { content: '\201C'; color: rgba(255,255,255,0.4); }
+.mem-line.sp-michel::after { content: '\201D'; }
+.mem-line.sp-supervisor { color: #b8bcc4; font-size: 19px; }
+.mem-line.sp-supervisor::before { content: '\201C'; color: rgba(184,188,196,0.4); }
+.mem-line.sp-supervisor::after  { content: '\201D'; color: rgba(184,188,196,0.4); }
+.mem-line.sp-child      { color: #ffd9a8; font-size: 18px; font-variant: small-caps; letter-spacing: 1.5px; }
+.mem-line.sp-priority   { color: #f0c674; font-size: 15px; letter-spacing: 2px; text-transform: lowercase; }
+.mem-line.sp-robot      { color: #ffe0a0; font-size: 20px; letter-spacing: 1px; }
+
+/* Robot speech bubbles in-world — sparse lowercase, no TTS */
+.speech.robot { font-size: 18px; letter-spacing: 1px; }
+.speech.robot .txt { color: #ffe0a0; }
+
+/* ============================================================
+   OPENING CINEMATIC — face-down wake. Scene 1.
+   ============================================================ */
+#opening-fade { position: fixed; inset: 0; background: #000; z-index: 55;
+  opacity: 1; pointer-events: none; transition: opacity 1.4s ease; }
+#opening-fade.clear { opacity: 0; }
+#opening-vignette { position: fixed; inset: 0; z-index: 56; pointer-events: none; opacity: 0;
+  background: radial-gradient(ellipse at center, transparent 42%, rgba(200,20,20,0.42) 100%); }
+#opening-hud { position: fixed; left: 50%; top: 50%; transform: translate(-50%,-50%);
+  z-index: 57; font-family: 'Courier New', monospace; color: #ff5540; font-size: 17px;
+  letter-spacing: 2px; line-height: 2.1; opacity: 0; transition: opacity 0.5s ease;
+  text-shadow: 0 0 10px rgba(255,40,30,0.5); pointer-events: none; text-align: left; }
+#opening-hud.on { opacity: 1; }
+#opening-prompt { position: fixed; left: 50%; bottom: 16%; transform: translateX(-50%);
+  z-index: 57; font-family: 'Courier New', monospace; color: #f0c674; font-size: 15px;
+  letter-spacing: 2px; opacity: 0; transition: opacity 0.6s ease; pointer-events: none;
+  animation: promptPulse 1.8s ease-in-out infinite; }
+#opening-prompt.on { opacity: 1; }
+@keyframes promptPulse { 0%,100% { text-shadow: 0 0 4px rgba(240,198,116,0.2); }
+  50% { text-shadow: 0 0 14px rgba(240,198,116,0.7); } }
+
+/* ============================================================
+   OBJECTIVE HUD — single-line lowercase objective, script style.
+   ============================================================ */
+#objective-hud { position: fixed; left: 50%; top: 52px; transform: translateX(-50%);
+  z-index: 5; font-family: 'Courier New', monospace; color: #f0c674; font-size: 14px;
+  letter-spacing: 3px; opacity: 0; transition: opacity 1.2s ease; pointer-events: none; }
+#objective-hud.on { opacity: 0.85; }
 </style>
 </head>
 <body>
@@ -369,6 +428,16 @@ body.cine-2d-active .cam-buttons { display: none; }
      rescue cinematic when oxygen hits zero. Opacity driven by the
      game loop. Pointer-events:none so it never blocks input even at
      full opacity. -->
+<!-- Memory fragment system — dim wash + centered text + flash layer -->
+<div id="memory-overlay"><div id="memory-text"></div></div>
+<div id="memory-flash"></div>
+<!-- Opening cinematic — black fade, red vignette pulse, suit HUD, input prompt -->
+<div id="opening-fade"></div>
+<div id="opening-vignette"></div>
+<div id="opening-hud"></div>
+<div id="opening-prompt"></div>
+<!-- Objective line -->
+<div id="objective-hud"></div>
 <div id="rescue-fade" style="position: fixed; inset: 0; background: #000; z-index: 70; opacity: 0; pointer-events: none; transition: none;"></div>
 <!-- Rescue message — robot text fragment shown during the rescue
      hold. Lives over the fade. Diegetic-feel: monospace lower-case,
@@ -455,7 +524,7 @@ body.cine-2d-active .cam-buttons { display: none; }
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.3.1';
+  const BUILD_VERSION = 'v0.2.0';  // memory fragment player + opening cinematic + faceted floor + shadow fix
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -481,8 +550,9 @@ body.cine-2d-active .cam-buttons { display: none; }
       // Pull out of the DOM after fade-out so the cursor isn't blocked
       setTimeout(() => { if (titleScreen.parentNode) titleScreen.remove(); }, 1500);
     }
-    // Cinematic system is deprecated. Game is already in 'gameplay' phase
-    // from frame 0; no kickoff is required here.
+    // Kick the face-down opening (Scene 1). The old 2D cinematic is
+    // deprecated; this is its replacement. Runs once per page load.
+    if (typeof startOpening === 'function') startOpening();
   }
   if (titleScreen) {
     titleScreen.addEventListener('pointerdown', startGame);
@@ -496,6 +566,7 @@ body.cine-2d-active .cam-buttons { display: none; }
   scene.fog = new THREE.Fog(0x182030, 90, 280);
   const camera = new THREE.PerspectiveCamera(45, w/h, 0.1, 1500);
   const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.domElement.classList.add('world-canvas');  // memory system desaturates/blurs via CSS
   renderer.setSize(w, h);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.shadowMap.enabled = true;
@@ -540,22 +611,17 @@ body.cine-2d-active .cam-buttons { display: none; }
   Object.assign(sun.shadow.camera, { left:-260, right:260, top:260, bottom:-260, near:0.5, far:600 });
   // Shadow bias settings.
   //
-  // normalBias = 0.05 added in v0.2.6 to kill shadow-map acne on the
-  // now-flat floor. The shadow map is 4096² over a 520m frustum, so
-  // each texel is ~12.7cm world space; on a perfectly flat surface
-  // with bias=0, the texel grid self-shadows itself, projecting from
-  // the light direction as parallel bands across the floor.
-  //
-  // Previously bias and normalBias were both 0 because the floor had
-  // heightfield variation that masked the texel grid; v0.2.4 flattened
-  // the floor for the Apollo-photo look and exposed the underlying
-  // shadow acne. A small normalBias trades the acne for mild
-  // peter-panning halos at contact points — much smaller artefact.
-  // bias stays at 0 to keep contact-point shadows honest.
+  // Both biases left at 0. Negative `bias` produces peter-panning
+  // (bright halos where cast shadows should touch the ground) on
+  // small objects and at the wall-floor seam — the user-visible
+  // "light leak". Positive `normalBias` produces halos around
+  // object contact points (bright pixels where shadow should be
+  // black). Either one is worse than the surface-acne problem
+  // they're meant to solve. Leaving both at 0 keeps shadow geometry
+  // honest; if acne returns at the wall-floor seam, fix the wall
+  // mesh itself rather than reinstate either bias.
   sun.shadow.bias = 0;
-  sun.shadow.normalBias = 0;   // floor no longer casts (see innerSurface);
-                               // the banding was self-shadow, not acne, so
-                               // no bias is needed and 0 keeps contacts honest
+  sun.shadow.normalBias = 0;
   scene.add(sun);
 
   function makeEarthTexture() {
@@ -677,83 +743,26 @@ body.cine-2d-active .cam-buttons { display: none; }
            float nxy0 = mix(nx00, nx10, f.y);
            float nxy1 = mix(nx01, nx11, f.y);
            return mix(nxy0, nxy1, f.z);
-         }
-         // Multi-octave scalar height that drives the bump (normal
-         // perturbation) below. This is shading only — it never moves a
-         // vertex, so the floor stays geometrically flat and stays out
-         // of the shadow map (no return of the self-shadow furrows).
-         // Numbers are world-space feature sizes: ~0.67m, ~0.33m, ~0.20m.
-         // The finest octave is the grain you read up close; it's faded
-         // out by distance in the normal stage so it can't ever alias on
-         // the far floor.
-         float regolithHeight(vec3 wp){
-           return valueNoise(wp * 1.5) * 0.55
-                + valueNoise(wp * 3.0) * 0.30
-                + valueNoise(wp * 5.0) * 0.15;
-         }
-         // Three.js-style derivative bump: turns a screen-space height
-         // gradient into a perturbed normal using the view-space position
-         // derivatives. No tangents, no UVs, no bump texture required.
-         vec3 perturbRegolithNormal(vec3 surfPos, vec3 surfN, vec2 dHdxy){
-           vec3 vSigmaX = dFdx(surfPos);
-           vec3 vSigmaY = dFdy(surfPos);
-           vec3 R1 = cross(vSigmaY, surfN);
-           vec3 R2 = cross(surfN, vSigmaX);
-           float fDet = dot(vSigmaX, R1);
-           vec3 vGrad = sign(fDet) * (dHdxy.x * R1 + dHdxy.y * R2);
-           return normalize(abs(fDet) * surfN - vGrad);
          }`
       )
       .replace(
         '#include <color_fragment>',
         `#include <color_fragment>
          {
-           // Albedo mottling — three safe octaves (all >= ~33cm, well
-           // above the pixel footprint, so none of them alias). This is
-           // only the slow tonal variation; the relief and grain come
-           // from the bump in the normal stage below, NOT from colour.
-           // Bumped contrast a little since the flat-shaded floor read
-           // as too clean.
-           float coarse = valueNoise(vWorldPos_regolith * 0.4);   // ~2.5m
-           float med    = valueNoise(vWorldPos_regolith * 1.5);   // ~0.67m
-           float fine   = valueNoise(vWorldPos_regolith * 3.0);   // ~0.33m
-           float n = (coarse - 0.5) * 0.26
-                   + (med    - 0.5) * 0.18
-                   + (fine   - 0.5) * 0.12;
+           float SCALE_FINE   = 6.0;     // grain pattern frequency
+           float SCALE_COARSE = 0.7;     // slow mottle frequency
+           float fine   = valueNoise(vWorldPos_regolith * SCALE_FINE);
+           float coarse = valueNoise(vWorldPos_regolith * SCALE_COARSE);
+           // Re-centre to ±0.5, weight, sum.
+           float n = (fine - 0.5) * 0.10 + (coarse - 0.5) * 0.06;
+           // Apply as multiplicative shade. 1 + n in roughly [0.92, 1.08].
            diffuseColor.rgb *= (1.0 + n);
-         }`
-      )
-      .replace(
-        '#include <normal_fragment_begin>',
-        `#include <normal_fragment_begin>
-         {
-           // Procedural bump. Bends the lighting normal to fake fine
-           // regolith relief on the geometrically-flat floor; under the
-           // grazing sun this is what produces the Apollo-photo micro-
-           // shadow stipple. BUMP_STRENGTH is THE knob — higher reads
-           // rougher. The distance fade keeps the far floor calm and
-           // stops the fine octave shimmering once it drops below a pixel.
-           float BUMP_STRENGTH = 0.55;
-           float bumpFade = 1.0 - smoothstep(8.0, 45.0, length(vViewPosition));
-           float bumpScale = BUMP_STRENGTH * bumpFade;
-           if (bumpScale > 0.0) {
-             float H = regolithHeight(vWorldPos_regolith);
-             // Clamp guards the polar-fan triangles: there the per-pixel
-             // world step is huge, dFdx(H) blows up, and the bump would
-             // streak radially. Normal floor triangles sit far below this.
-             vec2 dHdxy = clamp(vec2(dFdx(H), dFdy(H)) * bumpScale, -0.03, 0.03);
-             normal = perturbRegolithNormal(-vViewPosition, normal, dHdxy);
-           }
          }`
       );
   };
-  // Derivative bump needs screen-space derivatives. Core in WebGL2
-  // (the default context), so this is a no-op there; the flag only
-  // matters on a WebGL1 fallback.
-  regolith.extensions = { derivatives: true };
   // Assign a unique key so Three.js doesn't share the compiled program
   // with other Lambert materials (which would skip our injection).
-  regolith.customProgramCacheKey = () => 'regolith-noise-v4';
+  regolith.customProgramCacheKey = () => 'regolith-noise-v1';
 
   // ============================================================
   // SHACKLETON SCENE — a named boundary, not (yet) a module.
@@ -1058,63 +1067,45 @@ body.cine-2d-active .cam-buttons { display: none; }
   // transition zone so the steep slope reads cleanly. Per-vertex
   // angular noise on the rim gives an irregular silhouette.
   // ============================================================
-  const FLOOR_NOISE_AMP   = 1.3;    // macro undulation (~±0.6m). Re-enabled
-                                    // in v0.2.9 / strengthened v0.3.0 now the
-                                    // floor no longer casts shadows (v0.2.7),
-                                    // so relief can't band. Value-noise based
-                                    // (see floorHeight) — NOT summed sines,
-                                    // which made the regular ripple that got
-                                    // this zeroed back in v0.2.4.
+  // FACETED FLOOR TUNING — the floor undulation drives both the
+  // rendered mesh and getGroundY physics (single floorHeight source),
+  // so these numbers are always self-consistent. Raised from 0.03m
+  // (visually flat) to metre-scale so the flat-shaded mesh reads as
+  // faceted low-poly terrain, per reference images. Frequencies are
+  // kept LOW (longest wavelength ~140m, shortest ~33m) so no
+  // component aliases against the ~8m floor-ring vertex spacing.
+  // Safe to tune from screenshots: AMP is the single knob for
+  // "how lumpy"; pull it toward 0.6 if objects with hardcoded Y
+  // heights start floating or sinking.
+  const FLOOR_NOISE_AMP   = 1.1;    // metres, primary component
+  const FLOOR_FREQ_A      = 0.045;  // rad/m — broad rolling swells (~140m)
+  const FLOOR_FREQ_B      = 0.11;   // rad/m — mid detail (~57m)
+  const FLOOR_FREQ_C      = 0.19;   // rad/m — fine facets (~33m)
   const FLOOR_EDGE_TAPER  = 40.0;
   const WALL_RIM_NOISE    = 6.0;    // rim radial jitter amplitude (m)
   const WALL_HEIGHT_NOISE = 4.5;    // mid-wall vertical jitter amplitude (m)
 
-  // Deterministic 2D value noise for the floor undulation. Mirrors the
-  // GLSL valueNoise in the regolith shader (smoothstep-interpolated grid
-  // hash) so the macro geometry and the shader grain share a visual
-  // language. Returns 0..1.
-  function fhHash(ix, iz) {
-    const h = Math.sin(ix * 127.1 + iz * 311.7) * 43758.5453;
-    return h - Math.floor(h);
-  }
-  function fhNoise(x, z) {
-    const ix = Math.floor(x), iz = Math.floor(z);
-    let fx = x - ix, fz = z - iz;
-    fx = fx * fx * (3 - 2 * fx);
-    fz = fz * fz * (3 - 2 * fz);
-    const n00 = fhHash(ix, iz),     n10 = fhHash(ix + 1, iz);
-    const n01 = fhHash(ix, iz + 1), n11 = fhHash(ix + 1, iz + 1);
-    const nx0 = n00 + (n10 - n00) * fx;
-    const nx1 = n01 + (n11 - n01) * fx;
-    return nx0 + (nx1 - nx0) * fz;
-  }
-
   // Surface elevation on the floor of the crater, relative to the
   // crater floor datum (y = -CRATER_DEPTH world). Returns 0 at the
-  // floor edge (r >= CRATER_FLOOR), tapered so the floor seats flush
-  // against the wall transition without a step.
-  //
-  // v0.2.9: two macro value-noise octaves — ~14m gentle rolls plus ~6m
-  // shallow dimples — at small amplitude (~8-10deg max slope). This is
-  // what reads as surface at mid-to-far distance under the grazing sun.
-  // Macro only: anything finer would under-sample the ~1.6m floor mesh
-  // and facet, so fine grain is left to the shader bump. Value noise,
-  // not summed sines, so there's no periodic ripple.
+  // floor edge (r >= CRATER_FLOOR) and small noise elsewhere.
+  // Tapered near the edge so the floor seats flush against the
+  // wall transition without a visible step.
   function floorHeight(x, z) {
     const r = Math.hypot(x, z);
     if (r >= CRATER_FLOOR) return 0;
     const tEdge = Math.min(1, (CRATER_FLOOR - r) / FLOOR_EDGE_TAPER);
-    // Centre fade: the polar mesh has a vertex singularity at r=0 with
-    // long thin fan triangles. ANY relief on those triangles smears into
-    // a radial starburst under smooth shading, so the noise is held flat
-    // within ~9m of centre and ramps in beyond it. Past 9m (almost the
-    // whole visible floor) the undulation is full.
-    const cf = Math.min(1, Math.max(0, r / 9.0));
-    const centerFade = cf * cf * (3 - 2 * cf);
-    const big   = fhNoise(x / 14.0,        z / 14.0)        - 0.5;   // ~14m rolls
-    const small = fhNoise(x / 6.0 + 19.3,  z / 6.0 - 7.1)   - 0.5;   // ~6m dimples
-    const noise = (big * 0.62 + small * 0.30) * FLOOR_NOISE_AMP;
-    return noise * tEdge * centerFade;
+    const noise =
+      Math.sin(x * FLOOR_FREQ_A + z * FLOOR_FREQ_A * 1.31 + 1.10) * FLOOR_NOISE_AMP +
+      Math.sin(x * FLOOR_FREQ_B - z * FLOOR_FREQ_B * 0.73 + 2.30) * FLOOR_NOISE_AMP * 0.5 +
+      Math.sin(x * FLOOR_FREQ_C + z * FLOOR_FREQ_C * 0.87 + 0.70) * FLOOR_NOISE_AMP * 0.25;
+    // Flatten a working apron around the wreck / wake site / rebuild
+    // area so the opening, refill panel, and Flyer assembly sit on
+    // near-level ground regardless of AMP tuning. Radius 30m around
+    // the wreck at (8,-2); smooth ramp out over a further 20m.
+    const dxW = x - 8, dzW = z + 2;
+    const rW = Math.hypot(dxW, dzW);
+    const apron = rW < 30 ? 0 : Math.min(1, (rW - 30) / 20);
+    return noise * tEdge * apron;
   }
 
   const craterContents = new THREE.Group();
@@ -1194,21 +1185,9 @@ body.cine-2d-active .cam-buttons { display: none; }
     for (let ring = 1; ring <= INNER_FLOOR_RINGS; ring++) {
       const t = ring / INNER_FLOOR_RINGS;
       // Quadratic spacing so rings cluster near the floor edge
-      const r_base = CRATER_FLOOR * (t * t * 0.7 + t * 0.3);
-      // Local ring spacing — used to scale radial jitter so inner
-      // (closely-spaced) rings aren't jittered into each other.
-      const t_prev = Math.max(0, (ring - 1) / INNER_FLOOR_RINGS);
-      const r_prev = CRATER_FLOOR * (t_prev * t_prev * 0.7 + t_prev * 0.3);
-      const ringSpacing = Math.max(0.3, r_base - r_prev);
+      const r = CRATER_FLOOR * (t * t * 0.7 + t * 0.3);
       for (let i = 0; i < INNER_SEGS; i++) {
-        // Per-vertex angular and radial jitter breaks the polar
-        // grid's concentric-ring visual. Each vertex is offset by
-        // up to half a segment angle and ~35% of the ring spacing,
-        // so adjacent triangles no longer form clean circular bands.
-        const aJit = (rng(ring * 911 + i * 13 + 1.7) - 0.5) * (Math.PI * 2 / INNER_SEGS) * 0.8;
-        const rJit = (rng(ring * 547 + i * 29 + 3.1) - 0.5) * ringSpacing * 0.7;
-        const a = (i / INNER_SEGS) * Math.PI * 2 + aJit;
-        const r = Math.max(0.5, r_base + rJit);
+        const a = (i / INNER_SEGS) * Math.PI * 2;
         const x = Math.cos(a) * r;
         const z = Math.sin(a) * r;
         positions.push(x, -CRATER_DEPTH + floorHeight(x, z), z);
@@ -1255,31 +1234,6 @@ body.cine-2d-active .cam-buttons { display: none; }
     geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
     geom.setIndex(indices);
     geom.computeVertexNormals();
-
-    // Floor normals, analytic. computeVertexNormals averages face
-    // normals, and on the long thin centre-fan triangles that average
-    // is garbage the moment the floor has relief — it smears into the
-    // radial starburst. The floor is a pure height field y =
-    // floorHeight(x,z), so its true normal is normalize(-dH/dx,1,-dH/dz),
-    // correct no matter how the triangle is shaped. Overwrite the
-    // floor-zone vertices (centre + floor rings) with it; the wall keeps
-    // its computed normals (no singularity there).
-    {
-      const normAttr = geom.attributes.normal;
-      const floorVertCount = 1 + INNER_FLOOR_RINGS * INNER_SEGS;
-      const eps = 0.75;
-      for (let vi = 0; vi < floorVertCount; vi++) {
-        const x = positions[vi * 3];
-        const z = positions[vi * 3 + 2];
-        const hx = floorHeight(x + eps, z) - floorHeight(x - eps, z);
-        const hz = floorHeight(x, z + eps) - floorHeight(x, z - eps);
-        const nx = -hx / (2 * eps), ny = 1.0, nz = -hz / (2 * eps);
-        const inv = 1 / Math.hypot(nx, ny, nz);
-        normAttr.setXYZ(vi, nx * inv, ny * inv, nz * inv);
-      }
-      normAttr.needsUpdate = true;
-    }
-
     return geom;
   }
 
@@ -1289,19 +1243,16 @@ body.cine-2d-active .cam-buttons { display: none; }
   // horizon. No seam, no material discontinuity.
   const innerSurfaceMat = regolith.clone();
   innerSurfaceMat.side = THREE.DoubleSide;   // back-face visible during exit/entry near rim
-  // Smooth shading on the floor — flatShading was crushing the
-  // procedural noise under per-facet normals, and turning the polar
-  // mesh's centre fan into a starburst. Smooth-shaded, the floor
-  // reads as a continuous surface that the regolith noise can paint.
-  innerSurfaceMat.flatShading = false;
-  innerSurfaceMat.extensions = { derivatives: true };   // ensure WebGL1 fallback keeps dFdx for the bump
   const innerSurface = new THREE.Mesh(buildInnerSurface(), innerSurfaceMat);
-  // castShadow=false: the floor is dead flat and casts no useful shadow
-  // (nothing sits below it), but as a CASTER it self-shadowed along the
-  // texel grid and drew the parallel-furrow banding. Matches outerSurface,
-  // already false. The wall band (r=200..240) loses its inward shadow —
-  // a thin rim effect 200m out, not the play space. Every object shadow
-  // is a separate caster and unaffected.
+  // castShadow = false — deliberate. Under the grazing sun (~20°
+  // elevation) the near-flat floor self-shadows its own undulation,
+  // producing parallel furrow bands and per-frame shimmer at the
+  // shadow boundary (bias is 0 by design, see sun setup). The floor
+  // still RECEIVES shadows from boulders, wreck, robots, astronaut —
+  // it just doesn't cast onto itself. This also makes the larger
+  // faceted undulation (FLOOR_NOISE_AMP) safe: facet contrast comes
+  // from flat-shaded diffuse, not cast shadows, matching the
+  // reference-image look.
   innerSurface.castShadow = false;
   innerSurface.receiveShadow = true;
   root.add(innerSurface);
@@ -1328,12 +1279,8 @@ body.cine-2d-active .cam-buttons { display: none; }
   const PEAK_BASE_R      = 25.0;    // 50m base diameter
   const PEAK_HEIGHT      = 32.0;    // 32m tall — slope 52° (above 50° cutoff)
   const PATH_TURNS       = 3;       // spiral makes three full revolutions
-  const PATH_WIDTH       = 6.0;     // walkable width
-  const SUMMIT_R         = 4.5;     // 9m platform diameter (dish-sized)
-  // Flat platform height at the apex. Set to the cone's natural top
-  // height at SUMMIT_R, so the path's terminal shelf and the platform
-  // are at exactly the same elevation — no cliff between them.
-  const PLATFORM_H       = PEAK_HEIGHT * (1 - SUMMIT_R / PEAK_BASE_R);
+  const PATH_WIDTH       = 6.0;     // walkable width (wider for clarity)
+  const SUMMIT_R         = 7.0;     // 14m platform diameter
   // Path entry angle (peak-local, radians). Points roughly TOWARD
   // the wreck so the path mouth is visible from the player's spawn
   // position. Wreck at world (8,-2), peak at (-60,30), so the
@@ -1342,7 +1289,7 @@ body.cine-2d-active .cam-buttons { display: none; }
 
   // Surface elevation at world (x, z), in metres above the crater
   // floor datum. Three regimes:
-  //   - inside SUMMIT_R: flat platform at PLATFORM_H (dish area)
+  //   - inside SUMMIT_R: flat platform at PEAK_HEIGHT
   //   - on the spiral path: terraced flat shelf at the cone height
   //     at the path's centerline radius for this angle
   //   - elsewhere: smooth linear cone profile
@@ -1351,7 +1298,7 @@ body.cine-2d-active .cam-buttons { display: none; }
     const dz = z - PEAK_CENTER_Z;
     const r  = Math.sqrt(dx*dx + dz*dz);
     if (r >= PEAK_BASE_R) return 0;
-    if (r <= SUMMIT_R)    return PLATFORM_H;
+    if (r <= SUMMIT_R)    return PEAK_HEIGHT;
     const cone = PEAK_HEIGHT * (1 - r / PEAK_BASE_R);
     // Path crosses every angle PATH_TURNS+1 times — once per
     // winding from base to summit. Path is parametrized so theta(T)
@@ -1389,12 +1336,9 @@ body.cine-2d-active .cam-buttons { display: none; }
     const RINGS = 16;
     const positions = [];
     const indices   = [];
-    // Off-centre apex vertex, sitting just barely above the flat
-    // platform. The asymmetric XZ offset breaks the four-fold
-    // symmetry; the tiny height bump avoids the spike-and-furrow
-    // pattern that comes from a tall apex dropping sharply to a
-    // jittered ring.
-    positions.push(0.5, PLATFORM_H + 0.2, -0.8);
+    // Off-centre apex vertex — its X/Z offset breaks the four-fold
+    // visual symmetry that previously made the top read as a cross.
+    positions.push(0.7, PEAK_HEIGHT + 0.6, -1.1);
     for (let ring = 0; ring <= RINGS; ring++) {
       const tt = ring / RINGS;
       const r_base = SUMMIT_R + (PEAK_BASE_R - SUMMIT_R) * tt;
@@ -1406,15 +1350,16 @@ body.cine-2d-active .cam-buttons { display: none; }
         const a = (i / SEGS) * Math.PI * 2 + aJit;
         let r_v, h_v;
         if (ring === 0) {
-          // Apex ring — flat-top plateau with asymmetric outline.
-          // Radial jitter ±1m gives the irregular outline (still
-          // reads as a rough cylinder from the side). Height jitter
-          // is tiny (0.05–0.15m above platform) so the top reads
-          // as flat-ish with just a hint of texture, not spiky.
-          const rJit = (rng(i + 800) - 0.5) * 2.0;
-          const hJit = rng(i + 820) * 0.10;
-          r_v = Math.max(3.0, SUMMIT_R + rJit);
-          h_v = PLATFORM_H + 0.05 + hJit;
+          // Apex ring — rough cylindrical edge. Independent radial
+          // (±1.5m) and height (around PEAK_HEIGHT, ±1.5m) jitter
+          // per vertex. peakHeight at r ≤ SUMMIT_R returns the flat
+          // PEAK_HEIGHT for collision, but the visible mesh is
+          // chunky and asymmetric. The player walks on the flat
+          // collision surface; mostly the cap pokes above it.
+          const rJit = (rng(i + 800) - 0.5) * 3.0;
+          const hJit = (rng(i + 820) - 0.5) * 3.0;
+          r_v = Math.max(4.0, SUMMIT_R + rJit);
+          h_v = PEAK_HEIGHT + 0.4 + hJit;
         } else {
           r_v = r_base;
           const wx = PEAK_CENTER_X + Math.cos(a) * r_v;
@@ -1458,7 +1403,7 @@ body.cine-2d-active .cam-buttons { display: none; }
     const NUM_STEPS   = 80;
     const RIBBON_LIFT = 0.08;       // m above the cone-mesh shelf
     const OVERLAY_W   = PATH_WIDTH - 0.6;
-    const T_END       = 1.0;         // reach the platform edge
+    const T_END       = 0.85;        // stop short of the platform
     const positions   = [];
     const indices     = [];
     for (let s = 0; s <= NUM_STEPS; s++) {
@@ -1536,7 +1481,7 @@ body.cine-2d-active .cam-buttons { display: none; }
     const outerSide = rng(s + 700) < 0.72;
     const edgeR = outerSide
                 ? r + PATH_WIDTH * 0.5 - 0.4
-                : Math.max(SUMMIT_R + 0.5, r - PATH_WIDTH * 0.5 + 0.4);
+                : r - PATH_WIDTH * 0.5 + 0.4;
     const tangentJitter = (rng(s + 710) - 0.5) * 0.6;
     const cosT = Math.cos(theta);
     const sinT = Math.sin(theta);
@@ -1809,81 +1754,6 @@ body.cine-2d-active .cam-buttons { display: none; }
     const y = -CRATER_DEPTH + floorHeight(x, z);
     placeBoulder(x, y, z, diameter, i + 0.9);
   }
-
-  // Dense pebble layer — many thousands of tiny rocks for the
-  // Apollo-photo regolith texture. Uses InstancedMesh so the whole
-  // layer is two draw calls (one per material), not 4000 individual
-  // meshes. Per-instance position, rotation, scale baked into matrices.
-  // Distribution is uniform-on-disk via sqrt(rng) so density stays
-  // even from centre to floor edge.
-  const PEBBLE_COUNT_MID   = 2400;
-  const PEBBLE_COUNT_LIGHT = 1600;
-  const pebbleGeom         = new THREE.IcosahedronGeometry(1, 0);
-  const pebblesMid   = new THREE.InstancedMesh(pebbleGeom, M.rockMid,   PEBBLE_COUNT_MID);
-  const pebblesLight = new THREE.InstancedMesh(pebbleGeom, M.rockLight, PEBBLE_COUNT_LIGHT);
-  const _pebbleMat   = new THREE.Matrix4();
-  const _pebblePos   = new THREE.Vector3();
-  const _pebbleEul   = new THREE.Euler();
-  const _pebbleQuat  = new THREE.Quaternion();
-  const _pebbleScl   = new THREE.Vector3();
-  function emitPebble(target, idx, seed) {
-    // Reject samples that fall in exclusion zones — retry until we
-    // get a valid one or give up after 8 attempts (then skip).
-    let x = 0, z = 0, ok = false;
-    for (let tries = 0; tries < 8; tries++) {
-      const a = rng(seed + tries * 17 + 0.1) * Math.PI * 2;
-      const r = Math.sqrt(rng(seed + tries * 17 + 0.2)) * (CRATER_FLOOR - 4);
-      x = Math.cos(a) * r;
-      z = Math.sin(a) * r;
-      const dPeak = Math.hypot(x - PEAK_CENTER_X, z - PEAK_CENTER_Z);
-      if (dPeak < PEAK_BASE_R + 0.5) continue;
-      if (inWreckZone(x, z)) continue;
-      if (inFlyerZone(x, z)) continue;
-      ok = true;
-      break;
-    }
-    if (!ok) {
-      // Fallback: place far from origin where exclusions are unlikely
-      const a = rng(seed + 0.99) * Math.PI * 2;
-      const r = CRATER_FLOOR * 0.7;
-      x = Math.cos(a) * r;
-      z = Math.sin(a) * r;
-    }
-    const y = -CRATER_DEPTH + floorHeight(x, z);
-    // Long-tail size: mostly 0.06-0.18m, occasional 0.3m chunks
-    const sizeRoll = rng(seed + 0.41);
-    const sz       = 0.06 + sizeRoll * sizeRoll * 0.32;
-    // Asymmetric scale so pebbles read as flat-ish stones
-    const sx = sz * (0.7 + rng(seed + 0.51) * 0.7);
-    const sy = sz * (0.4 + rng(seed + 0.61) * 0.5);
-    const szz = sz * (0.7 + rng(seed + 0.71) * 0.7);
-    _pebblePos.set(x, y + sy * 0.5, z);
-    _pebbleEul.set(
-      rng(seed + 0.81) * Math.PI * 2,
-      rng(seed + 0.83) * Math.PI * 2,
-      rng(seed + 0.85) * Math.PI * 2
-    );
-    _pebbleQuat.setFromEuler(_pebbleEul);
-    _pebbleScl.set(sx, sy, szz);
-    _pebbleMat.compose(_pebblePos, _pebbleQuat, _pebbleScl);
-    target.setMatrixAt(idx, _pebbleMat);
-  }
-  for (let i = 0; i < PEBBLE_COUNT_MID; i++) {
-    emitPebble(pebblesMid, i, i + 50000);
-  }
-  for (let i = 0; i < PEBBLE_COUNT_LIGHT; i++) {
-    emitPebble(pebblesLight, i, i + 60000);
-  }
-  pebblesMid.instanceMatrix.needsUpdate   = true;
-  pebblesLight.instanceMatrix.needsUpdate = true;
-  // Pebbles don't cast shadows — too many tiny shadow contributions
-  // tank framerate, and the visual benefit is marginal at this scale.
-  pebblesMid.castShadow    = false;
-  pebblesMid.receiveShadow = true;
-  pebblesLight.castShadow    = false;
-  pebblesLight.receiveShadow = true;
-  root.add(pebblesMid);
-  root.add(pebblesLight);
 
   // Outer-zone boulder helper retained for the outer plain.
   function bigRock(x, z, sx, sy, sz, ry, mat, shadow) {
@@ -2319,6 +2189,10 @@ body.cine-2d-active .cam-buttons { display: none; }
       if (cine.phase !== 'gameplay') {
         astronautRoot.visible = false;
       }
+      // Opening cinematic: lie face-down in the regolith from the very
+      // first visible frame. poseProne sets heading toward the wreck,
+      // pitches the root, and lifts it just clear of the surface.
+      if (opening.pending || opening.active) poseProne();
     }
 
     sub.textContent = 'READY · MESHES=' + meshCount + ' · ANIMS=' + (gltf.animations ? gltf.animations.length : 0);
@@ -4429,6 +4303,14 @@ body.cine-2d-active .cam-buttons { display: none; }
       return;
     }
 
+    // --- Memory fragment playing? Drain pauses (spec §12) ---
+    // Death is suppressed for the fragment's duration; the HUD
+    // still renders so the bar doesn't vanish mid-scene.
+    if (shackletonMemory.isActive()) {
+      _updateOxygenHUD();
+      return;
+    }
+
     // --- Normal drain / refill ---
     // Drain runs constantly while NOT connected to the refill panel.
     // While connected, drain pauses and refill flows. Auto-disconnect
@@ -4436,6 +4318,12 @@ body.cine-2d-active .cam-buttons { display: none; }
     // updateRefillProximity, which clears refill.connected and lets
     // drain resume on the next frame.
     if (refill.connected) {
+      // First-ever connect resolves the opening objective: "find oxygen".
+      if (!refill._everConnected) {
+        refill._everConnected = true;
+        const obj = $('objective-hud');
+        if (obj) obj.classList.remove('on');
+      }
       oxygen.percent = Math.min(oxygen.capacity, oxygen.percent + OXYGEN_REFILL_RATE * dt);
       // If we hit the ceiling, stay connected — the player still has
       // to press E or walk away to leave. Cleaner than auto-detach
@@ -8751,8 +8639,12 @@ body.cine-2d-active .cam-buttons { display: none; }
       el.classList.add('show');
       const active = { el, life: 0, max: item.duration };
       activeSpeech.push(active);
-      // Also speak the line aloud via Web Speech API
-      speakAloud(item.text, item.kind);
+      // Also speak the line aloud via Web Speech API.
+      // EXCEPT robots — robots never speak. Their fragments are
+      // text-only by design (locked decision). Voicing them via
+      // TTS would break the channel separation the whole script
+      // is built on.
+      if (item.kind !== 'robot') speakAloud(item.text, item.kind);
     }
     // Update active bubbles, fade out at end of life
     for (let i = activeSpeech.length - 1; i >= 0; i--) {
@@ -8776,6 +8668,696 @@ body.cine-2d-active .cam-buttons { display: none; }
     }
     // Also kill any radio static loop in case the cancel happened mid-line
     stopRadioStatic();
+  }
+
+  // ============================================================
+  // MEMORY FRAGMENT SYSTEM
+  //
+  // Built against SHACKLETON_MEMORY_SPEC.md v1. A data-driven
+  // sequence player for Elias's nine memory fragments. The world
+  // keeps simulating underneath (robots move, fuel produces);
+  // player input and camera are suspended. A fragment fires once
+  // per session; after firing, its trigger is dead.
+  //
+  // Public API (also on window for console testing):
+  //   shackletonMemory.fire(id)          — play if not fired
+  //   shackletonMemory.hasFired(id)      — boolean
+  //   shackletonMemory.firedSet()        — Set<string> for saves
+  //   shackletonMemory.restoreFired(set) — restore from save
+  //   shackletonMemory.isActive()        — true while playing
+  //
+  // Test from console:  shackletonMemory.fire('M01_HANDS')
+  //
+  // Voice files don't exist yet. Every text beat with a `voice:`
+  // field falls back to character-count timing silently (spec §6),
+  // so the whole system runs before a single line is recorded.
+  // ============================================================
+
+  const MEMORY_FRAGMENTS = {
+    M01_HANDS: {
+      id: 'M01_HANDS', title: 'Hands',
+      beats: [
+        { type: 'flash', color: '#ffffff', inMs: 150, holdMs: 200, outMs: 600 },
+        { type: 'text', speaker: 'ambient',
+          lines: ['again.', 'not tighter.', 'cleaner.'], holdMs: 3000 },
+        { type: 'wait', ms: 800 },
+        { type: 'text', speaker: 'michel',
+          lines: ['You always force it.', 'Let the tool do the work.'],
+          voice: 'voice/memory/m01_michel_01.ogg', holdMs: 3500 },
+        { type: 'wait', ms: 1000 },
+        { type: 'fade', ms: 1200 },
+      ],
+    },
+    M02_COLD_ROOM: {
+      id: 'M02_COLD_ROOM', title: 'Cold room',
+      beats: [
+        { type: 'flash', color: '#ffffff', inMs: 150, holdMs: 200, outMs: 600 },
+        { type: 'text', speaker: 'michel',
+          lines: ['If we can breathe from this,', 'we can build from it.'],
+          voice: 'voice/memory/m02_michel_01.ogg', holdMs: 3200 },
+        { type: 'wait', ms: 600 },
+        { type: 'text', speaker: 'supervisor', lines: ["That's your pitch?"],
+          voice: 'voice/memory/m02_supervisor_01.ogg', holdMs: 1800 },
+        { type: 'wait', ms: 400 },
+        { type: 'text', speaker: 'michel', lines: ["That's the whole Moon."],
+          voice: 'voice/memory/m02_michel_02.ogg', holdMs: 2000 },
+        { type: 'wait', ms: 1500 },
+        { type: 'text', speaker: 'supervisor',
+          lines: ['And the only person', "who'll fly it is your brother."],
+          voice: 'voice/memory/m02_supervisor_02.ogg', holdMs: 3500 },
+        { type: 'wait', ms: 1200 },
+        { type: 'fade', ms: 1200 },
+      ],
+    },
+    M03_TUNNEL: {
+      id: 'M03_TUNNEL', title: 'The tunnel',
+      beats: [
+        { type: 'flash', color: '#ffffff', inMs: 150, holdMs: 200, outMs: 600 },
+        { type: 'text', speaker: 'michel',
+          lines: ["You're really putting personal memory markers", 'in a construction tunnel?'],
+          voice: 'voice/memory/m03_michel_01.ogg', holdMs: 4000 },
+        { type: 'wait', ms: 500 },
+        { type: 'text', speaker: 'michel',
+          lines: ['You realise that is not', 'in the grant application.'],
+          voice: 'voice/memory/m03_michel_02.ogg', holdMs: 3200 },
+        { type: 'wait', ms: 700 },
+        { type: 'text', speaker: 'supervisor',
+          lines: ['Let him have it.', "It's the only poetry he gets."],
+          voice: 'voice/memory/m03_supervisor_01.ogg', holdMs: 3500 },
+        { type: 'wait', ms: 800 },
+        { type: 'text', speaker: 'michel',
+          lines: ['Fine. Officially:', 'geological indexing marks.'],
+          voice: 'voice/memory/m03_michel_03.ogg', holdMs: 3500 },
+        { type: 'wait', ms: 700 },
+        { type: 'text', speaker: 'michel',
+          lines: ['Unofficially:', 'your little moon diary.'],
+          voice: 'voice/memory/m03_michel_04.ogg', holdMs: 3000 },
+        { type: 'wait', ms: 1200 },
+        { type: 'fade', ms: 1200 },
+      ],
+    },
+    M04_CIRCLE: {
+      id: 'M04_CIRCLE', title: 'Circle',
+      beats: [
+        { type: 'flash', color: '#ffffff', inMs: 250, holdMs: 200, outMs: 800 },
+        { type: 'text', speaker: 'child', lines: ['This one is the brave one.'],
+          voice: 'voice/memory/m04_child_01.ogg', holdMs: 2500 },
+        { type: 'wait', ms: 600 },
+        { type: 'text', speaker: 'michel', lines: ["They're construction units."],
+          voice: 'voice/memory/m04_michel_01.ogg', holdMs: 2400 },
+        { type: 'wait', ms: 700 },
+        { type: 'text', speaker: 'child', lines: ['No.', 'This one is brave.'],
+          voice: 'voice/memory/m04_child_02.ogg', holdMs: 2800 },
+        { type: 'wait', ms: 1500 },
+        { type: 'fade', ms: 1400 },
+      ],
+    },
+    M05_ARGUMENT: {
+      id: 'M05_ARGUMENT', title: 'The argument',
+      beats: [
+        { type: 'flash', color: '#ffffff', inMs: 150, holdMs: 200, outMs: 600 },
+        { type: 'text', speaker: 'supervisor', lines: ["You don't have to send him yourself."],
+          voice: 'voice/memory/m05_supervisor_01.ogg', holdMs: 2800 },
+        { type: 'wait', ms: 500 },
+        { type: 'text', speaker: 'supervisor',
+          lines: ['We can re-list the mission for next year.', 'Find someone else.'],
+          voice: 'voice/memory/m05_supervisor_02.ogg', holdMs: 4000 },
+        { type: 'wait', ms: 900 },
+        { type: 'text', speaker: 'michel', lines: ['He does have to go.'],
+          voice: 'voice/memory/m05_michel_01.ogg', holdMs: 2200 },
+        { type: 'wait', ms: 400 },
+        { type: 'text', speaker: 'michel', lines: ["There isn't anyone else."],
+          voice: 'voice/memory/m05_michel_02.ogg', holdMs: 2400 },
+        { type: 'wait', ms: 1000 },
+        { type: 'text', speaker: 'supervisor', lines: ['You backed him.'],
+          voice: 'voice/memory/m05_supervisor_03.ogg', holdMs: 1800 },
+        { type: 'wait', ms: 400 },
+        { type: 'text', speaker: 'supervisor', lines: ['You know what people are saying.'],
+          voice: 'voice/memory/m05_supervisor_04.ogg', holdMs: 2800 },
+        { type: 'wait', ms: 700 },
+        { type: 'text', speaker: 'michel', lines: ["I know what they're saying."],
+          voice: 'voice/memory/m05_michel_03.ogg', holdMs: 2400 },
+        { type: 'wait', ms: 500 },
+        { type: 'text', speaker: 'michel', lines: ['Back him anyway.'],
+          voice: 'voice/memory/m05_michel_04.ogg', holdMs: 2200 },
+        { type: 'wait', ms: 1800 },
+        { type: 'text', speaker: 'child', lines: ['Will you see Earth from there?'],
+          voice: 'voice/memory/m05_child_01.ogg', holdMs: 2800 },
+        { type: 'wait', ms: 700 },
+        { type: 'text', speaker: 'michel', lines: ["He'll see all of us."],
+          voice: 'voice/memory/m05_michel_05.ogg', holdMs: 2400 },
+        { type: 'wait', ms: 1500 },
+        { type: 'fade', ms: 1400 },
+      ],
+    },
+    M06_IMPACT: {
+      id: 'M06_IMPACT', title: 'Impact',
+      beats: [
+        { type: 'audio', file: 'sfx/memory/alarm_descent.ogg', channel: 'sfx', volume: 0.7 },
+        { type: 'flash', color: '#ff2a2a', inMs: 200, holdMs: 250, outMs: 800 },
+        { type: 'text', speaker: 'michel', lines: ['Shackleton, you are drifting long.'],
+          voice: 'voice/memory/m06_michel_01.ogg', holdMs: 2800 },
+        { type: 'wait', ms: 500 },
+        { type: 'text', speaker: 'michel', lines: ['Elias, correct now.'],
+          voice: 'voice/memory/m06_michel_02.ogg', holdMs: 2200 },
+        { type: 'wait', ms: 400 },
+        { type: 'text', speaker: 'michel', lines: ['Do you copy?'],
+          voice: 'voice/memory/m06_michel_03.ogg', holdMs: 1800 },
+        { type: 'wait', ms: 400 },
+        { type: 'text', speaker: 'michel', lines: ['Correct now.'],
+          voice: 'voice/memory/m06_michel_04.ogg', holdMs: 1800 },
+        { type: 'wait', ms: 1200 },
+        { type: 'text', speaker: 'michel', lines: ['You can still come home.'],
+          voice: 'voice/memory/m06_michel_05.ogg', holdMs: 3000 },
+        { type: 'wait', ms: 800 },
+        { type: 'audio', file: 'sfx/memory/alarm_peak.ogg', channel: 'sfx', volume: 1.0 },
+        { type: 'flash', color: '#ffffff', inMs: 80, holdMs: 400, outMs: 200 },
+        { type: 'fade', ms: 600 },
+      ],
+    },
+    M07_BROTHER: {
+      id: 'M07_BROTHER', title: 'Brother',
+      beats: [
+        { type: 'flash', color: '#ffffff', inMs: 150, holdMs: 200, outMs: 700 },
+        { type: 'text', speaker: 'michel', lines: ["You know I'll be the one on console."],
+          voice: 'voice/memory/m07_michel_01.ogg', holdMs: 2800 },
+        { type: 'wait', ms: 1200 },
+        { type: 'text', speaker: 'michel', lines: ["So don't make me say", 'all the official things.'],
+          voice: 'voice/memory/m07_michel_02.ogg', holdMs: 3500 },
+        { type: 'wait', ms: 1500 },
+        { type: 'text', speaker: 'michel', lines: ['Just come back.'],
+          voice: 'voice/memory/m07_michel_03.ogg', holdMs: 2400 },
+        { type: 'wait', ms: 1500 },
+        { type: 'text', speaker: 'child', lines: ['Uncle Elias?'],
+          voice: 'voice/memory/m07_child_01.ogg', holdMs: 2200 },
+        { type: 'wait', ms: 1500 },
+        { type: 'fade', ms: 1400 },
+      ],
+    },
+    M08_WHAT_HAPPENED: {
+      id: 'M08_WHAT_HAPPENED', title: 'What happened',
+      beats: [
+        { type: 'flash', color: '#ffffff', inMs: 300, holdMs: 200, outMs: 1000 },
+        { type: 'text', speaker: 'priority', lines: ['crew vital signs detected'], holdMs: 1800 },
+        { type: 'wait', ms: 300 },
+        { type: 'text', speaker: 'priority', lines: ['mission priority updated'], holdMs: 1800 },
+        { type: 'wait', ms: 300 },
+        { type: 'text', speaker: 'priority', lines: ['protect crew'], holdMs: 1500 },
+        { type: 'wait', ms: 300 },
+        { type: 'text', speaker: 'priority', lines: ['restore return path'], holdMs: 1800 },
+        { type: 'wait', ms: 1500 },
+        { type: 'text', speaker: 'robot', lines: ['found you.'], holdMs: 1800 },
+        { type: 'wait', ms: 400 },
+        { type: 'text', speaker: 'robot', lines: ['hold.'], holdMs: 1500 },
+        { type: 'wait', ms: 400 },
+        { type: 'text', speaker: 'robot', lines: ['breathe.'], holdMs: 2000 },
+        { type: 'wait', ms: 1800 },
+        { type: 'fade', ms: 1600 },
+      ],
+    },
+    M09_UNFINISHED: {
+      id: 'M09_UNFINISHED', title: 'Unfinished',
+      beats: [
+        { type: 'flash', color: '#ffffff', inMs: 200, holdMs: 100, outMs: 500 },
+        { type: 'text', speaker: 'child', lines: ['When you come back,', "we're going to —"],
+          voice: 'voice/memory/m09_child_01.ogg', holdMs: 3000 },
+        { type: 'wait', ms: 400 },
+        { type: 'fade', ms: 600 },
+      ],
+    },
+  };
+
+  // Trigger registry — DESCRIPTIVE ONLY (spec §7). Documents when each
+  // gameplay site should call shackletonMemory.fire(id). The actual
+  // wiring lives next to the site that owns the trigger, as those
+  // sites get built.
+  const MEMORY_TRIGGERS = {
+    M01_HANDS:         { type: 'item_acquired',   value: 'STRUCTURAL_BRACE' },
+    M02_COLD_ROOM:     { type: 'event',           value: 'first_ice_extracted' },
+    M03_TUNNEL:        { type: 'item_acquired',   value: 'NAV_CORE' },
+    M04_CIRCLE:        { type: 'proximity_dwell', target: 'sculpture', radius: 4, dwellMs: 3000 },
+    M05_ARGUMENT:      { type: 'item_acquired',   value: 'POWER_RELAY' },
+    M06_IMPACT:        { type: 'item_acquired',   value: 'CONTROL_CPU' },
+    M07_BROTHER:       { type: 'event',           value: 'descending_from_rim_with_cpu' },
+    M08_WHAT_HAPPENED: { type: 'proximity_dwell', target: 'wreck_interior', radius: 6, dwellMs: 1500,
+                         requires: 'waiting_moment_active' },
+    M09_UNFINISHED:    { type: 'event',           value: 'launch_pressed_pre_ignition' },
+  };
+  void MEMORY_TRIGGERS;  // referenced by trigger wiring as sites come online
+
+  const shackletonMemory = (function () {
+    const _fired = new Set();
+    const _pending = [];          // queue: fired during another fragment (spec §12)
+    let _active = false;
+    let _savedMasterGain = null;
+
+    const overlayEl = $('memory-overlay');
+    const textEl    = $('memory-text');
+    const flashEl   = $('memory-flash');
+
+    const _sleep = (ms) => new Promise(res => setTimeout(res, ms));
+
+    // Character-count timing (spec §5): 50ms/char + 400ms/line,
+    // floored at holdMs and at 800ms per line.
+    function _charDuration(beat) {
+      const totalChars = beat.lines.reduce((n, l) => n + l.length, 0);
+      const charBased  = totalChars * 50 + beat.lines.length * 400;
+      return Math.max(beat.holdMs || 0, charBased, beat.lines.length * 800);
+    }
+
+    // Try to load+play a voice file. Resolves { audio, ms } on success,
+    // null on any failure — missing files fall back silently (spec §6,
+    // §12). A hard 1500ms ceiling on the load attempt so a slow or
+    // absent file can never stall a fragment.
+    function _tryVoice(file) {
+      return new Promise((resolve) => {
+        let settled = false;
+        const done = (v) => { if (!settled) { settled = true; resolve(v); } };
+        let audio;
+        try { audio = new Audio(file); } catch (e) { return done(null); }
+        audio.addEventListener('canplaythrough', () => {
+          const ms = isFinite(audio.duration) ? audio.duration * 1000 + 600 : 0;
+          if (ms > 0) { audio.play().catch(() => {}); done({ audio, ms }); }
+          else done(null);
+        }, { once: true });
+        audio.addEventListener('error', () => {
+          console.warn('[memory] voice file missing, char-count fallback:', file);
+          done(null);
+        }, { once: true });
+        setTimeout(() => done(null), 1500);
+        audio.load();
+      });
+    }
+
+    function _clearLines() {
+      const lines = textEl.querySelectorAll('.mem-line');
+      lines.forEach(l => l.classList.remove('show'));
+      setTimeout(() => { textEl.innerHTML = ''; }, 250);
+    }
+
+    async function _beatFlash(beat) {
+      flashEl.style.background = beat.color || '#ffffff';
+      flashEl.style.transition = 'opacity ' + beat.inMs + 'ms ease-in';
+      flashEl.style.opacity = '1';
+      await _sleep(beat.inMs + beat.holdMs);
+      flashEl.style.transition = 'opacity ' + beat.outMs + 'ms ease-out';
+      flashEl.style.opacity = '0';
+      await _sleep(beat.outMs);
+    }
+
+    async function _beatText(beat) {
+      _clearLines();
+      await _sleep(260);   // let previous lines clear
+      const els = beat.lines.map(line => {
+        const el = document.createElement('div');
+        el.className = 'mem-line sp-' + (beat.speaker || 'ambient');
+        el.textContent = line;
+        textEl.appendChild(el);
+        return el;
+      });
+      const voice = beat.voice ? await _tryVoice(beat.voice) : null;
+      const total = voice ? voice.ms : _charDuration(beat);
+      // Lines fade in spread across the first 60% of the duration,
+      // then everything holds for the remainder.
+      const span = total * 0.6;
+      const step = els.length > 1 ? span / (els.length - 1) : 0;
+      for (let i = 0; i < els.length; i++) {
+        setTimeout(() => els[i].classList.add('show'), Math.round(i * step));
+      }
+      await _sleep(total);
+    }
+
+    function _beatAudio(beat) {
+      // One-shot sweetener. No stall, no error surface — files that
+      // don't exist yet simply don't play (spec §12).
+      try {
+        const a = new Audio(beat.file);
+        a.volume = beat.volume != null ? beat.volume : 1.0;
+        a.play().catch(() => {});
+      } catch (e) { /* silent */ }
+    }
+
+    async function _beatFade(beat) {
+      _clearLines();
+      overlayEl.style.transition = 'opacity ' + beat.ms + 'ms ease';
+      overlayEl.classList.remove('on');
+      document.body.classList.remove('memory-active');
+      await _sleep(beat.ms);
+      overlayEl.style.transition = '';
+    }
+
+    function _blockInput() {
+      for (const k in keys) keys[k] = false;   // release anything held
+      document.body.classList.add('memory-active');
+      document.body.classList.add('cine-active');   // hides mobile pad + jump btn
+    }
+    function _releaseInput() {
+      document.body.classList.remove('memory-active');
+      document.body.classList.remove('cine-active');
+    }
+
+    function _duckAudio() {
+      if (!audioCtx || !masterGain) return;
+      _savedMasterGain = masterGain.gain.value;
+      const t = audioCtx.currentTime;
+      masterGain.gain.cancelScheduledValues(t);
+      masterGain.gain.setValueAtTime(_savedMasterGain, t);
+      masterGain.gain.linearRampToValueAtTime(_savedMasterGain * 0.45, t + 0.4);
+    }
+    function _restoreAudio() {
+      if (!audioCtx || !masterGain || _savedMasterGain == null) return;
+      const t = audioCtx.currentTime;
+      masterGain.gain.cancelScheduledValues(t);
+      masterGain.gain.setValueAtTime(masterGain.gain.value, t);
+      masterGain.gain.linearRampToValueAtTime(_savedMasterGain, t + 0.8);
+      _savedMasterGain = null;
+    }
+
+    async function _play(fragment) {
+      _active = true;
+      _blockInput();
+      _duckAudio();
+      overlayEl.classList.add('on');
+      try {
+        for (const beat of fragment.beats) {
+          switch (beat.type) {
+            case 'flash': await _beatFlash(beat); break;
+            case 'text':  await _beatText(beat);  break;
+            case 'wait':  await _sleep(beat.ms);  break;
+            case 'audio': _beatAudio(beat);       break;
+            case 'fade':  await _beatFade(beat);  break;
+            default: console.warn('[memory] unknown beat type:', beat.type);
+          }
+        }
+      } catch (e) {
+        console.error('[memory] playback error in', fragment.id, e);
+      }
+      // Defensive teardown — a fragment missing its fade beat, or a
+      // playback error, must never leave the game input-locked.
+      overlayEl.classList.remove('on');
+      flashEl.style.opacity = '0';
+      _restoreAudio();
+      _releaseInput();
+      _active = false;
+      // Queued fragment? Play it now (spec §12).
+      if (_pending.length > 0) fire(_pending.shift());
+    }
+
+    function fire(id) {
+      const fragment = MEMORY_FRAGMENTS[id];
+      if (!fragment) { console.warn('[memory] unknown fragment:', id); return; }
+      if (_fired.has(id)) return;                    // idempotent
+      if (_active) {                                 // queue behind current
+        if (!_pending.includes(id)) _pending.push(id);
+        return;
+      }
+      _fired.add(id);
+      console.log('[memory] firing', id, '—', fragment.title);
+      _play(fragment);
+    }
+
+    return {
+      fire,
+      hasFired: (id) => _fired.has(id),
+      firedSet: () => new Set(_fired),
+      restoreFired: (set) => { _fired.clear(); for (const id of set) _fired.add(id); },
+      isActive: () => _active,
+    };
+  })();
+  window.shackletonMemory = shackletonMemory;   // console testing
+
+  // ============================================================
+  // OPENING CINEMATIC — Scene 1, "Wake Site".
+  //
+  // Black screen. Red-pulsing suit HUD. Low-oxygen alarm. The
+  // astronaut lies face-down in the regolith. First input is not
+  // "move" — it is "push up". One push slips. The second rises.
+  // The camera pulls back to the chase position, the wreck fills
+  // the frame, L-07 turns and finds him. Objective: find oxygen.
+  //
+  // The world simulates throughout — robots keep working as if
+  // nothing has happened, because for them nothing has.
+  //
+  // Tunables (screenshot-loop friendly):
+  //   OPEN_PRONE_PITCH — flip the sign if the model lies on its back
+  //   OPEN_PRONE_LIFT  — raise if the body sinks into the regolith
+  // ============================================================
+  const OPEN_PRONE_PITCH = Math.PI / 2;   // face-down pitch on root
+  const OPEN_PRONE_LIFT  = 0.15;          // metres above ground while prone
+  const OPEN_BLACK_DUR   = 3.8;           // seconds of black + HUD before reveal
+  const OPEN_PUSH1_DUR   = 1.05;          // first push + slip
+  const OPEN_RISE_DUR    = 3.0;           // second push → standing
+  const OPEN_REVEAL_DUR  = 4.2;           // L-07 beat + objective
+
+  const opening = {
+    active: false,
+    pending: true,       // loadAssets poses the astronaut prone while true
+    phase: 'black',
+    t: 0,
+    pushInput: false,
+    alarmTimer: 0,
+    camFrom: new THREE.Vector3(),
+    camTo: new THREE.Vector3(),
+    lookFrom: new THREE.Vector3(),
+    lookTo: new THREE.Vector3(),
+  };
+
+  // Face the wreck at (8, -2) from the spawn at (0, 4). Heading
+  // convention matches the robots: atan2(dx, dz).
+  const OPEN_SPAWN = { x: 0, z: 4 };
+  const OPEN_HEADING = Math.atan2(8 - OPEN_SPAWN.x, -2 - OPEN_SPAWN.z);
+
+  function poseProne() {
+    if (!astronautRoot) return;
+    player.heading = OPEN_HEADING;
+    player.pos.set(OPEN_SPAWN.x,
+                   shackletonScene.getGroundY(OPEN_SPAWN.x, OPEN_SPAWN.z),
+                   OPEN_SPAWN.z);
+    astronautRoot.rotation.order = 'YXZ';        // yaw then pitch — lie along heading
+    astronautRoot.rotation.y = player.heading;
+    astronautRoot.rotation.x = OPEN_PRONE_PITCH;
+    astronautRoot.position.set(player.pos.x, player.pos.y + OPEN_PRONE_LIFT, player.pos.z);
+    astronautRoot.visible = true;
+  }
+
+  // Two-tone suit alarm — synthesised, quiet, insistent. Uses the
+  // shared audioCtx; startGame is gesture-driven so the context is
+  // unlockable by the time this first fires.
+  function playAlarmBeep() {
+    if (!audioCtx || !masterGain) return;
+    const t0 = audioCtx.currentTime;
+    [[880, 0], [660, 0.16]].forEach(([freq, dt0]) => {
+      const osc = audioCtx.createOscillator();
+      osc.type = 'square';
+      osc.frequency.value = freq;
+      const env = audioCtx.createGain();
+      env.gain.setValueAtTime(0, t0 + dt0);
+      env.gain.linearRampToValueAtTime(0.055, t0 + dt0 + 0.015);
+      env.gain.exponentialRampToValueAtTime(0.001, t0 + dt0 + 0.13);
+      osc.connect(env); env.connect(masterGain);
+      osc.start(t0 + dt0); osc.stop(t0 + dt0 + 0.15);
+    });
+  }
+
+  function startOpening() {
+    if (!opening.pending) return;
+    opening.pending = false;
+    opening.active = true;
+    opening.phase = 'black';
+    opening.t = 0;
+    initAudio();
+    oxygen.percent = 10;                        // Scene 1: O₂ 10%
+    document.body.classList.add('cine-active'); // hide mobile pads
+    const hud = $('opening-hud');
+    if (hud) hud.innerHTML =
+      'O₂: 10%<br>suit pressure: unstable<br>transmit: offline<br>memory: unavailable';
+    if (astronautRoot) poseProne();
+  }
+
+  // Push input — keys polled per-frame, plus tap-anywhere on touch.
+  window.addEventListener('pointerdown', () => {
+    if (opening.active && (opening.phase === 'ground' || opening.phase === 'ground2')) {
+      opening.pushInput = true;
+    }
+  });
+  function _openingPushHeld() {
+    return opening.pushInput || keys['w'] || keys[' '] || keys['arrowup'];
+  }
+
+  function _easeOut(t)   { return 1 - (1 - t) * (1 - t); }
+  function _easeInOut(t) { return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; }
+
+  // Camera helpers — close-on-the-visor framing while prone, and the
+  // exact chase-cam target for the handoff so gameplay's updateCamera
+  // takes over with zero pop.
+  function _openingCloseCam(outPos, outLook) {
+    const dirX = Math.sin(player.heading), dirZ = Math.cos(player.heading);
+    // Head sits ~0.9m forward of the feet-origin while prone (0.5 scale).
+    const hx = player.pos.x + dirX * 0.9;
+    const hz = player.pos.z + dirZ * 0.9;
+    const hy = player.pos.y + 0.30;
+    // Side vector — camera off the right shoulder, low, looking across
+    // the regolith at the visor.
+    const sx = Math.cos(player.heading), sz = -Math.sin(player.heading);
+    outPos.set(hx + sx * 1.5 + dirX * 0.5, hy + 0.28, hz + sz * 1.5 + dirZ * 0.5);
+    outLook.set(hx, hy, hz);
+  }
+  function _openingChaseCam(outPos, outLook) {
+    const yaw = player.heading, pitch = -0.30;
+    const horiz = camDist * Math.cos(pitch);
+    const vert  = camDist * Math.sin(pitch);
+    outPos.set(player.pos.x - Math.sin(yaw) * horiz,
+               player.pos.y + CAM_HEIGHT + vert,
+               player.pos.z - Math.cos(yaw) * horiz);
+    outLook.set(player.pos.x, player.pos.y + 0.6, player.pos.z);
+  }
+
+  function _openingHandoff() {
+    opening.active = false;
+    opening.phase = 'done';
+    document.body.classList.remove('cine-active');
+    astronautRoot.rotation.x = 0;
+    astronautRoot.rotation.order = 'XYZ';
+    astronautRoot.position.copy(player.pos);
+    // Snap the chase-cam state to match the camera we hand over, so
+    // updateCamera's first frame continues seamlessly.
+    camYaw = player.heading;
+    camPitch = -0.30;
+    const vg = $('opening-vignette'); if (vg) vg.style.opacity = '0';
+    const pr = $('opening-prompt');   if (pr) pr.classList.remove('on');
+    setAnimation('Idle_Breath');
+  }
+
+  function updateOpening(dt) {
+    opening.t += dt;
+    const t = opening.t;
+    const fade = $('opening-fade'), hud = $('opening-hud');
+    const prompt = $('opening-prompt'), vignette = $('opening-vignette');
+
+    // Robots keep working throughout — the world does not wait.
+    for (let ri = 0; ri < robots.length; ri++) {
+      updateRobot(robots[ri], robotStates[ri], dt);
+    }
+
+    // Low-oxygen alarm cadence — urgent while black, softer after.
+    opening.alarmTimer -= dt;
+    if (opening.alarmTimer <= 0 && opening.phase !== 'reveal') {
+      playAlarmBeep();
+      opening.alarmTimer = (opening.phase === 'black') ? 1.7 : 2.6;
+    }
+
+    // Red vignette pulse — breathes at ~0.55Hz once the world is visible.
+    if (vignette && opening.phase !== 'black') {
+      const pulse = 0.45 + 0.35 * Math.sin(t * 3.4);
+      vignette.style.opacity = Math.max(0, pulse).toFixed(3);
+    }
+
+    switch (opening.phase) {
+      case 'black': {
+        if (hud && t > 0.5) hud.classList.add('on');
+        // Hold in black until assets are ready — the black phase
+        // absorbs load time invisibly.
+        if (t >= OPEN_BLACK_DUR && astronautRoot) {
+          poseProne();                       // defensive re-pose post-load
+          _openingCloseCam(camera.position, opening.lookTo);
+          camera.lookAt(opening.lookTo);
+          if (fade) fade.classList.add('clear');
+          if (hud) hud.classList.remove('on');
+          opening.phase = 'ground';
+          opening.t = 0;
+          opening.pushInput = false;
+        }
+        break;
+      }
+      case 'ground': {
+        _openingCloseCam(camera.position, opening.lookTo);
+        camera.lookAt(opening.lookTo);
+        if (prompt && t > 1.2) {
+          prompt.textContent = 'W / ▲ / tap — push up';
+          prompt.classList.add('on');
+        }
+        if (t > 0.8 && _openingPushHeld()) {
+          opening.phase = 'push1'; opening.t = 0; opening.pushInput = false;
+          if (prompt) prompt.classList.remove('on');
+        }
+        break;
+      }
+      case 'push1': {
+        // Rise to ~2/3 prone, slip back down. Dust at the hands on
+        // the slip — he is here, in this dust, and it gives way.
+        const p = Math.min(1, t / OPEN_PUSH1_DUR);
+        let pitch;
+        if (p < 0.55) pitch = OPEN_PRONE_PITCH * (1 - 0.34 * _easeOut(p / 0.55));
+        else          pitch = OPEN_PRONE_PITCH * (0.66 + 0.28 * _easeInOut((p - 0.55) / 0.45));
+        astronautRoot.rotation.x = pitch;
+        if (p >= 0.55 && p < 0.62) {
+          const dirX = Math.sin(player.heading), dirZ = Math.cos(player.heading);
+          spawnDust(player.pos.x + dirX * 0.6, player.pos.y + 0.1, player.pos.z + dirZ * 0.6, 6);
+        }
+        _openingCloseCam(camera.position, opening.lookTo);
+        camera.lookAt(opening.lookTo);
+        if (p >= 1) { opening.phase = 'ground2'; opening.t = 0; }
+        break;
+      }
+      case 'ground2': {
+        _openingCloseCam(camera.position, opening.lookTo);
+        camera.lookAt(opening.lookTo);
+        if (prompt && t > 0.7) prompt.classList.add('on');
+        if (t > 0.4 && _openingPushHeld()) {
+          opening.phase = 'rise'; opening.t = 0; opening.pushInput = false;
+          if (prompt) prompt.classList.remove('on');
+          _openingCloseCam(opening.camFrom, opening.lookFrom);
+          _openingChaseCam(opening.camTo, opening.lookTo);
+          setAnimation('Crouch_Loop');
+        }
+        break;
+      }
+      case 'rise': {
+        const p = Math.min(1, t / OPEN_RISE_DUR);
+        const e = _easeInOut(p);
+        astronautRoot.rotation.x = OPEN_PRONE_PITCH * (1 - e);
+        astronautRoot.position.set(
+          player.pos.x,
+          player.pos.y + OPEN_PRONE_LIFT * (1 - e),
+          player.pos.z
+        );
+        if (p > 0.65) setAnimation('Idle_Breath');
+        camera.position.lerpVectors(opening.camFrom, opening.camTo, e);
+        const lk = opening.lookFrom.clone().lerp(opening.lookTo, e);
+        camera.lookAt(lk);
+        if (p >= 1) {
+          opening.phase = 'reveal'; opening.t = 0;
+          // L-07 turns and looks at the player. It is robots[1].
+          const rs = robotStates[1];
+          if (rs) {
+            rs.state = 'idle';
+            rs.stateTimer = OPEN_REVEAL_DUR + 2;
+            rs.heading = Math.atan2(player.pos.x - rs.pos.x, player.pos.z - rs.pos.z);
+          }
+          speak('L-07', '!', 1.6, { kind: 'robot' });
+          speak('L-07', 'found you.', 3.0, { kind: 'robot', delay: 1.9 });
+        }
+        break;
+      }
+      case 'reveal': {
+        _openingChaseCam(camera.position, opening.lookTo);
+        camera.lookAt(opening.lookTo);
+        if (vignette) {
+          // Vignette breathes down to nothing over the reveal.
+          const rem = Math.max(0, 1 - t / OPEN_REVEAL_DUR);
+          vignette.style.opacity = (rem * 0.4).toFixed(3);
+        }
+        if (t > 2.2) {
+          const obj = $('objective-hud');
+          if (obj && !obj.classList.contains('on')) {
+            obj.textContent = 'find oxygen';
+            obj.classList.add('on');
+          }
+        }
+        if (t >= OPEN_REVEAL_DUR) _openingHandoff();
+        break;
+      }
+    }
   }
 
   // ============================================================
@@ -9953,14 +10535,21 @@ body.cine-2d-active .cam-buttons { display: none; }
   const clock = new THREE.Clock();
   function loop() {
     const dt = Math.min(0.05, clock.getDelta());
-    if (cine.phase === 'gameplay') {
+    if (opening.active) {
+      // Face-down wake cinematic — drives astronaut pose, camera,
+      // HUD overlays, and keeps the robots simulating so the world
+      // reads as alive behind the player.
+      updateOpening(dt);
+    } else if (cine.phase === 'gameplay') {
       // Mode-dispatch: walking → updatePlayer; boarding → updateBoarding;
       // flying → updateFlyer. Camera follows whichever target is active.
       if (controlMode === 'walking' && astronautRoot) {
-        // During the L-07 rescue, freeze normal updates but keep
-        // updateOxygen running so the cinematic advances. The player
-        // can't walk/look/footstep until they wake at the source.
-        if (!oxygen.dead) {
+        // During the L-07 rescue OR a memory fragment, freeze normal
+        // updates. Rescue: updateOxygen still runs so the cinematic
+        // advances. Memory: input is suspended, the astronaut stands,
+        // the camera holds (spec §8) — but the world keeps simulating
+        // (robots, dust, speech all run below, outside this gate).
+        if (!oxygen.dead && !shackletonMemory.isActive()) {
           updatePlayer(dt);
           maybeFootstep(dt);
           updateFlyerProximity();
@@ -10013,7 +10602,7 @@ body.cine-2d-active .cam-buttons { display: none; }
           mat.emissive.setHex(0xff8833);
         }
       }
-      updateCamera(dt);
+      if (!shackletonMemory.isActive()) updateCamera(dt);   // camera holds during fragments (spec §8)
     } else if (_gameStarted) {
       updateCinematic(dt);
     }
