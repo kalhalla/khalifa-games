@@ -524,7 +524,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.2.0';  // memory fragment player + opening cinematic + faceted floor + shadow fix
+  const BUILD_VERSION = 'v0.2.2';  // root-relative asset paths — assets live at /assets/, game at /shackleton/
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -2027,8 +2027,12 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   //   assets/palette.png
   // ============================================================
   const ASSET_PATHS = {
-    astronautGLB: 'assets/astronaut.glb',
-    palettePNG:   'assets/palette.png',
+    // Root-relative. The game deploys to khalifa.games/shackleton/
+    // but the assets folder lives at khalifa.games/assets/ — a
+    // relative path here resolves to /shackleton/assets/ and 404s,
+    // which stalls the opening's black phase forever.
+    astronautGLB: '/assets/astronaut.glb',
+    palettePNG:   '/assets/palette.png',
   };
 
   let astronaut = null;
@@ -9255,6 +9259,17 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     switch (opening.phase) {
       case 'black': {
         if (hud && t > 0.5) hud.classList.add('on');
+        // Watchdog — the black phase absorbs load time by design, but
+        // if the astronaut GLB never arrives we must say so rather
+        // than hold a black screen forever. 15s is far beyond any
+        // healthy load.
+        if (t > 15 && !astronautRoot && hud) {
+          hud.innerHTML = 'asset load stalled<br><br>' +
+            'check that assets/astronaut.glb and assets/palette.png<br>' +
+            'are deployed beside this file<br><br>' +
+            'F12 console has the specific error';
+          hud.classList.add('on');
+        }
         // Hold in black until assets are ready — the black phase
         // absorbs load time invisibly.
         if (t >= OPEN_BLACK_DUR && astronautRoot) {
@@ -10635,6 +10650,15 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     console.error('Asset load failed:', e);
     if (e && e.stack) console.error('Stack:', e.stack);
     $('loading-sub').textContent = 'LOAD FAILED — ' + msg;
+    // The opening's black overlay (z-55) sits above the loading
+    // screen (z-10), so a load failure during the opening would
+    // otherwise print its error where nobody can see it. Surface
+    // it through the opening HUD instead.
+    const oh = $('opening-hud');
+    if (oh) {
+      oh.innerHTML = 'ASSET LOAD FAILED<br><br>' + msg;
+      oh.classList.add('on');
+    }
   });
 })();
 </script>
