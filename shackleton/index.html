@@ -524,7 +524,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.2.4';  // PCF shadows, double-sided hull + skeleton, wreck 1.6x, rugged peak + rubble
+  const BUILD_VERSION = 'v0.2.5';  // follow-frustum shadows, double hull skin, cone-not-cake peak
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -570,11 +570,11 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   renderer.setSize(w, h);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.shadowMap.enabled = true;
-  // PCF, not PCFSoft. At this shadow-map density (~12.7cm/texel over
-  // the ±260m frustum) the soft filter smears the astronaut's shadow
-  // into a blob. Plain PCF keeps contact shadows tight; the low-poly
-  // flat-shaded look wants hard Apollo-footage shadows anyway.
-  renderer.shadowMap.type = THREE.PCFShadowMap;
+  // PCFSoft, restored. Plain PCF at the old 12.7cm/texel density
+  // showed raw texel staircase — pixelated shadow edges. The real
+  // fix is density: the follow-frustum below runs 4.4cm/texel, at
+  // which PCFSoft's small penumbra reads as tight, clean edges.
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   // Colour pipeline: sRGB output so the browser displays linear-rendered
   // pixels at their intended brightness (without this, everything looks
   // ~25% too dark on screen). ACES tone-maps the brightest highlights
@@ -601,18 +601,39 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   const sun = new THREE.DirectionalLight(0xfff4e0, 2.10);
   sun.position.set(60, 22, 0);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(4096, 4096);   // 4× resolution from 2048; ~2.5cm per texel
-                                         // — fine enough that contact-point shadow slivers
-                                         // (bright lines at the foot of objects, at the
-                                         // wall-floor seam) fall below visible threshold
-  // Shadow camera frustum sized to cover the full Flyer roam area
-  // (FLYER_MAX_RADIUS = 250m) with a small margin. Without this, the
-  // Flyer's shadow disappeared at ~100m from origin — fine for the
-  // walking-only build, broken now that flight covers a 500m diameter.
-  // At 4096×4096 shadow map, per-texel area is ~13cm — slightly looser
-  // than before but still tight enough that contact-point slivers stay
-  // sub-visible on the boulder/wall geometry.
-  Object.assign(sun.shadow.camera, { left:-260, right:260, top:260, bottom:-260, near:0.5, far:600 });
+  sun.shadow.mapSize.set(4096, 4096);
+  // ── FOLLOW-FRUSTUM SHADOWS ──
+  // The old frustum covered the whole ±260m flight envelope from a
+  // static camera: 520m across 4096 texels = 12.7cm/texel. At that
+  // density PCFSoft smears the astronaut's shadow into a blob and
+  // plain PCF shows raw texel staircase — both were shipped, both
+  // were wrong, because texel density was the actual problem. The
+  // frustum now FOLLOWS the active subject (astronaut or Flyer) at
+  // ±90m: 180m across 4096 texels = 4.4cm/texel, 2.9× denser, and
+  // the Flyer keeps its shadow at any range because the frustum
+  // travels with it. The light's position is snapped to the shadow
+  // map's texel grid each frame so shadow edges don't shimmer as
+  // the subject moves. updateSunFollow() is called from the main
+  // loop.
+  const SHADOW_R = 90;
+  Object.assign(sun.shadow.camera,
+    { left:-SHADOW_R, right:SHADOW_R, top:SHADOW_R, bottom:-SHADOW_R, near:0.5, far:600 });
+  const _sunDir   = new THREE.Vector3(60, 22, 0).normalize();
+  const _sunRight = new THREE.Vector3().crossVectors(_sunDir, new THREE.Vector3(0,1,0)).normalize();
+  const _sunUp    = new THREE.Vector3().crossVectors(_sunRight, _sunDir).normalize();
+  const _sunTmp   = new THREE.Vector3();
+  function updateSunFollow(target) {
+    const texel = (SHADOW_R * 2) / 4096;
+    _sunTmp.copy(target);
+    // Snap in the shadow camera's screen plane so the depth map
+    // samples the same world positions frame to frame.
+    const px = _sunTmp.dot(_sunRight), py = _sunTmp.dot(_sunUp);
+    _sunTmp.addScaledVector(_sunRight, Math.round(px / texel) * texel - px);
+    _sunTmp.addScaledVector(_sunUp,    Math.round(py / texel) * texel - py);
+    sun.target.position.copy(_sunTmp);
+    sun.position.copy(_sunTmp).addScaledVector(_sunDir, 300);
+  }
+  scene.add(sun.target);   // required for a movable target
   // Shadow bias settings.
   //
   // Both biases left at 0. Negative `bias` produces peter-panning
@@ -1283,7 +1304,13 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   const PEAK_BASE_R      = 25.0;    // 50m base diameter
   const PEAK_HEIGHT      = 32.0;    // 32m tall — slope 52° (above 50° cutoff)
   const PATH_TURNS       = 3;       // spiral makes three full revolutions
-  const PATH_WIDTH       = 6.0;     // walkable width (wider for clarity)
+  // PATH_WIDTH 3.5, down from 6. The windings are spaced 6m radially
+  // (18m of radius over 3 turns), so a 6m-wide path was WALL-TO-WALL
+  // shelf — concentric flat discs, the wedding-cake read. At 3.5m
+  // there is 2.5m of true 52° cone face between windings, which the
+  // block displacement then roughens into rock. The trail is still
+  // comfortably wider than the player.
+  const PATH_WIDTH       = 3.5;     // walkable width
   const SUMMIT_R         = 7.0;     // 14m platform diameter
   // Path entry angle (peak-local, radians). Points roughly TOWARD
   // the wreck so the path mouth is visible from the player's spawn
@@ -1341,8 +1368,8 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // height jitter on every vertex, so the top reads as a rough
   // chunky cylinder rather than a symmetric cone-with-platform.
   function buildCentralPeak() {
-    const SEGS  = 48;
-    const RINGS = 16;
+    const SEGS  = 64;    // up from 48 — smaller blocks, chunkier rock
+    const RINGS = 24;    // up from 16
     const positions = [];
     const indices   = [];
     // Off-centre apex vertex — its X/Z offset breaks the four-fold
@@ -1387,14 +1414,18 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
           // untouched; the walk strip's visual and collision agree,
           // and edge mismatch is capped at ~1m where nobody walks.
           const q = peakPathQuery(r_v, a);
-          const edgeMask = Math.min(1, Math.max(0, (q.dist - 1.6) / 1.4));
+          // Zero inside the path plus a 0.3m margin; full amplitude
+          // on the cone faces between windings (max dist ≈ 3.0m at
+          // the new 3.5m path width).
+          const edgeMask = Math.min(1, Math.max(0,
+            (q.dist - PATH_WIDTH * 0.5 - 0.3) / 0.9));
           const rimMask  = Math.min(1, (tt) / 0.10)            // fade in off the summit
                          * Math.min(1, (1 - tt) / 0.08);       // fade out at the base
           const mask = edgeMask * rimMask;
           if (mask > 0) {
             const blk = Math.floor(i / 3) * 131 + Math.floor(ring / 2) * 977;
-            const dR = (rng(blk + 0.17) - 0.5) * 3.4 * mask;
-            const dH = (rng(blk + 0.53) - 0.5) * 2.4 * mask;
+            const dR = (rng(blk + 0.17) - 0.5) * 4.4 * mask;
+            const dH = (rng(blk + 0.53) - 0.5) * 3.2 * mask;
             r_v = Math.max(SUMMIT_R + 0.5, r_v + dR);
             const wx = PEAK_CENTER_X + Math.cos(a_use) * r_v;
             const wz = PEAK_CENTER_Z + Math.sin(a_use) * r_v;
@@ -1437,7 +1468,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   function buildPathOverlay() {
     const NUM_STEPS   = 80;
     const RIBBON_LIFT = 0.08;       // m above the cone-mesh shelf
-    const OVERLAY_W   = 3.0;         // rides only the clean walk strip — edges beyond it now crumble
+    const OVERLAY_W   = PATH_WIDTH - 0.8;   // rides the walk strip inside the crumbled edges
     const T_END       = 0.85;        // stop short of the platform
     const positions   = [];
     const indices     = [];
@@ -1561,7 +1592,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       const a = rng(s + 51000) * Math.PI * 2;
       const r = SUMMIT_R + 2.0 + rng(s + 51100) * (PEAK_BASE_R - SUMMIT_R - 3.0);
       const q = peakPathQuery(r, a);
-      if (q.dist < 1.8) continue;   // keep the walk strip clear; edges take rubble
+      if (q.dist < PATH_WIDTH * 0.5 + 0.3) continue;   // keep the walk strip clear; edges take rubble
       const wx = PEAK_CENTER_X + Math.cos(a) * r;
       const wz = PEAK_CENTER_Z + Math.sin(a) * r;
       const h  = peakHeight(wx, wz);
@@ -7449,14 +7480,38 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     // Slightly smaller cylinder, BackSide material so we see its
     // inside when looking through holes. No top/bottom caps —
     // open-ended so the engine end (rear blow-out) reads as a deep
-    // dark void.
-    const interiorR = HULL_R - 0.18;
+    // dark void. Brightened from near-black (0x14141a): a void that
+    // dark swallowed the ring frames and stringers entirely, so the
+    // interior read as a single hollow skin. At 0x2e3138 the frame
+    // silhouettes against it and the hull reads as built structure.
+    const interiorR = HULL_R - 0.34;
+    const veryDarkMat = new THREE.MeshLambertMaterial({
+      color: 0x2e3138,
+      side: THREE.BackSide
+    });
     const interior = new THREE.Mesh(
       new THREE.CylinderGeometry(interiorR, interiorR, HULL_H + 0.5, SEGS, 1, true),
-      veryDark
+      veryDarkMat
     );
     interior.position.y = HULL_H / 2;
     g.add(interior);
+
+    // ──── INNER SKIN ────
+    // Second panel cylinder just inside the outer hull, with the
+    // SAME hole set. This is what makes the hull read as double-
+    // walled: every hole edge now shows two layers with a visible
+    // gap between them, and torn openings have depth instead of
+    // paper thinness. Darker tone so the layers separate visually.
+    const innerSkinMat = new THREE.MeshPhongMaterial({
+      shininess: 0,
+      color: 0x8a8d94,
+      flatShading: true,
+      side: THREE.DoubleSide
+    });
+    const innerSkin = buildPanelCylinder(HULL_R - 0.16, HULL_H, SEGS, RINGS, holes, innerSkinMat);
+    innerSkin.position.y = HULL_H / 2;
+    innerSkin.receiveShadow = true;
+    g.add(innerSkin);
 
     // ──── HULL PANELS ────
     const hull = buildPanelCylinder(HULL_R, HULL_H, SEGS, RINGS, holes, hullMat);
@@ -9431,6 +9486,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     for (let ri = 0; ri < robots.length; ri++) {
       updateRobot(robots[ri], robotStates[ri], dt);
     }
+    if (astronautRoot) updateSunFollow(astronautRoot.position);
 
     // Low-oxygen alarm cadence — urgent while black, softer after.
     opening.alarmTimer -= dt;
@@ -10813,6 +10869,13 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
         }
       }
       if (!shackletonMemory.isActive()) updateCamera(dt);   // camera holds during fragments (spec §8)
+      // Shadow frustum follows the active subject — astronaut on
+      // foot, Flyer in flight — texel-snapped inside updateSunFollow.
+      if (controlMode === 'flying' && typeof flyerHeading !== 'undefined' && flyerHeading) {
+        updateSunFollow(flyerHeading.position);
+      } else if (astronautRoot) {
+        updateSunFollow(astronautRoot.position);
+      }
     } else if (_gameStarted) {
       updateCinematic(dt);
     }
