@@ -525,7 +525,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.2.6';  // faceted summit platform, seated astronaut clone in the Flyer
+  const BUILD_VERSION = 'v0.2.7';  // frozen seated pose, bubble cockpit with specular glass
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -2331,12 +2331,18 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
         // Independent mixer — the walking rig's mixer must not drive
         // these bones. Crouch_Loop poses him; the slow loop reads as
         // a pilot shifting in his seat.
+        // Crouch_Loop is a crouch WALK — played live it pantomimes a
+        // slow-motion hike in the seat. Freeze it instead: advance to
+        // a mid-stride frame where the legs read as bent-and-seated,
+        // then pause. The mixer keeps running but a paused action
+        // never advances, so the pose is a statue.
         seatedMixer = new THREE.AnimationMixer(seatedClone);
         const crouch = gltf.animations.find(c => c.name === 'Crouch_Loop');
         if (crouch) {
           const act = seatedMixer.clipAction(crouch);
           act.play();
-          act.timeScale = 0.5;
+          seatedMixer.update(0.35);   // advance to the pose frame
+          act.paused = true;
         }
       } else {
         console.warn('[flyer] SkeletonUtils unavailable — seat stays empty');
@@ -5763,6 +5769,66 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       // and one face toward +Z.
       tri.rotation.y = Math.PI;
       chassis.add(tri);
+    }
+
+    // ============================================================
+    // BUBBLE COCKPIT — a bug-eye glass canopy over both seats.
+    // Reflectivity in r128 without an environment map is faked the
+    // classic way: transparent Phong with a hot white specular and
+    // high shininess, so the fixed sun paints a hard glint that
+    // moves across the dome as the Flyer turns. Tinted cool blue,
+    // ~28% opaque, DoubleSide so the inside face renders when the
+    // camera is close behind the pilot. The seated astronaut reads
+    // through the tint.
+    //
+    // Geometry: a sphere segment (bottom cut off) squashed on Y and
+    // stretched on Z so it bubbles over both seats and the console.
+    // Three dark frame ribs sell it as a built canopy rather than a
+    // soap bubble, and a rim ring seats it against the chassis.
+    // Tunables: CANOPY_C (centre), CANOPY_R + the scale triplet.
+    // ============================================================
+    {
+      const CANOPY_C = { x: 0, y: seatY + 0.10, z: seatZ + 0.10 };
+      const CANOPY_R = 1.15;
+      const glassMat = new THREE.MeshPhongMaterial({
+        color: 0x8fb4cc,
+        specular: 0xffffff,
+        shininess: 120,
+        transparent: true,
+        opacity: 0.28,
+        side: THREE.DoubleSide,
+        depthWrite: false        // seated pilot + seats stay visible through it
+      });
+      // Sphere cut just below its equator so the dome walls drop
+      // slightly past the seat line before the chassis swallows them.
+      const canopy = new THREE.Mesh(
+        new THREE.SphereGeometry(CANOPY_R, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.58),
+        glassMat
+      );
+      canopy.position.set(CANOPY_C.x, CANOPY_C.y, CANOPY_C.z);
+      canopy.scale.set(1.0, 0.9, 1.25);      // wider than tall, longer than wide
+      chassis.add(canopy);
+
+      // Frame ribs — two meridians and a rim, dark like the tubework.
+      const ribMat = M.veryDark;
+      const ribGeom = new THREE.TorusGeometry(CANOPY_R, 0.035, 4, 20, Math.PI * 0.58 * 2);
+      for (const yaw of [0, Math.PI / 2]) {
+        const rib = new THREE.Mesh(ribGeom, ribMat);
+        rib.position.copy(canopy.position);
+        rib.scale.copy(canopy.scale);
+        rib.rotation.set(0, yaw, Math.PI / 2 - Math.PI * 0.58);
+        chassis.add(rib);
+      }
+      const rim = new THREE.Mesh(
+        new THREE.TorusGeometry(CANOPY_R * Math.sin(Math.PI * 0.58), 0.045, 4, 24),
+        ribMat
+      );
+      rim.position.set(CANOPY_C.x,
+                       CANOPY_C.y + CANOPY_R * 0.9 * Math.cos(Math.PI * 0.58),
+                       CANOPY_C.z);
+      rim.scale.set(1.0, 1.25, 1.0);          // matches the canopy's XZ footprint
+      rim.rotation.x = Math.PI / 2;
+      chassis.add(rim);
     }
 
     // Joystick between the seats
