@@ -525,7 +525,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.2.7';  // frozen seated pose, bubble cockpit with specular glass
+  const BUILD_VERSION = 'v0.2.9';  // flight drift fix (drag + heading-relative thrust), dark dome 1.75
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -1303,7 +1303,10 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   const PEAK_CENTER_X    = -60;
   const PEAK_CENTER_Z    = 30;
   const PEAK_BASE_R      = 25.0;    // 50m base diameter
-  const PEAK_HEIGHT      = 32.0;    // 32m tall — slope 52° (above 50° cutoff)
+  // PEAK_HEIGHT is the cone's height AT ITS APEX IF IT CAME TO A
+  // POINT — the actual walkable summit is SUMMIT_H below, where the
+  // platform truncates it. 40m apex → 28.8m summit.
+  const PEAK_HEIGHT      = 40.0;
   const PATH_TURNS       = 3;       // spiral makes three full revolutions
   // PATH_WIDTH 3.5, down from 6. The windings are spaced 6m radially
   // (18m of radius over 3 turns), so a 6m-wide path was WALL-TO-WALL
@@ -1313,6 +1316,16 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // comfortably wider than the player.
   const PATH_WIDTH       = 3.5;     // walkable width
   const SUMMIT_R         = 7.0;     // 14m platform diameter
+  // ── THE TIN-CAN FIX ──
+  // The platform used to sit at PEAK_HEIGHT while the cone surface
+  // at SUMMIT_R sat at PEAK_HEIGHT·(1−7/25) — nine metres lower.
+  // The summit was a 9m cylindrical plug jammed into the cone top,
+  // which is exactly the tin-can silhouette in the screenshots. The
+  // platform is now AT the cone surface: the mountain truncates
+  // where the path arrives, like the reference. Everything —
+  // collision, path shelves, overlay, cap mesh — derives from this
+  // one constant, so it cannot desynchronise.
+  const SUMMIT_H = PEAK_HEIGHT * (1 - SUMMIT_R / PEAK_BASE_R);   // 28.8m
   // Path entry angle (peak-local, radians). Points roughly TOWARD
   // the wreck so the path mouth is visible from the player's spawn
   // position. Wreck at world (8,-2), peak at (-60,30), so the
@@ -1352,7 +1365,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     const dz = z - PEAK_CENTER_Z;
     const r  = Math.sqrt(dx*dx + dz*dz);
     if (r >= PEAK_BASE_R) return 0;
-    if (r <= SUMMIT_R)    return PEAK_HEIGHT;
+    if (r <= SUMMIT_R)    return SUMMIT_H;
     const cone = PEAK_HEIGHT * (1 - r / PEAK_BASE_R);
     const q = peakPathQuery(r, Math.atan2(dz, dx));
     if (q.dist <= PATH_WIDTH * 0.5) {
@@ -1384,7 +1397,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     // broken parapet blocks — some above the deck, some crumbled
     // below it. Vertex layout: [centre, capA, capB, rim, body×RINGS],
     // every ring SEGS wide, so one uniform quad loop stitches all.
-    positions.push(0.35, PEAK_HEIGHT + 0.15, -0.5);   // centre — near-flat, slightly proud
+    positions.push(0.35, SUMMIT_H + 0.15, -0.5);   // centre — near-flat, slightly proud
     const capRings = [
       { r: SUMMIT_R * 0.45, hJ: 0.30, rJ: 0.45, seed: 860 },
       { r: SUMMIT_R * 0.80, hJ: 0.35, rJ: 0.55, seed: 880 },
@@ -1394,7 +1407,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
         const a = (i / SEGS) * Math.PI * 2
                 + (rng(cap.seed * 3 + i) - 0.5) * (Math.PI * 2 / SEGS) * 0.35;
         const r_v = cap.r + (rng(cap.seed + i) - 0.5) * 2 * cap.rJ;
-        const h_v = PEAK_HEIGHT + (rng(cap.seed + 40 + i) - 0.5) * 2 * cap.hJ;
+        const h_v = SUMMIT_H + (rng(cap.seed + 40 + i) - 0.5) * 2 * cap.hJ;
         positions.push(Math.cos(a) * r_v, h_v, Math.sin(a) * r_v);
       }
     }
@@ -1409,16 +1422,14 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
         const a = (i / SEGS) * Math.PI * 2 + aJit;
         let r_v, h_v;
         if (ring === 0) {
-          // Apex ring — rough cylindrical edge. Independent radial
-          // (±1.5m) and height (around PEAK_HEIGHT, ±1.5m) jitter
-          // per vertex. peakHeight at r ≤ SUMMIT_R returns the flat
-          // PEAK_HEIGHT for collision, but the visible mesh is
-          // chunky and asymmetric. The player walks on the flat
-          // collision surface; mostly the cap pokes above it.
-          const rJit = (rng(i + 800) - 0.5) * 3.0;
-          const hJit = (rng(i + 820) - 0.5) * 3.0;
-          r_v = Math.max(4.0, SUMMIT_R + rJit);
-          h_v = PEAK_HEIGHT + 0.4 + hJit;
+          // Summit rim — low broken blocks around the platform edge.
+          // The old ±1.5m height jitter produced shark-tooth spikes;
+          // rim blocks now rise at most ~1.0m proud of the deck and
+          // dip ~0.6m into it, with modest radial breakup.
+          const rJit = (rng(i + 800) - 0.5) * 2.0;
+          const hJit = rng(i + 820) * 1.0 - 0.4;
+          r_v = Math.max(5.0, SUMMIT_R + rJit);
+          h_v = SUMMIT_H + 0.2 + hJit;
         } else {
           r_v = r_base;
           let a_use = a;
@@ -2292,61 +2303,23 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     }
 
     // ============================================================
-    // SEATED ASTRONAUT — live clone.
+    // SEATED ASTRONAUT — deliberately EMPTY again.
     //
-    // History: two earlier attempts failed. (1) SkeletonUtils clone
-    // with bone rotations applied BY HAND for a seated pose —
-    // stalled on Mixamo's local-axis conventions. (2) Primitive box
-    // figure — read poorly. The plan became "external Blender pose".
+    // The seated clone (SkeletonUtils + frozen Crouch_Loop) worked
+    // but read wrong: the crouch is a walk frame, not a sit. With
+    // the canopy now mirror-opaque, nothing inside is visible during
+    // flight anyway, so the honest move is an empty group. The
+    // boarding animation walks the astronaut in and hides him; the
+    // glass hides the rest. The existing boarding/exit visibility
+    // toggles on flyer.userData.seatedAstronaut remain harmless
+    // no-ops against this stub, exactly as they were originally.
     //
-    // This version sidesteps the old failure entirely: the GLB
-    // carries a Crouch_Loop CLIP, so the pose comes from the
-    // animation system (which owns the axis conventions), not from
-    // manual bone math. A SkeletonUtils clone gets its own mixer,
-    // plays Crouch_Loop, and sits at the left seat. The existing
-    // boarding/exit code toggles .visible on
-    // flyer.userData.seatedAstronaut and needs no changes.
-    //
-    // Tunables for the screenshot loop:
-    //   SEATED_LOCAL — position in flyer space. y drops the crouch
-    //     onto the seat pan (seat top ≈ 1.03 local); z shifts him
-    //     forward off the seat back.
-    //   SEATED_YAW — facing. Seats face +Z.
+    // If a true Blender-posed sit ever arrives as a GLB, it wires
+    // in here.
     // ============================================================
     {
-      const SEATED_LOCAL = { x: -0.40, y: 0.72, z: 0.18 };
-      const SEATED_YAW   = 0;
       const seatedRoot = new THREE.Group();
       seatedRoot.visible = false;
-      if (typeof THREE.SkeletonUtils !== 'undefined') {
-        const seatedClone = THREE.SkeletonUtils.clone(gltf.scene);
-        seatedClone.traverse(o => {
-          if (o.isMesh || o.isSkinnedMesh) { o.castShadow = true; o.frustumCulled = false; }
-        });
-        seatedClone.rotation.y = -Math.PI / 2;   // same pre-rotation as the walking rig
-        seatedRoot.add(seatedClone);
-        seatedRoot.scale.setScalar(0.5);
-        seatedRoot.position.set(SEATED_LOCAL.x, SEATED_LOCAL.y, SEATED_LOCAL.z);
-        seatedRoot.rotation.y = SEATED_YAW;
-        // Independent mixer — the walking rig's mixer must not drive
-        // these bones. Crouch_Loop poses him; the slow loop reads as
-        // a pilot shifting in his seat.
-        // Crouch_Loop is a crouch WALK — played live it pantomimes a
-        // slow-motion hike in the seat. Freeze it instead: advance to
-        // a mid-stride frame where the legs read as bent-and-seated,
-        // then pause. The mixer keeps running but a paused action
-        // never advances, so the pose is a statue.
-        seatedMixer = new THREE.AnimationMixer(seatedClone);
-        const crouch = gltf.animations.find(c => c.name === 'Crouch_Loop');
-        if (crouch) {
-          const act = seatedMixer.clipAction(crouch);
-          act.play();
-          seatedMixer.update(0.35);   // advance to the pose frame
-          act.paused = true;
-        }
-      } else {
-        console.warn('[flyer] SkeletonUtils unavailable — seat stays empty');
-      }
       flyer.add(seatedRoot);
       flyer.userData.seatedAstronaut = seatedRoot;
     }
@@ -3521,19 +3494,14 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       flyerState.vel.y += 6.5 * dt;
       spawnFlyerThrust();
     }
-    // Camera-relative forward/right vectors (horizontal plane).
-    // camR is computed as a 90° CW rotation of camFwd around Y, giving
-    // camera's RIGHT vector in world space. Earlier versions had the
-    // sign inverted, which made strafe controls feel reversed.
-    camera.getWorldDirection(_camDir);
-    let camFx = _camDir.x, camFz = _camDir.z;
-    let camLen = Math.hypot(camFx, camFz);
-    if (camLen < 0.05) {
-      camFx = Math.sin(flyerState.heading);
-      camFz = Math.cos(flyerState.heading);
-    } else {
-      camFx /= camLen; camFz /= camLen;
-    }
+    // ── Thrust frame: HEADING-relative, not camera-relative ──
+    // Movement used camera.getWorldDirection, so W pushed wherever
+    // the chase camera pointed mid-lerp — sideways components
+    // appeared from nowhere while the camera settled. Forward is
+    // now the craft's own nose. What the player sees is what the
+    // thrusters do.
+    const camFx = Math.sin(flyerState.heading);
+    const camFz = Math.cos(flyerState.heading);
     const camRx = camFz, camRz = -camFx;
 
     const terrainY = shackletonScene.getGroundY(flyerState.pos.x, flyerState.pos.z);
@@ -3571,11 +3539,22 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       flyerState.vel.x *= grip;
       flyerState.vel.z *= grip;
     }
-    // Horizontal acceleration is much higher than the lander demo —
-    // this craft is meant to be fast and nippy, not graceful.
     if (airborne) {
-      flyerState.vel.x += (camFx * flyerInput.forward + camRx * flyerInput.strafe) * 12.0 * dt;
-      flyerState.vel.z += (camFz * flyerInput.forward + camRz * flyerInput.strafe) * 12.0 * dt;
+      // Mild horizontal air drag (half-life ~0.8s). Without it,
+      // any acquired sideways velocity persisted forever — the
+      // craft slid eternally under a purely vertical burn, which
+      // read as "lateral thrust from the main thruster". There is
+      // no atmosphere on the Moon; there is also no fun in a craft
+      // that never stops sliding. Feel wins.
+      const drag = Math.pow(0.5, dt * 0.9);
+      flyerState.vel.x *= drag;
+      flyerState.vel.z *= drag;
+      // Strafe accel reduced 12→5: on mobile the arrow buttons are
+      // the ONLY steering, and at 12 every turn launched the craft
+      // sideways. The force-torque coupling stays (it's good), but
+      // turning now dominates sliding.
+      flyerState.vel.x += (camFx * flyerInput.forward * 12.0 + camRx * flyerInput.strafe * 5.0) * dt;
+      flyerState.vel.z += (camFz * flyerInput.forward * 12.0 + camRz * flyerInput.strafe * 5.0) * dt;
     }
 
     // Heading: Q/E for pure fast yaw (3.5 rad/s) — diagonal thruster
@@ -3587,7 +3566,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     // produces visible left rotation. The opposite sign was producing
     // an inverted feel relative to the lateral push direction.
     flyerState.heading -= flyerInput.rotate * 3.5 * dt;
-    flyerState.heading -= flyerInput.strafe * 2.4 * dt;
+    flyerState.heading -= flyerInput.strafe * 2.8 * dt;   // up from 2.4 — arrows now turn more than they slide
 
     // Integrate position
     flyerState.pos.addScaledVector(flyerState.vel, dt);
@@ -5788,16 +5767,20 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     // Tunables: CANOPY_C (centre), CANOPY_R + the scale triplet.
     // ============================================================
     {
-      const CANOPY_C = { x: 0, y: seatY + 0.10, z: seatZ + 0.10 };
-      const CANOPY_R = 1.15;
+      const CANOPY_C = { x: 0, y: seatY + 0.25, z: seatZ + 0.10 };
+      const CANOPY_R = 1.75;                   // 50% over the v0.2.7 dome the feedback was judged on
       const glassMat = new THREE.MeshPhongMaterial({
-        color: 0x8fb4cc,
+        // Dark visor glass: near-black smoked dome, hard white sun
+        // glint. Nothing inside resolves; the glint is the entire
+        // "reflection" story, and against the dark shell it reads
+        // strongly.
+        color: 0x10141c,
         specular: 0xffffff,
-        shininess: 120,
+        shininess: 240,
         transparent: true,
-        opacity: 0.28,
+        opacity: 0.92,
         side: THREE.DoubleSide,
-        depthWrite: false        // seated pilot + seats stay visible through it
+        depthWrite: false
       });
       // Sphere cut just below its equator so the dome walls drop
       // slightly past the seat line before the chassis swallows them.
@@ -5806,7 +5789,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
         glassMat
       );
       canopy.position.set(CANOPY_C.x, CANOPY_C.y, CANOPY_C.z);
-      canopy.scale.set(1.0, 0.9, 1.25);      // wider than tall, longer than wide
+      canopy.scale.set(1.0, 1.0, 1.25);        // taller than before, longer than wide
       chassis.add(canopy);
 
       // Frame ribs — two meridians and a rim, dark like the tubework.
