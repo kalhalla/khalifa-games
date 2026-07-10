@@ -525,7 +525,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.3.0';  // pilot with tracking head, flat summit cap, lift bells, ground wash
+  const BUILD_VERSION = 'v0.3.1';  // authored wreck GLB with torn edges, panel character, bent nose
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -9878,6 +9878,42 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // descended in over 35s). Robots and crates are visible from frame 0
   // (was: hidden until robot_emerge phase).
   starship.position.set(8, cine.landY + WRECK_LIFT, -2);
+
+  // ── WRECK GLB SWAP ──
+  // The procedural hull hit its ceiling: torn metal edges, per-panel
+  // colour character, and a crumpled nose need authored geometry.
+  // /assets/wreck.glb is built offline (gen_wreck.py) in the SAME
+  // local frame as the procedural group (hull axis +Y, y 0-14,
+  // R 2.2), so parenting it INSIDE the starship group inherits the
+  // lying-down rotation, WRECK_SCALE, lift, and any registry moves
+  // automatically. Colliders, ramp, debris, and the refill panel are
+  // world-anchored outside the group — untouched. On any load
+  // failure the procedural hull simply stays visible.
+  (function loadWreckGLB() {
+    const loader = new THREE.GLTFLoader();
+    loader.load('/assets/wreck.glb', (gltf) => {
+      const wreckMat = new THREE.MeshPhongMaterial({
+        shininess: 0,
+        flatShading: true,
+        vertexColors: true,
+        side: THREE.DoubleSide
+      });
+      gltf.scene.traverse(o => {
+        if (o.isMesh) {
+          o.material = wreckMat;
+          o.castShadow = true;
+          o.receiveShadow = true;
+        }
+      });
+      // Hide every procedural child, then add the GLB as a sibling
+      // inside the same group/frame.
+      for (const child of starship.children) child.visible = false;
+      starship.add(gltf.scene);
+      console.log('[wreck] GLB loaded — procedural hull replaced');
+    }, undefined, (err) => {
+      console.warn('[wreck] GLB unavailable, procedural hull retained:', err);
+    });
+  })();
   groundClampLanderFeet(starship);
   // (Robots and crates default-visible — no longer hidden at boot.)
 
