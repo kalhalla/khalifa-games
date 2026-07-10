@@ -525,7 +525,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.3.1';  // authored wreck GLB with torn edges, panel character, bent nose
+  const BUILD_VERSION = 'v0.3.2';  // O2 tanks, lunar lope, footstep dust, lower jump, extended flight
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -2393,8 +2393,13 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     if (activeAction === animClips[name]) return;
     const next = animClips[name];
     if (activeAction) activeAction.fadeOut(ANIM_FADE);
+    // Gait clips run at 0.78× — the Apollo-footage look is normal
+    // physics under slow-cycling limbs. The body covers ground at
+    // full speed while the legs lope, which reads as low gravity
+    // without touching the movement maths.
+    const ts = (name === 'Walk_Loop' || name === 'Run_Loop') ? 0.78 : 1;
     next.reset()
-        .setEffectiveTimeScale(1)
+        .setEffectiveTimeScale(ts)
         .setEffectiveWeight(1)
         .fadeIn(ANIM_FADE)
         .play();
@@ -2418,7 +2423,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   const ACCEL_GROUND = 12;       // m/s² horizontal accel when on ground
   const ACCEL_AIR = 4;           // m/s² horizontal accel when airborne (limited)
   const GRIP = 8;                // friction coefficient when on ground with no input
-  const JUMP_VELOCITY = 4.2;     // initial vertical velocity at jump
+  const JUMP_VELOCITY = 3.0;     // apex ≈ 2.8m — was 4.2 (5.4m), which read as a moonshot
   const TURN_SPEED = 7;          // how fast astronaut turns to face movement direction
   const PLAYER_HEIGHT = 1.7;     // collision capsule height
   const RUN_THRESHOLD = 3.2;     // velocity threshold for run animation
@@ -4655,6 +4660,11 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       footstepTimer -= cadence;
       sndFootstep(speed);
       spawnFootprint();
+      // Every step kicks regolith — 2-4 motes at the feet, more when
+      // running. On the Moon dust doesn't billow, it ballistic-hops,
+      // which the existing dust physics already does.
+      spawnDust(player.pos.x, player.pos.y + 0.08, player.pos.z,
+                2 + Math.floor(speed * 0.5));
     }
   }
   function sndFootstep(speed) {
@@ -6713,9 +6723,9 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // Foot-pad bottom in local frame — used for ground-clamping
   const FLYER_FOOT_OFFSET = 1.15;
   // World cap on altitude (above crater rim)
-  const FLYER_MAX_ALT = 80;
+  const FLYER_MAX_ALT = 140;   // enough to crest the rim with margin
   // Soft world-radius bound to keep the player inside the crater area
-  const FLYER_MAX_RADIUS = 250;
+  const FLYER_MAX_RADIUS = 460;   // over the rim and out across the backdrop terrain
 
   // Cycle schedule — three FLYER-part crates emerge during the
   // opening cinematic, one per robot, with staggered starts so they
@@ -8458,6 +8468,72 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     const footMat = new THREE.MeshPhongMaterial({
       shininess: 0, color: 0x2c2e34, flatShading: true
     });
+
+    // ── OXYGEN CYLINDERS ──
+    // The station reads as an oxygen station now: two tall tanks
+    // behind the control pillar, domed tops, valve handwheels, and
+    // a feed hose arcing from the tank manifold into the pillar.
+    {
+      const tankMat = new THREE.MeshPhongMaterial({
+        shininess: 0, color: 0x9fb8ad, flatShading: true   // pale med-gas green
+      });
+      const steelMat = new THREE.MeshPhongMaterial({
+        shininess: 0, color: 0x3a3d44, flatShading: true
+      });
+      for (const [tx, h] of [[-0.30, 1.55], [0.30, 1.35]]) {
+        const tank = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.26, 0.26, h, 10), tankMat
+        );
+        tank.position.set(tx, h / 2, -0.55);
+        tank.castShadow = true; tank.receiveShadow = true;
+        g.add(tank);
+        const dome = new THREE.Mesh(
+          new THREE.SphereGeometry(0.26, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2),
+          tankMat
+        );
+        dome.position.set(tx, h, -0.55);
+        dome.castShadow = true;
+        g.add(dome);
+        // Neck + valve body
+        const neck = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.06, 0.06, 0.16, 8), steelMat
+        );
+        neck.position.set(tx, h + 0.26, -0.55);
+        g.add(neck);
+        // Handwheel — torus with three spokes
+        const wheel = new THREE.Mesh(
+          new THREE.TorusGeometry(0.11, 0.022, 6, 12), accentMat
+        );
+        wheel.position.set(tx, h + 0.36, -0.55);
+        wheel.rotation.x = Math.PI / 2;
+        g.add(wheel);
+        for (let s = 0; s < 3; s++) {
+          const spoke = new THREE.Mesh(
+            new THREE.BoxGeometry(0.20, 0.018, 0.018), accentMat
+          );
+          spoke.position.set(tx, h + 0.36, -0.55);
+          spoke.rotation.y = s * Math.PI / 3;
+          g.add(spoke);
+        }
+      }
+      // Manifold bar joining the two necks
+      const manifold = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.035, 0.035, 0.68, 6), steelMat
+      );
+      manifold.rotation.z = Math.PI / 2;
+      manifold.position.set(0, 1.30, -0.55);
+      g.add(manifold);
+      // Feed hose — tube arcing from the manifold into the pillar top
+      const hoseCurve = new THREE.QuadraticBezierCurve3(
+        new THREE.Vector3(0, 1.30, -0.55),
+        new THREE.Vector3(0, 1.45, -0.25),
+        new THREE.Vector3(0, 0.95, 0.0)
+      );
+      const hose = new THREE.Mesh(
+        new THREE.TubeGeometry(hoseCurve, 10, 0.035, 6, false), steelMat
+      );
+      g.add(hose);
+    }
     for (const fx of [-0.22, 0.22]) {
       const f = new THREE.Mesh(
         new THREE.BoxGeometry(0.10, 0.08, 0.42), footMat
