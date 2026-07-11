@@ -525,7 +525,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.3.2';  // O2 tanks, lunar lope, footstep dust, lower jump, extended flight
+  const BUILD_VERSION = 'v0.3.3';  // step-pause-step lope oscillator, robot storyboard detail pass
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -2496,7 +2496,32 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     const inMag = Math.hypot(inX, inZ);
     if (inMag > 1) { inX /= inMag; inZ /= inMag; }
 
-    const targetSpeed = input.run ? RUN_SPEED : WALK_SPEED;
+    // ── LUNAR LOPE OSCILLATOR ──
+    // A constant timescale reads as slow motion, not as a lope. The
+    // real gait is step-PAUSE-step: a push phase where everything
+    // happens at once, then a floaty gather where almost nothing
+    // does. One phase clock drives three things in lockstep:
+    //   1. targetSpeed pulses (fast in the push, slow in the gather)
+    //   2. the gait clip's timescale pulses the same way, so the
+    //      legs swing hard during the push and hang during the pause
+    //   3. a small root bob lifts the body through each push
+    // The pulse is a sharpened positive half-sine: ~45% of the cycle
+    // is push, the rest is the pause.
+    const gaitMoving = player.grounded && jumpPhase === null;
+    if (gaitMoving) {
+      const cyc = input.run ? 0.58 : 0.85;            // seconds per stride
+      gaitPhase += dt * (Math.PI * 2) / cyc;
+      gaitPulse = Math.pow(Math.max(0, Math.sin(gaitPhase)), 1.6);
+    } else {
+      gaitPulse += (1 - gaitPulse) * Math.min(1, dt * 6);  // relax to neutral
+    }
+    const gaitMult = gaitMoving ? (0.45 + 0.95 * gaitPulse) : 1;
+    if (activeAction && gaitMoving &&
+        (activeAction === animClips['Walk_Loop'] || activeAction === animClips['Run_Loop'])) {
+      activeAction.setEffectiveTimeScale(0.35 + 0.9 * gaitPulse);
+    }
+
+    const targetSpeed = (input.run ? RUN_SPEED : WALK_SPEED) * gaitMult;
     const accel = player.grounded ? ACCEL_GROUND : ACCEL_AIR;
 
     // Slope check — sample the local gradient via finite differences
@@ -2766,6 +2791,13 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     // Update model position + rotation
     if (astronautRoot) {
       astronautRoot.position.copy(player.pos);
+      // Lope bob — the body lifts ~7cm through each push and settles
+      // through the pause. Visual only; player.pos and collision are
+      // untouched.
+      const spdNow = Math.hypot(player.vel.x, player.vel.z);
+      if (player.grounded && spdNow > 0.4) {
+        astronautRoot.position.y += 0.07 * gaitPulse;
+      }
       astronautRoot.rotation.y = player.heading;
     }
 
@@ -3343,6 +3375,8 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // the ground (vacuum), just the soft "shhh" of suit fabric compressing
   // and life-support fluid shifting. Very quiet, very low, very brief.
   let footstepTimer = 0;
+  let gaitPhase = 0;      // lunar lope clock — drives speed pulse, clip rate, bob
+  let gaitPulse = 1;      // shaped 0..1 push intensity
   // ============================================================
   // FOOTPRINTS — every footstep drops a textured plane at the foot's
   // ground position. Pooled (cap 400) and recycled oldest-first so
@@ -5487,6 +5521,86 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       armPivots.push(pivot);
       elbowPivots.push(elbowPivot);
       fingerPivots.push({ f1: f1Pivot, f2: f2Pivot, thumb: thumbPivot, sign });
+    }
+
+    // ── STORYBOARD DETAIL PASS ──
+    // Surface density to match the concept art, applied to the SAME
+    // articulated skeleton — the storyboard gap was never structure,
+    // it was bolts-per-square-metre. Everything parents to bodyGroup
+    // so it bobs and turns with the body.
+    {
+      // Corner bolts — six per front/back face edge region.
+      const boltGeom = new THREE.CylinderGeometry(0.014, 0.014, 0.02, 6);
+      for (const bz of [FRONT_Z, -FRONT_Z]) {
+        for (const [bx, by] of [[-0.15, 0.50], [0.15, 0.50],
+                                 [-0.19, 0.30], [0.19, 0.30],
+                                 [-0.22, 0.10], [0.22, 0.10]]) {
+          const bolt = new THREE.Mesh(boltGeom, boltMat);
+          bolt.rotation.x = Math.PI / 2;
+          bolt.position.set(bx, by, bz + Math.sign(bz) * 0.005);
+          bodyGroup.add(bolt);
+        }
+      }
+      // Eye visor recess — dark plate behind the eye region with a
+      // raised rim, so the eyes sit IN something instead of ON it.
+      const visor = new THREE.Mesh(
+        new THREE.BoxGeometry(0.30, 0.13, 0.015), veryDarkMat
+      );
+      visor.position.set(0, 0.435, FRONT_Z + 0.002);
+      bodyGroup.add(visor);
+      const visorRim = new THREE.Mesh(
+        new THREE.BoxGeometry(0.33, 0.16, 0.012), darkMat
+      );
+      visorRim.position.set(0, 0.435, FRONT_Z - 0.004);
+      bodyGroup.add(visorRim);
+      // Antenna — thin mast with accent tip, offset on the top inset.
+      const mast = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.008, 0.008, 0.34, 5), darkMat
+      );
+      mast.position.set(0.12, 0.78, -0.06);
+      bodyGroup.add(mast);
+      const mastTip = new THREE.Mesh(
+        new THREE.SphereGeometry(0.02, 6, 5), eyeMat
+      );
+      mastTip.position.set(0.12, 0.96, -0.06);
+      bodyGroup.add(mastTip);
+      // Back tank — horizontal cylinder with end caps and a strap.
+      const tank = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.085, 0.085, 0.30, 8), accentMat
+      );
+      tank.rotation.z = Math.PI / 2;
+      tank.position.set(0, 0.42, -FRONT_Z - 0.075);
+      bodyGroup.add(tank);
+      for (const cx of [-0.155, 0.155]) {
+        const cap = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.055, 0.085, 0.03, 8), darkMat
+        );
+        cap.rotation.z = Math.PI / 2;
+        cap.position.set(cx, 0.42, -FRONT_Z - 0.075);
+        bodyGroup.add(cap);
+      }
+      const strap = new THREE.Mesh(
+        new THREE.BoxGeometry(0.035, 0.19, 0.02), darkMat
+      );
+      strap.position.set(0, 0.42, -FRONT_Z - 0.005);
+      bodyGroup.add(strap);
+      // Side vent grille — three slats on the right flank.
+      for (let sv = 0; sv < 3; sv++) {
+        const slat = new THREE.Mesh(
+          new THREE.BoxGeometry(0.012, 0.028, 0.16), veryDarkMat
+        );
+        slat.position.set(0.225, 0.40 - sv * 0.055, 0.02);
+        bodyGroup.add(slat);
+      }
+      // Front edge trim — two accent strips down the tapering edges.
+      for (const tx of [-1, 1]) {
+        const trim = new THREE.Mesh(
+          new THREE.BoxGeometry(0.022, 0.52, 0.022), accentMat
+        );
+        trim.position.set(tx * 0.205, 0.30, FRONT_Z - 0.03);
+        trim.rotation.z = tx * -0.115;   // follow the body taper
+        bodyGroup.add(trim);
+      }
     }
 
     g.userData = { bodyGroup, legPivots, shinAssemblies, footPivots, toeDropPivots, armPivots, elbowPivots, fingerPivots };
