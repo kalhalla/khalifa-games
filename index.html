@@ -3,544 +3,1325 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>Khalifa — Telegram mini-app games for crypto communities</title>
+<title>Khalifa Games — Three.js games that run in the browser</title>
 
-<meta name="description" content="I build Telegram mini-app games for crypto communities — candle-prediction, idle mining, narrative sims. I reskin a live one for your community in 5 days: your brand, your token as the points, Telegram Stars payments wired in." />
-<!-- Link preview. Add an og:image (1200x630) when you have one and point og:url to your final domain. -->
+<meta name="description" content="I build Three.js games that run right in the browser. No installs, no engines, no launchers. Fly a glider, jump a canyon, win the league, walk on the Moon — just press play." />
 <meta property="og:type" content="website" />
-<meta property="og:title" content="Khalifa — Telegram mini-app games" />
-<meta property="og:description" content="Reskin a live Telegram game for your community in 5 days. Your brand. Your token as the points. Stars payments working." />
+<meta property="og:title" content="Khalifa Games — browser games built with Three.js" />
+<meta property="og:description" content="Four worlds, one browser. Glider, Stuntmania '76, Fitba Crazy and Shackleton — no install, just press play." />
 <meta property="og:url" content="https://khalifa.games/" />
-<meta name="twitter:card" content="summary" />
-<meta name="twitter:title" content="Khalifa — Telegram mini-app games" />
-<meta name="twitter:description" content="Reskin a live Telegram game for your community in 5 days. Your brand. Your token as the points." />
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230a160f'/%3E%3Crect x='14.4' y='4' width='3.2' height='24' fill='%232ee86a'/%3E%3Crect x='10.5' y='10' width='11' height='12' rx='1.5' fill='%232ee86a'/%3E%3C/svg%3E" />
+<meta property="og:image" content="https://khalifa.games/glider/title.png" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Khalifa Games — browser games built with Three.js" />
+<meta name="twitter:description" content="Four worlds, one browser. No install, just press play." />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b1030'/%3E%3Cpath d='M5 20 L27 8 L17 24 L14.5 17.5 Z' fill='%23ffb84d'/%3E%3C/svg%3E" />
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Anton&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bungee&family=Space+Grotesk:wght@400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 
 <style>
   :root {
-    --bg:    #07100b;
-    --panel: #0c1a12;
-    --panel2:#0a1610;
-    --ink:   #e9f2ec;
-    --muted: #7d9787;
-    --line:  rgba(120,180,140,0.14);
-    --line2: rgba(120,180,140,0.30);
-    --green: #2ee86a;
-    --green-d:#1c9a48;
-    --red:   #ff5a5f;
-    --tg:    #2aabee;
-    --gold:  #f5c451;
-    --maxw: 1080px;
+    --sky-hi:  #070a1e;
+    --sky-lo:  #221244;
+    --ink:     #f3f0e8;
+    --muted:   #9aa3c7;
+    --amber:   #ffb84d;
+    --line:    rgba(154,163,199,0.22);
+    --panelbg: rgba(9,12,32,0.82);
+    --c-glider: #7fd4ff;
+    --c-stunt:  #ff8a3d;
+    --c-fitba:  #59e07a;
+    --c-moon:   #b9c4d6;
   }
   * { box-sizing: border-box; }
-  html { scroll-behavior: smooth; }
+  html, body { height: 100%; }
   body {
     margin: 0;
-    background: var(--bg);
     color: var(--ink);
-    font-family: "Space Mono", ui-monospace, monospace;
+    font-family: "Space Grotesk", system-ui, sans-serif;
     font-size: 15px;
-    line-height: 1.65;
-    -webkit-font-smoothing: antialiased;
+    line-height: 1.6;
+    background:
+      radial-gradient(900px 480px at 78% 108%, rgba(255,184,77,0.14), transparent 60%),
+      linear-gradient(180deg, var(--sky-hi) 0%, #10123a 55%, var(--sky-lo) 100%);
     overflow-x: hidden;
-    /* faint grid + a green glow up top */
-    background-image:
-      radial-gradient(1200px 520px at 70% -8%, rgba(46,232,106,0.10), transparent 60%),
-      linear-gradient(var(--line) 1px, transparent 1px),
-      linear-gradient(90deg, var(--line) 1px, transparent 1px);
-    background-size: 100% 100%, 46px 46px, 46px 46px;
-    background-position: 0 0, 0 0, 0 0;
+    -webkit-font-smoothing: antialiased;
   }
-  a { color: inherit; text-decoration: none; }
-  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 22px; }
+  a { color: inherit; }
+  button { font-family: inherit; }
 
-  /* ---------- buttons ---------- */
-  .btn {
-    display: inline-flex; align-items: center; gap: 8px;
-    font-family: inherit; font-size: 14px; font-weight: 700;
-    letter-spacing: 0.04em;
-    padding: 12px 18px;
-    border: 1.5px solid var(--line2);
-    border-radius: 4px;
+  /* ---------- three.js canvas ---------- */
+  #scene {
+    position: fixed; inset: 0;
+    width: 100%; height: 100%;
+    display: block;
+    touch-action: none;
+    cursor: grab;
+  }
+  #scene.dragging { cursor: grabbing; }
+  body:not(.webgl) #scene { display: none; }
+
+  /* ---------- HUD ---------- */
+  #hud { display: none; }
+  body.webgl #hud { display: block; }
+
+  .hud-top {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 20;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px clamp(16px, 3vw, 28px);
+    pointer-events: none;
+  }
+  .brand {
+    pointer-events: auto;
+    display: inline-flex; align-items: baseline; gap: 10px;
+    text-decoration: none;
+  }
+  .brand .word {
+    font-family: "Bungee", sans-serif;
+    font-size: 17px; letter-spacing: 0.05em;
     color: var(--ink);
-    background: transparent;
+    text-shadow: 0 2px 18px rgba(0,0,0,0.6);
+  }
+  .brand .word em { font-style: normal; color: var(--amber); }
+  .hud-top .dm {
+    pointer-events: auto;
+    font-family: "Space Mono", monospace; font-size: 12px; font-weight: 700;
+    letter-spacing: 0.1em; text-decoration: none;
+    color: var(--ink);
+    border: 1.5px solid var(--line); border-radius: 4px;
+    padding: 9px 14px;
+    background: rgba(7,10,30,0.55);
+    backdrop-filter: blur(6px);
+    transition: border-color .15s ease, transform .12s ease;
+  }
+  .hud-top .dm:hover { border-color: var(--amber); transform: translateY(-1px); }
+
+  /* intro card */
+  #intro {
+    position: fixed; z-index: 15;
+    left: 50%; top: 40%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    pointer-events: none;
+    transition: opacity .5s ease, transform .5s ease;
+    max-width: min(92vw, 720px);
+  }
+  #intro.gone { opacity: 0; transform: translate(-50%, -56%); }
+  #intro h1 {
+    font-family: "Bungee", sans-serif; font-weight: 400;
+    font-size: clamp(34px, 7.5vw, 76px);
+    line-height: 1.02; margin: 0 0 14px;
+    letter-spacing: 0.02em;
+    text-shadow: 0 4px 30px rgba(0,0,0,0.75);
+  }
+  #intro h1 em { font-style: normal; color: var(--amber); }
+  #intro p {
+    margin: 0; color: #cfd6ef;
+    font-size: clamp(14px, 1.8vw, 17px);
+    text-shadow: 0 2px 14px rgba(0,0,0,0.7);
+  }
+  #intro .press {
+    display: inline-block; margin-top: 22px;
+    font-family: "Space Mono", monospace; font-size: 12.5px; font-weight: 700;
+    letter-spacing: 0.22em; color: var(--amber);
+    animation: pressblink 1.4s steps(1) infinite;
+  }
+  @keyframes pressblink { 0%,60% { opacity: 1; } 60.01%,100% { opacity: 0.15; } }
+
+  /* island name tags (projected into the scene) */
+  .tag {
+    position: fixed; z-index: 12;
+    transform: translate(-50%, -100%);
+    font-family: "Space Mono", monospace; font-size: 12px; font-weight: 700;
+    letter-spacing: 0.12em;
+    color: var(--ink);
+    background: rgba(7,10,30,0.62);
+    border: 1.5px solid var(--tagc, var(--line));
+    border-radius: 4px;
+    padding: 7px 12px;
     cursor: pointer;
-    transition: transform .12s ease, border-color .15s ease, background .15s ease, box-shadow .15s ease;
+    white-space: nowrap;
+    backdrop-filter: blur(4px);
+    transition: background .15s ease;
+  }
+  .tag::after {
+    content: ""; position: absolute; left: 50%; top: 100%;
+    width: 1.5px; height: 12px; background: var(--tagc, var(--line));
+  }
+  .tag:hover, .tag.active { background: rgba(20,26,60,0.9); }
+  .tag .dot { color: var(--tagc, var(--amber)); margin-right: 7px; }
+  .tag.hidden { display: none; }
+
+  /* world selector */
+  #selector {
+    position: fixed; z-index: 20;
+    left: 50%; bottom: max(16px, env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;
+    padding: 8px;
+    border: 1px solid var(--line); border-radius: 8px;
+    background: rgba(7,10,30,0.6);
+    backdrop-filter: blur(8px);
+    max-width: calc(100vw - 24px);
+  }
+  #selector button {
+    font-family: "Space Mono", monospace; font-size: 11.5px; font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    background: transparent; border: 1.5px solid transparent; border-radius: 5px;
+    padding: 8px 12px; cursor: pointer;
+    transition: color .15s ease, border-color .15s ease;
+  }
+  #selector button .dot { color: var(--bc, var(--amber)); margin-right: 6px; }
+  #selector button:hover { color: var(--ink); }
+  #selector button.active { color: var(--ink); border-color: var(--bc, var(--line)); }
+  #selector button:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+
+  /* controls hint */
+  #hint {
+    position: fixed; z-index: 18;
+    left: clamp(16px, 3vw, 28px); bottom: max(22px, env(safe-area-inset-bottom));
+    font-family: "Space Mono", monospace; font-size: 11px;
+    letter-spacing: 0.06em; color: var(--muted);
+    text-shadow: 0 2px 10px rgba(0,0,0,0.8);
+    pointer-events: none;
+  }
+  @media (max-width: 900px) { #hint { display: none; } }
+
+  /* game info strip — slim bar above the selector */
+  #panel {
+    position: fixed; z-index: 25;
+    left: 50%; bottom: calc(76px + env(safe-area-inset-bottom));
+    transform: translate(-50%, 14px);
+    display: flex; align-items: center; gap: 16px;
+    width: max-content;
+    max-width: min(880px, calc(100vw - 24px));
+    padding: 12px 14px 12px 20px;
+    background: var(--panelbg);
+    border: 1px solid var(--pc, var(--line));
+    border-radius: 10px;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 18px 50px rgba(0,0,0,0.5);
+    opacity: 0; pointer-events: none;
+    transition: opacity .25s ease, transform .25s ease;
+  }
+  #panel.open { opacity: 1; pointer-events: auto; transform: translate(-50%, 0); }
+  #panel h2 {
+    font-family: "Bungee", sans-serif; font-weight: 400;
+    font-size: 18px; margin: 0; letter-spacing: 0.02em;
+    color: var(--pc, var(--ink));
     white-space: nowrap;
   }
-  .btn:hover { transform: translateY(-2px); }
-  .btn:focus-visible { outline: 2px solid var(--green); outline-offset: 3px; }
-  .btn-tg { background: var(--tg); border-color: var(--tg); color: #04121c; }
-  .btn-tg:hover { box-shadow: 0 8px 26px rgba(42,171,238,0.35); }
-  .btn-green { border-color: var(--green); color: var(--green); }
-  .btn-green:hover { background: rgba(46,232,106,0.12); box-shadow: 0 8px 26px rgba(46,232,106,0.18); }
-  .btn-x:hover { border-color: var(--ink); }
-
-  /* ---------- top bar ---------- */
-  .bar {
-    position: sticky; top: 0; z-index: 50;
-    display: flex; align-items: center; justify-content: space-between;
-    gap: 16px; flex-wrap: wrap;
-    padding: 14px 22px;
-    border-bottom: 1px solid var(--line);
-    background: rgba(7,16,11,0.72);
-    backdrop-filter: blur(10px);
+  #panel p { margin: 0; color: #d3d9ef; font-size: 13.5px; line-height: 1.45; flex: 1; min-width: 0; }
+  .btn-play {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    font-family: "Bungee", sans-serif; font-size: 14px; letter-spacing: 0.04em;
+    text-decoration: none; color: #131022;
+    background: var(--pc, var(--amber));
+    border: none; border-radius: 6px;
+    padding: 11px 20px;
+    white-space: nowrap;
+    transition: transform .12s ease, box-shadow .15s ease;
   }
-  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: 0.14em; font-size: 16px; }
-  .brand-sub { color: var(--muted); font-weight: 400; letter-spacing: 0.06em; font-size: 12px; }
-  .livedot { width: 9px; height: 9px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 0 rgba(46,232,106,0.6); animation: pulse 2.2s infinite; }
-  .bar-right { display: flex; align-items: center; gap: 14px; }
-  .status { color: var(--green); font-size: 12px; letter-spacing: 0.16em; }
-
-  /* ---------- hero ---------- */
-  .hero { position: relative; overflow: hidden; border-bottom: 1px solid var(--line); }
-  .hero-inner { position: relative; z-index: 2; padding: 86px 0 70px; max-width: 760px; }
-  .prompt { color: var(--green); font-size: 13px; letter-spacing: 0.04em; margin: 0 0 26px; opacity: 0; animation: fadeUp .6s ease forwards; }
-  .cursor { display: inline-block; width: 9px; height: 15px; background: var(--green); margin-left: 4px; transform: translateY(2px); animation: blink 1.05s steps(1) infinite; }
-  .h1 {
-    font-family: "Anton", sans-serif; font-weight: 400;
-    font-size: clamp(48px, 9vw, 118px);
-    line-height: 0.92; letter-spacing: 0.005em;
-    margin: 0 0 26px; text-transform: uppercase;
-    opacity: 0; animation: fadeUp .7s ease .08s forwards;
+  .btn-play:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(0,0,0,0.45); }
+  .btn-back {
+    font-family: "Space Mono", monospace; font-size: 11px; font-weight: 700;
+    letter-spacing: 0.08em; color: var(--muted);
+    background: transparent; border: 1.5px solid var(--line); border-radius: 6px;
+    padding: 11px 12px; cursor: pointer;
+    white-space: nowrap;
+    transition: color .15s ease, border-color .15s ease;
   }
-  .h1 .blue { color: var(--tg); }
-  .lede { color: #cdded3; font-size: clamp(15px, 1.9vw, 18px); max-width: 620px; margin: 0 0 30px; opacity: 0; animation: fadeUp .7s ease .16s forwards; }
-  .lede b { color: var(--ink); border-bottom: 2px solid var(--green); }
-  .cta-row { display: flex; gap: 12px; flex-wrap: wrap; opacity: 0; animation: fadeUp .7s ease .24s forwards; }
-
-  /* candlestick chart decoration */
-  .candles {
-    position: absolute; right: 0; top: 0; bottom: 0; width: 52%;
-    display: flex; align-items: stretch; gap: 6px;
-    padding: 40px 24px 56px 0; z-index: 1; opacity: 0.55;
-    pointer-events: none;
-    -webkit-mask-image: linear-gradient(90deg, transparent, #000 55%);
-            mask-image: linear-gradient(90deg, transparent, #000 55%);
+  .btn-back:hover { color: var(--ink); border-color: var(--muted); }
+  @media (max-width: 720px) {
+    #panel { flex-wrap: wrap; gap: 10px 14px; padding: 14px 16px; width: auto; left: 12px; right: 12px; transform: translateY(14px); }
+    #panel.open { transform: translateY(0); }
+    #panel p { flex-basis: 100%; order: 3; }
+    #panel .btn-play { margin-left: auto; }
   }
-  .candle { position: relative; flex: 1; min-width: 0; }
-  .wick { position: absolute; left: 50%; transform: translateX(-50%); width: 2px; }
-  .body { position: absolute; left: 14%; right: 14%; border-radius: 1px; transform-origin: bottom; animation: grow .6s ease both; }
-  .wick.up, .body.up { background: var(--green); }
-  .wick.down, .body.down { background: var(--red); }
 
-  /* ---------- ticker ---------- */
-  .ticker { overflow: hidden; border-bottom: 1px solid var(--line); background: var(--panel2); }
-  .ticker-track { display: inline-flex; white-space: nowrap; padding: 11px 0; animation: marquee 26s linear infinite; }
-  .ticker-track span { font-size: 12.5px; letter-spacing: 0.18em; color: var(--muted); padding: 0 4px; }
-  .ticker-track .sep { color: var(--green); }
-
-  /* ---------- sections ---------- */
-  .sec { padding: 78px 0; border-bottom: 1px solid var(--line); }
-  .sec-head { display: flex; align-items: baseline; gap: 16px; margin-bottom: 36px; }
-  .tag { color: var(--green); font-size: 13px; letter-spacing: 0.1em; }
-  .sec-head h2 { font-family: "Anton", sans-serif; font-weight: 400; text-transform: uppercase; font-size: clamp(28px, 4.4vw, 46px); margin: 0; letter-spacing: 0.01em; }
-
-  /* offer */
-  .offer-grid { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 34px; align-items: start; }
-  .offer-copy p { font-size: 16px; margin: 0 0 22px; }
-  .ticks { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
-  .ticks li { position: relative; padding-left: 26px; color: #d4e3d8; }
-  .ticks li::before { content: "▸"; position: absolute; left: 0; color: var(--green); }
-  .config {
-    font-family: "Space Mono", monospace; font-size: 13.5px; line-height: 1.9;
-    background: linear-gradient(180deg, var(--panel), var(--panel2));
-    border: 1px solid var(--line2); border-radius: 6px;
-    padding: 20px 22px; margin: 0; color: #bfeccd; overflow-x: auto;
-    box-shadow: inset 0 0 60px rgba(46,232,106,0.05);
+  #loading {
+    position: fixed; z-index: 30; left: 50%; bottom: 88px;
+    transform: translateX(-50%);
+    font-family: "Space Mono", monospace; font-size: 11.5px; font-weight: 700;
+    letter-spacing: 0.24em; color: var(--muted);
   }
-  .config .k { color: var(--muted); }
-  .config .v { color: var(--green); }
-  .config .hr { color: var(--line2); }
-  .config .blink { color: var(--green); animation: blink 1.05s steps(1) infinite; }
+  body.webgl #loading, body:not(.js) #loading { display: none; }
 
-  /* games */
-  .games { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
-  .card {
-    border: 1px solid var(--line2); border-radius: 6px;
-    background: linear-gradient(180deg, var(--panel), var(--panel2));
-    padding: 22px; display: flex; flex-direction: column; gap: 14px;
-    transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease;
+  /* ---------- static fallback (no JS / no WebGL / crawlers) ---------- */
+  body.js #static { display: none; }
+  #static { max-width: 1020px; margin: 0 auto; padding: 56px 22px 60px; }
+  #static header { margin-bottom: 40px; }
+  #static h1 {
+    font-family: "Bungee", sans-serif; font-weight: 400;
+    font-size: clamp(34px, 7vw, 64px); line-height: 1.05;
+    margin: 0 0 14px; letter-spacing: 0.02em;
   }
-  .card:hover { transform: translateY(-4px); border-color: var(--green); box-shadow: 0 16px 40px rgba(0,0,0,0.45); }
-  .badge { align-self: flex-start; font-size: 11px; letter-spacing: 0.16em; padding: 4px 9px; border-radius: 3px; border: 1px solid var(--line2); color: var(--muted); }
-  .badge.live { color: var(--green); border-color: var(--green); display: inline-flex; align-items: center; gap: 7px; }
-  .badge.live::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--green); animation: pulse 2.2s infinite; }
-  .card h3 { font-family: "Anton", sans-serif; font-weight: 400; font-size: 27px; letter-spacing: 0.02em; margin: 0; text-transform: uppercase; }
-  .card p { color: #c3d4c8; font-size: 14px; margin: 0; flex: 1; }
-  .chips { display: flex; flex-wrap: wrap; gap: 7px; }
-  .chip { font-size: 11px; letter-spacing: 0.03em; color: var(--muted); border: 1px solid var(--line); border-radius: 3px; padding: 3px 8px; }
-  .chip.tok { color: var(--gold); border-color: rgba(245,196,81,0.3); }
-  .card-link { font-size: 13px; font-weight: 700; color: var(--tg); }
-  .card-link.muted { color: var(--muted); }
-
-  /* steps */
-  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
-  .step { border: 1px solid var(--line); border-radius: 6px; padding: 24px; background: var(--panel2); }
-  .step .num { font-family: "Anton", sans-serif; font-size: 40px; color: var(--green-d); line-height: 1; }
-  .step h4 { font-size: 13px; letter-spacing: 0.18em; color: var(--green); margin: 12px 0 8px; }
-  .step p { color: #c3d4c8; font-size: 14px; margin: 0; }
-
-  /* pricing */
-  .tiers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
-  .tier { border: 1px solid var(--line2); border-radius: 6px; padding: 24px; background: linear-gradient(180deg, var(--panel), var(--panel2)); }
-  .tier .who { font-size: 13px; color: var(--muted); letter-spacing: 0.04em; min-height: 42px; }
-  .tier .price { font-family: "Anton", sans-serif; font-size: 34px; color: var(--green); margin-top: 10px; letter-spacing: 0.01em; }
-  .tier .price small { font-family: "Space Mono", monospace; font-size: 13px; color: var(--muted); font-weight: 400; letter-spacing: 0; }
-  .terms { margin-top: 26px; color: var(--muted); font-size: 13.5px; }
-  .terms b { color: var(--ink); }
-
-  /* final cta */
-  .cta-final { padding: 90px 0; text-align: center; }
-  .cta-final h2 { font-family: "Anton", sans-serif; font-weight: 400; text-transform: uppercase; font-size: clamp(30px, 6vw, 60px); margin: 0 0 14px; }
-  .cta-final p { color: var(--muted); margin: 0 0 28px; font-size: 16px; }
-  .cta-final .cta-row { justify-content: center; }
-
-  /* footer */
-  footer { border-top: 1px solid var(--line); padding: 30px 0 44px; }
-  footer .frow { display: flex; justify-content: space-between; gap: 14px; flex-wrap: wrap; color: var(--muted); font-size: 13px; }
-  footer a { color: var(--ink); }
-  footer .ps { color: var(--muted); }
-  footer .ps a { color: var(--green); border-bottom: 1px solid var(--line2); }
-
-  /* fun / off-the-clock */
-  .fun-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; }
-  .fun-card { border: 1px solid var(--line2); border-radius: 8px; overflow: hidden; background: linear-gradient(180deg, var(--panel), var(--panel2)); transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease; display: flex; flex-direction: column; }
-  .fun-card:hover { transform: translateY(-4px); border-color: var(--green); box-shadow: 0 18px 44px rgba(0,0,0,0.5); }
-  .fun-card .shot { display: block; }
-  .fun-card .shot img { display: block; width: 100%; height: auto; border-bottom: 1px solid var(--line2); }
-  .fun-body { padding: 22px 24px 26px; display: flex; flex-direction: column; gap: 13px; flex: 1; }
-  .fun-body h3 { font-family: "Anton", sans-serif; font-weight: 400; text-transform: uppercase; font-size: 30px; letter-spacing: 0.02em; margin: 0; }
-  .fun-body p { color: #c3d4c8; font-size: 14.5px; margin: 0; }
-  .fun-meta { margin-top: auto; padding-top: 4px; }
-
-  /* ---------- animations ---------- */
-  @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
-  @keyframes blink { 0%,50% { opacity: 1; } 50.01%,100% { opacity: 0; } }
-  @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(46,232,106,0.55); } 70% { box-shadow: 0 0 0 8px rgba(46,232,106,0); } 100% { box-shadow: 0 0 0 0 rgba(46,232,106,0); } }
-  @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
-  @keyframes grow { from { transform: scaleY(0); opacity: 0; } to { transform: scaleY(1); opacity: 1; } }
-
-  /* ---------- responsive ---------- */
-  @media (max-width: 900px) {
-    .offer-grid { grid-template-columns: 1fr; }
-    .games, .steps, .tiers { grid-template-columns: 1fr; }
-    .candles { width: 70%; opacity: 0.35; }
+  #static h1 em { font-style: normal; color: var(--amber); }
+  #static .lede { color: #cfd6ef; max-width: 620px; margin: 0 0 20px; font-size: 16px; }
+  #static .dm-link {
+    font-family: "Space Mono", monospace; font-size: 12.5px; font-weight: 700;
+    letter-spacing: 0.1em; color: var(--amber); text-decoration: none;
+    border-bottom: 1.5px solid rgba(255,184,77,0.4);
   }
-  @media (max-width: 560px) {
-    .brand-sub { display: none; }
-    .status { display: none; }
-    .candles { display: none; }
-    .hero-inner { padding: 60px 0 50px; }
-    .sec { padding: 56px 0; }
+  .sgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 22px; }
+  .scard {
+    border: 1px solid var(--line); border-radius: 10px; overflow: hidden;
+    background: rgba(10,13,36,0.7);
+    display: flex; flex-direction: column;
+    transition: transform .15s ease, border-color .15s ease;
   }
+  .scard:hover { transform: translateY(-4px); border-color: var(--ac, var(--amber)); }
+  .scard img { display: block; width: 100%; height: auto; border-bottom: 1px solid var(--line); }
+  .scard .sbody { padding: 20px 22px 24px; display: flex; flex-direction: column; gap: 12px; flex: 1; }
+  .scard h2 { font-family: "Bungee", sans-serif; font-weight: 400; font-size: 22px; margin: 0; color: var(--ac, var(--ink)); }
+  .scard p { margin: 0; color: #d3d9ef; font-size: 14px; flex: 1; }
+  .scard .btn-play { align-self: flex-start; padding: 12px 22px; background: var(--ac, var(--amber)); }
+  #static footer { margin-top: 48px; color: var(--muted); font-size: 13px; font-family: "Space Mono", monospace; }
+  #static footer a { color: var(--ink); }
+
   @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
-    .prompt, .h1, .lede, .cta-row { opacity: 1 !important; }
+    *, *::before, *::after { animation: none !important; transition: none !important; }
   }
 </style>
 </head>
 <body>
+<script>document.body.classList.add('js');</script>
 
-<header class="bar">
-  <a class="brand" href="/">
-    <span class="livedot" aria-hidden="true"></span>
-    KHALIFA
-    <span class="brand-sub">// telegram mini-app games</span>
-  </a>
-  <nav class="bar-right">
-    <span class="status">● AVAILABLE FOR RESKINS</span>
-    <a class="btn btn-x" href="https://x.com/khalbuildsapps" target="_blank" rel="noopener">DM ON X ↗</a>
-  </nav>
-</header>
+<canvas id="scene" aria-label="Interactive 3D map of Khalifa's games — four floating islands, one per game"></canvas>
 
-<section class="hero">
-  <div class="candles" id="candles" aria-hidden="true"></div>
-  <div class="wrap">
-    <div class="hero-inner">
-      <p class="prompt">khalifa@telegram:~$ ship --for crypto<span class="cursor"></span></p>
-      <h1 class="h1">I ship <span class="blue">Telegram</span><br>mini-app games</h1>
-      <p class="lede">Candle-prediction. Idle mining. Narrative sims. Live bots with Telegram&nbsp;Stars payments working. I reskin one for your community — your brand, your token as the points — <b>live in 5 days</b>. Flat fee. No retainer.</p>
-      <div class="cta-row">
-        <a class="btn btn-tg" href="https://t.me/ChainCheckGameBot/play" target="_blank" rel="noopener">▶ Play ChainCheck</a>
-        <a class="btn btn-green" href="https://x.com/khalbuildsapps" target="_blank" rel="noopener">Reskin yours → DM</a>
-      </div>
-    </div>
+<div id="loading" aria-hidden="true">LOADING WORLDS…</div>
+
+<!-- ================= HUD ================= -->
+<div id="hud">
+  <div class="hud-top">
+    <a class="brand" href="/"><span class="word">KHALIFA<em>.GAMES</em></span></a>
+    <a class="dm" href="https://x.com/khalbuildsapps" target="_blank" rel="noopener">DM ON X ↗</a>
   </div>
-</section>
 
-<div class="ticker" aria-hidden="true">
-  <div class="ticker-track">
-    <span>AVAILABLE FOR RESKINS</span><span class="sep">◆</span>
-    <span>LIVE IN 5 DAYS</span><span class="sep">◆</span>
-    <span>YOUR TOKEN = THE POINTS</span><span class="sep">◆</span>
-    <span>TELEGRAM STARS PAYMENTS</span><span class="sep">◆</span>
-    <span>FLAT FEE · NO RETAINER</span><span class="sep">◆</span>
-    <span>FIXED SCOPE · NO SURPRISES</span><span class="sep">◆</span>
-    <span>AVAILABLE FOR RESKINS</span><span class="sep">◆</span>
-    <span>LIVE IN 5 DAYS</span><span class="sep">◆</span>
-    <span>YOUR TOKEN = THE POINTS</span><span class="sep">◆</span>
-    <span>TELEGRAM STARS PAYMENTS</span><span class="sep">◆</span>
-    <span>FLAT FEE · NO RETAINER</span><span class="sep">◆</span>
-    <span>FIXED SCOPE · NO SURPRISES</span><span class="sep">◆</span>
+  <div id="intro">
+    <h1>FOUR WORLDS.<br>ONE <em>BROWSER.</em></h1>
+    <p>Games built with Three.js. No installs, no engines, no launchers.<br>Even this page is one — drag to look around.</p>
+    <span class="press">▸ TAP AN ISLAND TO VISIT ◂</span>
   </div>
+
+  <div id="tags"></div>
+
+  <nav id="selector" aria-label="Choose a game"></nav>
+
+  <div id="hint">DRAG — look around &nbsp;·&nbsp; TAP AN ISLAND — visit &nbsp;·&nbsp; ENTER ↵ — play &nbsp;·&nbsp; ESC — overview</div>
+
+  <aside id="panel" aria-live="polite">
+    <h2></h2>
+    <p></p>
+    <a class="btn-play" href="#">▶ PLAY</a>
+    <button class="btn-back" type="button">↩ MAP</button>
+  </aside>
 </div>
 
-<main>
-  <section class="sec" id="offer">
-    <div class="wrap">
-      <div class="sec-head"><span class="tag">[ 01 ]</span><h2>The deal</h2></div>
-      <div class="offer-grid">
-        <div class="offer-copy">
-          <p>Pick a game. I reskin it for your community — your logo, colours, copy, reward currency and leaderboard prizes. You get a live Telegram bot playing your audience every day. Fixed scope, flat fee, five days.</p>
-          <ul class="ticks">
-            <li>Your branding, end to end</li>
-            <li>Your token wired in as the in-game points</li>
-            <li>Telegram Stars payments working out of the box</li>
-            <li>Live bot in your group, with a weekly stats report</li>
-          </ul>
-        </div>
-<pre class="config"><span class="v">reskin.config</span>
-<span class="hr">─────────────────────────</span>
-<span class="k">brand    </span> = YOUR_LOGO + COLOURS
-<span class="k">currency </span> = <span class="v">$YOUR_TOKEN</span>
-<span class="k">prizes   </span> = YOUR_LEADERBOARD
-<span class="k">ship_in  </span> = <span class="v">5 days</span>
-<span class="k">pricing  </span> = flat fee · no retainer
-<span class="k">status   </span> = ready <span class="blink">▸</span></pre>
+<!-- ============ static fallback: no JS, no WebGL, crawlers ============ -->
+<section id="static">
+  <header>
+    <h1>FOUR WORLDS.<br>ONE <em>BROWSER.</em></h1>
+    <p class="lede">I'm Khalifa. I build Three.js games that run right in the browser — no installs, no engines, no launchers. Pick a world and press play.</p>
+    <a class="dm-link" href="https://x.com/khalbuildsapps" target="_blank" rel="noopener">DM me on X — @khalbuildsapps ↗</a>
+  </header>
+  <div class="sgrid">
+    <article class="scard" style="--ac:#7fd4ff">
+      <a href="/glider/"><img src="/glider/title.png" alt="Glider — endless soaring over two procedural worlds" width="1200" height="630" loading="lazy"></a>
+      <div class="sbody">
+        <h2>GLIDER</h2>
+        <p>Endless soaring over two procedural worlds. Trade height for speed, circle thermals while the vario sings, skim ridgelines for lift, and chain golden rings — from the chase cam or the 3D cockpit.</p>
+        <a class="btn-play" href="/glider/">▶ PLAY</a>
       </div>
-    </div>
-  </section>
-
-  <section class="sec" id="games">
-    <div class="wrap">
-      <div class="sec-head"><span class="tag">[ 02 ]</span><h2>The games</h2></div>
-      <div class="games">
-
-        <article class="card">
-          <span class="badge live">LIVE</span>
-          <h3>ChainCheck</h3>
-          <p>Daily candle-prediction. Read the chart, call the next move, climb the leaderboard. Playable right now — try it before you commit.</p>
-          <div class="chips">
-            <span class="chip">Daily seed</span>
-            <span class="chip">Streaks</span>
-            <span class="chip tok">$CHECKS</span>
-            <span class="chip">Stars payments</span>
-          </div>
-          <a class="card-link" href="https://t.me/ChainCheckGameBot/play" target="_blank" rel="noopener">Play it on Telegram →</a>
-        </article>
-
-        <article class="card">
-          <span class="badge">IN BUILD</span>
-          <h3>Drillbit</h3>
-          <p>Tap-to-dig idle miner. Four characters, fuel loops, escalating Stars continues. Short, addictive runs built for group competition.</p>
-          <div class="chips">
-            <span class="chip">Tap mechanic</span>
-            <span class="chip">Leaderboard</span>
-            <span class="chip tok">$DBIT</span>
-            <span class="chip">Short runs</span>
-          </div>
-          <span class="card-link muted">Shipping soon</span>
-        </article>
-
-        <article class="card">
-          <span class="badge">IN BUILD</span>
-          <h3>Zero Sum Life</h3>
-          <p>Reigns-style life sim. Age 22 to 65, four stats, every choice costs something. Swipe cards, chase endings, share your run.</p>
-          <div class="chips">
-            <span class="chip">Swipe cards</span>
-            <span class="chip">Bias tracking</span>
-            <span class="chip">Endings</span>
-            <span class="chip">Share</span>
-          </div>
-          <span class="card-link muted">Shipping soon</span>
-        </article>
-
+    </article>
+    <article class="scard" style="--ac:#ff8a3d">
+      <a href="/stuntmania/"><img src="/stuntmania/title.png" alt="Stuntmania '76 — a 1970s stunt spectacular" width="1200" height="630" loading="lazy"></a>
+      <div class="sbody">
+        <h2>STUNTMANIA '76</h2>
+        <p>A low-poly 1970s stunt spectacular. Work up the career ladder from a borrowed BMX to a rocket sled, hit the ramps, and chase dirt, danger and glory across the canyon.</p>
+        <a class="btn-play" href="/stuntmania/">▶ PLAY</a>
       </div>
-    </div>
-  </section>
-
-  <section class="sec" id="how">
-    <div class="wrap">
-      <div class="sec-head"><span class="tag">[ 03 ]</span><h2>How a reskin works</h2></div>
-      <div class="steps">
-        <div class="step">
-          <div class="num">01</div>
-          <h4>BRIEF</h4>
-          <p>A 30-minute call. Pick the game, the brand direction, and the reward currency — your token, promo codes, or merch.</p>
-        </div>
-        <div class="step">
-          <div class="num">02</div>
-          <h4>BUILD · 3–5 DAYS</h4>
-          <p>I reskin the game, set up your bot, and wire in your currency and leaderboard prizes. Fixed scope, no scope creep.</p>
-        </div>
-        <div class="step">
-          <div class="num">03</div>
-          <h4>LAUNCH</h4>
-          <p>Live in your Telegram group. Weekly stats report. I stay on call for the first 30 days after launch.</p>
-        </div>
+    </article>
+    <article class="scard" style="--ac:#59e07a">
+      <a href="/fitba-crazy/"><img src="/fitba-crazy/title.png" alt="Fitba Crazy — 7-a-side arcade football" width="1200" height="630" loading="lazy"></a>
+      <div class="sbody">
+        <h2>FITBA CRAZY</h2>
+        <p>Fast 7-a-side arcade football. Eight clubs, a live league table, and four AI tiers up to LEGEND. Hold to charge a shot, bend it in flight, and chase the title in ninety-second halves.</p>
+        <a class="btn-play" href="/fitba-crazy/">▶ PLAY</a>
       </div>
-    </div>
-  </section>
-
-  <section class="sec" id="price">
-    <div class="wrap">
-      <div class="sec-head"><span class="tag">[ 04 ]</span><h2>Fit &amp; price</h2></div>
-      <div class="tiers">
-        <div class="tier">
-          <div class="who">KOL &amp; VIP groups</div>
-          <div class="price">from £1,500</div>
-        </div>
-        <div class="tier">
-          <div class="who">Memecoin teams &amp; trading bots</div>
-          <div class="price">£1.5–2.5k</div>
-        </div>
-        <div class="tier">
-          <div class="who">Exchanges &amp; launchpads</div>
-          <div class="price">custom <small>/ quote</small></div>
-        </div>
+    </article>
+    <article class="scard" style="--ac:#b9c4d6">
+      <a href="/shackleton/"><img src="/shackleton/title.png" alt="Shackleton — a quiet lunar exploration game" width="1200" height="630" loading="lazy"></a>
+      <div class="sbody">
+        <h2>SHACKLETON</h2>
+        <p>A quiet, cinematic lunar game. Land alone in a crater, step out into one-sixth gravity, and make a foothold on the Moon — three small robots for company. No enemies, no score. An early build of a larger project.</p>
+        <a class="btn-play" href="/shackleton/">▶ PLAY</a>
       </div>
-      <p class="terms">Payment <b>upfront</b> or <b>50/50</b>. Stablecoin, fiat, or your token. I work with crypto-native teams.</p>
-    </div>
-  </section>
-
-  <section class="sec" id="fun">
-    <div class="wrap">
-      <div class="sec-head"><span class="tag">[ 05 ]</span><h2>Off the clock</h2></div>
-      <div class="fun-grid">
-        <article class="fun-card">
-          <a class="shot" href="/glider/" aria-label="Play Glider">
-            <img src="/glider/title.png" alt="Glider — endless soaring over two procedural worlds" width="1200" height="630" loading="lazy">
-          </a>
-          <div class="fun-body">
-            <h3>Glider</h3>
-            <p>An endless soaring game that runs right in the browser. No engine — just you, gravity, and the air. Trade height for speed, circle thermals while the vario sings, skim ridgelines for lift, and chain golden rings across two worlds: an alpine valley and a white-cliff island archipelago. Fly from the chase cam or climb into the 3D cockpit — just press play.</p>
-            <div class="chips">
-              <span class="chip">Browser game</span>
-              <span class="chip">Three.js / WebGL</span>
-              <span class="chip">No install</span>
-              <span class="chip">Two worlds</span>
-            </div>
-            <div class="fun-meta">
-              <a class="btn btn-green" href="/glider/">▶ Play Glider</a>
-            </div>
-          </div>
-        </article>
-        <article class="fun-card">
-          <a class="shot" href="/stuntmania/" aria-label="Play STUNTMANIA '76">
-            <img src="/stuntmania/title.png" alt="STUNTMANIA '76 — a 1970s stunt spectacular" width="1200" height="630" loading="lazy">
-          </a>
-          <div class="fun-body">
-            <h3>Stuntmania '76</h3>
-            <p>A low-poly 1970s stunt-driving game that runs right in the browser. Work up the career ladder from a borrowed BMX to a rocket sled, hit the ramps, and chase dirt, danger and glory across the canyon. No install — just press play.</p>
-            <div class="chips">
-              <span class="chip">Browser game</span>
-              <span class="chip">Three.js / WebGL</span>
-              <span class="chip">No install</span>
-              <span class="chip">Just for fun</span>
-            </div>
-            <div class="fun-meta">
-              <a class="btn btn-green" href="/stuntmania/">▶ Play STUNTMANIA '76</a>
-            </div>
-          </div>
-        </article>
-        <article class="fun-card">
-          <a class="shot" href="/fitba-crazy/" aria-label="Play Fitba Crazy">
-            <img src="/fitba-crazy/title.png" alt="Fitba Crazy — 7-a-side arcade football" width="1200" height="630" loading="lazy">
-          </a>
-          <div class="fun-body">
-            <h3>Fitba Crazy</h3>
-            <p>A fast 7-a-side arcade football game that runs right in the browser. Fitba is Scots for football; the crazy is the league — eight clubs, a live table, and four AI tiers up to LEGEND, where they're as quick as you. Hold to charge a shot, bend it in flight, and chase the title. Ninety-second halves — just press play.</p>
-            <div class="chips">
-              <span class="chip">Browser game</span>
-              <span class="chip">Three.js / WebGL</span>
-              <span class="chip">No install</span>
-              <span class="chip">League mode</span>
-            </div>
-            <div class="fun-meta">
-              <a class="btn btn-green" href="/fitba-crazy/">▶ Play Fitba Crazy</a>
-            </div>
-          </div>
-        </article>
-        <article class="fun-card">
-          <a class="shot" href="/shackleton/" aria-label="Play Shackleton">
-            <img src="/shackleton/title.png" alt="Shackleton — a quiet lunar exploration game" width="1200" height="630" loading="lazy">
-          </a>
-          <div class="fun-body">
-            <h3>Shackleton</h3>
-            <p>A quiet, cinematic lunar game. You land alone in a crater, step out into one-sixth gravity, and make a foothold on the Moon — a tired voice on the radio your only company, three small robots trailing behind. No enemies, no score, just the long lunar quiet. An early build of a larger project.</p>
-            <div class="chips">
-              <span class="chip">Browser game</span>
-              <span class="chip">Three.js / WebGL</span>
-              <span class="chip">No install</span>
-              <span class="chip">Work in progress</span>
-            </div>
-            <div class="fun-meta">
-              <a class="btn btn-green" href="/shackleton/">▶ Play Shackleton</a>
-            </div>
-          </div>
-        </article>
-      </div>
-    </div>
-  </section>
-
-  <section class="cta-final">
-    <div class="wrap">
-      <h2>Want it for your community?</h2>
-      <p>DM me on X — usually a reply within 24 hours.</p>
-      <div class="cta-row">
-        <a class="btn btn-tg" href="https://x.com/khalbuildsapps" target="_blank" rel="noopener">DM on X ↗</a>
-        <a class="btn btn-green" href="https://t.me/ChainCheckGameBot/play" target="_blank" rel="noopener">▶ Play ChainCheck first</a>
-      </div>
-    </div>
-  </section>
-</main>
-
-<footer>
-  <div class="wrap frow">
-    <div>KHALIFA — builds Telegram mini-app games · <a href="https://x.com/khalbuildsapps" target="_blank" rel="noopener">@khalbuildsapps</a></div>
-    <div class="ps">games built for fun → <a href="#fun">the arcade</a></div>
+    </article>
   </div>
-</footer>
+  <footer>KHALIFA.GAMES · built with Three.js · <a href="https://x.com/khalbuildsapps" target="_blank" rel="noopener">@khalbuildsapps</a></footer>
+</section>
 
-<script>
-  // Decorative candlestick chart in the hero — built from a tiny random walk.
-  (function () {
-    var c = document.getElementById("candles");
-    if (!c) return;
-    var N = 22, prev = 50;
-    for (var i = 0; i < N; i++) {
-      var open = prev;
-      var close = Math.max(8, Math.min(92, open + (Math.random() - 0.48) * 22));
-      prev = close;
-      var hi = Math.min(96, Math.max(open, close) + Math.random() * 9);
-      var lo = Math.max(4, Math.min(open, close) - Math.random() * 9);
-      var up = close >= open;
-      var bot = Math.min(open, close), top = Math.max(open, close);
+<script type="module">
+const GAMES = [
+  {
+    slug: "glider", name: "GLIDER", url: "/glider/", accent: "#7fd4ff",
+    desc: "Endless soaring over two worlds — ride thermals, chase golden rings, fly from the cockpit."
+  },
+  {
+    slug: "stuntmania", name: "STUNTMANIA '76", url: "/stuntmania/", accent: "#ff8a3d",
+    desc: "A 1970s stunt spectacular. From a borrowed BMX to a rocket sled — hit the ramps."
+  },
+  {
+    slug: "fitba", name: "FITBA CRAZY", url: "/fitba-crazy/", accent: "#59e07a",
+    desc: "7-a-side arcade football. Eight clubs, a live league, and AI tiers up to LEGEND."
+  },
+  {
+    slug: "shackleton", name: "SHACKLETON", url: "/shackleton/", accent: "#b9c4d6",
+    desc: "A quiet lunar game. Land alone, step out into one-sixth gravity, make a foothold."
+  }
+];
 
-      var candle = document.createElement("div");
-      candle.className = "candle";
+const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-      var wick = document.createElement("div");
-      wick.className = "wick " + (up ? "up" : "down");
-      wick.style.bottom = lo + "%";
-      wick.style.height = (hi - lo) + "%";
+async function boot() {
+  let THREE;
+  try {
+    THREE = await import("https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js");
+  } catch (e) {
+    document.body.classList.remove("js"); // CDN unreachable → show static site
+    return;
+  }
 
-      var body = document.createElement("div");
-      body.className = "body " + (up ? "up" : "down");
-      body.style.bottom = bot + "%";
-      body.style.height = Math.max(1.6, top - bot) + "%";
-      body.style.animationDelay = (i * 0.045) + "s";
+  const canvas = document.getElementById("scene");
+  let renderer;
+  try {
+    renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  } catch (e) {
+    document.body.classList.remove("js"); // no WebGL → show static site
+    return;
+  }
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.15;
 
-      candle.appendChild(wick);
-      candle.appendChild(body);
-      c.appendChild(candle);
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.Fog(0x151238, 75, 230);
+
+  const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 600);
+
+  // ---------- lights ----------
+  scene.add(new THREE.HemisphereLight(0xbfd4ff, 0x201538, 1.1));
+  const sun = new THREE.DirectionalLight(0xffd9a0, 2.0);
+  sun.position.set(38, 48, 16);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.camera.left = -45; sun.shadow.camera.right = 45;
+  sun.shadow.camera.top = 45; sun.shadow.camera.bottom = -45;
+  sun.shadow.camera.near = 5; sun.shadow.camera.far = 160;
+  sun.shadow.bias = -0.0004;
+  sun.shadow.normalBias = 0.03;
+  scene.add(sun);
+  const fill = new THREE.DirectionalLight(0x6a7fff, 0.5); // cool moonlight fill
+  fill.position.set(-30, 20, -25);
+  scene.add(fill);
+  scene.add(new THREE.AmbientLight(0x404060, 0.45));
+
+  // ---------- stars ----------
+  function starField(n, size, opacity) {
+    const pos = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) {
+      const r = 260 + Math.random() * 160;
+      const th = Math.random() * Math.PI * 2;
+      const ph = Math.acos(2 * Math.random() - 1);
+      pos[i * 3]     = r * Math.sin(ph) * Math.cos(th);
+      pos[i * 3 + 1] = Math.abs(r * Math.cos(ph)) * 0.9 - 30;
+      pos[i * 3 + 2] = r * Math.sin(ph) * Math.sin(th);
     }
-  })();
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    const m = new THREE.PointsMaterial({ color: 0xdfe6ff, size, sizeAttenuation: true, fog: false, transparent: true, opacity });
+    scene.add(new THREE.Points(g, m));
+  }
+  starField(700, 0.8, 0.7);
+  starField(180, 1.6, 0.95);
+
+  // distant moon
+  {
+    const moon = new THREE.Mesh(
+      new THREE.SphereGeometry(9, 24, 24),
+      new THREE.MeshStandardMaterial({ color: 0xcfd6e6, roughness: 1, fog: false })
+    );
+    moon.position.set(-120, 70, -180);
+    scene.add(moon);
+  }
+
+  // ---------- low-poly helpers ----------
+  const fract = v => v - Math.floor(v);
+
+  // deterministic vertex jitter — coincident vertices move identically, so surfaces stay watertight
+  function jitter(geo, amt, yAmt = amt * 0.5) {
+    const p = geo.attributes.position;
+    for (let i = 0; i < p.count; i++) {
+      const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+      const r1 = fract(Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453);
+      const r2 = fract(Math.sin(x * 269.5 + y * 183.3 + z * 246.1) * 28001.8384);
+      const r3 = fract(Math.sin(x * 113.5 + y * 271.9 + z * 124.6) * 31337.1337);
+      p.setXYZ(i, x + (r1 - 0.5) * amt, y + (r2 - 0.5) * yAmt, z + (r3 - 0.5) * amt);
+    }
+    geo.computeVertexNormals();
+    return geo;
+  }
+
+  // per-face colour variation for that hand-shaded low-poly look
+  const facetMat = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.95, metalness: 0 });
+  function fMesh(geo, hex, variance = 0.16) {
+    const g = geo.toNonIndexed();
+    const c = new THREE.Color(hex);
+    const n = g.attributes.position.count;
+    const cols = new Float32Array(n * 3);
+    for (let i = 0; i < n; i += 3) {
+      const s = 1 - variance / 2 + Math.random() * variance;
+      for (let j = 0; j < 3; j++) {
+        cols[(i + j) * 3] = c.r * s;
+        cols[(i + j) * 3 + 1] = c.g * s;
+        cols[(i + j) * 3 + 2] = c.b * s;
+      }
+    }
+    g.setAttribute("color", new THREE.BufferAttribute(cols, 3));
+    return new THREE.Mesh(g, facetMat);
+  }
+
+  const mat = (color, opts = {}) =>
+    new THREE.MeshStandardMaterial({ color, flatShading: true, roughness: 0.9, metalness: 0, ...opts });
+
+  function islandBase(radius, topColor, rockColor) {
+    const g = new THREE.Group();
+    const rock = fMesh(jitter(new THREE.ConeGeometry(radius * 0.97, radius * 1.9, 9, 3), 0.5), rockColor, 0.24);
+    rock.rotation.x = Math.PI;
+    rock.position.y = -radius * 0.95 - 0.4;
+    g.add(rock);
+    const top = fMesh(jitter(new THREE.CylinderGeometry(radius, radius * 1.06, 1.4, 9, 1), 0.5, 0.15), topColor, 0.14);
+    g.add(top);
+    return g;
+  }
+
+  function pine(x, z, s = 1) {
+    const t = new THREE.Group();
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.11 * s, 0.16 * s, 0.6 * s, 5), mat(0x6b4a33));
+    trunk.position.y = 0.3 * s;
+    const lo = fMesh(new THREE.ConeGeometry(0.68 * s, 1.1 * s, 6), 0x1f7a4d, 0.2);
+    lo.position.y = 1.0 * s;
+    const hi = fMesh(new THREE.ConeGeometry(0.46 * s, 0.9 * s, 6), 0x2b975f, 0.2);
+    hi.position.y = 1.7 * s;
+    t.add(trunk, lo, hi);
+    t.position.set(x, 0.62, z);
+    return t;
+  }
+
+  function cactus(x, z, s = 1) {
+    const c = new THREE.Group();
+    const bodyC = fMesh(new THREE.CylinderGeometry(0.22 * s, 0.26 * s, 1.7 * s, 7), 0x4f9a4a, 0.2);
+    bodyC.position.y = 0.85 * s;
+    c.add(bodyC);
+    for (const side of [1, -1]) {
+      const arm = fMesh(new THREE.CylinderGeometry(0.13 * s, 0.15 * s, 0.7 * s, 6), 0x458a41, 0.2);
+      arm.position.set(0.34 * s * side, (0.9 + 0.18 * side) * s, 0);
+      arm.rotation.z = -0.9 * side;
+      c.add(arm);
+      const tip = fMesh(new THREE.CylinderGeometry(0.12 * s, 0.13 * s, 0.5 * s, 6), 0x4f9a4a, 0.2);
+      tip.position.set(0.56 * s * side, (1.25 + 0.18 * side) * s, 0);
+      c.add(tip);
+    }
+    c.position.set(x, 0.62, z);
+    c.rotation.y = x * 3.7;
+    return c;
+  }
+
+  // ---------- island builders (each returns { group, animate(t) }) ----------
+  function buildGlider() {
+    const g = islandBase(6.6, 0x3f9d5c, 0x54607e);
+
+    // procedural mountain terrain — same DNA as the Glider game's world (~1,200 triangles)
+    const ss = (e0, e1, x) => { const u = Math.min(1, Math.max(0, (x - e0) / (e1 - e0))); return u * u * (3 - 2 * u); };
+    const h2d = (ix, iz) => fract(Math.sin(ix * 127.1 + iz * 311.7) * 43758.5453);
+    function vnoise(x, z) {
+      const ix = Math.floor(x), iz = Math.floor(z);
+      const fx = x - ix, fz = z - iz;
+      const sx = fx * fx * (3 - 2 * fx), sz = fz * fz * (3 - 2 * fz);
+      const a = h2d(ix, iz), b = h2d(ix + 1, iz), c = h2d(ix, iz + 1), d = h2d(ix + 1, iz + 1);
+      return a + (b - a) * sx + (c - a) * sz + (a - b - c + d) * sx * sz;
+    }
+    const PEAKS = [
+      { x: -1.0, z: -1.4, s: 2.2, h: 4.7 },
+      { x: 1.8,  z: -2.6, s: 1.4, h: 3.0 },
+      { x: -3.4, z: 0.4,  s: 1.3, h: 2.6 }
+    ];
+    const LAKE = { x: 2.9, z: 1.6 };
+    function height(x, z) {
+      const env = 1 - ss(4.3, 6.3, Math.hypot(x, z)); // settle to the rim
+      let h = 0;
+      for (const p of PEAKS) {
+        const d2 = (x - p.x) ** 2 + (z - p.z) ** 2;
+        h += p.h * Math.exp(-d2 / (2 * p.s * p.s));
+      }
+      h += (vnoise(x * 0.45 + 7, z * 0.45 + 3) - 0.5) * 1.6;   // rolling hills
+      h += (vnoise(x * 1.1 + 13, z * 1.1 + 5) - 0.5) * 0.7;    // rough detail
+      h -= 1.5 * Math.exp(-((x - LAKE.x) ** 2 + (z - LAKE.z) ** 2) / (2 * 1.3 * 1.3)); // lake valley
+      return Math.max(-0.32, h * env);
+    }
+
+    // build a disc-grid heightfield: centre vertex + 16 rings x 40 segments
+    const RINGS = 16, SEGS = 40, RAD = 6.35, Y0 = 0.68;
+    const verts = [0, Y0 + height(0, 0), 0];
+    for (let i = 1; i <= RINGS; i++) {
+      for (let j = 0; j < SEGS; j++) {
+        const r = (i / RINGS) * RAD, a = (j / SEGS) * Math.PI * 2;
+        const x = Math.cos(a) * r, z = Math.sin(a) * r;
+        verts.push(x, Y0 + height(x, z), z);
+      }
+    }
+    const idx = [];
+    const vi = (i, j) => 1 + (i - 1) * SEGS + ((j % SEGS) + SEGS) % SEGS;
+    for (let j = 0; j < SEGS; j++) idx.push(0, vi(1, j + 1), vi(1, j));
+    for (let i = 1; i < RINGS; i++) {
+      for (let j = 0; j < SEGS; j++) {
+        const A = vi(i, j), B = vi(i, j + 1), C = vi(i + 1, j), D = vi(i + 1, j + 1);
+        idx.push(A, B, D, A, D, C);
+      }
+    }
+    let terra = new THREE.BufferGeometry();
+    terra.setAttribute("position", new THREE.Float32BufferAttribute(verts, 3));
+    terra.setIndex(idx);
+    terra = terra.toNonIndexed();
+
+    // paint faces by altitude and slope: grass → rock → snow, with dithered banding
+    {
+      const p = terra.attributes.position;
+      const cols = new Float32Array(p.count * 3);
+      const cGrassLo = new THREE.Color(0x46a763), cGrassHi = new THREE.Color(0x3b8f57);
+      const cRock = new THREE.Color(0x6d7a9c), cSnow = new THREE.Color(0xf2f5ff);
+      const va = new THREE.Vector3(), vb = new THREE.Vector3(), vc = new THREE.Vector3();
+      const e1 = new THREE.Vector3(), e2 = new THREE.Vector3(), nrm = new THREE.Vector3();
+      for (let i = 0; i < p.count; i += 3) {
+        va.fromBufferAttribute(p, i); vb.fromBufferAttribute(p, i + 1); vc.fromBufferAttribute(p, i + 2);
+        const h = (va.y + vb.y + vc.y) / 3 - Y0;
+        e1.subVectors(vb, va); e2.subVectors(vc, va);
+        nrm.crossVectors(e1, e2).normalize();
+        const dith = (h2d(i, 7) - 0.5) * 0.5;
+        let c;
+        if (h + dith > 2.9) c = cSnow;
+        else if (h + dith > 1.6 || nrm.y < 0.55) c = cRock;
+        else c = h > 0.7 ? cGrassHi : cGrassLo;
+        const s = 0.9 + h2d(i, 13) * 0.16;
+        for (let j = 0; j < 3; j++) {
+          cols[(i + j) * 3] = c.r * s;
+          cols[(i + j) * 3 + 1] = c.g * s;
+          cols[(i + j) * 3 + 2] = c.b * s;
+        }
+      }
+      terra.setAttribute("color", new THREE.BufferAttribute(cols, 3));
+    }
+    g.add(new THREE.Mesh(terra, facetMat));
+
+    // alpine lake sits in the carved valley
+    const lake = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.25, 1.25, 0.08, 10),
+      new THREE.MeshStandardMaterial({ color: 0x3fa9d9, roughness: 0.25, metalness: 0.1, flatShading: true })
+    );
+    lake.position.set(LAKE.x, Y0 + height(LAKE.x, LAKE.z) + 0.07, LAKE.z);
+    g.add(lake);
+
+    // pines planted at terrain height, in the grass band
+    for (const [tx, tz, tsc] of [[4.7, -0.4, 1.1], [4.1, 3.3, 0.9], [-4.5, 2.9, 1.15], [0.6, 4.6, 1.0], [-2.1, 4.1, 0.8], [1.4, -4.7, 0.95]]) {
+      const tr = pine(tx, tz, tsc);
+      tr.position.y = Y0 + height(tx, tz) - 0.05;
+      g.add(tr);
+    }
+
+    // golden rings on the flight path (height law matches the glider's)
+    const ringMat = new THREE.MeshStandardMaterial({ color: 0xf5c451, emissive: 0xa06f10, emissiveIntensity: 0.5, roughness: 0.4, metalness: 0.6, flatShading: true });
+    for (const a of [0.9, 2.6, 4.4]) {
+      const rp = new THREE.Group();
+      rp.rotation.y = a;
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(2.3, 0.1, 6, 22), ringMat);
+      ring.position.set(8.6, 5.6 + Math.sin(2 * a) * 0.9, 0);
+      rp.add(ring);
+      g.add(rp);
+    }
+
+    // circling sailplane: pivot rotates, wrapper yaws nose to tangent, inner mesh banks
+    const pivot = new THREE.Group();
+    const wrapper = new THREE.Group();
+    const plane = new THREE.Group();
+    const white = 0xf4f1e8, accent = 0x7fd4ff;
+
+    // slender fuselage: nose cone → cockpit section → tapering tail boom
+    const nose = fMesh(new THREE.ConeGeometry(0.13, 0.4, 8), white, 0.05);
+    nose.rotation.z = -Math.PI / 2;
+    nose.position.x = 1.15;
+    const body = fMesh(new THREE.CylinderGeometry(0.13, 0.115, 0.75, 8), white, 0.05);
+    body.rotation.z = -Math.PI / 2;
+    body.position.x = 0.58;
+    const boom = fMesh(new THREE.CylinderGeometry(0.115, 0.045, 1.55, 8), white, 0.05);
+    boom.rotation.z = -Math.PI / 2;
+    boom.position.x = -0.57;
+    const band = fMesh(new THREE.CylinderGeometry(0.135, 0.135, 0.1, 8), accent, 0.04);
+    band.rotation.z = -Math.PI / 2;
+    band.position.x = 0.93;
+    const canopy = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 8), mat(0x2a3a5a, { roughness: 0.25, metalness: 0.2 }));
+    canopy.scale.set(0.34, 0.15, 0.12);
+    canopy.position.set(0.62, 0.12, 0);
+    plane.add(nose, body, boom, band, canopy);
+
+    // high-aspect wings: inner panel + tapered outer panel per side, gentle dihedral, blue winglets
+    for (const side of [1, -1]) {
+      const wingSide = new THREE.Group();
+      const innerG = new THREE.BoxGeometry(0.46, 0.05, 2.0);
+      innerG.translate(0, 0, 1.0 * side);
+      wingSide.add(fMesh(innerG, white, 0.06));
+      const outerG = new THREE.BoxGeometry(0.34, 0.045, 1.7);
+      outerG.translate(0.02, 0.005, 2.85 * side);
+      wingSide.add(fMesh(outerG, white, 0.06));
+      const wingletG = new THREE.BoxGeometry(0.2, 0.26, 0.04);
+      wingletG.translate(0, 0.13, 3.72 * side);
+      wingSide.add(fMesh(wingletG, accent, 0.06));
+      wingSide.rotation.x = -0.07 * side; // dihedral: tips rise
+      wingSide.position.set(0.28, 0.1, 0);
+      plane.add(wingSide);
+    }
+
+    // T-tail: horizontal stabiliser mounted on top of the fin
+    const fin = fMesh(new THREE.BoxGeometry(0.3, 0.52, 0.05), white, 0.06);
+    fin.position.set(-1.22, 0.3, 0);
+    const stab = fMesh(new THREE.BoxGeometry(0.3, 0.04, 1.4), accent, 0.06);
+    stab.position.set(-1.22, 0.58, 0);
+    plane.add(fin, stab);
+
+    plane.rotation.x = 0.42; // bank into the turn
+    wrapper.add(plane);
+    wrapper.rotation.y = Math.PI / 2; // nose along direction of travel
+    wrapper.position.set(8.6, 5.6, 0);
+    pivot.add(wrapper);
+    g.add(pivot);
+
+    return {
+      group: g,
+      animate(t) {
+        pivot.rotation.y = t * 0.55;
+        wrapper.position.y = 5.6 + Math.sin(t * 1.1) * 0.9;
+      }
+    };
+  }
+
+  function buildStunt() {
+    const g = islandBase(6.6, 0xd6924f, 0x9a5f36);
+
+    // arena floor on top
+    const mesa = fMesh(jitter(new THREE.CylinderGeometry(4.9, 5.6, 1.5, 9), 0.4, 0.1), 0xdda05c, 0.16);
+    mesa.position.y = 1.35;
+    g.add(mesa);
+
+    // canyon buttes on the rim
+    for (const [bx, bz, br, bh] of [[-4.8, -2.2, 1.2, 3.4], [-3.4, -4.2, 0.9, 2.4], [4.6, 3.4, 1.0, 2.8]]) {
+      const butte = fMesh(jitter(new THREE.CylinderGeometry(br * 0.8, br, bh, 7, 2), 0.35), 0xb4552f, 0.2);
+      butte.position.set(bx, bh / 2 + 0.6, bz);
+      g.add(butte);
+    }
+
+    g.add(cactus(-2.4, 3.9, 1.0), cactus(4.2, -3.4, 0.85), cactus(-4.9, 1.4, 0.9));
+
+    // hay bales + barrels near the ramp
+    const hay = 0xd9b36a;
+    for (const [hx, hz, hr] of [[1.2, 2.6, 0], [2.0, 2.9, 0.5], [1.6, 2.75, 0]]) {
+      const b = fMesh(new THREE.BoxGeometry(0.8, 0.5, 0.55), hay, 0.15);
+      b.position.set(hx, 2.35 + (hr ? 0.5 : 0), hz);
+      b.rotation.y = hr;
+      g.add(b);
+    }
+    for (const [bx, bz, bc] of [[-2.7, 1.6, 0x3d6cd9], [-3.1, 0.5, 0xd94f3d]]) {
+      const b = fMesh(new THREE.CylinderGeometry(0.3, 0.3, 0.68, 9), bc, 0.12);
+      b.position.set(bx, 2.44, bz);
+      g.add(b);
+    }
+
+    // star-spangled ramp on the bike's circular path (radius 3.5, at angle 0)
+    const rampG = new THREE.Group();
+    const rampRed = fMesh(new THREE.BoxGeometry(2.7, 0.22, 1.7), 0xd94f3d, 0.1);
+    const stripe = fMesh(new THREE.BoxGeometry(2.72, 0.24, 0.5), 0xf4f1e8, 0.05);
+    rampG.add(rampRed, stripe);
+    for (const sx of [-0.8, 0.8]) {
+      const strut = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.9, 0.14), mat(0x6b4a33));
+      strut.position.set(sx, -0.55, -0.5);
+      rampG.add(strut);
+    }
+    rampG.position.set(3.5, 2.62, 0);
+    rampG.rotation.set(0.42, Math.PI / 2, 0); // low end faces the approaching bike, high end launches it
+    g.add(rampG);
+
+    // stunt bike + rider
+    const pivot = new THREE.Group();
+    const wrapper = new THREE.Group();
+    const bike = new THREE.Group();
+    const wheelG = new THREE.TorusGeometry(0.27, 0.09, 6, 12);
+    for (const wx of [0.52, -0.52]) {
+      const w = new THREE.Mesh(wheelG, mat(0x1c1a26));
+      w.position.set(wx, 0.28, 0);
+      bike.add(w);
+    }
+    const frame = fMesh(new THREE.BoxGeometry(0.95, 0.24, 0.16), 0xd94f3d, 0.1);
+    frame.position.y = 0.5;
+    const tank = fMesh(new THREE.BoxGeometry(0.4, 0.18, 0.2), 0xf4f1e8, 0.06);
+    tank.position.set(0.18, 0.66, 0);
+    const bars = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.5), mat(0x2a2438));
+    bars.position.set(0.46, 0.78, 0);
+    bike.add(frame, tank, bars);
+    // rider in white leathers, leaning forward
+    const torso = fMesh(new THREE.CapsuleGeometry(0.15, 0.3, 3, 8), 0xf4f1e8, 0.06);
+    torso.position.set(-0.05, 0.95, 0);
+    torso.rotation.z = -0.5;
+    const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.15, 8, 8), mat(0xd94f3d));
+    helmet.position.set(0.14, 1.13, 0);
+    const legL = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.12, 0.1), mat(0x3d6cd9));
+    legL.position.set(-0.12, 0.62, 0.16);
+    const legR = legL.clone(); legR.position.z = -0.16;
+    bike.add(torso, helmet, legL, legR);
+
+    wrapper.add(bike);
+    wrapper.rotation.y = Math.PI / 2;
+    wrapper.position.set(3.5, 2.15, 0);
+    pivot.add(wrapper);
+    g.add(pivot);
+
+    const topY = 2.15;
+    return {
+      group: g,
+      animate(t) {
+        const a = (t * 1.15) % (Math.PI * 2);
+        pivot.rotation.y = a;
+        let y = topY;
+        const J = 1.6; // jump arc length in radians
+        if (a < J) {
+          const p = a / J;
+          y = topY + Math.sin(p * Math.PI) * 2.3;
+          bike.rotation.z = Math.sin(p * Math.PI * 2) * 0.55; // nose up, then down
+        } else {
+          bike.rotation.z = 0;
+        }
+        wrapper.position.y = y;
+      }
+    };
+  }
+
+  function buildFitba() {
+    const g = islandBase(7.0, 0x2e7a44, 0x4c5a4a);
+
+    // striped pitch
+    const pitch = fMesh(new THREE.BoxGeometry(9.6, 0.5, 6.4), 0x2e8c49, 0.08);
+    pitch.position.y = 0.85;
+    g.add(pitch);
+    for (let i = 0; i < 3; i++) {
+      const s = new THREE.Mesh(new THREE.BoxGeometry(1.55, 0.02, 6.2), mat(0x37a457));
+      s.position.set(-3.1 + i * 3.1, 1.11, 0);
+      g.add(s);
+    }
+
+    const lineM = mat(0xf4f7f2);
+    const mkLine = (w, d, x, z) => {
+      const l = new THREE.Mesh(new THREE.BoxGeometry(w, 0.04, d), lineM);
+      l.position.set(x, 1.13, z);
+      g.add(l);
+    };
+    mkLine(9.2, 0.12, 0, 2.95); mkLine(9.2, 0.12, 0, -2.95);
+    mkLine(0.12, 6.0, 4.55, 0); mkLine(0.12, 6.0, -4.55, 0);
+    mkLine(0.12, 6.0, 0, 0);
+    const circle = new THREE.Mesh(new THREE.TorusGeometry(1.15, 0.05, 6, 24), lineM);
+    circle.rotation.x = Math.PI / 2;
+    circle.position.y = 1.13;
+    g.add(circle);
+
+    // goals
+    const postM = mat(0xf4f7f2);
+    for (const side of [1, -1]) {
+      const goal = new THREE.Group();
+      const bar = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 2.2), postM);
+      bar.position.y = 0.9;
+      const p1 = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.9, 0.08), postM);
+      p1.position.set(0, 0.45, 1.1);
+      const p2 = p1.clone(); p2.position.z = -1.1;
+      goal.add(bar, p1, p2);
+      goal.position.set(4.7 * side, 1.1, 0);
+      g.add(goal);
+    }
+
+    // floodlight towers at the corners
+    const bulbMat = new THREE.MeshStandardMaterial({ color: 0x222430, emissive: 0xfff2cc, emissiveIntensity: 2.2, flatShading: true });
+    for (const [fx, fz] of [[4.6, 2.9], [-4.6, 2.9], [4.6, -2.9], [-4.6, -2.9]]) {
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 3.4, 6), mat(0x5a6070));
+      pole.position.set(fx, 2.8, fz);
+      g.add(pole);
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.55, 0.12), bulbMat);
+      head.position.set(fx, 4.55, fz);
+      head.lookAt(new THREE.Vector3(0, 1.4, 0)); // aim panel at the pitch (group is at origin during build)
+      g.add(head);
+    }
+    const pitchGlow = new THREE.PointLight(0xdfe8ff, 30, 16, 1.8);
+    pitchGlow.position.set(0, 6, 0);
+    g.add(pitchGlow);
+
+    // small stand with a crowd along one touchline
+    const stand1 = fMesh(new THREE.BoxGeometry(7.2, 0.8, 1.3), 0x5a6070, 0.12);
+    stand1.position.set(0, 1.0, -4.35);
+    const stand2 = fMesh(new THREE.BoxGeometry(7.2, 0.8, 1.0), 0x6a7080, 0.12);
+    stand2.position.set(0, 1.8, -4.85);
+    g.add(stand1, stand2);
+    const kitColours = [0xf5c451, 0xd94f3d, 0x3d6cd9, 0xf4f1e8, 0x59e07a, 0x9a5fd9];
+    for (let i = 0; i < 16; i++) {
+      const fan = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.3, 0.2), mat(kitColours[i % kitColours.length]));
+      const row = i % 2;
+      fan.position.set(-3.2 + (i >> 1) * 0.82 + row * 0.3, row ? 2.35 : 1.55, row ? -4.85 : -4.35);
+      g.add(fan);
+    }
+
+    // five-a-side: two teams of little articulated players and a stateless passing game
+    const ball = new THREE.Mesh(new THREE.IcosahedronGeometry(0.22, 0), mat(0xffffff));
+    g.add(ball);
+
+    function mkPlayer(shirt, shorts) {
+      const p = new THREE.Group();
+      const skin = 0xe8c39e;
+      const torso = fMesh(new THREE.BoxGeometry(0.24, 0.3, 0.15), shirt, 0.08);
+      torso.position.y = 0.47;
+      const hips = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.12, 0.14), mat(shorts));
+      hips.position.y = 0.28;
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 8), mat(skin));
+      head.position.y = 0.72;
+      p.add(torso, hips, head);
+      const limbs = { legs: [], arms: [] };
+      for (const side of [1, -1]) {
+        const legGeo = new THREE.BoxGeometry(0.08, 0.26, 0.09);
+        legGeo.translate(0, -0.13, 0); // pivot at the hip
+        const leg = new THREE.Mesh(legGeo, mat(skin));
+        leg.position.set(0.055 * side, 0.27, 0);
+        const armGeo = new THREE.BoxGeometry(0.06, 0.24, 0.07);
+        armGeo.translate(0, -0.12, 0); // pivot at the shoulder
+        const arm = fMesh(armGeo, shirt, 0.06);
+        arm.position.set(0.165 * side, 0.6, 0);
+        p.add(leg, arm);
+        limbs.legs.push(leg);
+        limbs.arms.push(arm);
+      }
+      p.userData.limbs = limbs;
+      g.add(p);
+      return p;
+    }
+
+    // formations: keeper first, then four outfield (yellow attacks +x, purple attacks -x)
+    const yellowSlots = [[-4.35, 0], [-2.5, 1.2], [-2.5, -1.2], [-0.7, 0.6], [0.6, -0.9]];
+    const purpleSlots = [[4.35, 0], [2.5, -1.2], [2.5, 1.2], [0.7, -0.6], [-0.6, 0.9]];
+    const teamY = yellowSlots.map(() => mkPlayer(0xf5c451, 0x1c1a26));
+    const teamP = purpleSlots.map(() => mkPlayer(0x9a5fd9, 0xf4f1e8));
+
+    const hp = (n, s) => fract(Math.sin(n * 127.1 + s * 311.7) * 43758.5453);
+    const wpx = n => (hp(n, 1) - 0.5) * 6.8;
+    const wpz = n => (hp(n, 2) - 0.5) * 4.2;
+    const clampN = (v, lim) => Math.min(lim, Math.max(-lim, v));
+    const PASS = 1.15, TOP = 1.1;
+    const gw = new THREE.Vector3();
+
+    function drivePlayer(p, slot, isKeeper, bx, bz, t, i) {
+      let px, pz;
+      if (isKeeper) {
+        px = slot[0];
+        pz = clampN(bz * 0.6, 0.95); // shuffle along the line
+      } else {
+        px = clampN(slot[0] + (bx - slot[0]) * 0.4 + Math.sin(t * 0.9 + i) * 0.12, 4.1);
+        pz = clampN(slot[1] + (bz - slot[1]) * 0.45 + Math.cos(t * 0.8 + i) * 0.12, 2.5);
+      }
+      p.position.set(px, TOP, pz);
+      p.lookAt(gw.x + bx, gw.y + TOP, gw.z + bz); // face the ball (world space)
+      const sw = Math.sin(t * 9 + i * 1.3) * 0.55;
+      const L = p.userData.limbs;
+      L.legs[0].rotation.x = sw;  L.legs[1].rotation.x = -sw;
+      L.arms[0].rotation.x = -sw * 0.8; L.arms[1].rotation.x = sw * 0.8;
+    }
+
+    return {
+      group: g,
+      animate(t) {
+        // ball is passed between hashed waypoints, forever
+        const seg = Math.floor(t / PASS), f = (t % PASS) / PASS;
+        const e = f * f * (3 - 2 * f);
+        const bx = wpx(seg) + (wpx(seg + 1) - wpx(seg)) * e;
+        const bz = wpz(seg) + (wpz(seg + 1) - wpz(seg)) * e;
+        const arc = (0.3 + hp(seg, 3) * 0.7) * Math.sin(Math.PI * f);
+        ball.position.set(bx, TOP + 0.22 + arc, bz);
+        ball.rotation.x = t * 6; ball.rotation.z = t * 4;
+
+        g.getWorldPosition(gw); // island group is translation-only
+        teamY.forEach((p, i) => drivePlayer(p, yellowSlots[i], i === 0, bx, bz, t, i));
+        teamP.forEach((p, i) => drivePlayer(p, purpleSlots[i], i === 0, bx, bz, t, i + 5));
+      }
+    };
+  }
+
+  function buildMoon() {
+    const g = islandBase(6.4, 0x9aa2b5, 0x565e70);
+
+    // crater
+    const rim = fMesh(jitter(new THREE.TorusGeometry(2.0, 0.5, 6, 16), 0.25), 0x848ca0, 0.18);
+    rim.rotation.x = Math.PI / 2;
+    rim.position.set(2.6, 0.62, -1.8);
+    g.add(rim);
+
+    // scattered rocks
+    for (const [rx, rz, rs] of [[-4.2, 2.4, 0.5], [-2.0, 4.2, 0.6], [4.4, 1.8, 0.4], [0.6, -4.4, 0.5], [-4.4, -1.6, 0.35], [3.4, 3.8, 0.3]]) {
+      const rock = fMesh(jitter(new THREE.IcosahedronGeometry(rs, 0), rs * 0.4), 0x767e92, 0.22);
+      rock.position.set(rx, 0.6 + rs * 0.4, rz);
+      rock.rotation.set(rx, rz, rs);
+      g.add(rock);
+    }
+
+    // the fallen astronaut — red glow under the helmet
+    const astro = new THREE.Group();
+    const suit = 0xc9cfdd;
+    const helmet = fMesh(new THREE.IcosahedronGeometry(0.52, 1), 0xd7dded, 0.1);
+    helmet.position.set(0.95, 0.42, 0);
+    const torso = fMesh(new THREE.BoxGeometry(1.15, 0.5, 0.78), suit, 0.1);
+    torso.position.set(-0.15, 0.36, 0);
+    const pack = fMesh(new THREE.BoxGeometry(0.75, 0.32, 0.55), 0xa9b1c6, 0.1);
+    pack.position.set(-0.2, 0.72, 0);
+    const armL = fMesh(new THREE.BoxGeometry(0.95, 0.2, 0.22), suit, 0.1);
+    armL.position.set(0.45, 0.2, 0.55);
+    armL.rotation.y = 0.55;
+    const armR = armL.clone();
+    armR.position.z = -0.55; armR.rotation.y = -0.55;
+    const legL = fMesh(new THREE.BoxGeometry(1.25, 0.22, 0.26), suit, 0.1);
+    legL.position.set(-1.25, 0.18, 0.24);
+    legL.rotation.y = -0.12;
+    const legR = legL.clone();
+    legR.position.z = -0.24; legR.rotation.y = 0.12;
+    astro.add(helmet, torso, pack, armL, armR, legL, legR);
+    const glowMat = new THREE.MeshStandardMaterial({ color: 0x330000, emissive: 0xff2020, emissiveIntensity: 1.6, flatShading: true });
+    const glow = new THREE.Mesh(new THREE.SphereGeometry(0.24, 8, 8), glowMat);
+    glow.position.set(1.15, 0.16, 0);
+    astro.add(glow);
+    const redLight = new THREE.PointLight(0xff2020, 8, 6, 2);
+    redLight.position.set(1.15, 0.45, 0);
+    astro.add(redLight);
+    astro.position.set(-1.4, 0.55, 0.8);
+    astro.rotation.y = 0.7;
+    g.add(astro);
+
+    // beacon mast on a supply crate
+    const crate = fMesh(new THREE.BoxGeometry(0.8, 0.6, 0.8), 0x8a91a5, 0.12);
+    crate.position.set(-3.6, 0.9, -2.6);
+    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.6, 5), mat(0x8a91a5));
+    mast.position.set(-3.6, 2.0, -2.6);
+    const beaconMat = new THREE.MeshStandardMaterial({ color: 0x330000, emissive: 0xff2a30, emissiveIntensity: 1.2, flatShading: true });
+    const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 8), beaconMat);
+    beacon.position.set(-3.6, 2.85, -2.6);
+    g.add(crate, mast, beacon);
+
+    // two little robots keeping vigil around the astronaut
+    const botPivot = new THREE.Group();
+    botPivot.position.set(-1.4, 0, 0.8);
+    const mkBot = (r, z, c) => {
+      const b = new THREE.Group();
+      const bodyB = fMesh(new THREE.BoxGeometry(0.42, 0.3, 0.52), c, 0.1);
+      bodyB.position.y = 0.82;
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.06, 6, 6), new THREE.MeshStandardMaterial({ color: 0x111, emissive: 0x59e07a, emissiveIntensity: 2 }));
+      eye.position.set(0.22, 0.86, 0);
+      for (const [wx, wz] of [[0.14, 0.28], [-0.14, 0.28], [0.14, -0.28], [-0.14, -0.28]]) {
+        const w = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.08, 6), mat(0x1c1a26));
+        w.rotation.x = Math.PI / 2;
+        w.position.set(wx, 0.64, wz);
+        b.add(w);
+      }
+      b.add(bodyB, eye);
+      b.position.set(r, 0, z);
+      botPivot.add(b);
+      return b;
+    };
+    const bot1 = mkBot(2.4, 0, 0xd7dded);
+    const bot2 = mkBot(3.1, 1.1, 0xb9c4d6);
+    g.add(botPivot);
+
+    return {
+      group: g,
+      animate(t) {
+        const pulse = Math.sin(t * 2.2);
+        glowMat.emissiveIntensity = 1.2 + Math.max(0, pulse) * 1.4;
+        redLight.intensity = 5 + Math.max(0, pulse) * 8;
+        beaconMat.emissiveIntensity = 0.3 + (Math.sin(t * 2.8) > 0.4 ? 1.8 : 0);
+        botPivot.rotation.y = t * 0.3;
+        bot1.rotation.y = -t * 0.3 + Math.PI / 2;
+        bot2.rotation.y = -t * 0.3 + Math.PI / 2;
+      }
+    };
+  }
+
+  // ---------- drifting clouds ----------
+  const cloudLayer = new THREE.Group();
+  {
+    const cloudMat = new THREE.MeshStandardMaterial({ color: 0xe8ecff, roughness: 1, transparent: true, opacity: 0.85, flatShading: true });
+    for (let i = 0; i < 5; i++) {
+      const cloud = new THREE.Group();
+      for (let j = 0; j < 3; j++) {
+        const puff = new THREE.Mesh(new THREE.IcosahedronGeometry(1.1 + Math.random() * 0.9, 0), cloudMat);
+        puff.position.set(j * 1.4 - 1.4, Math.random() * 0.4, Math.random() * 0.8 - 0.4);
+        puff.scale.y = 0.5;
+        cloud.add(puff);
+      }
+      const a = (i / 5) * Math.PI * 2 + 0.5;
+      cloud.position.set(Math.sin(a) * 33, 9 + (i % 3) * 3.5, Math.cos(a) * 33);
+      cloudLayer.add(cloud);
+    }
+    scene.add(cloudLayer);
+  }
+
+  // ---------- place islands ----------
+  const R = 24;
+  const layout = [
+    { angle: -2.35, y: 2.0 },   // glider
+    { angle: -0.78, y: -1.2 },  // stuntmania
+    { angle: 0.78, y: 1.2 },    // fitba
+    { angle: 2.35, y: -2.0 }    // shackleton
+  ];
+  const builders = [buildGlider, buildStunt, buildFitba, buildMoon];
+  const islands = [];
+
+  GAMES.forEach((game, i) => {
+    const { group, animate } = builders[i]();
+    const a = layout[i].angle;
+    group.position.set(Math.sin(a) * R, layout[i].y, Math.cos(a) * R);
+    group.traverse(o => {
+      if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; }
+    });
+    scene.add(group);
+
+    // invisible hit target for easy tapping
+    const hit = new THREE.Mesh(new THREE.SphereGeometry(7.5, 8, 8), new THREE.MeshBasicMaterial({ visible: false }));
+    hit.position.copy(group.position);
+    hit.userData.index = i;
+    scene.add(hit);
+
+    islands.push({ game, group, animate, hit, baseY: layout[i].y, phase: i * 1.7, angle: a });
+  });
+
+  // ---------- HUD wiring ----------
+  const intro = document.getElementById("intro");
+  const selector = document.getElementById("selector");
+  const tagsWrap = document.getElementById("tags");
+  const panel = document.getElementById("panel");
+  const pTitle = panel.querySelector("h2");
+  const pDesc = panel.querySelector("p");
+  const pPlay = panel.querySelector(".btn-play");
+  const pBack = panel.querySelector(".btn-back");
+
+  const selButtons = GAMES.map((game, i) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.style.setProperty("--bc", game.accent);
+    b.innerHTML = `<span class="dot">●</span>${game.name}`;
+    b.addEventListener("click", () => selectIsland(i));
+    selector.appendChild(b);
+    return b;
+  });
+
+  const tags = GAMES.map((game, i) => {
+    const t = document.createElement("button");
+    t.type = "button";
+    t.className = "tag";
+    t.style.setProperty("--tagc", game.accent);
+    t.innerHTML = `<span class="dot">▶</span>${game.name}`;
+    t.addEventListener("click", () => selectIsland(i));
+    tagsWrap.appendChild(t);
+    return t;
+  });
+
+  // ---------- camera rig ----------
+  const cam = {
+    target: new THREE.Vector3(0, 3, 0),
+    radius: 46, az: -2.35, el: 0.34,
+    gTarget: new THREE.Vector3(0, 3, 0),
+    gRadius: 46, gAz: -2.35, gEl: 0.34
+  };
+  let mode = "tour";      // "tour" | "focus"
+  let current = -1;
+  let introGone = false;
+
+  function nearestAngle(from, to) {
+    const TAU = Math.PI * 2;
+    let d = (to - from) % TAU;
+    if (d > Math.PI) d -= TAU;
+    if (d < -Math.PI) d += TAU;
+    return from + d;
+  }
+
+  function dismissIntro() {
+    if (introGone) return;
+    introGone = true;
+    intro.classList.add("gone");
+  }
+
+  function selectIsland(i) {
+    dismissIntro();
+    mode = "focus";
+    current = i;
+    const isl = islands[i];
+    cam.gTarget.copy(isl.group.position).add(new THREE.Vector3(0, 2.6, 0));
+    cam.gRadius = 16.5;
+    cam.gEl = 0.3;
+    cam.gAz = nearestAngle(cam.az, isl.angle);
+
+    const g = isl.game;
+    panel.style.setProperty("--pc", g.accent);
+    pTitle.textContent = g.name;
+    pDesc.textContent = g.desc;
+    pPlay.href = g.url;
+    panel.classList.add("open");
+
+    selButtons.forEach((b, k) => b.classList.toggle("active", k === i));
+    tags.forEach((t, k) => t.classList.toggle("active", k === i));
+  }
+
+  function backToTour() {
+    mode = "tour";
+    current = -1;
+    panel.classList.remove("open");
+    cam.gTarget.set(0, 3, 0);
+    cam.gRadius = 46;
+    cam.gEl = 0.34;
+    selButtons.forEach(b => b.classList.remove("active"));
+    tags.forEach(t => t.classList.remove("active"));
+  }
+
+  pBack.addEventListener("click", backToTour);
+
+  window.addEventListener("keydown", e => {
+    if (e.key === "Escape") backToTour();
+    else if (e.key === "Enter" && current >= 0 && !e.target.closest("a,button")) {
+      window.location.href = GAMES[current].url;
+    } else if (["1", "2", "3", "4"].includes(e.key)) selectIsland(Number(e.key) - 1);
+    else if (e.key === "ArrowRight") selectIsland(((current < 0 ? -1 : current) + 1) % 4);
+    else if (e.key === "ArrowLeft") selectIsland(((current < 0 ? 1 : current) + 3) % 4);
+  });
+
+  // ---------- pointer: drag to orbit, tap to select ----------
+  const raycaster = new THREE.Raycaster();
+  const ndc = new THREE.Vector2();
+  let dragging = false, moved = 0, pxl = 0, pyl = 0;
+
+  canvas.addEventListener("pointerdown", e => {
+    dragging = true; moved = 0;
+    pxl = e.clientX; pyl = e.clientY;
+    canvas.classList.add("dragging");
+    canvas.setPointerCapture(e.pointerId);
+  });
+  canvas.addEventListener("pointermove", e => {
+    if (!dragging) return;
+    const dx = e.clientX - pxl, dy = e.clientY - pyl;
+    pxl = e.clientX; pyl = e.clientY;
+    moved += Math.abs(dx) + Math.abs(dy);
+    if (moved > 4) dismissIntro();
+    cam.gAz -= dx * 0.0055;
+    cam.gEl = Math.min(1.15, Math.max(0.06, cam.gEl + dy * 0.004));
+  });
+  canvas.addEventListener("pointerup", e => {
+    dragging = false;
+    canvas.classList.remove("dragging");
+    if (moved < 6) {
+      // tap: raycast islands
+      ndc.x = (e.clientX / window.innerWidth) * 2 - 1;
+      ndc.y = -(e.clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(ndc, camera);
+      const hits = raycaster.intersectObjects(islands.map(i => i.hit));
+      if (hits.length) selectIsland(hits[0].object.userData.index);
+      else dismissIntro();
+    }
+  });
+  canvas.addEventListener("pointercancel", () => {
+    dragging = false;
+    canvas.classList.remove("dragging");
+  });
+
+  // ---------- resize ----------
+  function resize() {
+    const w = window.innerWidth, h = window.innerHeight;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+  window.addEventListener("resize", resize);
+  resize();
+
+  // ---------- main loop ----------
+  const clock = new THREE.Clock();
+  const v = new THREE.Vector3();
+  let firstFrame = true;
+
+  function frame() {
+    const dt = Math.min(clock.getDelta(), 0.05);
+    const t = clock.elapsedTime;
+
+    // idle world motion
+    if (!reducedMotion) {
+      islands.forEach(isl => {
+        isl.group.position.y = isl.baseY + Math.sin(t * 0.5 + isl.phase) * 0.55;
+        isl.hit.position.y = isl.group.position.y;
+        isl.animate(t + isl.phase);
+      });
+      cloudLayer.rotation.y = t * 0.008;
+      if (mode === "tour" && !dragging) cam.gAz += dt * 0.05;
+    } else {
+      islands.forEach(isl => isl.animate(0));
+    }
+
+    // damp camera towards goals
+    const k = reducedMotion ? 1 : 1 - Math.exp(-dt * 3.2);
+    cam.target.lerp(cam.gTarget, k);
+    cam.radius += (cam.gRadius - cam.radius) * k;
+    cam.az += (cam.gAz - cam.az) * k;
+    cam.el += (cam.gEl - cam.el) * k;
+
+    camera.position.set(
+      cam.target.x + cam.radius * Math.cos(cam.el) * Math.sin(cam.az),
+      cam.target.y + cam.radius * Math.sin(cam.el),
+      cam.target.z + cam.radius * Math.cos(cam.el) * Math.cos(cam.az)
+    );
+    camera.lookAt(cam.target);
+
+    // project island tags
+    islands.forEach((isl, i) => {
+      v.copy(isl.group.position).add(new THREE.Vector3(0, 8, 0)).project(camera);
+      const behind = v.z > 1;
+      const x = (v.x * 0.5 + 0.5) * window.innerWidth;
+      const y = (-v.y * 0.5 + 0.5) * window.innerHeight;
+      const offscreen = x < 40 || x > window.innerWidth - 40 || y < 60 || y > window.innerHeight - 80;
+      const hide = behind || offscreen || (mode === "focus" && current === i);
+      tags[i].classList.toggle("hidden", hide);
+      if (!hide) {
+        tags[i].style.left = x + "px";
+        tags[i].style.top = y + "px";
+      }
+    });
+
+    renderer.render(scene, camera);
+    if (firstFrame) {
+      firstFrame = false;
+      document.body.classList.add("webgl");
+    }
+    requestAnimationFrame(frame);
+  }
+  frame();
+}
+
+boot();
 </script>
 </body>
 </html>
