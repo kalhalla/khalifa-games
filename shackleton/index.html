@@ -525,7 +525,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.3.3';  // step-pause-step lope oscillator, robot storyboard detail pass
+  const BUILD_VERSION = 'v0.3.4';  // gait reverted to slow-motion original, human breath synth
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -2496,32 +2496,11 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     const inMag = Math.hypot(inX, inZ);
     if (inMag > 1) { inX /= inMag; inZ /= inMag; }
 
-    // ── LUNAR LOPE OSCILLATOR ──
-    // A constant timescale reads as slow motion, not as a lope. The
-    // real gait is step-PAUSE-step: a push phase where everything
-    // happens at once, then a floaty gather where almost nothing
-    // does. One phase clock drives three things in lockstep:
-    //   1. targetSpeed pulses (fast in the push, slow in the gather)
-    //   2. the gait clip's timescale pulses the same way, so the
-    //      legs swing hard during the push and hang during the pause
-    //   3. a small root bob lifts the body through each push
-    // The pulse is a sharpened positive half-sine: ~45% of the cycle
-    // is push, the rest is the pause.
-    const gaitMoving = player.grounded && jumpPhase === null;
-    if (gaitMoving) {
-      const cyc = input.run ? 0.58 : 0.85;            // seconds per stride
-      gaitPhase += dt * (Math.PI * 2) / cyc;
-      gaitPulse = Math.pow(Math.max(0, Math.sin(gaitPhase)), 1.6);
-    } else {
-      gaitPulse += (1 - gaitPulse) * Math.min(1, dt * 6);  // relax to neutral
-    }
-    const gaitMult = gaitMoving ? (0.45 + 0.95 * gaitPulse) : 1;
-    if (activeAction && gaitMoving &&
-        (activeAction === animClips['Walk_Loop'] || activeAction === animClips['Run_Loop'])) {
-      activeAction.setEffectiveTimeScale(0.35 + 0.9 * gaitPulse);
-    }
-
-    const targetSpeed = (input.run ? RUN_SPEED : WALK_SPEED) * gaitMult;
+    // Lope oscillator (v0.3.3) reverted per playtest — the pulsing
+    // speed/clip-rate/bob read as stuttering, not as a lope. The
+    // lunar feel now comes solely from the 0.78× gait timescale in
+    // setAnimation: original movement, slightly slow limbs.
+    const targetSpeed = input.run ? RUN_SPEED : WALK_SPEED;
     const accel = player.grounded ? ACCEL_GROUND : ACCEL_AIR;
 
     // Slope check — sample the local gradient via finite differences
@@ -2791,13 +2770,6 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     // Update model position + rotation
     if (astronautRoot) {
       astronautRoot.position.copy(player.pos);
-      // Lope bob — the body lifts ~7cm through each push and settles
-      // through the pause. Visual only; player.pos and collision are
-      // untouched.
-      const spdNow = Math.hypot(player.vel.x, player.vel.z);
-      if (player.grounded && spdNow > 0.4) {
-        astronautRoot.position.y += 0.07 * gaitPulse;
-      }
       astronautRoot.rotation.y = player.heading;
     }
 
@@ -3261,48 +3233,72 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   }
   function breathBurst(startT, dur, type, exertion) {
     if (!audioCtx) return;
+    // Brighter turbulence than before — the old brown-ish noise
+    // through one narrow bandpass read as machine hiss. Human breath
+    // is broadband air shaped by the vocal tract, so: whiter noise,
+    // a rumble-cut highpass, then TWO formant peaks that differ
+    // between inhale (airy, bright) and exhale (rounder, darker,
+    // with the spectrum closing down as the air slows).
     const len = Math.floor(audioCtx.sampleRate * dur);
     const buf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
     const data = buf.getChannelData(0);
     let prev = 0;
     for (let i = 0; i < len; i++) {
       const white = Math.random()*2 - 1;
-      prev = prev * 0.7 + white * 0.3;
+      prev = prev * 0.45 + white * 0.55;
       data[i] = prev;
     }
     const src = audioCtx.createBufferSource();
     src.buffer = buf;
 
-    // Bandpass for breath spectrum — sharper and higher when exerted
-    const filt = audioCtx.createBiquadFilter();
-    filt.type = 'bandpass';
-    filt.Q.value = 0.9 + exertion * 0.5;
+    const vary = () => 1 + (Math.random() - 0.5) * 0.16;   // ±8% so no two breaths match
+
+    const hp = audioCtx.createBiquadFilter();
+    hp.type = 'highpass'; hp.frequency.value = 300; hp.Q.value = 0.5;
+
+    const f1 = audioCtx.createBiquadFilter();
+    f1.type = 'peaking'; f1.Q.value = 1.2; f1.gain.value = 7;
+    const f2 = audioCtx.createBiquadFilter();
+    f2.type = 'peaking'; f2.Q.value = 2.0;
+
+    const lp = audioCtx.createBiquadFilter();
+    lp.type = 'lowpass'; lp.Q.value = 0.6;
+
+    const g = audioCtx.createGain();
+    const peakGain = 0.085 + exertion * 0.10;
+    g.gain.setValueAtTime(0, startT);
+
     if (type === 'inhale') {
-      const lo = 360 + exertion * 120;
-      const hi = 540 + exertion * 200;
-      filt.frequency.setValueAtTime(lo, startT);
-      filt.frequency.exponentialRampToValueAtTime(hi, startT + dur * 0.6);
-      filt.frequency.exponentialRampToValueAtTime(lo + 40, startT + dur);
+      f1.frequency.value = 800 * vary();
+      f2.frequency.value = 2400 * vary();
+      f2.gain.value = 5;
+      lp.frequency.setValueAtTime(4200, startT);
+      // swell, brief hold, clean cut — the shape of drawing air
+      g.gain.linearRampToValueAtTime(peakGain, startT + dur * 0.45);
+      g.gain.setValueAtTime(peakGain, startT + dur * 0.78);
+      g.gain.linearRampToValueAtTime(0, startT + dur);
     } else {
-      filt.frequency.setValueAtTime(380 + exertion * 80, startT);
-      filt.frequency.exponentialRampToValueAtTime(220 + exertion * 60, startT + dur);
+      f1.frequency.value = 500 * vary();
+      f2.frequency.value = 1600 * vary();
+      f2.gain.value = 3;
+      // spectrum closes as the air slows
+      lp.frequency.setValueAtTime(3000, startT);
+      lp.frequency.exponentialRampToValueAtTime(850, startT + dur);
+      // strong start, long trail — the shape of letting air go
+      g.gain.linearRampToValueAtTime(peakGain, startT + dur * 0.12);
+      g.gain.linearRampToValueAtTime(peakGain * 0.35, startT + dur * 0.55);
+      g.gain.linearRampToValueAtTime(0, startT + dur);
     }
 
-    // Helmet resonance
+    // Helmet resonance — unchanged; it's what keeps this a suit.
     const helmet = audioCtx.createBiquadFilter();
     helmet.type = 'peaking';
     helmet.frequency.value = 200;
     helmet.Q.value = 4;
     helmet.gain.value = 6;
 
-    // Louder + sharper attack when exerted
-    const peakGain = 0.09 + exertion * 0.10;
-    const g = audioCtx.createGain();
-    g.gain.setValueAtTime(0, startT);
-    g.gain.linearRampToValueAtTime(peakGain, startT + dur * (0.35 - exertion * 0.15));
-    g.gain.linearRampToValueAtTime(0, startT + dur);
-
-    src.connect(filt); filt.connect(helmet); helmet.connect(g); g.connect(masterGain);
+    src.connect(hp); hp.connect(f1); f1.connect(f2); f2.connect(lp);
+    lp.connect(helmet); helmet.connect(g); g.connect(masterGain);
     src.start(startT); src.stop(startT + dur);
   }
 
@@ -3375,8 +3371,6 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // the ground (vacuum), just the soft "shhh" of suit fabric compressing
   // and life-support fluid shifting. Very quiet, very low, very brief.
   let footstepTimer = 0;
-  let gaitPhase = 0;      // lunar lope clock — drives speed pulse, clip rate, bob
-  let gaitPulse = 1;      // shaped 0..1 push intensity
   // ============================================================
   // FOOTPRINTS — every footstep drops a textured plane at the foot's
   // ground position. Pooled (cap 400) and recycled oldest-first so
