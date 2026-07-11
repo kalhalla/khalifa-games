@@ -525,7 +525,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.3.4';  // gait reverted to slow-motion original, human breath synth
+  const BUILD_VERSION = 'v0.3.5';  // walk fully reverted to original timing
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -2393,13 +2393,10 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     if (activeAction === animClips[name]) return;
     const next = animClips[name];
     if (activeAction) activeAction.fadeOut(ANIM_FADE);
-    // Gait clips run at 0.78× — the Apollo-footage look is normal
-    // physics under slow-cycling limbs. The body covers ground at
-    // full speed while the legs lope, which reads as low gravity
-    // without touching the movement maths.
-    const ts = (name === 'Walk_Loop' || name === 'Run_Loop') ? 0.78 : 1;
+    // Gait timescale experiments (0.78× slow-motion, then the lope
+    // oscillator) both reverted per playtest. Original timing wins.
     next.reset()
-        .setEffectiveTimeScale(ts)
+        .setEffectiveTimeScale(1)
         .setEffectiveWeight(1)
         .fadeIn(ANIM_FADE)
         .play();
