@@ -534,7 +534,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.4.1';  // side-rip entry + sealed tail, wreck 2.0x, Newtonian flight, embedded wake
+  const BUILD_VERSION = 'v0.4.3';  // hatch + hull collision + sealed tail (0.4.2), wake-at-tanks rescue, O₂ umbilical hose, drag-to-repair stabiliser
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -2464,6 +2464,34 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   function updatePlayer(dt) {
     setInputFromKeys();
 
+    // Position at frame start — the hull wall collision below resolves
+    // line crossings against where the player WAS, which makes the
+    // walls one-way-proof (no tunnelling, no wrong-side ejection).
+    const _prevPX = player.pos.x, _prevPZ = player.pos.z;
+
+    // Seated at the O₂ tanks after a blackout: hold position with the
+    // frozen crouch pose until the player gives any movement input,
+    // then stand and hand back to the normal controller.
+    if (rescueSit.active) {
+      const wantsMove = Math.abs(input.forward) > 0.05 ||
+                        Math.abs(input.strafe) > 0.05 || input.jump;
+      if (wantsMove) {
+        rescueSit.active = false;
+        if (animClips['Crouch_Loop']) animClips['Crouch_Loop'].paused = false;
+        setAnimation('Idle_Breath');
+        // fall through — this frame runs the normal controller
+      } else {
+        player.vel.set(0, 0, 0);
+        player.pos.y = shackletonScene.getGroundY(player.pos.x, player.pos.z);
+        player.grounded = true;
+        if (astronautRoot) {
+          astronautRoot.position.copy(player.pos);
+          astronautRoot.rotation.y = player.heading;
+        }
+        return;
+      }
+    }
+
     // Ground check
     const groundY = shackletonScene.getGroundY(player.pos.x, player.pos.z);
     const onGround = player.pos.y <= groundY + 0.02;
@@ -2719,6 +2747,48 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
         player.pos.z = rs.pos.z + nz * rMin;
         const vR = player.vel.x * nx + player.vel.z * nz;
         if (vR < 0) { player.vel.x -= vR * nx; player.vel.z -= vR * nz; }
+      }
+    }
+
+    // ── WRECK HULL COLLISION (v0.4.2) ──
+    // The hull is a lying cylinder: axis along world X at z = -2,
+    // world radius 4.4, buried 2.2m — so at ground level its skin
+    // crosses the lines |z + 2| = 3.9 along the hull span. Those two
+    // lines are solid walls (interior AND exterior), except through
+    // the hatch doorway once the leaf has slid clear. The sealed tail
+    // bulkhead (world x ≈ 10.3) and the crumpled nose close the ends
+    // from inside. Crossing tests use the frame-start position, so a
+    // fast frame can't tunnel and a clamp can't eject to the far side.
+    {
+      const zc = STARSHIP_Z;
+      const HX0 = 8.2, HX1 = 35.6;        // hull span, world x
+      const WALL = 3.9;                    // |z - zc| of skin at ground
+      const TAILX = 10.3, NOSEX = 34.4;    // interior end planes
+      if ((player.pos.x > HX0 && player.pos.x < HX1) ||
+          (_prevPX > HX0 && _prevPX < HX1)) {
+        const dNow = player.pos.z - zc, dPrev = _prevPZ - zc;
+        const doorOpen = HATCH.t > 0.6;    // leaf visually clear
+        const midX = (player.pos.x + _prevPX) * 0.5;
+        const inDoorway = doorOpen && midX > HATCH.WX0 && midX < HATCH.WX1;
+        for (const s of [1, -1]) {         // south wall, north wall
+          const L = s * WALL;
+          if ((dPrev - L) * (dNow - L) < 0 && !(s === 1 && inDoorway)) {
+            player.pos.z = zc + L + (dPrev > L ? 0.06 : -0.06);
+            player.vel.z = 0;
+          }
+        }
+        // End planes only bind inside the hull's z-band (walking around
+        // the tail mouth outside the band stays free).
+        if (Math.abs(player.pos.z - zc) < WALL) {
+          if ((_prevPX - TAILX) * (player.pos.x - TAILX) < 0) {
+            player.pos.x = TAILX + (_prevPX > TAILX ? 0.06 : -0.06);
+            player.vel.x = 0;
+          }
+          if ((_prevPX - NOSEX) * (player.pos.x - NOSEX) < 0) {
+            player.pos.x = NOSEX + (_prevPX > NOSEX ? 0.06 : -0.06);
+            player.vel.x = 0;
+          }
+        }
       }
     }
 
@@ -3391,13 +3461,31 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   let footprintTexture = null;
 
   function _makeFootprintTexture() {
-    // Larger canvas so the texture stays crisp at the new bigger plane size.
+    // Larger canvas so the texture stays crisp at the new bigger plane
+    // size — with margin for the regolith mound ring around the print.
     const c = document.createElement('canvas');
-    c.width = 96; c.height = 144;
+    c.width = 128; c.height = 176;
     const ctx = c.getContext('2d');
-    ctx.clearRect(0, 0, 96, 144);
-    const cx = 48, cy = 72;
+    ctx.clearRect(0, 0, 128, 176);
+    const cx = 64, cy = 88;
     const rx = 36, ry = 60;     // half-width / half-height of the oval
+
+    // ── Regolith mound ── boots displace soft regolith outward; the
+    // real prints have a raised, slightly BRIGHT rim (freshly turned
+    // dust catches the sun) fading into a faint outer shadow. Baked
+    // into the (unlit) texture as concentric soft rings around the
+    // print — zero extra geometry, zero extra draw calls.
+    for (const [grow, w, col] of [
+      [14, 12, 'rgba(60,60,66,0.18)'],     // outer settle shadow
+      [8,  10, 'rgba(228,229,235,0.30)'],  // mound flank
+      [4,   7, 'rgba(240,241,246,0.50)'],  // sunlit rim crest
+    ]) {
+      ctx.strokeStyle = col;
+      ctx.lineWidth = w;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, rx + grow, ry + grow, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
     // Footprint colour and opacity are tuned for the harsh-sunlight
     // regolith. Real boot prints on the lunar surface read as faint
     // shadow impressions, not dark stamps — a 0.45 opacity dark grey
@@ -3441,9 +3529,9 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     if (footprints.length) return;
     footprintTexture = _makeFootprintTexture();
     // Bigger plane — boots on the moon press a substantial print into
-    // soft regolith. 0.30m × 0.42m reads clearly even from chase-cam
-    // distance.
-    const geo = new THREE.PlaneGeometry(0.30, 0.42);
+    // soft regolith. Print itself is ~0.30m × 0.42m; the plane carries
+    // extra margin for the baked mound ring around it.
+    const geo = new THREE.PlaneGeometry(0.40, 0.54);
     geo.rotateX(-Math.PI / 2);    // lay flat on XZ plane (normal = +Y)
     const mat = new THREE.MeshBasicMaterial({
       map: footprintTexture,
@@ -4579,16 +4667,33 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
           msgEl.textContent = 'dragged you :)';
           msgEl.style.opacity = msgA.toFixed(3);
         }
-        // At the start of the hold, teleport the player to the source
-        // and refill to current capacity.
+        // At the start of the hold, move the player to the O₂ station:
+        // he wakes SITTING against the tanks, hose clipped to helmet,
+        // already refilling (v0.4.3 — was a standing wake mid-field).
         if (into < dt * 1.5) {
-          const sx = OXYGEN_SOURCE.x;
-          const sz = OXYGEN_SOURCE.z + 5;     // a few metres south of wreck
+          const sx = REFILL_PANEL_POS.x + 0.85;   // beside the tanks
+          const sz = REFILL_PANEL_POS.z - 0.45;
           player.pos.set(sx, shackletonScene.getGroundY(sx, sz), sz);
           player.vel.set(0, 0, 0);
+          // Face the tanks (they sit behind the pillar, local -z).
+          player.heading = Math.atan2(REFILL_PANEL_POS.x - sx,
+                                      (REFILL_PANEL_POS.z - 0.55) - sz);
           if (astronautRoot) {
             astronautRoot.position.copy(player.pos);
+            astronautRoot.rotation.y = player.heading;
           }
+          // Seated pose — freeze Crouch_Loop mid-frame. Unlike the
+          // Flyer pilot (whose paused pose must NOT re-stamp so head
+          // tracking survives), here re-stamping every mixer.update
+          // is exactly what keeps him seated.
+          if (mixer && animClips['Crouch_Loop']) {
+            setAnimation('Crouch_Loop');
+            animClips['Crouch_Loop'].time = 0.35;
+            animClips['Crouch_Loop'].paused = true;
+          }
+          rescueSit.active = true;
+          rescueSit.spoke = false;
+          refill.connected = true;            // hose attached, refilling
           oxygen.percent = oxygen.capacity;   // wake topped up to current ceiling
         }
       } else if (t < RESCUE_TOTAL) {
@@ -4603,6 +4708,11 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
         if (msgEl)  msgEl.style.opacity = '0';
         oxygen.dead = false;
         oxygen.rescueT = 0;
+        if (rescueSit.active && !rescueSit.spoke) {
+          rescueSit.spoke = true;
+          speak('SUIT', 'emergency umbilical attached — O₂ flow nominal', 3.2,
+                { kind: 'system' });
+        }
       }
 
       _updateOxygenHUD();
@@ -4698,10 +4808,13 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       sndFootstep(speed);
       spawnFootprint();
       // Every step kicks regolith — 2-4 motes at the feet, more when
-      // running. On the Moon dust doesn't billow, it ballistic-hops,
-      // which the existing dust physics already does.
-      spawnDust(player.pos.x, player.pos.y + 0.08, player.pos.z,
-                2 + Math.floor(speed * 0.5));
+      // running. v0.4.2: tuned way down from the default burst params
+      // (speed 5 → 0.55) — the old motes flew metres from the boot.
+      // Now they hop low and slow and settle within ~half a metre of
+      // the print, which is what heavy dust with no air does.
+      spawnDust(player.pos.x, player.pos.y + 0.06, player.pos.z,
+                2 + Math.floor(speed * 0.5),
+                { speed: 0.55, upVel: 0.35, upVar: 0.5, life: 0.9 });
     }
   }
   function sndFootstep(speed) {
@@ -6714,6 +6827,15 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     nearPanel: false,                  // updated each frame
   };
   const REFILL_PANEL_RADIUS = 3.0;     // m — interaction range
+  // Rescue wake state (v0.4.3): after an oxygen blackout the player
+  // regains consciousness SITTING at the O₂ tanks, umbilical hose
+  // clipped to the helmet, already refilling. Any movement input
+  // stands him up. While active, updatePlayer holds position and the
+  // Crouch_Loop pose stays frozen mid-frame.
+  const rescueSit = {
+    active: false,
+    spoke: false,                      // one-time wake suit line fired
+  };
   // Debug — press = to bump capacity up by 25 (max 100). Lets us test
   // each phase's leash without wiring repair triggers yet. Wired in
   // the keydown handler.
@@ -8670,6 +8792,259 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   addCollider(REFILL_PANEL_POS.x, REFILL_PANEL_POS.z, 0.45, refillPanel.position.y + 1.2);
 
   // ============================================================
+  // O₂ UMBILICAL HOSE (v0.4.3)
+  // A physical hose from the tank manifold to the astronaut's helmet.
+  // Extends out when the player connects at the station, follows the
+  // helmet while connected (station radius is small, so lengths stay
+  // sane), retracts on disconnect. Also used by the rescue wake:
+  // the player comes to seated at the tanks with the hose attached.
+  // TubeGeometry is rebuilt per frame ONLY while the hose is visible.
+  // ============================================================
+  const hoseAnchor = new THREE.Vector3(
+    REFILL_PANEL_POS.x, refillPanel.position.y + 1.30, REFILL_PANEL_POS.z - 0.55
+  );
+  const o2Hose = {
+    t: 0,            // extension 0..1
+    mesh: null,
+    nozzle: null,
+  };
+  {
+    const hoseMat = new THREE.MeshPhongMaterial({
+      shininess: 0, color: 0xd35400, flatShading: true   // suit-orange line
+    });
+    o2Hose.mesh = new THREE.Mesh(
+      new THREE.TubeGeometry(
+        new THREE.QuadraticBezierCurve3(hoseAnchor, hoseAnchor, hoseAnchor), 4, 0.03, 6, false),
+      hoseMat
+    );
+    o2Hose.mesh.visible = false;
+    o2Hose.mesh.frustumCulled = false;   // endpoints move; skip stale-bounds pop-out
+    scene.add(o2Hose.mesh);
+    const nozzleMat = new THREE.MeshPhongMaterial({
+      shininess: 0, color: 0x3a3d44, flatShading: true
+    });
+    o2Hose.nozzle = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.16, 8), nozzleMat);
+    o2Hose.nozzle.visible = false;
+    scene.add(o2Hose.nozzle);
+  }
+
+  const _hoseEnd = new THREE.Vector3();
+  const _hoseMid = new THREE.Vector3();
+  function updateHose(dt) {
+    const want = cine.phase === 'gameplay' && controlMode === 'walking' &&
+                 (refill.connected || rescueSit.active);
+    o2Hose.t += ((want ? 1 : 0) - o2Hose.t) * Math.min(1, dt * 3.5);
+    if (o2Hose.t < 0.03) {
+      if (o2Hose.mesh.visible) {
+        o2Hose.mesh.visible = false;
+        o2Hose.nozzle.visible = false;
+      }
+      return;
+    }
+    // Helmet target: head height drops when seated; small forward
+    // offset so the hose meets the visor side, not the spine.
+    const helmetY = rescueSit.active ? 1.00 : 1.50;
+    _hoseEnd.set(
+      player.pos.x + Math.sin(player.heading) * 0.14,
+      player.pos.y + helmetY,
+      player.pos.z + Math.cos(player.heading) * 0.14
+    );
+    // Extension: the free end travels from the manifold toward the
+    // helmet as t rises; sag eases off as the line goes taut.
+    const e = o2Hose.t * o2Hose.t * (3 - 2 * o2Hose.t);
+    _hoseEnd.lerpVectors(hoseAnchor, _hoseEnd, e);
+    _hoseMid.lerpVectors(hoseAnchor, _hoseEnd, 0.5);
+    _hoseMid.y -= 0.30 * e + 0.05;      // slack droop
+    o2Hose.mesh.geometry.dispose();
+    o2Hose.mesh.geometry = new THREE.TubeGeometry(
+      new THREE.QuadraticBezierCurve3(hoseAnchor.clone(), _hoseMid.clone(), _hoseEnd.clone()),
+      12, 0.03, 6, false
+    );
+    o2Hose.mesh.visible = true;
+    // Nozzle collar rides the free end, aimed back along the last leg.
+    o2Hose.nozzle.position.copy(_hoseEnd);
+    o2Hose.nozzle.lookAt(_hoseMid);
+    o2Hose.nozzle.rotateX(Math.PI / 2);   // cylinder axis onto the look line
+    o2Hose.nozzle.visible = true;
+  }
+
+  // ============================================================
+  // SIDE HATCH (v0.4.2) — the working entrance into the wreck.
+  //
+  // The GLB now has a floor-reaching doorway cut through hull and
+  // liner on the south flank (local y 6.35–7.75, angle 55°–108°;
+  // world x ≈ 20.7–23.5), framed in steel. This assembly adds the
+  // moving parts, built in the starship group's LOCAL frame (hull
+  // axis +Y, R 2.2) so it inherits the lying rotation, WRECK_SCALE
+  // and lift automatically:
+  //   - sliding door leaf (curved panel riding just proud of the skin,
+  //     slides toward the nose to open)
+  //   - two edge light strips along the door jambs (red shut → green
+  //     open) — these are the "two lines" from the concept sketch
+  //   - a glowing touchpad beside the tail-side jamb ([E]/tap)
+  //   - a warm PointLight spilling out of the doorway when open
+  // Angle convention matches the GLB: 0° = buried ground side (+X
+  // local), 90° = south flank (+Z local → world +Z).
+  // ============================================================
+  const HATCH = {
+    A0: 55, A1: 108,          // doorway angular span (55° = floor line)
+    Y0: 6.35, Y1: 7.75,       // doorway span along the hull axis
+    WX0: 20.5, WX1: 23.6,     // world-x doorway bounds (collision pass-through)
+    SLIDE: 1.55,              // local +Y leaf travel when open (toward nose)
+    open: false,
+    t: 0,                     // animation state 0..1 (t > 0.6 = walkable)
+    announced: false,
+  };
+
+  // Curved strip: quads between two rows along an arc at radius r.
+  function _hatchArcStrip(r, y0, y1, a0deg, a1deg, steps) {
+    const pos = [], idx = [];
+    for (let i = 0; i <= steps; i++) {
+      const a = (a0deg + (a1deg - a0deg) * (i / steps)) * Math.PI / 180;
+      pos.push(Math.cos(a) * r, y0, Math.sin(a) * r);
+      pos.push(Math.cos(a) * r, y1, Math.sin(a) * r);
+    }
+    for (let i = 0; i < steps; i++) {
+      const b = i * 2;
+      idx.push(b, b + 1, b + 2, b + 2, b + 1, b + 3);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setIndex(idx);
+    geo.computeVertexNormals();
+    return geo;
+  }
+
+  const hatchAssembly = (function buildHatch() {
+    const grp = new THREE.Group();
+    grp.userData.keepVisible = true;    // survives the GLB-load purge
+
+    // ── Door leaf ── slightly wider than the opening so shut = sealed.
+    const leafMat = new THREE.MeshPhongMaterial({
+      shininess: 0, color: 0x565962, flatShading: true, side: THREE.DoubleSide
+    });
+    const leaf = new THREE.Mesh(
+      _hatchArcStrip(2.26, HATCH.Y0 - 0.06, HATCH.Y1 + 0.06, HATCH.A0 - 3, HATCH.A1 + 3, 7),
+      leafMat
+    );
+    leaf.castShadow = true;
+    grp.add(leaf);
+    // Diagonal hazard chevron band across the leaf mid-height
+    const chevron = new THREE.Mesh(
+      _hatchArcStrip(2.28, HATCH.Y0 + 0.52, HATCH.Y1 - 0.52, HATCH.A0 + 8, HATCH.A1 - 8, 6),
+      new THREE.MeshPhongMaterial({ shininess: 0, color: 0xd97a1f, flatShading: true })
+    );
+    leaf.add(chevron);
+
+    // ── Edge light strips ── the two drawn lines: one along each jamb.
+    const stripMat = new THREE.MeshBasicMaterial({ color: 0xd23c28 });
+    const stripA = new THREE.Mesh(
+      _hatchArcStrip(2.25, HATCH.Y0 - 0.10, HATCH.Y0 - 0.02, HATCH.A0, HATCH.A1, 8), stripMat);
+    const stripB = new THREE.Mesh(
+      _hatchArcStrip(2.25, HATCH.Y1 + 0.02, HATCH.Y1 + 0.10, HATCH.A0, HATCH.A1, 8), stripMat);
+    grp.add(stripA); grp.add(stripB);
+
+    // ── Touchpad ── beside the tail-side jamb, ~1.4m up in world terms.
+    const PAD_A = 80 * Math.PI / 180, PAD_Y = 6.02, PAD_R = 2.30;
+    const pad = new THREE.Group();
+    // lookAt(axis) points the pad's +Z at the hull axis, so -Z is the
+    // outward hull normal: keep the box thin in z, screen proud on -Z.
+    const padBody = new THREE.Mesh(
+      new THREE.BoxGeometry(0.16, 0.22, 0.06),
+      new THREE.MeshPhongMaterial({ shininess: 0, color: 0x2a2c33, flatShading: true })
+    );
+    pad.add(padBody);
+    const padScreenMat = new THREE.MeshBasicMaterial({ color: 0xd2a028 });
+    const padScreen = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.14, 0.025), padScreenMat);
+    padScreen.position.z = -0.035;     // proud of the body, facing outward
+    pad.add(padScreen);
+    pad.position.set(Math.cos(PAD_A) * PAD_R, PAD_Y, Math.sin(PAD_A) * PAD_R);
+    pad.lookAt(0, PAD_Y, 0);
+    grp.add(pad);
+
+    // ── Doorway spill light ── off while shut; warm interior glow open.
+    const dlight = new THREE.PointLight(0xffc890, 0.0, 11);
+    dlight.position.set(0.4, (HATCH.Y0 + HATCH.Y1) / 2, 1.3);
+    grp.add(dlight);
+
+    starship.add(grp);
+
+    // Touchpad position in WORLD space for the interaction scan — the
+    // group frame is rotated/scaled, so ask three.js rather than doing
+    // the maths twice.
+    starship.updateMatrixWorld(true);
+    const padWorld = pad.getWorldPosition(new THREE.Vector3());
+
+    return { grp, leaf, stripMat, padScreenMat, dlight, padWorld };
+  })();
+
+  // Interaction proxy for the shared [E]/tap prompt scan. Never enters
+  // wreckInterior.interactables — the stabiliser puzzle's every-done
+  // check must not see it.
+  const hatchInteract = {
+    isHatch: true, done: false, r: 2.4,
+    x: hatchAssembly.padWorld.x,
+    z: hatchAssembly.padWorld.z,
+    get label() { return HATCH.open ? 'close the hatch' : 'open the hatch'; },
+  };
+
+  function toggleHatch() {
+    HATCH.open = !HATCH.open;
+    sndHatchServo(HATCH.open);
+    if (!HATCH.announced) {
+      HATCH.announced = true;
+      speak('SUIT', 'hatch servo — residual power', 2.8, { kind: 'system' });
+    }
+  }
+
+  // Servo whine + pneumatic hiss, pitched up for open, down for close.
+  function sndHatchServo(opening) {
+    if (!audioCtx || !masterGain) return;
+    const t0 = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(opening ? 55 : 95, t0);
+    osc.frequency.linearRampToValueAtTime(opening ? 95 : 55, t0 + 0.55);
+    const env = audioCtx.createGain();
+    env.gain.setValueAtTime(0, t0);
+    env.gain.linearRampToValueAtTime(0.05, t0 + 0.06);
+    env.gain.linearRampToValueAtTime(0, t0 + 0.7);
+    osc.connect(env); env.connect(masterGain);
+    osc.start(t0); osc.stop(t0 + 0.75);
+    // hiss burst
+    const len = Math.floor(audioCtx.sampleRate * 0.35);
+    const buf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) {
+      const t = i / len;
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, 2) * 0.5;
+    }
+    const src = audioCtx.createBufferSource();
+    src.buffer = buf;
+    const filt = audioCtx.createBiquadFilter();
+    filt.type = 'bandpass'; filt.frequency.value = 1800; filt.Q.value = 0.8;
+    const hg = audioCtx.createGain(); hg.gain.value = 0.05;
+    src.connect(filt); filt.connect(hg); hg.connect(masterGain);
+    src.start(t0 + (opening ? 0.05 : 0.25));
+  }
+
+  const _stripShut = new THREE.Color(0xd23c28);
+  const _stripOpen = new THREE.Color(0x30ff70);
+  const _padShut = new THREE.Color(0xd2a028);
+  const _padOpen = new THREE.Color(0x50ff90);
+
+  function updateHatch(dt) {
+    const target = HATCH.open ? 1 : 0;
+    HATCH.t += (target - HATCH.t) * Math.min(1, dt * 2.4);
+    if (Math.abs(HATCH.t - target) < 0.002) HATCH.t = target;
+    const e = HATCH.t * HATCH.t * (3 - 2 * HATCH.t);   // smoothstep
+    hatchAssembly.leaf.position.y = HATCH.SLIDE * e;
+    hatchAssembly.stripMat.color.copy(_stripShut).lerp(_stripOpen, e);
+    hatchAssembly.padScreenMat.color.copy(_padShut).lerp(_padOpen, e);
+    hatchAssembly.dlight.intensity = 1.3 * e;
+  }
+
+  // ============================================================
   // SCENE 3 — WRECK INTERIOR: the oxygen stabiliser puzzle.
   //
   // Script: enter the wreck (dark, one emergency light blinking),
@@ -8745,10 +9120,13 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     g.add(unit);
 
     // ── Loose battery — tilted on the floor nearby ──
-    const battery = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.24, 0.28), accent);
+    // Draggables get CLONED materials so per-item hover highlight
+    // (emissive) can't bleed onto siblings sharing the material.
+    const battery = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.24, 0.28), accent.clone());
     battery.position.set(16.5, floorY + 0.12, -2.9);
     battery.rotation.set(0.25, 0.6, 0.35);
     battery.castShadow = true;
+    battery.userData.stabKey = 'battery';
     g.add(battery);
 
     // ── Loose cable — a dangling end near the socket ──
@@ -8759,23 +9137,29 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     );
     const cable = new THREE.Mesh(new THREE.TubeGeometry(cableCurve, 8, 0.035, 6, false), dark);
     g.add(cable);
-    const plug = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.14, 8), accent);
+    const plug = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.14, 8), accent.clone());
     plug.rotation.z = 0.9;
     plug.position.set(15.1, floorY + 0.10, -3.0);
+    plug.userData.stabKey = 'plug';
     g.add(plug);
 
     // ── Debris — two hull plates leaning against the unit ──
     const plateGeom = new THREE.BoxGeometry(0.9, 0.06, 1.2);
     const plateMat = new THREE.MeshPhongMaterial({ shininess: 0, color: 0x9a9aa0, flatShading: true });
-    const plateA = new THREE.Mesh(plateGeom, plateMat);
+    const plateA = new THREE.Mesh(plateGeom, plateMat.clone());
     plateA.position.set(15.0, floorY + 0.55, -3.35);
     plateA.rotation.set(0.9, 0.3, 0.15);
     plateA.castShadow = true;
-    const plateB = new THREE.Mesh(plateGeom, plateMat);
+    plateA.userData.stabKey = 'plate';
+    const plateB = new THREE.Mesh(plateGeom, plateMat.clone());
     plateB.position.set(15.9, floorY + 0.5, -3.5);
     plateB.rotation.set(1.0, -0.4, -0.1);
     plateB.castShadow = true;
+    plateB.userData.stabKey = 'plate';
     g.add(plateA); g.add(plateB);
+
+    // Refs for the drag-to-repair puzzle (v0.4.3).
+    wreckInterior.parts = { plateA, plateB, battery, plug, cable, floorY };
 
     // ── Emergency beacon — the one light still alive in here ──
     const beaconLamp = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6),
@@ -8790,48 +9174,202 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
 
     scene.add(g);
 
-    // ── Interactables ──
+    // ── Repair tasks (v0.4.3) ──
+    // No longer [E]-proximity actions — the stabiliser is a drag
+    // puzzle now: pick parts up with the pointer and move them where
+    // they belong. `drag: true` keeps these out of the [E] prompt
+    // scan; the every-done check in the drag system still drives
+    // _wreckInteriorSolved.
     wreckInterior.interactables = [
-      {
-        label: 'clear the debris', done: false,
-        x: 15.4, z: -3.3, r: 2.0,
-        action() {
-          plateA.position.set(13.6, floorY + 0.04, -2.4);
-          plateA.rotation.set(0, 0.5, 0);
-          plateB.position.set(17.3, floorY + 0.04, -2.7);
-          plateB.rotation.set(0, -0.8, 0);
-          spawnDust(15.4, floorY + 0.3, -3.3, 8);
-          speak('SUIT', 'debris cleared', 2.2, { kind: 'system' });
-        },
-      },
-      {
-        label: 'align the battery', done: false,
-        x: 16.5, z: -2.9, r: 1.6,
-        action() {
-          battery.position.set(15.5 - 0.28, floorY + 0.42, -4.05 + 0.10);
-          battery.rotation.set(0, 0, 0);
-          spawnDust(16.0, floorY + 0.2, -3.4, 4);
-          speak('SUIT', 'battery seated — charge nominal', 2.4, { kind: 'system' });
-        },
-      },
-      {
-        label: 'reconnect the cable', done: false,
-        x: 15.1, z: -3.0, r: 1.6,
-        action() {
-          cable.geometry.dispose();
-          const fixedCurve = new THREE.QuadraticBezierCurve3(
-            new THREE.Vector3(15.84, floorY + 0.55, -3.81),
-            new THREE.Vector3(15.65, floorY + 0.75, -3.6),
-            new THREE.Vector3(15.84, floorY + 0.55, -3.79)
-          );
-          cable.geometry = new THREE.TubeGeometry(fixedCurve, 8, 0.035, 6, false);
-          plug.rotation.set(Math.PI / 2, 0, 0);
-          plug.position.set(15.84, floorY + 0.55, -3.72);
-          speak('SUIT', 'power path restored', 2.2, { kind: 'system' });
-        },
-      },
+      { key: 'debris',  label: 'clear the debris',    done: false, drag: true },
+      { key: 'battery', label: 'seat the battery',    done: false, drag: true },
+      { key: 'cable',   label: 'reconnect the cable', done: false, drag: true },
     ];
   })();
+
+  // ============================================================
+  // STABILISER DRAG PUZZLE (v0.4.3)
+  // Pointer-driven repair: click/touch a loose part, drag it, drop
+  // it where it belongs.
+  //   - debris plates → drag them clear (>1.6m from the cabinet)
+  //   - battery → drop into the rack slot (snaps)
+  //   - cable plug → drop onto the socket (snaps; cable follows live)
+  // Pickup raycasts run on a capture-phase WINDOW listener so a hit
+  // stops the event before the camera-orbit pointerdown on the canvas
+  // ever sees it — dragging a part must not spin the camera.
+  // ============================================================
+  const stabDrag = {
+    mesh: null,          // currently dragged mesh
+    hover: null,
+    bobT: 0,
+    raycaster: new THREE.Raycaster(),
+    ndc: new THREE.Vector2(),
+  };
+  const STAB_POS = { x: 15.5, z: -4.05 };            // cabinet
+  const STAB_RACK = { x: 15.22, z: -3.95 };          // battery slot
+  const STAB_SOCKET = { x: 15.84, z: -3.81 };        // cable socket
+  const STAB_SNAP_R = 0.6;                           // drop-snap radius
+  const STAB_CLEAR_R = 1.6;                          // plates count as "clear"
+
+  function _stabTask(key) {
+    return wreckInterior.interactables.find(i => i.key === key);
+  }
+  function _stabDraggables() {
+    const p = wreckInterior.parts;
+    if (!p || wreckInterior.solved) return [];
+    const arr = [];
+    if (!_stabTask('debris').done)  arr.push(p.plateA, p.plateB);
+    if (!_stabTask('battery').done) arr.push(p.battery);
+    if (!_stabTask('cable').done)   arr.push(p.plug);
+    return arr;
+  }
+  function _stabSetNDC(e) {
+    const rect = renderer.domElement.getBoundingClientRect();
+    stabDrag.ndc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    stabDrag.ndc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  }
+  // Pointer ray ∩ horizontal plane at hover height → drag position.
+  function _stabDragPoint(out) {
+    const fy = wreckInterior.parts.floorY;
+    const o = stabDrag.raycaster.ray.origin, d = stabDrag.raycaster.ray.direction;
+    if (Math.abs(d.y) < 0.05) return false;
+    const t = ((fy + 0.55) - o.y) / d.y;
+    if (t < 0) return false;
+    out.set(o.x + d.x * t, fy + 0.5, o.z + d.z * t);
+    // Keep the part in the work area around the cabinet, inside the hull.
+    const ddx = out.x - STAB_POS.x, ddz = out.z - STAB_POS.z;
+    const dd = Math.hypot(ddx, ddz);
+    if (dd > 3.4) { out.x = STAB_POS.x + ddx / dd * 3.4; out.z = STAB_POS.z + ddz / dd * 3.4; }
+    out.z = Math.max(-5.5, Math.min(1.4, out.z));
+    out.x = Math.max(11.0, Math.min(33.5, out.x));
+    return true;
+  }
+
+  function _stabRebuildCable(endV) {
+    const p = wreckInterior.parts;
+    const a = new THREE.Vector3(15.84, p.floorY + 0.55, -3.81);
+    const mid = a.clone().lerp(endV, 0.5);
+    mid.y = Math.max(a.y, endV.y) + 0.35;
+    p.cable.geometry.dispose();
+    p.cable.geometry = new THREE.TubeGeometry(
+      new THREE.QuadraticBezierCurve3(a, mid, endV.clone()), 10, 0.035, 6, false);
+  }
+
+  function _stabComplete(key) {
+    const task = _stabTask(key);
+    if (!task || task.done) return;
+    task.done = true;
+    const fy = wreckInterior.parts.floorY;
+    if (key === 'debris') {
+      spawnDust(15.4, fy + 0.3, -3.3, 8);
+      speak('SUIT', 'debris cleared', 2.2, { kind: 'system' });
+    } else if (key === 'battery') {
+      spawnDust(16.0, fy + 0.2, -3.4, 4);
+      speak('SUIT', 'battery seated — charge nominal', 2.4, { kind: 'system' });
+    } else if (key === 'cable') {
+      speak('SUIT', 'power path restored', 2.2, { kind: 'system' });
+    }
+    if (wreckInterior.interactables.every(i => i.done)) {
+      setTimeout(_wreckInteriorSolved, 900);
+    }
+  }
+
+  function _stabDrop() {
+    const m = stabDrag.mesh;
+    if (!m) return;
+    stabDrag.mesh = null;
+    const p = wreckInterior.parts;
+    const fy = p.floorY;
+    const key = m.userData.stabKey;
+    if (key === 'battery' &&
+        Math.hypot(m.position.x - STAB_RACK.x, m.position.z - STAB_RACK.z) < STAB_SNAP_R) {
+      m.position.set(STAB_RACK.x, fy + 0.42, STAB_RACK.z);
+      m.rotation.set(0, 0, 0);
+      _stabComplete('battery');
+      return;
+    }
+    if (key === 'plug' &&
+        Math.hypot(m.position.x - STAB_SOCKET.x, m.position.z - STAB_SOCKET.z) < STAB_SNAP_R) {
+      m.rotation.set(Math.PI / 2, 0, 0);
+      m.position.set(15.84, fy + 0.55, -3.72);
+      p.cable.geometry.dispose();
+      p.cable.geometry = new THREE.TubeGeometry(new THREE.QuadraticBezierCurve3(
+        new THREE.Vector3(15.84, fy + 0.55, -3.81),
+        new THREE.Vector3(15.65, fy + 0.75, -3.6),
+        new THREE.Vector3(15.84, fy + 0.55, -3.79)
+      ), 8, 0.035, 6, false);
+      _stabComplete('cable');
+      return;
+    }
+    // No snap — settle the part flat on the floor where it was dropped.
+    const restY = key === 'plate' ? 0.04 : (key === 'plug' ? 0.10 : 0.12);
+    m.position.y = fy + restY;
+    m.rotation.set(0, m.rotation.y, 0);
+    if (key === 'plug') _stabRebuildCable(m.position);
+    if (key === 'plate') {
+      // Debris counts as cleared once BOTH plates rest away from the
+      // cabinet's working face.
+      const clearOf = (mesh) =>
+        Math.hypot(mesh.position.x - 15.5, mesh.position.z + 3.4) > STAB_CLEAR_R;
+      if (clearOf(p.plateA) && clearOf(p.plateB)) _stabComplete('debris');
+    }
+  }
+
+  function _stabCanInteract() {
+    return controlMode === 'walking' && !wreckInterior.solved &&
+           !oxygen.dead && !shackletonMemory.isActive() &&
+           Math.hypot(player.pos.x - STAB_POS.x, player.pos.z - STAB_POS.z) < 6;
+  }
+
+  // Capture-phase on window: runs BEFORE the canvas's camera-orbit
+  // pointerdown; stopPropagation keeps the camera still while a part
+  // is picked. Touch works through the same pointer events.
+  window.addEventListener('pointerdown', (e) => {
+    if (e.target !== renderer.domElement) return;
+    if (!_stabCanInteract()) return;
+    _stabSetNDC(e);
+    stabDrag.raycaster.setFromCamera(stabDrag.ndc, camera);
+    const hits = stabDrag.raycaster.intersectObjects(_stabDraggables(), false);
+    if (!hits.length) return;
+    stabDrag.mesh = hits[0].object;
+    stabDrag.bobT = 0;
+    if (stabDrag.hover) { stabDrag.hover.material.emissive.setHex(0x000000); stabDrag.hover = null; }
+    e.stopPropagation();
+    e.preventDefault();
+  }, true);
+
+  window.addEventListener('pointermove', (e) => {
+    if (stabDrag.mesh) {
+      if (!_stabCanInteract()) { _stabDrop(); return; }
+      _stabSetNDC(e);
+      stabDrag.raycaster.setFromCamera(stabDrag.ndc, camera);
+      const pt = new THREE.Vector3();
+      if (_stabDragPoint(pt)) {
+        stabDrag.mesh.position.x = pt.x;
+        stabDrag.mesh.position.z = pt.z;
+        if (stabDrag.mesh.userData.stabKey === 'plug') _stabRebuildCable(stabDrag.mesh.position);
+      }
+      e.stopPropagation();
+      return;
+    }
+    // Hover highlight (cheap: only while the puzzle is live and close).
+    if (e.target !== renderer.domElement || !_stabCanInteract()) {
+      if (stabDrag.hover) { stabDrag.hover.material.emissive.setHex(0x000000); stabDrag.hover = null; }
+      return;
+    }
+    _stabSetNDC(e);
+    stabDrag.raycaster.setFromCamera(stabDrag.ndc, camera);
+    const hits = stabDrag.raycaster.intersectObjects(_stabDraggables(), false);
+    const hit = hits.length ? hits[0].object : null;
+    if (hit !== stabDrag.hover) {
+      if (stabDrag.hover) stabDrag.hover.material.emissive.setHex(0x000000);
+      stabDrag.hover = hit;
+      if (hit) hit.material.emissive.setHex(0x5a3300);
+    }
+  }, true);
+
+  window.addEventListener('pointerup', () => { _stabDrop(); }, true);
+  window.addEventListener('pointercancel', () => { _stabDrop(); }, true);
 
   function _wreckInteriorSolved() {
     wreckInterior.solved = true;
@@ -8870,6 +9408,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
 
   function updateWreckInterior(dt) {
     wreckInterior.t += dt;
+    updateHatch(dt);
     // Beacon blink — a slow double-pulse, alive but failing.
     const ph = wreckInterior.t % 2.6;
     const on = (ph < 0.12 || (ph > 0.3 && ph < 0.42)) ? 1 : 0;
@@ -8887,23 +9426,44 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     }
 
     // Interaction proximity — nearest undone interactable in range.
+    // The hatch touchpad joins the scan permanently (it toggles, so it
+    // is never "done"); the stabiliser items only while unsolved.
     const prompt = $('interact-prompt');
     let best = null, bestD = 1e9;
     if (!wreckInterior.solved) {
       for (const it of wreckInterior.interactables) {
-        if (it.done) continue;
+        if (it.done || it.drag) continue;   // drag tasks live in stabDrag, not [E]
         const d = Math.hypot(p.x - it.x, p.z - it.z);
         if (d < it.r && d < bestD) { best = it; bestD = d; }
       }
+    }
+    {
+      const d = Math.hypot(p.x - hatchInteract.x, p.z - hatchInteract.z);
+      if (d < hatchInteract.r && d < bestD) { best = hatchInteract; bestD = d; }
     }
     wreckInterior._active = best;
     if (prompt) {
       if (best) {
         prompt.textContent = '[E] / tap — ' + best.label;
         prompt.classList.add('on');
+      } else if (!wreckInterior.solved && wreckInterior.entered &&
+                 Math.hypot(p.x - STAB_POS.x, p.z - STAB_POS.z) < 5.0) {
+        // Repair-puzzle hint — informational, not an [E] action.
+        prompt.textContent = 'repair — drag the loose parts into place';
+        prompt.classList.add('on');
       } else {
         prompt.classList.remove('on');
       }
+    }
+
+    // Dragged part: hover bob + slow turn so it reads as "held".
+    if (stabDrag.mesh) {
+      stabDrag.bobT += dt;
+      stabDrag.mesh.position.y =
+        wreckInterior.parts.floorY + 0.5 + Math.sin(stabDrag.bobT * 4) * 0.05;
+      stabDrag.mesh.rotation.y += dt * 0.5;
+      // Walked away / state changed mid-drag → put the part down.
+      if (!_stabCanInteract()) _stabDrop();
     }
     // E-key with latch so one press = one action.
     if (best && keys['e'] && !wreckInterior._eLatch) {
@@ -8916,6 +9476,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   function _fireInteract() {
     const it = wreckInterior._active;
     if (!it || it.done) return;
+    if (it.isHatch) { toggleHatch(); return; }   // toggles; never "done"
     it.done = true;
     it.action();
     if (wreckInterior.interactables.every(i => i.done)) {
@@ -9375,7 +9936,9 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       const a = Math.random() * Math.PI * 2;
       const r = (opts.speed || 5) * (0.5 + Math.random() * 0.6);
       p.vx = Math.cos(a) * r;
-      p.vy = (opts.upVel || 0.5) + Math.random() * 1.5;
+      // upVar caps the random vertical kick (default keeps the old
+      // behaviour); footstep dust passes a small value so motes stay low.
+      p.vy = (opts.upVel || 0.5) + Math.random() * (opts.upVar !== undefined ? opts.upVar : 1.5);
       p.vz = Math.sin(a) * r;
       const c = opts.colors || [0xa0a0a8, 0x808088];
       p.mesh.material.color.setHex(c[Math.floor(Math.random() * c.length)]);
@@ -10361,8 +10924,12 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
         }
       });
       // Hide every procedural child, then add the GLB as a sibling
-      // inside the same group/frame.
-      for (const child of starship.children) child.visible = false;
+      // inside the same group/frame. Children flagged keepVisible
+      // (the hatch assembly) survive the purge — they're part of the
+      // v0.4.2 wreck, not the deprecated procedural hull.
+      for (const child of starship.children) {
+        if (!child.userData.keepVisible) child.visible = false;
+      }
       starship.add(gltf.scene);
       console.log('[wreck] GLB loaded — procedural hull replaced');
     }, undefined, (err) => {
@@ -11601,6 +12168,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     }
     if (mixer) mixer.update(dt);
     updateEntities(dt);              // entity registry — additive pass
+    updateHose(dt);                  // O₂ umbilical — no-op unless connected
     updateDust(dt);
     updateFlyerParticles(dt);
     updateGasParticles(dt);
