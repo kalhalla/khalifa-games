@@ -428,10 +428,13 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
 <div class="cine-bars" id="cine-bars"></div>
 <button class="skip-btn" id="skip-btn">SKIP ▸</button>
 <div class="prompt" id="prompt"></div>
-<!-- Interact prompt — shown when astronaut is near the Flyer cab -->
-<div id="interact-prompt" style="position: fixed; left: 50%; bottom: 14%; transform: translateX(-50%); padding: 10px 22px; background: rgba(0,0,0,0.65); color: #fff; font-family: 'Inter', system-ui, sans-serif; font-size: 16px; letter-spacing: 0.04em; border: 1px solid rgba(255,255,255,0.25); border-radius: 4px; z-index: 60; display: none; pointer-events: none;">
-  Press [E] to enter Flyer
-</div>
+<!-- Interact prompt — ONE element, styled by the #interact-prompt CSS
+     block, toggled via the .on class everywhere. (v0.4.4 fix: there
+     were TWO divs with this id; getElementById returned the first,
+     which carried inline display:none + pointer-events:none — so the
+     class-based prompt path (hatch touchpad, wreck hints) never
+     rendered and mobile taps had no target. The duplicate is gone and
+     show/hideInteractPrompt now toggle the class, not style.display.) -->
 <!-- Rescue fade — full-screen black overlay used during the L-07
      rescue cinematic when oxygen hits zero. Opacity driven by the
      game loop. Pointer-events:none so it never blocks input even at
@@ -534,7 +537,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.4.3';  // hatch + hull collision + sealed tail (0.4.2), wake-at-tanks rescue, O₂ umbilical hose, drag-to-repair stabiliser
+  const BUILD_VERSION = 'v0.4.5';  // prompt-id fix (door works), up-over door swing, vertical-ship interior, reach/hand system, Scenes 4-6 (brace → install → ice) + M01/M02 wired
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -2788,6 +2791,17 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
             player.pos.x = NOSEX + (_prevPX > NOSEX ? 0.06 : -0.06);
             player.vel.x = 0;
           }
+          // Mid-ship DECK DISC (v0.4.4) — a former deck floor, now a
+          // vertical circular wall at world x ≈ 18.4 with a torn
+          // walk-through gap on its lower south side. Solid everywhere
+          // except the gap's ground-level span.
+          const DECKX = 18.42, GAP_Z0 = -0.70, GAP_Z1 = 1.75;
+          const midZ = (player.pos.z + _prevPZ) * 0.5;
+          const inGap = midZ > GAP_Z0 && midZ < GAP_Z1;
+          if (!inGap && (_prevPX - DECKX) * (player.pos.x - DECKX) < 0) {
+            player.pos.x = DECKX + (_prevPX > DECKX ? 0.06 : -0.06);
+            player.vel.x = 0;
+          }
         }
       }
     }
@@ -4211,6 +4225,16 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   //   1.8s     — hand-off to flying mode
   function beginBoarding() {
     if (controlMode !== 'walking') return;
+    // Scene 4-5 gate: the Flyer starts visibly broken (buckled frame,
+    // bent gear). No boarding until the Structural Brace is installed.
+    if (!flyerRepair.installed) {
+      const now = performance.now();
+      if (!beginBoarding._warnedAt || now - beginBoarding._warnedAt > 3000) {
+        beginBoarding._warnedAt = now;
+        speak('SUIT', 'frame buckled — structural brace required', 2.8, { kind: 'system' });
+      }
+      return;
+    }
     controlMode = 'boarding';
     boardingT = 0;
     hideInteractPrompt();
@@ -4546,18 +4570,22 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     // prompt stays reliably visible even if some other code path
     // happened to hide it. Cheap — just a textContent + display set.
     // Wording covers desktop ([E] key) and mobile (BOARD button).
-    if (nearFlyer) showInteractPrompt('[E] or tap BOARD to enter Flyer');
-    else if (wasNear) hideInteractPrompt();
+    if (nearFlyer) {
+      showInteractPrompt(flyerRepair.installed
+        ? '[E] or tap BOARD to enter Flyer'
+        : (scene4.braceHeld ? '[E] install the structural brace'
+                            : 'frame buckled — structural brace required'));
+    } else if (wasNear) hideInteractPrompt();
   }
   function showInteractPrompt(text) {
     const el = $('interact-prompt');
     if (!el) return;
     el.textContent = text;
-    el.style.display = 'block';
+    el.classList.add('on');       // class path — same as the wreck/hatch scan
   }
   function hideInteractPrompt() {
     const el = $('interact-prompt');
-    if (el) el.style.display = 'none';
+    if (el) el.classList.remove('on');
   }
 
   // ============================================================
@@ -4733,9 +4761,14 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     // (when the player walks out of range) is handled by
     // updateRefillProximity, which clears refill.connected and lets
     // drain resume on the next frame.
-    if (refill.connected) {
+    // Second refill source (v0.4.5): the activated ice pocket. No
+    // connect ceremony — standing in the extraction zone breathes for
+    // you, which is the reward for lighting it up.
+    const atIce = scene6.done &&
+      Math.hypot(player.pos.x - ICE_POCKET.x, player.pos.z - ICE_POCKET.z) < 5;
+    if (refill.connected || atIce) {
       // First-ever connect resolves the opening objective: "find oxygen".
-      if (!refill._everConnected) {
+      if (refill.connected && !refill._everConnected) {
         refill._everConnected = true;
         // Scene 2 → Scene 3 handoff: oxygen found, next beat is the
         // wreck. setObjective handles fade-out/fade-in.
@@ -4779,7 +4812,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     // Bar frame represents the full physical tank (0-100). Fill rises
     // from the bottom; cracked region covers the top portion that the
     // damaged tank can't hold.
-    fill.style.height = p.toFixed(1) + '%';
+    fill.style.height = Math.min(100, p).toFixed(1) + '%';   // caps >100 (ice-boosted tank) at the frame
     cracked.style.height = (100 - cap).toFixed(1) + '%';
     // If capacity is full (100), hide cracked region entirely so the
     // bottom border doesn't show as a stray line.
@@ -7034,6 +7067,40 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   function updateRobot(robot, r, dt) {
     r.stateTimer -= dt;
 
+    // ── Scripted override (v0.4.5) ──
+    // Scene direction pins a robot: walk to (x,z), then face
+    // (faceX,faceZ) and optionally loop the manipulation gesture
+    // (reads as working/tugging/drilling). Clear r.scripted to
+    // release the robot back to its own AI.
+    if (r.scripted) {
+      const s = r.scripted;
+      const sd = Math.hypot(s.x - r.pos.x, s.z - r.pos.z);
+      if (sd > 0.35) {
+        if (!r._scrTarget) r._scrTarget = new THREE.Vector3();
+        r._scrTarget.set(s.x, r.pos.y, s.z);
+        r.target = r._scrTarget;
+        r.state = 'walking';
+        r.stateTimer = 999;
+      } else {
+        if (s.manip) {
+          if (r.state !== 'manipulating') { r.state = 'manipulating'; r.manipPhase = 0; }
+          if (r.manipPhase > 6.8) r.manipPhase = 0;   // loop the gesture
+        } else {
+          r.state = 'idle';
+        }
+        r.stateTimer = 999;
+        if (s.faceX !== undefined) {
+          const th = Math.atan2(s.faceX - r.pos.x, s.faceZ - r.pos.z);
+          let dH = th - r.heading;
+          while (dH >  Math.PI) dH -= Math.PI * 2;
+          while (dH < -Math.PI) dH += Math.PI * 2;
+          r.heading += dH * Math.min(1, dt * 3);
+        }
+      }
+    } else if (r.stateTimer > 900) {
+      r.stateTimer = 0;    // just released from a script — re-decide now
+    }
+
     if (r.state === 'idle' && r.stateTimer <= 0) {
       // Specialty pick — robot 1 (blue) studies the outcrop occasionally;
       // robot 2 (yellow) wanders to the tunnel mouth occasionally. Each
@@ -7384,16 +7451,18 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     // Flyer, it triggers the boarding sequence. In flying mode it's
     // tracked as a held key (yaw-right), so it falls through to the
     // generic handler below.
-    if (k === 'e' && controlMode === 'walking' && nearFlyer) {
+    if (k === 'e' && controlMode === 'walking' && nearFlyer && flyerRepair.installed) {
       beginBoarding();
       activate(); e.preventDefault();
       return;
     }
+    // (While the Flyer is broken, E near it falls through to the
+    // generic scan — which owns the brace-install interactable.)
     // Refill panel: same key, lower priority than Flyer boarding.
     // Toggles connect/disconnect. Only valid while in range and
     // not currently in the rescue cinematic.
     if (k === 'e' && controlMode === 'walking' && refill.nearPanel && !oxygen.dead) {
-      refill.connected = !refill.connected;
+      requestRefillToggle();       // reach gesture → connect on contact
       activate(); e.preventDefault();
       return;
     }
@@ -7462,7 +7531,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       refillBtn.addEventListener('click', (e) => {
         e.preventDefault();
         if (controlMode === 'walking' && refill.nearPanel && !oxygen.dead) {
-          refill.connected = !refill.connected;
+          requestRefillToggle();   // same reach gesture as the [E] path
         }
       });
     }
@@ -8869,6 +8938,157 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   }
 
   // ============================================================
+  // REACH SYSTEM (v0.4.4) — the control layer for doors and puzzles.
+  // The astronaut's right hand physically goes to the thing being
+  // used: press the hatch touchpad, hold a dragged part, plug into
+  // the refill panel. Mechanism: after the animation mixer stamps
+  // the frame's pose, a two-step aim pass bends the right arm chain
+  // (upper → forearm → hand) toward a world target. Each step is
+  // rig-agnostic — it rotates the bone by the world-space quaternion
+  // taking the bone's CURRENT limb direction onto the target
+  // direction, so no assumptions about rest axes or bone naming
+  // conventions beyond finding the right hand. Blend weight fades in
+  // and out so the pose never snaps. `onContact` fires as the hand
+  // arrives — that's when doors actually open and plugs actually
+  // seat, so cause and effect read on screen.
+  //
+  //   reachStart(vec3, { onContact })    — press gesture (timed)
+  //   reachStart(vec3, { follow: mesh }) — hold gesture (until release)
+  //   reachRelease()                     — end a hold
+  // ============================================================
+  const reach = {
+    active: false, mode: 'press', blend: 0, timer: 0,
+    target: new THREE.Vector3(),
+    followMesh: null, onContact: null, contactFired: false,
+    bones: undefined,        // undefined = not searched yet; null = rig has none
+  };
+  const REACH_HOLD = 0.55;   // press gesture duration (s)
+
+  function _reachFindBones() {
+    if (reach.bones !== undefined) return reach.bones;
+    reach.bones = null;
+    if (!astronautRoot) return null;
+    let hand = null;
+    astronautRoot.traverse(o => {
+      if (hand || !o.isBone) return;
+      const n = o.name;
+      if (/hand/i.test(n) && /(right|_r$|\.r$|-r$)/i.test(n)) hand = o;
+    });
+    if (!hand) {
+      // Fallback: any hand bone (single-sided or unconventional rigs).
+      astronautRoot.traverse(o => {
+        if (!hand && o.isBone && /hand/i.test(o.name) && !/left|_l$|\.l$|-l$/i.test(o.name)) hand = o;
+      });
+    }
+    if (hand && hand.parent && hand.parent.isBone &&
+        hand.parent.parent && hand.parent.parent.isBone) {
+      reach.bones = { hand, fore: hand.parent, upper: hand.parent.parent };
+      console.log('[reach] arm chain:', reach.bones.upper.name, '→',
+                  reach.bones.fore.name, '→', reach.bones.hand.name);
+    } else {
+      console.warn('[reach] no right-arm chain found in rig — interactions still fire, without the gesture');
+    }
+    return reach.bones;
+  }
+
+  function reachStart(targetWorld, opts) {
+    opts = opts || {};
+    _reachFindBones();
+    reach.active = true;
+    reach.mode = opts.follow ? 'hold' : 'press';
+    reach.followMesh = opts.follow || null;
+    reach.target.copy(targetWorld);
+    reach.onContact = opts.onContact || null;
+    reach.contactFired = false;
+    reach.timer = 0;
+    // No rig chain → still honour the interaction after a short beat.
+    if (!reach.bones && reach.onContact) {
+      setTimeout(() => {
+        if (!reach.contactFired) { reach.contactFired = true; reach.onContact(); }
+      }, 250);
+    }
+  }
+  function reachRelease() {
+    reach.active = false;
+    reach.followMesh = null;
+  }
+
+  const _abV1 = new THREE.Vector3(), _abV2 = new THREE.Vector3();
+  const _abV3 = new THREE.Vector3(), _abV4 = new THREE.Vector3();
+  const _abQ1 = new THREE.Quaternion(), _abQ2 = new THREE.Quaternion();
+  const _abQ3 = new THREE.Quaternion(), _abQ4 = new THREE.Quaternion();
+  const _abQ5 = new THREE.Quaternion();
+  // Rotate `bone` (in world space, by `amount` 0..1) so the direction
+  // to `childBone` points at the target.
+  function _aimBone(bone, childBone, targetWorld, amount) {
+    bone.updateWorldMatrix(true, false);
+    childBone.updateWorldMatrix(true, false);
+    _abV1.setFromMatrixPosition(bone.matrixWorld);
+    _abV2.setFromMatrixPosition(childBone.matrixWorld);
+    _abV3.subVectors(_abV2, _abV1);
+    if (_abV3.lengthSq() < 1e-8) return;
+    _abV3.normalize();
+    _abV4.subVectors(targetWorld, _abV1);
+    if (_abV4.lengthSq() < 1e-8) return;
+    _abV4.normalize();
+    _abQ1.setFromUnitVectors(_abV3, _abV4);
+    _abQ2.identity().slerp(_abQ1, amount);
+    bone.getWorldQuaternion(_abQ3);
+    _abQ4.multiplyQuaternions(_abQ2, _abQ3);
+    bone.parent.getWorldQuaternion(_abQ5).invert();
+    bone.quaternion.multiplyQuaternions(_abQ5, _abQ4);
+  }
+
+  // Runs AFTER mixer.update in the render loop — overrides this
+  // frame's stamped pose; the mixer re-stamps next frame, so blending
+  // out simply hands the arm back to the animation.
+  function updateReach(dt) {
+    if (reach.followMesh) reach.target.copy(reach.followMesh.position);
+    if (reach.active) {
+      reach.timer += dt;
+      if (reach.mode === 'press' && reach.timer > REACH_HOLD) reach.active = false;
+    }
+    const want = reach.active ? 1 : 0;
+    reach.blend += (want - reach.blend) * Math.min(1, dt * 7);
+    if (reach.blend < 0.02) { reach.blend = 0; return; }
+    // Contact fires as the hand arrives — doors open when touched,
+    // not when the key was pressed.
+    if (reach.active && !reach.contactFired && reach.blend > 0.8) {
+      reach.contactFired = true;
+      if (reach.onContact) reach.onContact();
+    }
+    // Face the target while reaching (only when otherwise idle, so it
+    // never fights locomotion).
+    if (reach.active && controlMode === 'walking' &&
+        Math.hypot(player.vel.x, player.vel.z) < 0.5) {
+      const dx = reach.target.x - player.pos.x;
+      const dz = reach.target.z - player.pos.z;
+      if (dx * dx + dz * dz > 0.04) {
+        const desired = Math.atan2(dx, dz);
+        let dh = desired - player.heading;
+        while (dh > Math.PI) dh -= Math.PI * 2;
+        while (dh < -Math.PI) dh += Math.PI * 2;
+        player.heading += dh * Math.min(1, dt * 6) * reach.blend;
+      }
+    }
+    if (!reach.bones) return;
+    const { upper, fore, hand } = reach.bones;
+    _aimBone(upper, fore, reach.target, reach.blend * 0.65);
+    _aimBone(fore, hand, reach.target, reach.blend * 0.9);
+  }
+
+  // Refill connect gesture — hand goes to the panel, hose latches on
+  // contact. Disconnect is instant (pulling free needs no ceremony).
+  function requestRefillToggle() {
+    if (refill.connected) { refill.connected = false; return; }
+    if (reach.active) return;
+    const p = refillPanel.position;
+    reachStart(new THREE.Vector3(p.x, p.y + 0.95, p.z), {
+      onContact() { if (refill.nearPanel && !oxygen.dead) refill.connected = true; }
+    });
+  }
+
+  // ============================================================
   // SIDE HATCH (v0.4.2) — the working entrance into the wreck.
   //
   // The GLB now has a floor-reaching doorway cut through hull and
@@ -8890,7 +9110,12 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     A0: 55, A1: 108,          // doorway angular span (55° = floor line)
     Y0: 6.35, Y1: 7.75,       // doorway span along the hull axis
     WX0: 20.5, WX1: 23.6,     // world-x doorway bounds (collision pass-through)
-    SLIDE: 1.55,              // local +Y leaf travel when open (toward nose)
+    // The ship was built to FUNCTION STANDING ON ITS TAIL — its side
+    // doors slide sideways, i.e. circumferentially around the hull.
+    // Toppled, that same track now carries the leaf UP AND OVER the
+    // curve of the hull. So: open = rotate the leaf about the hull
+    // axis toward the top (angle +SWING), not a slide along the axis.
+    SWING: 1.05,              // rad of circumferential travel (~60°)
     open: false,
     t: 0,                     // animation state 0..1 (t > 0.6 = walkable)
     announced: false,
@@ -9038,7 +9263,9 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     HATCH.t += (target - HATCH.t) * Math.min(1, dt * 2.4);
     if (Math.abs(HATCH.t - target) < 0.002) HATCH.t = target;
     const e = HATCH.t * HATCH.t * (3 - 2 * HATCH.t);   // smoothstep
-    hatchAssembly.leaf.position.y = HATCH.SLIDE * e;
+    // rotation.y = -θ shifts arc geometry to HIGHER hull angles (a
+    // point at angle a lands at a + θ), i.e. up over the hull top.
+    hatchAssembly.leaf.rotation.y = -HATCH.SWING * e;
     hatchAssembly.stripMat.color.copy(_stripShut).lerp(_stripOpen, e);
     hatchAssembly.padScreenMat.color.copy(_padShut).lerp(_padOpen, e);
     hatchAssembly.dlight.intensity = 1.3 * e;
@@ -9089,7 +9316,14 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     const dark  = new THREE.MeshPhongMaterial({ shininess: 0, color: 0x22242a, flatShading: true });
     const accent= new THREE.MeshPhongMaterial({ shininess: 0, color: 0xd97a1f, flatShading: true });
 
-    // ── Stabiliser unit — a wall cabinet against the north wall ──
+    // ── Stabiliser unit — mounted on the DECK DISC (v0.4.4) ──
+    // The ship was built to stand on its tail: decks are circular
+    // bulkheads perpendicular to the hull axis. Toppled, a deck is a
+    // vertical circular WALL and the curved hull is underfoot. The
+    // cabinet was bolted to a deck floor — so it now hangs SIDEWAYS
+    // off the disc at world x ≈ 18.5, its up-axis pointing at the
+    // nose (+X = "up" when the ship stood on end). rotation.z = -π/2
+    // maps unit-local (lx, ly, lz) → world offsets (ly, −lx, lz).
     const unit = new THREE.Group();
     const housing = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.5, 0.45), steel);
     housing.position.y = 0.75;
@@ -9115,44 +9349,45 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     socket.rotation.x = Math.PI / 2;
     socket.position.set(0.34, 0.55, 0.24);
     unit.add(socket);
-    unit.position.set(15.5, floorY, -4.05);
-    unit.rotation.y = 0;                       // faces +Z, into the hull
+    unit.position.set(18.55, floorY + 1.45, -1.50);   // on the deck's nose face
+    unit.rotation.z = -Math.PI / 2;                   // deck-mounted: up → nose
     g.add(unit);
 
     // ── Loose battery — tilted on the floor nearby ──
     // Draggables get CLONED materials so per-item hover highlight
     // (emissive) can't bleed onto siblings sharing the material.
+    // (Positions shifted to the deck-disc area, v0.4.4.)
     const battery = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.24, 0.28), accent.clone());
-    battery.position.set(16.5, floorY + 0.12, -2.9);
+    battery.position.set(19.8, floorY + 0.12, 0.5);
     battery.rotation.set(0.25, 0.6, 0.35);
     battery.castShadow = true;
     battery.userData.stabKey = 'battery';
     g.add(battery);
 
-    // ── Loose cable — a dangling end near the socket ──
+    // ── Loose cable — dangling from the sideways socket ──
     const cableCurve = new THREE.QuadraticBezierCurve3(
-      new THREE.Vector3(15.84, floorY + 0.55, -3.81),
-      new THREE.Vector3(15.6,  floorY + 0.9,  -3.3),
-      new THREE.Vector3(15.1,  floorY + 0.10, -3.0)
+      new THREE.Vector3(19.10, floorY + 1.11, -1.26),
+      new THREE.Vector3(19.6,  floorY + 1.0,  -0.8),
+      new THREE.Vector3(19.9,  floorY + 0.10, -0.4)
     );
     const cable = new THREE.Mesh(new THREE.TubeGeometry(cableCurve, 8, 0.035, 6, false), dark);
     g.add(cable);
     const plug = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.14, 8), accent.clone());
     plug.rotation.z = 0.9;
-    plug.position.set(15.1, floorY + 0.10, -3.0);
+    plug.position.set(19.9, floorY + 0.10, -0.4);
     plug.userData.stabKey = 'plug';
     g.add(plug);
 
-    // ── Debris — two hull plates leaning against the unit ──
+    // ── Debris — two hull plates leaning against the deck disc ──
     const plateGeom = new THREE.BoxGeometry(0.9, 0.06, 1.2);
     const plateMat = new THREE.MeshPhongMaterial({ shininess: 0, color: 0x9a9aa0, flatShading: true });
     const plateA = new THREE.Mesh(plateGeom, plateMat.clone());
-    plateA.position.set(15.0, floorY + 0.55, -3.35);
+    plateA.position.set(18.80, floorY + 0.55, -0.15);
     plateA.rotation.set(0.9, 0.3, 0.15);
     plateA.castShadow = true;
     plateA.userData.stabKey = 'plate';
     const plateB = new THREE.Mesh(plateGeom, plateMat.clone());
-    plateB.position.set(15.9, floorY + 0.5, -3.5);
+    plateB.position.set(18.90, floorY + 0.5, -2.55);
     plateB.rotation.set(1.0, -0.4, -0.1);
     plateB.castShadow = true;
     plateB.userData.stabKey = 'plate';
@@ -9162,9 +9397,10 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     wreckInterior.parts = { plateA, plateB, battery, plug, cable, floorY };
 
     // ── Emergency beacon — the one light still alive in here ──
+    // High on the deck disc's nose face, visible from the hatch.
     const beaconLamp = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6),
       new THREE.MeshBasicMaterial({ color: 0xff4020 }));
-    beaconLamp.position.set(14.0, floorY + 3.0, 0.2);
+    beaconLamp.position.set(18.6, floorY + 3.6, -0.5);
     g.add(beaconLamp);
     const beaconLight = new THREE.PointLight(0xff5030, 0.0, 9);
     beaconLight.position.copy(beaconLamp.position);
@@ -9202,12 +9438,20 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     mesh: null,          // currently dragged mesh
     hover: null,
     bobT: 0,
+    planeY: 0,           // drag-plane height, set at pickup (v0.4.5)
     raycaster: new THREE.Raycaster(),
     ndc: new THREE.Vector2(),
   };
-  const STAB_POS = { x: 15.5, z: -4.05 };            // cabinet
-  const STAB_RACK = { x: 15.22, z: -3.95 };          // battery slot
-  const STAB_SOCKET = { x: 15.84, z: -3.81 };        // cable socket
+  // Scene puzzles register additional draggables here (v0.4.5). Each
+  // mesh carries userData: { dragKind:'extra', homeX, homeZ, onDrop(m) }.
+  const extraDraggables = [];
+  // Deck-mount geometry (v0.4.4): unit at (18.55, fY+1.45, -1.50) with
+  // rotation.z = -π/2, so unit-local (lx,ly,lz) → world (+ly, −lx, +lz).
+  //   rack  local (−0.28, 0.42, 0.10) → (18.97, fY+1.73, −1.40)
+  //   socket local (0.34, 0.55, 0.24) → (19.10, fY+1.11, −1.26)
+  const STAB_POS = { x: 18.8, z: -1.4 };             // cabinet reference
+  const STAB_RACK = { x: 18.97, z: -1.40 };          // battery slot (y 1.73)
+  const STAB_SOCKET = { x: 19.10, z: -1.26 };        // cable socket (y 1.11)
   const STAB_SNAP_R = 0.6;                           // drop-snap radius
   const STAB_CLEAR_R = 1.6;                          // plates count as "clear"
 
@@ -9230,24 +9474,45 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   }
   // Pointer ray ∩ horizontal plane at hover height → drag position.
   function _stabDragPoint(out) {
-    const fy = wreckInterior.parts.floorY;
     const o = stabDrag.raycaster.ray.origin, d = stabDrag.raycaster.ray.direction;
     if (Math.abs(d.y) < 0.05) return false;
-    const t = ((fy + 0.55) - o.y) / d.y;
+    const t = (stabDrag.planeY - o.y) / d.y;
     if (t < 0) return false;
-    out.set(o.x + d.x * t, fy + 0.5, o.z + d.z * t);
-    // Keep the part in the work area around the cabinet, inside the hull.
+    out.set(o.x + d.x * t, stabDrag.planeY - 0.05, o.z + d.z * t);
+    const ud = stabDrag.mesh ? stabDrag.mesh.userData : {};
+    if (ud.dragKind === 'extra') {
+      // Scene draggables: stay within 4m of their home spot.
+      const ddx = out.x - ud.homeX, ddz = out.z - ud.homeZ;
+      const dd = Math.hypot(ddx, ddz);
+      if (dd > 4.0) { out.x = ud.homeX + ddx / dd * 4.0; out.z = ud.homeZ + ddz / dd * 4.0; }
+      return true;
+    }
+    // Stabiliser parts: work area around the cabinet, inside the hull.
     const ddx = out.x - STAB_POS.x, ddz = out.z - STAB_POS.z;
     const dd = Math.hypot(ddx, ddz);
     if (dd > 3.4) { out.x = STAB_POS.x + ddx / dd * 3.4; out.z = STAB_POS.z + ddz / dd * 3.4; }
     out.z = Math.max(-5.5, Math.min(1.4, out.z));
-    out.x = Math.max(11.0, Math.min(33.5, out.x));
+    // Lower x bound sits at the deck disc — parts stay in the room.
+    out.x = Math.max(18.55, Math.min(33.5, out.x));
     return true;
+  }
+
+  // Per-mesh drag gate: stab parts use the cabinet-area rule; scene
+  // draggables just need the player near the part.
+  function _dragGateOK(mesh) {
+    if (!mesh) return false;
+    if (controlMode !== 'walking' || oxygen.dead || shackletonMemory.isActive()) return false;
+    if (mesh.userData.dragKind === 'extra') {
+      if (mesh.userData.enabled && !mesh.userData.enabled()) return false;
+      return Math.hypot(player.pos.x - mesh.position.x,
+                        player.pos.z - mesh.position.z) < 6;
+    }
+    return _stabCanInteract();
   }
 
   function _stabRebuildCable(endV) {
     const p = wreckInterior.parts;
-    const a = new THREE.Vector3(15.84, p.floorY + 0.55, -3.81);
+    const a = new THREE.Vector3(STAB_SOCKET.x, p.floorY + 1.11, STAB_SOCKET.z);
     const mid = a.clone().lerp(endV, 0.5);
     mid.y = Math.max(a.y, endV.y) + 0.35;
     p.cable.geometry.dispose();
@@ -9261,10 +9526,10 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     task.done = true;
     const fy = wreckInterior.parts.floorY;
     if (key === 'debris') {
-      spawnDust(15.4, fy + 0.3, -3.3, 8);
+      spawnDust(STAB_POS.x, fy + 0.3, STAB_POS.z, 8);
       speak('SUIT', 'debris cleared', 2.2, { kind: 'system' });
     } else if (key === 'battery') {
-      spawnDust(16.0, fy + 0.2, -3.4, 4);
+      spawnDust(STAB_RACK.x, fy + 1.5, STAB_RACK.z, 4);
       speak('SUIT', 'battery seated — charge nominal', 2.4, { kind: 'system' });
     } else if (key === 'cable') {
       speak('SUIT', 'power path restored', 2.2, { kind: 'system' });
@@ -9278,25 +9543,31 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     const m = stabDrag.mesh;
     if (!m) return;
     stabDrag.mesh = null;
+    reachRelease();
+    if (m.userData.dragKind === 'extra') {
+      if (m.userData.onDrop) m.userData.onDrop(m);
+      return;
+    }
     const p = wreckInterior.parts;
     const fy = p.floorY;
     const key = m.userData.stabKey;
     if (key === 'battery' &&
         Math.hypot(m.position.x - STAB_RACK.x, m.position.z - STAB_RACK.z) < STAB_SNAP_R) {
-      m.position.set(STAB_RACK.x, fy + 0.42, STAB_RACK.z);
-      m.rotation.set(0, 0, 0);
+      // Rack is deck-mounted sideways — battery seats rotated with it.
+      m.position.set(STAB_RACK.x, fy + 1.73, STAB_RACK.z);
+      m.rotation.set(0, 0, -Math.PI / 2);
       _stabComplete('battery');
       return;
     }
     if (key === 'plug' &&
         Math.hypot(m.position.x - STAB_SOCKET.x, m.position.z - STAB_SOCKET.z) < STAB_SNAP_R) {
-      m.rotation.set(Math.PI / 2, 0, 0);
-      m.position.set(15.84, fy + 0.55, -3.72);
+      m.rotation.set(Math.PI / 2, 0, 0);      // socket axis is still world +Z
+      m.position.set(STAB_SOCKET.x, fy + 1.11, STAB_SOCKET.z + 0.09);
       p.cable.geometry.dispose();
       p.cable.geometry = new THREE.TubeGeometry(new THREE.QuadraticBezierCurve3(
-        new THREE.Vector3(15.84, fy + 0.55, -3.81),
-        new THREE.Vector3(15.65, fy + 0.75, -3.6),
-        new THREE.Vector3(15.84, fy + 0.55, -3.79)
+        new THREE.Vector3(STAB_SOCKET.x, fy + 1.11, STAB_SOCKET.z),
+        new THREE.Vector3(STAB_SOCKET.x - 0.15, fy + 1.31, STAB_SOCKET.z + 0.20),
+        new THREE.Vector3(STAB_SOCKET.x, fy + 1.11, STAB_SOCKET.z + 0.02)
       ), 8, 0.035, 6, false);
       _stabComplete('cable');
       return;
@@ -9308,9 +9579,9 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     if (key === 'plug') _stabRebuildCable(m.position);
     if (key === 'plate') {
       // Debris counts as cleared once BOTH plates rest away from the
-      // cabinet's working face.
+      // deck disc's working face.
       const clearOf = (mesh) =>
-        Math.hypot(mesh.position.x - 15.5, mesh.position.z + 3.4) > STAB_CLEAR_R;
+        Math.hypot(mesh.position.x - STAB_POS.x, mesh.position.z - STAB_POS.z) > STAB_CLEAR_R;
       if (clearOf(p.plateA) && clearOf(p.plateB)) _stabComplete('debris');
     }
   }
@@ -9326,21 +9597,28 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // is picked. Touch works through the same pointer events.
   window.addEventListener('pointerdown', (e) => {
     if (e.target !== renderer.domElement) return;
-    if (!_stabCanInteract()) return;
+    if (controlMode !== 'walking' || oxygen.dead || shackletonMemory.isActive()) return;
+    const cands = (_stabCanInteract() ? _stabDraggables() : [])
+      .concat(extraDraggables.filter(m => m.visible && _dragGateOK(m)));
+    if (!cands.length) return;
     _stabSetNDC(e);
     stabDrag.raycaster.setFromCamera(stabDrag.ndc, camera);
-    const hits = stabDrag.raycaster.intersectObjects(_stabDraggables(), false);
+    const hits = stabDrag.raycaster.intersectObjects(cands, false);
     if (!hits.length) return;
     stabDrag.mesh = hits[0].object;
+    stabDrag.planeY = shackletonScene.getGroundY(
+      stabDrag.mesh.position.x, stabDrag.mesh.position.z) + 0.55;
     stabDrag.bobT = 0;
     if (stabDrag.hover) { stabDrag.hover.material.emissive.setHex(0x000000); stabDrag.hover = null; }
+    // Hand tracks the held part for the whole drag.
+    reachStart(stabDrag.mesh.position, { follow: stabDrag.mesh });
     e.stopPropagation();
     e.preventDefault();
   }, true);
 
   window.addEventListener('pointermove', (e) => {
     if (stabDrag.mesh) {
-      if (!_stabCanInteract()) { _stabDrop(); return; }
+      if (!_dragGateOK(stabDrag.mesh)) { _stabDrop(); return; }
       _stabSetNDC(e);
       stabDrag.raycaster.setFromCamera(stabDrag.ndc, camera);
       const pt = new THREE.Vector3();
@@ -9352,14 +9630,21 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       e.stopPropagation();
       return;
     }
-    // Hover highlight (cheap: only while the puzzle is live and close).
-    if (e.target !== renderer.domElement || !_stabCanInteract()) {
+    // Hover highlight (cheap: only while something draggable is live).
+    if (e.target !== renderer.domElement ||
+        controlMode !== 'walking' || oxygen.dead || shackletonMemory.isActive()) {
+      if (stabDrag.hover) { stabDrag.hover.material.emissive.setHex(0x000000); stabDrag.hover = null; }
+      return;
+    }
+    const cands = (_stabCanInteract() ? _stabDraggables() : [])
+      .concat(extraDraggables.filter(m => m.visible && _dragGateOK(m)));
+    if (!cands.length) {
       if (stabDrag.hover) { stabDrag.hover.material.emissive.setHex(0x000000); stabDrag.hover = null; }
       return;
     }
     _stabSetNDC(e);
     stabDrag.raycaster.setFromCamera(stabDrag.ndc, camera);
-    const hits = stabDrag.raycaster.intersectObjects(_stabDraggables(), false);
+    const hits = stabDrag.raycaster.intersectObjects(cands, false);
     const hit = hits.length ? hits[0].object : null;
     if (hit !== stabDrag.hover) {
       if (stabDrag.hover) stabDrag.hover.material.emissive.setHex(0x000000);
@@ -9404,6 +9689,9 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
             { kind: 'system', delay: 13.4 });
       setTimeout(() => setObjective('explore the wreck'), 18000);
     }, 2600);
+    // Scene 4 begins the moment the stabiliser hums: M-08 is placed in
+    // the engine bay (hidden behind the deck disc), tugging the brace.
+    scene4Begin();
   }
 
   function updateWreckInterior(dt) {
@@ -9441,10 +9729,17 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       const d = Math.hypot(p.x - hatchInteract.x, p.z - hatchInteract.z);
       if (d < hatchInteract.r && d < bestD) { best = hatchInteract; bestD = d; }
     }
+    // Scene interactables (v0.4.5) — pins, pickups, installs, cranks.
+    for (const it of worldInteractables) {
+      if (it.hidden && it.hidden()) continue;
+      const d = Math.hypot(p.x - it.x, p.z - it.z);
+      if (d < it.r && d < bestD) { best = it; bestD = d; }
+    }
     wreckInterior._active = best;
     if (prompt) {
       if (best) {
-        prompt.textContent = '[E] / tap — ' + best.label;
+        const lbl = (typeof best.label === 'function') ? best.label() : best.label;
+        prompt.textContent = '[E] / tap — ' + lbl;
         prompt.classList.add('on');
       } else if (!wreckInterior.solved && wreckInterior.entered &&
                  Math.hypot(p.x - STAB_POS.x, p.z - STAB_POS.z) < 5.0) {
@@ -9460,10 +9755,10 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     if (stabDrag.mesh) {
       stabDrag.bobT += dt;
       stabDrag.mesh.position.y =
-        wreckInterior.parts.floorY + 0.5 + Math.sin(stabDrag.bobT * 4) * 0.05;
+        stabDrag.planeY - 0.05 + Math.sin(stabDrag.bobT * 4) * 0.05;
       stabDrag.mesh.rotation.y += dt * 0.5;
       // Walked away / state changed mid-drag → put the part down.
-      if (!_stabCanInteract()) _stabDrop();
+      if (!_dragGateOK(stabDrag.mesh)) _stabDrop();
     }
     // E-key with latch so one press = one action.
     if (best && keys['e'] && !wreckInterior._eLatch) {
@@ -9476,7 +9771,14 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   function _fireInteract() {
     const it = wreckInterior._active;
     if (!it || it.done) return;
-    if (it.isHatch) { toggleHatch(); return; }   // toggles; never "done"
+    if (it.isHatch) {
+      // Hand goes to the touchpad; the door answers on contact.
+      if (!reach.active) {
+        reachStart(hatchAssembly.padWorld, { onContact: toggleHatch });
+      }
+      return;
+    }
+    if (it.fire) { it.fire(); return; }        // scene interactable
     it.done = true;
     it.action();
     if (wreckInterior.interactables.every(i => i.done)) {
@@ -9491,6 +9793,440 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       _fireInteract();
     });
   })();
+
+  // ============================================================
+  // SCENES 4-6 (v0.4.5) — Structural Brace → Install → First Ice.
+  // Confirmed beat list. All interactions go through the shared
+  // control layer: reach gestures ([E]/tap via worldInteractables),
+  // drags (extraDraggables), robot scripting (robotStates[i].scripted).
+  // Memory wiring: M01_HANDS on brace pickup, M02_COLD_ROOM on ice
+  // activation — both depend on the (still browser-unverified)
+  // memory system.
+  // ============================================================
+  const worldInteractables = [];   // {x, z, r, label, fire(), hidden()}
+  const flyerRepair = { installed: false, k: 1 };   // k: 1 = damaged … 0 = repaired
+  const scene4 = { active: false, pinDone: false, panelDone: false,
+                   pulled: false, pullT: 0, braceHeld: false, entered: false };
+  const scene5 = { installing: false, t: 0, done: false };
+  const ICE_POCKET = { x: -75, z: 80 };
+  const scene6 = { active: false, power: false, crank: 0, aligned: false,
+                   cleared: false, done: false, hintT: 0 };
+
+  // ── Flyer damage pose ── the craft starts broken: leaning, sagging
+  // gear, tilted cab. k lerps to 0 during the Scene-5 weld.
+  const _fu = flyer.userData;
+  const _flyBase = {
+    legsY: _fu.legsGroup.position.y,
+    chassisY: _fu.chassis.position.y,
+  };
+  function applyFlyerDamage(k) {
+    flyerRepair.k = k;
+    flyer.rotation.z = 0.10 * k;
+    flyer.rotation.x = 0.04 * k;
+    _fu.legsGroup.position.y = _flyBase.legsY - 0.10 * k;
+    _fu.legsGroup.rotation.z = 0.08 * k;
+    _fu.chassis.position.y = _flyBase.chassisY - 0.06 * k;
+    _fu.chassis.rotation.z = 0.05 * k;
+    _fu.cab.rotation.z = 0.06 * k;
+  }
+  applyFlyerDamage(1);
+
+  // ── Scene 4 set dressing (engine bay, x 10.3-18.4) ──
+  const s4 = {};
+  {
+    const fy = -CRATER_DEPTH;
+    const steel = new THREE.MeshPhongMaterial({ shininess: 0, color: 0x565a63, flatShading: true });
+    const orange = new THREE.MeshPhongMaterial({ shininess: 0, color: 0xd35400, flatShading: true });
+    // Fallen plating pinning the brace
+    s4.plating = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.10, 2.3), steel);
+    s4.plating.position.set(13.2, fy + 0.52, -2.6);
+    s4.plating.rotation.set(0.42, 0.25, 0.10);
+    s4.plating.castShadow = true;
+    scene.add(s4.plating);
+    // The Structural Brace — orange beam, half under the plating
+    s4.brace = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.22, 2.0), orange);
+    s4.brace.position.set(13.0, fy + 0.14, -2.95);
+    s4.brace.rotation.y = 0.35;
+    s4.brace.castShadow = true;
+    scene.add(s4.brace);
+    // Locking pin — bright stub in the plating edge
+    s4.pin = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.34, 8),
+      new THREE.MeshBasicMaterial({ color: 0xe2c060 }));
+    s4.pin.rotation.z = Math.PI / 2;
+    s4.pin.position.set(13.95, fy + 0.62, -2.05);
+    scene.add(s4.pin);
+    // Small panel to drag clear (extra draggable)
+    s4.panel = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.06, 1.05),
+      new THREE.MeshPhongMaterial({ shininess: 0, color: 0x9a9aa0, flatShading: true }));
+    s4.panel.position.set(13.5, fy + 0.42, -2.15);
+    s4.panel.rotation.set(0.55, -0.3, 0.05);
+    s4.panel.castShadow = true;
+    s4.panel.userData = {
+      dragKind: 'extra', homeX: 13.5, homeZ: -2.15,
+      enabled: () => scene4.active,
+      onDrop(m) {
+        m.position.y = shackletonScene.getGroundY(m.position.x, m.position.z) + 0.04;
+        m.rotation.set(0, m.rotation.y, 0);
+        if (!scene4.panelDone &&
+            Math.hypot(m.position.x - 13.0, m.position.z + 2.9) > 1.5) {
+          scene4.panelDone = true;
+          speak('SUIT', 'plating clear', 2.0, { kind: 'system' });
+          _scene4TryPull();
+        }
+      },
+    };
+    scene.add(s4.panel);
+    extraDraggables.push(s4.panel);
+  }
+
+  // Pin pull — reach gesture
+  worldInteractables.push({
+    x: 13.95, z: -2.05, r: 2.0,
+    label: 'pull the locking pin',
+    hidden: () => !scene4.active || scene4.pinDone,
+    fire() {
+      if (reach.active) return;
+      reachStart(new THREE.Vector3(13.95, -CRATER_DEPTH + 0.62, -2.05), {
+        onContact() {
+          scene4.pinDone = true;
+          s4.pin.position.x += 0.45;      // slides out
+          spawnDust(13.95, -CRATER_DEPTH + 0.6, -2.05, 3, { speed: 0.4, upVel: 0.3, upVar: 0.3, life: 0.7 });
+          speak('SUIT', 'pressure released', 2.0, { kind: 'system' });
+          _scene4TryPull();
+        },
+      });
+    },
+  });
+
+  // Brace pickup — appears once M-08 has pulled it free
+  worldInteractables.push({
+    x: 12.6, z: -1.55, r: 2.0,
+    label: 'take the structural brace',
+    hidden: () => !scene4.pulled || scene4.braceHeld,
+    fire() {
+      if (reach.active) return;
+      reachStart(s4.brace.position, {
+        onContact() {
+          scene4.braceHeld = true;
+          // Carried on the back — parented to the astronaut root.
+          astronautRoot.add(s4.brace);
+          s4.brace.position.set(0.08, 1.05, -0.26);
+          s4.brace.rotation.set(0.25, 0, 1.20);
+          speak('SUIT', 'ship part recovered — STRUCTURAL BRACE', 3.0, { kind: 'system' });
+          setObjective('install the structural brace');
+          // M-08 stands aside by the deck gap (robots have no hull
+          // collision — keep its path inside the room).
+          robotStates[2].scripted = { x: 17.3, z: 0.6, faceX: 12.6, faceZ: -1.55 };
+          // MEMORY M01 — "Hands". First wired memory in the game.
+          shackletonMemory.fire('M01_HANDS');
+        },
+      });
+    },
+  });
+
+  function _scene4TryPull() {
+    if (scene4.pulled || !scene4.pinDone || !scene4.panelDone) return;
+    scene4.pulled = true;
+    scene4.pullT = 0;    // animated in updateScenes
+    speak('M-08', 'yes.', 2.0, { kind: 'robot', delay: 1.2 });
+    speak('M-08', 'strong.', 2.2, { kind: 'robot', delay: 3.2 });
+  }
+
+  // Called from _wreckInteriorSolved — the moment the stabiliser hums,
+  // M-08 is placed in the engine bay (out of sight behind the deck),
+  // tugging at the brace, per the Scene 4 script.
+  function scene4Begin() {
+    if (scene4.active) return;
+    scene4.active = true;
+    const rs = robotStates[2];                 // M-08, red
+    rs.pos.set(12.2, rs.pos.y, -3.6);
+    rs.scripted = { x: 12.35, z: -3.5, faceX: 13.0, faceZ: -2.95, manip: true };
+  }
+
+  // ── Scene 5: install at the Flyer ──
+  worldInteractables.push({
+    x: FLYER_ASSEMBLED_POS.x, z: FLYER_ASSEMBLED_POS.z, r: 4.0,
+    label: 'install the structural brace',
+    hidden: () => !scene4.braceHeld || scene5.installing || scene5.done,
+    fire() {
+      if (reach.active) return;
+      const mount = new THREE.Vector3(
+        FLYER_ASSEMBLED_POS.x - 1.0, FLYER_ASSEMBLED_POS.y - 0.4, FLYER_ASSEMBLED_POS.z + 0.6);
+      reachStart(mount, {
+        onContact() {
+          scene4.braceHeld = false;
+          scene5.installing = true;
+          scene5.t = 0;
+          // Brace leaves the backpack, becomes part of the frame.
+          astronautRoot.remove(s4.brace);
+          flyer.add(s4.brace);
+          s4.brace.position.set(-0.9, -0.45, 0.55);
+          s4.brace.rotation.set(0, 0.2, Math.PI / 2);
+          // Robots converge to work. A robot still far away (e.g.
+          // M-08 indoors) is snapped to the site — fiction: it was
+          // already working around the Flyer when the player arrived.
+          const CONV = [
+            [2, { x: 10.2, z: 8.3, faceX: 11.5, faceZ: 7.0, manip: true }],  // M-08 clamps
+            [0, { x: 12.9, z: 7.9, faceX: 11.5, faceZ: 7.0, manip: true }],  // P-03 welds
+            [1, { x: 11.3, z: 4.9, faceX: 11.5, faceZ: 7.0 }],               // L-07 holds the light
+          ];
+          for (const [ri, s] of CONV) {
+            const rs = robotStates[ri];
+            if (Math.hypot(rs.pos.x - s.x, rs.pos.z - s.z) > 14) {
+              rs.pos.set(s.x + 1.5, rs.pos.y, s.z + 1.5);
+            }
+            rs.scripted = s;
+          }
+          speak('P-03', 'hot.', 2.0, { kind: 'robot', delay: 2.0 });
+          speak('L-07', 'hold.', 2.0, { kind: 'robot', delay: 3.6 });
+          speak('M-08', 'good.', 2.0, { kind: 'robot', delay: 5.4 });
+        },
+      });
+    },
+  });
+
+  function _scene5Finish() {
+    scene5.done = true;
+    scene5.installing = false;
+    flyerRepair.installed = true;
+    applyFlyerDamage(0);
+    speak('SUIT', 'Flyer frame stabilised — 3 parts missing', 3.4, { kind: 'system' });
+    // Michel — Transmission 02, still broken.
+    speak('HOUSTON', '...Elias, this is Michel...', 3.0, { kind: 'houston', delay: 4.5 });
+    speak('HOUSTON', '...we are still calling...', 2.8, { kind: 'houston', delay: 8.2 });
+    speak('HOUSTON', '...if your receiver survived...', 2.8, { kind: 'houston', delay: 11.4 });
+    speak('HOUSTON', '...do not try to climb yet...', 3.0, { kind: 'houston', delay: 14.6 });
+    setTimeout(() => setObjective('find the ice pocket — north-west wall'), 19000);
+    // Release the work party; P-03 is sent ahead to the ice.
+    robotStates[1].scripted = null;
+    robotStates[2].scripted = null;
+    scene6.active = true;
+    const rs = robotStates[0];                 // P-03, blue
+    rs.pos.set(ICE_POCKET.x + 2.5, rs.pos.y, ICE_POCKET.z - 2.0);
+    rs.scripted = { x: ICE_POCKET.x + 2.2, z: ICE_POCKET.z - 1.8,
+                    faceX: ICE_POCKET.x, faceZ: ICE_POCKET.z, manip: true };
+  }
+
+  // ── Scene 6 set dressing: shadowed ice pocket, NW wall (r ≈ 110) ──
+  const s6 = {};
+  {
+    const gx = ICE_POCKET.x, gz = ICE_POCKET.z;
+    const gy = shackletonScene.getGroundY(gx, gz);
+    const grp = new THREE.Group();
+    // Overhang — a dark rock shell leaning over the site
+    const shell = new THREE.Mesh(
+      new THREE.SphereGeometry(5.2, 10, 7, 0, Math.PI * 2, 0, Math.PI * 0.42),
+      new THREE.MeshPhongMaterial({ shininess: 0, color: 0x23252b, flatShading: true, side: THREE.DoubleSide }));
+    shell.position.set(gx, gy + 1.2, gz);
+    shell.rotation.z = 0.9;
+    shell.castShadow = true;
+    grp.add(shell);
+    // Permanent-shadow patch under it
+    const patch = new THREE.Mesh(new THREE.CircleGeometry(4.6, 20),
+      new THREE.MeshBasicMaterial({ color: 0x0a0b0e, transparent: true, opacity: 0.85,
+        polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
+    patch.rotation.x = -Math.PI / 2;
+    patch.position.set(gx, gy + 0.02, gz);
+    grp.add(patch);
+    // Ice crystals — faint until activated
+    s6.crystalMat = new THREE.MeshPhongMaterial({
+      shininess: 30, color: 0x6f8fc0, emissive: 0x0a1830, flatShading: true });
+    for (let i = 0; i < 7; i++) {
+      const c = new THREE.Mesh(new THREE.IcosahedronGeometry(0.22 + rng(i + 91000) * 0.3, 0), s6.crystalMat);
+      c.position.set(gx - 1.6 + rng(i + 91100) * 1.6, gy + 0.25 + rng(i + 91200) * 0.9, gz + 0.4 + rng(i + 91300) * 1.6);
+      c.rotation.set(rng(i + 91400) * 3, rng(i + 91500) * 3, 0);
+      grp.add(c);
+    }
+    // Reflector rig: pole + dish on a yaw pivot + crank + battery socket
+    const steel = new THREE.MeshPhongMaterial({ shininess: 0, color: 0x3a3d44, flatShading: true });
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 1.6, 8), steel);
+    pole.position.set(gx + 3.2, gy + 0.8, gz + 2.6);
+    grp.add(pole);
+    s6.dishPivot = new THREE.Group();
+    s6.dishPivot.position.set(gx + 3.2, gy + 1.65, gz + 2.6);
+    const dish = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.62, 0.10, 12),
+      new THREE.MeshPhongMaterial({ shininess: 60, color: 0xd8dce4, flatShading: true }));
+    dish.rotation.z = Math.PI / 2;
+    dish.position.x = 0.2;
+    s6.dishPivot.add(dish);
+    s6.dishPivot.rotation.y = 2.6;             // starts pointing away
+    grp.add(s6.dishPivot);
+    // Beam — visible once powered + aligned
+    s6.beam = new THREE.Mesh(new THREE.CylinderGeometry(0.10, 0.55, 5.0, 10, 1, true),
+      new THREE.MeshBasicMaterial({ color: 0xcfe4ff, transparent: true, opacity: 0.0,
+        side: THREE.DoubleSide, depthWrite: false }));
+    grp.add(s6.beam);
+    // Battery socket at the pole base
+    s6.socket = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.24, 0.4), steel);
+    s6.socket.position.set(gx + 2.7, gy + 0.12, gz + 2.3);
+    grp.add(s6.socket);
+    // Portable battery pack — extra draggable
+    s6.batt = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.3, 0.32),
+      new THREE.MeshPhongMaterial({ shininess: 0, color: 0xd35400, flatShading: true }));
+    s6.batt.position.set(gx + 5.8, gy + 0.15, gz - 1.4);
+    s6.batt.rotation.y = 0.7;
+    s6.batt.castShadow = true;
+    s6.batt.userData = {
+      dragKind: 'extra', homeX: gx + 4.2, homeZ: gz + 0.5,
+      enabled: () => scene6.active,
+      onDrop(m) {
+        m.position.y = shackletonScene.getGroundY(m.position.x, m.position.z) + 0.15;
+        m.rotation.set(0, m.rotation.y, 0);
+        if (!scene6.power &&
+            Math.hypot(m.position.x - s6.socket.position.x, m.position.z - s6.socket.position.z) < 0.7) {
+          scene6.power = true;
+          m.position.set(s6.socket.position.x, s6.socket.position.y + 0.26, s6.socket.position.z);
+          m.rotation.set(0, 0, 0);
+          speak('SUIT', 'extractor power connected', 2.4, { kind: 'system' });
+          _scene6Check();
+        }
+      },
+    };
+    grp.add(s6.batt);
+    extraDraggables.push(s6.batt);
+    // Regolith chunk covering the deposit — extra draggable
+    s6.chunk = new THREE.Mesh(new THREE.DodecahedronGeometry(0.55, 0),
+      new THREE.MeshPhongMaterial({ shininess: 0, color: 0x6b6d74, flatShading: true }));
+    s6.chunk.position.set(gx - 0.6, gy + 0.35, gz + 1.1);
+    s6.chunk.castShadow = true;
+    s6.chunk.userData = {
+      dragKind: 'extra', homeX: gx - 0.6, homeZ: gz + 1.1,
+      enabled: () => scene6.active,
+      onDrop(m) {
+        m.position.y = shackletonScene.getGroundY(m.position.x, m.position.z) + 0.30;
+        if (!scene6.cleared &&
+            Math.hypot(m.position.x - (gx - 0.6), m.position.z - (gz + 1.1)) > 1.5) {
+          scene6.cleared = true;
+          speak('SUIT', 'deposit exposed', 2.2, { kind: 'system' });
+          _scene6Check();
+        }
+      },
+    };
+    grp.add(s6.chunk);
+    extraDraggables.push(s6.chunk);
+    scene.add(grp);
+    s6.gy = gy;
+  }
+
+  // Reflector crank — each press turns the dish one step toward the ice
+  const S6_DISH_TARGET = Math.atan2(ICE_POCKET.x - (ICE_POCKET.x + 3.2),
+                                    ICE_POCKET.z - (ICE_POCKET.z + 2.6)) + Math.PI; // dish +x aims via yaw
+  worldInteractables.push({
+    x: ICE_POCKET.x + 3.2, z: ICE_POCKET.z + 2.6, r: 2.2,
+    label: () => 'turn the reflector (' + (scene6.aligned ? 'aligned' : (4 - scene6.crank) + ' more') + ')',
+    hidden: () => !scene6.active || scene6.aligned,
+    fire() {
+      if (reach.active) return;
+      reachStart(new THREE.Vector3(ICE_POCKET.x + 3.2, s6.gy + 1.5, ICE_POCKET.z + 2.6), {
+        onContact() {
+          scene6.crank++;
+          s6.dishPivot.rotation.y -= 0.5;
+          spawnDust(ICE_POCKET.x + 3.2, s6.gy + 0.3, ICE_POCKET.z + 2.6, 2,
+                    { speed: 0.4, upVel: 0.3, upVar: 0.3, life: 0.6 });
+          if (scene6.crank >= 4) {
+            scene6.aligned = true;
+            speak('SUIT', 'reflector aligned — light on the deposit', 2.6, { kind: 'system' });
+            _scene6Check();
+          }
+        },
+      });
+    },
+  });
+  void S6_DISH_TARGET;
+
+  function _scene6Check() {
+    if (scene6.done || !scene6.power || !scene6.aligned || !scene6.cleared) return;
+    scene6.done = true;
+    // Light hits the ice: beam on, crystals wake.
+    s6.beam.material.opacity = 0.16;
+    const bp = s6.beam.position;
+    bp.set(ICE_POCKET.x + 1.4, s6.gy + 1.2, ICE_POCKET.z + 1.6);
+    s6.beam.rotation.z = 1.0; s6.beam.rotation.y = 0.5;
+    s6.crystalMat.emissive.setHex(0x2a55aa);
+    speak('P-03', 'ice.', 2.0, { kind: 'robot', delay: 0.8 });
+    speak('P-03', 'breathe.', 2.2, { kind: 'robot', delay: 3.0 });
+    speak('SUIT', 'ice deposit active — oxygen refill available — range increased', 3.8,
+          { kind: 'system', delay: 5.4 });
+    oxygen.capacity = 160;
+    setObjective('explore the crater');
+    // MEMORY M02 — "Cold room".
+    setTimeout(() => shackletonMemory.fire('M02_COLD_ROOM'), 9500);
+  }
+
+  // ── Per-frame scene logic: brace pull anim, weld, coaching hints ──
+  let _s5SparkT = 0;
+  function updateScenes(dt) {
+    // Scene 4: engine-bay entry beat
+    if (scene4.active && !scene4.entered &&
+        player.pos.x < 18.42 && player.pos.x > 10.3 && Math.abs(player.pos.z + 2) < 3.6) {
+      scene4.entered = true;
+      setObjective('recover the structural brace');
+      speak('M-08', 'stuck.', 2.0, { kind: 'robot', delay: 1.0 });
+    }
+    // Scene 4: M-08 pulls the brace free
+    if (scene4.pulled && scene4.pullT < 1.4) {
+      scene4.pullT += dt;
+      const k = Math.min(1, scene4.pullT / 1.4);
+      const e = k * k * (3 - 2 * k);
+      s4.brace.position.x = 13.0 - 0.4 * e;
+      s4.brace.position.z = -2.95 + 1.4 * e;
+      if (scene4.pullT >= 1.4) {
+        // Done: M-08 stands aside, faces the player's likely approach.
+        robotStates[2].scripted = { x: 12.0, z: -0.9, faceX: 12.6, faceZ: -1.55 };
+        spawnDust(12.6, -CRATER_DEPTH + 0.2, -1.55, 6, { speed: 0.5, upVel: 0.4, upVar: 0.4, life: 0.9 });
+      }
+    }
+    // Scene 5: weld sequence
+    if (scene5.installing) {
+      scene5.t += dt;
+      applyFlyerDamage(Math.max(0, 1 - scene5.t / 3.0));
+      _s5SparkT += dt;
+      if (_s5SparkT > 0.28 && scene5.t < 3.0) {
+        _s5SparkT = 0;
+        spawnDust(FLYER_ASSEMBLED_POS.x - 0.9, FLYER_ASSEMBLED_POS.y - 0.4,
+                  FLYER_ASSEMBLED_POS.z + 0.55, 3,
+                  { speed: 1.2, upVel: 0.8, upVar: 0.8, life: 0.5,
+                    colors: [0xffcc66, 0xff8833, 0xffe0a0] });
+      }
+      if (scene5.t >= 3.6) _scene5Finish();
+    }
+    // Scene 6 coaching — P-03 calls the next step; the suit spells it
+    // out if the player lingers. Only while on site and unsolved.
+    if (scene6.active && !scene6.done &&
+        Math.hypot(player.pos.x - ICE_POCKET.x, player.pos.z - ICE_POCKET.z) < 14) {
+      scene6.hintT += dt;
+      if (scene6.hintT > 14) {
+        scene6.hintT = 0;
+        if (!scene6.power) {
+          speak('P-03', 'power.', 2.0, { kind: 'robot' });
+          speak('SUIT', 'hint: drag the battery pack to the extractor socket', 3.0,
+                { kind: 'system', delay: 2.4 });
+        } else if (!scene6.aligned) {
+          speak('P-03', 'turn.', 2.0, { kind: 'robot' });
+          speak('SUIT', 'hint: crank the reflector toward the ice', 3.0,
+                { kind: 'system', delay: 2.4 });
+        } else if (!scene6.cleared) {
+          speak('P-03', 'clear.', 2.0, { kind: 'robot' });
+          speak('SUIT', 'hint: drag the regolith off the deposit', 3.0,
+                { kind: 'system', delay: 2.4 });
+        }
+      }
+    }
+    // Scene 5 coaching — carrying the brace near the Flyer
+    if (scene4.braceHeld && !scene5.installing && !scene5.done) {
+      const d = Math.hypot(player.pos.x - FLYER_ASSEMBLED_POS.x,
+                           player.pos.z - FLYER_ASSEMBLED_POS.z);
+      if (d < 8) {
+        scene5._hintT = (scene5._hintT || 0) + dt;
+        if (scene5._hintT > 12) {
+          scene5._hintT = 0;
+          speak('L-07', 'here.', 2.0, { kind: 'robot' });
+          speak('SUIT', 'hint: brace mount — port frame, forward strut', 3.0,
+                { kind: 'system', delay: 2.2 });
+        }
+      }
+    }
+  }
 
   // ──── WRECK DEBRIS ────
   // Hull plates that fell off, scattered around the wreck. Placed in
@@ -10593,7 +11329,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   //   OPEN_PRONE_LIFT  — raise if the body sinks into the regolith
   // ============================================================
   const OPEN_PRONE_PITCH = Math.PI / 2;   // face-down pitch on root
-  const OPEN_PRONE_LIFT  = 0.18;          // slightly embedded in the regolith per feedback
+  const OPEN_PRONE_LIFT  = 0.06;          // was 0.18 — read as floating above the ground per feedback
   const OPEN_BLACK_DUR   = 3.8;           // seconds of black + HUD before reveal
   const OPEN_PUSH1_DUR   = 1.05;          // first push + slip
   const OPEN_RISE_DUR    = 3.0;           // second push → standing
@@ -12107,6 +12843,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
           updateFlyerProximity();
           updateRefillProximity();
           updateWreckInterior(dt);
+          updateScenes(dt);
         }
         updateOxygen(dt);
       } else if (controlMode === 'boarding') {
@@ -12167,6 +12904,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       updateCinematic(dt);
     }
     if (mixer) mixer.update(dt);
+    updateReach(dt);                 // arm override AFTER the mixer stamp
     updateEntities(dt);              // entity registry — additive pass
     updateHose(dt);                  // O₂ umbilical — no-op unless connected
     updateDust(dt);
