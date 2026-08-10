@@ -537,7 +537,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.4.5';  // prompt-id fix (door works), up-over door swing, vertical-ship interior, reach/hand system, Scenes 4-6 (brace → install → ice) + M01/M02 wired
+  const BUILD_VERSION = 'v0.4.6';  // door slides DOWN, hull integrity above hatch, interior lights, collision cleanup, double-sided mats, GLB cache-buster, get-up rise
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -4699,8 +4699,8 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
         // he wakes SITTING against the tanks, hose clipped to helmet,
         // already refilling (v0.4.3 — was a standing wake mid-field).
         if (into < dt * 1.5) {
-          const sx = REFILL_PANEL_POS.x + 0.85;   // beside the tanks
-          const sz = REFILL_PANEL_POS.z - 0.45;
+          const sx = REFILL_PANEL_POS.x + 0.72;   // right against the tanks
+          const sz = REFILL_PANEL_POS.z - 0.55;
           player.pos.set(sx, shackletonScene.getGroundY(sx, sz), sz);
           player.vel.set(0, 0, 0);
           // Face the tanks (they sit behind the pillar, local -z).
@@ -4722,6 +4722,9 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
           rescueSit.active = true;
           rescueSit.spoke = false;
           refill.connected = true;            // hose attached, refilling
+          o2Hose.t = 0.999;                   // hose ALREADY on the helmet
+                                              // when the fade lifts — the
+                                              // robots plugged him in
           oxygen.percent = oxygen.capacity;   // wake topped up to current ceiling
         }
       } else if (t < RESCUE_TOTAL) {
@@ -8708,19 +8711,12 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     scene.add(ramp);
   }
 
-  // Wreck colliders. The wreck spans world X = STARSHIP_X (engine end)
-  // to STARSHIP_X + 14 (nose tip). Two small cylinders at the ends
-  // block the player from passing through the engine cone or the
-  // nose, but the middle is open so the player can walk into the
-  // chamber through the side hole (around world X 11–13 on the south
-  // face). Trade-off: walking straight through the hull at non-hole
-  // positions visually clips. To be tightened later with hole-aware
-  // collision once entry is reliably working.
-  {
-    const wreckTopY = wreckY(4.5);
-    addCollider(wreckX(1),  STARSHIP_Z, 1.2 * WRECK_SCALE, wreckTopY);  // engine end
-    addCollider(wreckX(13), STARSHIP_Z, 1.2 * WRECK_SCALE, wreckTopY);  // nose end
-  }
+  // Wreck end colliders — REMOVED (v0.4.6). The two legacy cylinders
+  // (at wreckX(1) and wreckX(13), r 2.4) predate the real hull
+  // collision system. The tail one sat squarely in the middle of the
+  // engine-bay room and blocked the player invisibly during the
+  // Scene-4 brace recovery. The wall crossing-lines + end planes in
+  // updatePlayer now own all hull collision.
 
   // ============================================================
   // OXYGEN REFILL PANEL — emergency suit-charging station, attached
@@ -9112,9 +9108,10 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     WX0: 20.5, WX1: 23.6,     // world-x doorway bounds (collision pass-through)
     // The ship was built to FUNCTION STANDING ON ITS TAIL — its side
     // doors slide sideways, i.e. circumferentially around the hull.
-    // Toppled, that same track now carries the leaf UP AND OVER the
-    // curve of the hull. So: open = rotate the leaf about the hull
-    // axis toward the top (angle +SWING), not a slide along the axis.
+    // Toppled, the track runs both ways; the hull ABOVE the doorway is
+    // torn up (no track integrity), so the leaf slides DOWN into the
+    // buried section of track below the floor line. (v0.4.6 — was
+    // up-and-over, which pushed the leaf into the broken plating.)
     SWING: 1.05,              // rad of circumferential travel (~60°)
     open: false,
     t: 0,                     // animation state 0..1 (t > 0.6 = walkable)
@@ -9157,12 +9154,12 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     // Diagonal hazard chevron band across the leaf mid-height
     const chevron = new THREE.Mesh(
       _hatchArcStrip(2.28, HATCH.Y0 + 0.52, HATCH.Y1 - 0.52, HATCH.A0 + 8, HATCH.A1 - 8, 6),
-      new THREE.MeshPhongMaterial({ shininess: 0, color: 0xd97a1f, flatShading: true })
+      new THREE.MeshPhongMaterial({ shininess: 0, color: 0xd97a1f, flatShading: true, side: THREE.DoubleSide })
     );
     leaf.add(chevron);
 
     // ── Edge light strips ── the two drawn lines: one along each jamb.
-    const stripMat = new THREE.MeshBasicMaterial({ color: 0xd23c28 });
+    const stripMat = new THREE.MeshBasicMaterial({ color: 0xd23c28, side: THREE.DoubleSide });
     const stripA = new THREE.Mesh(
       _hatchArcStrip(2.25, HATCH.Y0 - 0.10, HATCH.Y0 - 0.02, HATCH.A0, HATCH.A1, 8), stripMat);
     const stripB = new THREE.Mesh(
@@ -9193,6 +9190,19 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     grp.add(dlight);
 
     starship.add(grp);
+
+    // ── Interior emergency lighting (v0.4.6) ── the inside was pitch
+    // black except the beacon pulse: "I can't see any floor inside".
+    // Two dim cool always-on fills, one per bay. World-space (the
+    // interior floor is the regolith, outside the starship group).
+    {
+      const mainBay = new THREE.PointLight(0x9aa8bd, 0.55, 16);
+      mainBay.position.set(23.5, -CRATER_DEPTH + 3.4, -1.2);
+      scene.add(mainBay);
+      const engineBay = new THREE.PointLight(0x9aa8bd, 0.5, 13);
+      engineBay.position.set(14.0, -CRATER_DEPTH + 3.0, -1.5);
+      scene.add(engineBay);
+    }
 
     // Touchpad position in WORLD space for the interaction scan — the
     // group frame is rotated/scaled, so ask three.js rather than doing
@@ -9263,12 +9273,13 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     HATCH.t += (target - HATCH.t) * Math.min(1, dt * 2.4);
     if (Math.abs(HATCH.t - target) < 0.002) HATCH.t = target;
     const e = HATCH.t * HATCH.t * (3 - 2 * HATCH.t);   // smoothstep
-    // rotation.y = -θ shifts arc geometry to HIGHER hull angles (a
-    // point at angle a lands at a + θ), i.e. up over the hull top.
-    hatchAssembly.leaf.rotation.y = -HATCH.SWING * e;
+    // rotation.y = +θ shifts arc geometry to LOWER hull angles (a
+    // point at angle a lands at a − θ): the leaf drops below the 55°
+    // floor line and disappears into the buried hull — slides DOWN.
+    hatchAssembly.leaf.rotation.y = HATCH.SWING * e;
     hatchAssembly.stripMat.color.copy(_stripShut).lerp(_stripOpen, e);
     hatchAssembly.padScreenMat.color.copy(_padShut).lerp(_padOpen, e);
-    hatchAssembly.dlight.intensity = 1.3 * e;
+    hatchAssembly.dlight.intensity = 2.2 * e;
   }
 
   // ============================================================
@@ -9312,9 +9323,9 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   (function buildWreckInterior() {
     const g = new THREE.Group();
     const floorY = -CRATER_DEPTH;
-    const steel = new THREE.MeshPhongMaterial({ shininess: 0, color: 0x3a3d44, flatShading: true });
-    const dark  = new THREE.MeshPhongMaterial({ shininess: 0, color: 0x22242a, flatShading: true });
-    const accent= new THREE.MeshPhongMaterial({ shininess: 0, color: 0xd97a1f, flatShading: true });
+    const steel = new THREE.MeshPhongMaterial({ shininess: 0, color: 0x3a3d44, flatShading: true, side: THREE.DoubleSide });
+    const dark  = new THREE.MeshPhongMaterial({ shininess: 0, color: 0x22242a, flatShading: true, side: THREE.DoubleSide });
+    const accent= new THREE.MeshPhongMaterial({ shininess: 0, color: 0xd97a1f, flatShading: true, side: THREE.DoubleSide });
 
     // ── Stabiliser unit — mounted on the DECK DISC (v0.4.4) ──
     // The ship was built to stand on its tail: decks are circular
@@ -9380,7 +9391,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
 
     // ── Debris — two hull plates leaning against the deck disc ──
     const plateGeom = new THREE.BoxGeometry(0.9, 0.06, 1.2);
-    const plateMat = new THREE.MeshPhongMaterial({ shininess: 0, color: 0x9a9aa0, flatShading: true });
+    const plateMat = new THREE.MeshPhongMaterial({ shininess: 0, color: 0x9a9aa0, flatShading: true, side: THREE.DoubleSide });
     const plateA = new THREE.Mesh(plateGeom, plateMat.clone());
     plateA.position.set(18.80, floorY + 0.55, -0.15);
     plateA.rotation.set(0.9, 0.3, 0.15);
@@ -9835,8 +9846,8 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   const s4 = {};
   {
     const fy = -CRATER_DEPTH;
-    const steel = new THREE.MeshPhongMaterial({ shininess: 0, color: 0x565a63, flatShading: true });
-    const orange = new THREE.MeshPhongMaterial({ shininess: 0, color: 0xd35400, flatShading: true });
+    const steel = new THREE.MeshPhongMaterial({ shininess: 0, color: 0x565a63, flatShading: true, side: THREE.DoubleSide });
+    const orange = new THREE.MeshPhongMaterial({ shininess: 0, color: 0xd35400, flatShading: true, side: THREE.DoubleSide });
     // Fallen plating pinning the brace
     s4.plating = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.10, 2.3), steel);
     s4.plating.position.set(13.2, fy + 0.52, -2.6);
@@ -9857,7 +9868,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     scene.add(s4.pin);
     // Small panel to drag clear (extra draggable)
     s4.panel = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.06, 1.05),
-      new THREE.MeshPhongMaterial({ shininess: 0, color: 0x9a9aa0, flatShading: true }));
+      new THREE.MeshPhongMaterial({ shininess: 0, color: 0x9a9aa0, flatShading: true, side: THREE.DoubleSide }));
     s4.panel.position.set(13.5, fy + 0.42, -2.15);
     s4.panel.rotation.set(0.55, -0.3, 0.05);
     s4.panel.castShadow = true;
@@ -10038,14 +10049,14 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       grp.add(c);
     }
     // Reflector rig: pole + dish on a yaw pivot + crank + battery socket
-    const steel = new THREE.MeshPhongMaterial({ shininess: 0, color: 0x3a3d44, flatShading: true });
+    const steel = new THREE.MeshPhongMaterial({ shininess: 0, color: 0x3a3d44, flatShading: true, side: THREE.DoubleSide });
     const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 1.6, 8), steel);
     pole.position.set(gx + 3.2, gy + 0.8, gz + 2.6);
     grp.add(pole);
     s6.dishPivot = new THREE.Group();
     s6.dishPivot.position.set(gx + 3.2, gy + 1.65, gz + 2.6);
     const dish = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.62, 0.10, 12),
-      new THREE.MeshPhongMaterial({ shininess: 60, color: 0xd8dce4, flatShading: true }));
+      new THREE.MeshPhongMaterial({ shininess: 60, color: 0xd8dce4, flatShading: true, side: THREE.DoubleSide }));
     dish.rotation.z = Math.PI / 2;
     dish.position.x = 0.2;
     s6.dishPivot.add(dish);
@@ -11448,6 +11459,11 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     document.body.classList.remove('cine-active');
     astronautRoot.rotation.x = 0;
     astronautRoot.rotation.order = 'XYZ';
+    // Snap exactly to the terrain so the first updatePlayer frame has
+    // nothing to correct — no pop up (or down) on first input.
+    player.pos.y = shackletonScene.getGroundY(player.pos.x, player.pos.z);
+    player.vel.set(0, 0, 0);
+    player.grounded = true;
     astronautRoot.position.copy(player.pos);
     // Snap the chase-cam state to match the camera we hand over, so
     // updateCamera's first frame continues seamlessly.
@@ -11559,13 +11575,30 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       case 'rise': {
         const p = Math.min(1, t / OPEN_RISE_DUR);
         const e = _easeInOut(p);
-        astronautRoot.rotation.x = OPEN_PRONE_PITCH * (1 - e);
+        // Get-up read (v0.4.6): the old rise rotated a full standing
+        // pose about the ankles — a stiff plank levitating upright.
+        // Now the body is COMPACT (Crouch_Loop frozen mid-frame) while
+        // the pitch comes up — knees gathered under him — and only
+        // then does he stand via the crossfade to Idle.
+        if (!opening._crouchSet && animClips['Crouch_Loop']) {
+          opening._crouchSet = true;
+          setAnimation('Crouch_Loop');
+          animClips['Crouch_Loop'].time = 0.35;
+          animClips['Crouch_Loop'].paused = true;
+        }
+        // Pitch finishes early (by p≈0.7) so the stand-up happens
+        // from a grounded kneel, not mid-rotation.
+        const eP = Math.min(1, e * 1.45);
+        astronautRoot.rotation.x = OPEN_PRONE_PITCH * (1 - eP);
         astronautRoot.position.set(
           player.pos.x,
-          player.pos.y + OPEN_PRONE_LIFT * (1 - e),
+          player.pos.y + OPEN_PRONE_LIFT * (1 - eP),
           player.pos.z
         );
-        if (p > 0.65) setAnimation('Idle_Breath');
+        if (p > 0.65) {
+          if (animClips['Crouch_Loop']) animClips['Crouch_Loop'].paused = false;
+          setAnimation('Idle_Breath');
+        }
         camera.position.lerpVectors(opening.camFrom, opening.camTo, e);
         // Terrain clamp on the lerp path — the camera must never
         // dip under the floor mid-swing, whatever the endpoints do.
@@ -11645,7 +11678,11 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // failure the procedural hull simply stays visible.
   (function loadWreckGLB() {
     const loader = new THREE.GLTFLoader();
-    loader.load('/assets/wreck.glb', (gltf) => {
+    // Cache-buster (v0.4.6): the GLB changes with the build now (hatch
+    // cut, deck disc). Without this, a browser could keep serving a
+    // stale cached wreck — which looks like "no opening behind the
+    // hatch" and "no deck inside" even though the HTML is current.
+    loader.load('/assets/wreck.glb?v=' + encodeURIComponent(BUILD_VERSION), (gltf) => {
       const wreckMat = new THREE.MeshPhongMaterial({
         shininess: 0,
         flatShading: true,
@@ -11667,7 +11704,15 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
         if (!child.userData.keepVisible) child.visible = false;
       }
       starship.add(gltf.scene);
-      console.log('[wreck] GLB loaded — procedural hull replaced');
+      // Deploy-verification: face count identifies the GLB version.
+      // v0.4.6 expects ~5540 (doorway cut + deck disc + ladder +
+      // integrity patch). ~5120 = STALE pre-hatch asset.
+      let tris = 0;
+      gltf.scene.traverse(o => {
+        if (o.isMesh && o.geometry.index) tris += o.geometry.index.count / 3;
+      });
+      console.log('[wreck] GLB loaded — procedural hull replaced | tris:', tris,
+                  tris < 5400 ? '⚠ STALE wreck.glb — upload the new assets/wreck.glb!' : '(current)');
     }, undefined, (err) => {
       console.warn('[wreck] GLB unavailable, procedural hull retained:', err);
     });
