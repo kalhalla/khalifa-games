@@ -69,6 +69,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
 #xc{color:#ff8a5a}
 #xt{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:bold;color:#fff;background:rgba(216,72,58,.82);border-radius:4px;letter-spacing:0}
 #xt.hot{animation:pulse .3s infinite;background:rgba(255,80,50,.95)}
+#wbar button.on4{border-color:#cfd2d4;background:rgba(207,210,212,.16);color:#e8eaec;box-shadow:0 0 12px rgba(207,210,212,.3)}
 #wbar button.on3{border-color:#ff8a5a;background:rgba(255,138,90,.16);color:#ff8a5a;box-shadow:0 0 12px rgba(255,138,90,.3)}
 #ctd{position:fixed;left:50%;transform:translateX(-50%);top:calc(64px + env(safe-area-inset-top));z-index:11;display:none;padding:4px 14px;border-radius:2px;font-size:15px;font-weight:bold;letter-spacing:3px;color:#ff8a5a;border:1px solid #ff8a5a;background:rgba(6,12,4,.7)}
 #ctd.hot{animation:pulse .3s infinite;color:#fff;background:rgba(216,72,58,.85)}
@@ -321,6 +322,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
   <button id="bg" class="on" data-w="gun">🔫</button>
   <button id="bn" data-w="grenade">💣<span id="nc">8</span></button>
   <button id="bx" data-w="charge" style="display:none">🧨<span id="xc">0</span><span id="xt" style="display:none"></span></button>
+  <button id="bk" data-w="knife" title="Knife (K): tap a sentry">🗡️</button>
   <button id="bc" title="Crawl (Q)">CRAWL</button>
 </div>
 <div id="roster"></div>
@@ -338,7 +340,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
     <button id="tset">SETTINGS <small>sound · music · graphics</small></button>
   </div>
   <div class="foot">© GAMELAB · NO GRUNTS WERE CONSULTED</div>
-  <div id="tver">v21</div>
+  <div id="tver">v28</div>
 </div>
 
 <div id="ops" class="screen">
@@ -369,7 +371,6 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
       <button id="ssnd">SOUND <small id="ssndsub">on</small></button>
       <button id="smus">MUSIC <small id="smussub">on</small></button>
       <button id="sgfx">GRAPHICS <small id="sgfxsub">high</small></button>
-      <button id="slook">LOOK <small id="slooksub">v21</small></button>
       <button id="sback" class="pri">BACK</button>
     </div>
   </div>
@@ -408,7 +409,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
       <div class="row"><div class="k">Objective</div><div class="v" id="bobj"></div></div>
       <div class="row"><div class="k">Notes</div><div class="v" id="btxt"></div></div>
       <div class="row"><div class="k">Opposition</div><div class="v" id="bopp"></div></div>
-      <div class="row"><div class="k">Doctrine</div><div class="v">Press <b>Q</b> or <b>CRAWL</b> to go prone. Down in the grass you are silent and all but invisible — only a sentry looking straight at you from a few metres will make you out — but weapons are slung: no rifles, no grenades until you are back on your feet, and standing up costs you half a second. Crawl into position, stand, and kill — and for the first <b>two seconds</b> after you come up out of a crawl, your grunts fire faster and shoot straighter than anything facing them. That window is the whole reward for the approach. Sentries hear rifles and shout to each other, so take the outliers first. Stripes are not decoration: a lance-corporal takes a fourth round, a sergeant a fifth, and every rank shoots a little straighter.</div></div>
+      <div class="row"><div class="k">Doctrine</div><div class="v">Press <b>Q</b> or <b>CRAWL</b> to go prone. Down in the grass you are silent and all but invisible — only a sentry looking straight at you from a few metres will make you out — but weapons are slung: no rifles, no grenades until you are back on your feet, and standing up costs you half a second. Crawl into position, stand, and kill — and for the first <b>two seconds</b> after you come up out of a crawl, your grunts fire faster and shoot straighter than anything facing them. That window is the whole reward for the approach. Or use the knife: pick <b>🗡️</b> (or <b>K</b>) and <b>tap a sentry</b>. The nearest man goes after him alone — crawling if you are down — while the rest hold, then rises for the last few metres and does it with the stiletto. Nobody hears a thing. Send him in from behind: if the sentry turns and sees him coming, it is rifles after all. Tap the ground to call him back. Sentries hear rifles and shout to each other, so take the outliers first. Stripes are not decoration: a lance-corporal takes a fourth round, a sergeant a fifth, and every rank shoots a little straighter.</div></div>
       <div class="rule"></div>
       <div class="row"><div class="k">Assigned</div><div class="v"><div class="crew" id="bcrew"></div></div></div>
       <button class="btn" id="bgo">DEPLOY</button>
@@ -878,7 +879,7 @@ function mesaLift(x, z) {
 // groundY() stays the single source of truth for everything that stands on the map.
 let waterZones = [], bridgeZones = [];
 let mesas = [];   // v19: raised plateaus, each with its ramps (see the terrain kit)
-const WATER_DEPTH = 2.0, WATER_DROP = 0.52;    // bed carve, and surface below the bank
+const WATER_DEPTH = 2.0, WATER_DROP = 0.7;     // bed carve, and surface below the bank (v23: 0.52 → 0.7, so a cut earth bank shows)
 
 function inRect(r, x, z, pad) {
   const p = pad || 0;
@@ -888,6 +889,16 @@ function onBridge(x, z, pad) {
   for (let i = 0; i < bridgeZones.length; i++) if (inRect(bridgeZones[i], x, z, pad)) return true;
   return false;
 }
+function bankWobble(x, z) { const v = vnoise(x * 0.21 + 3.7, z * 0.21 - 1.9) * 0.9 - 0.15; return v > 0 ? v : 0; }
+// v23: signed distance inside the nearest river, bank wobble included (negative = on the bank, metres from the edge)
+function riverInset(x, z) {
+  let best = -99;
+  for (const r of waterZones) {
+    if (x < r.x0 - 4 || x > r.x1 + 4 || z < r.z0 - 4 || z > r.z1 + 4) continue;
+    best = Math.max(best, Math.min(x - r.x0, r.x1 - x, z - r.z0, r.z1 - z) + bankWobble(x, z));
+  }
+  return best;
+}
 // smooth 0..1 "how far inside the river" — drives the carve and the shallows tint
 function waterFactor(x, z) {
   if (!waterZones.length) return 0;
@@ -895,8 +906,10 @@ function waterFactor(x, z) {
   for (let i = 0; i < waterZones.length; i++) {
     const r = waterZones[i];
     if (x < r.x0 - 2 || x > r.x1 + 2 || z < r.z0 - 2 || z > r.z1 + 2) continue;
-    const inset = Math.min(x - r.x0, r.x1 - x, z - r.z0, r.z1 - z);
-    const f = Math.max(0, Math.min(1, (inset + 1.1) / 2.2));
+    // v23: the bank wanders. It only ever moves outward from the rect (up to 0.75 m), never in, so the
+    // water you can see is never dry land you can drown on; the lethal test (inDeepWater) still uses the rect.
+    const inset = Math.min(x - r.x0, r.x1 - x, z - r.z0, r.z1 - z) + bankWobble(x, z);
+    const f = Math.max(0, Math.min(1, (inset + 0.8) / 1.6));
     if (f > best) best = f;
   }
   if (best > 0 && onBridge(x, z, 0.75)) return 0;
@@ -959,7 +972,10 @@ gndGeo.setAttribute('aog', new THREE.BufferAttribute(new Float32Array(gndGeo.att
 /* the low-poly palette (ground study D): grass in three greens that clump, drying in broad patches,
    mud round buildings, tan dirt on tracks, gravel on roads, a grey-green riverbed */
 const LP = { lush: SC(0x5c8c34), mid: SC(0x6a9840), deep: SC(0x4c7c2e), dry: SC(0x9a9a4a), mud: SC(0x5e4630), mudWet: SC(0x3e2e22),
-             dirt: SC(0xa08660), dirtD: SC(0x8a7250), grav: SC(0x9c968a), bed: SC(0x58705e), bedD: SC(0x3c5048), sub: SC(0x2e4a46) };
+             dirt: SC(0xa08660), dirtD: SC(0x8a7250), grav: SC(0x9c968a), bed: SC(0x58705e), bedD: SC(0x3c5048), sub: SC(0x2e4a46),
+             // v23, after the prop sheet: cut earth on steep banks and cliffs, pebble beaches, period roads
+             earth: SC(0x7a5434), earthD: SC(0x5c3e26), peb: SC(0x8e897b), pebD: SC(0x726d62),
+             tar: SC(0x55534d), tarD: SC(0x46443f), verge: SC(0xa58a5e), rut: SC(0x7e6646) };
 /* splat detail, after the three.js forum's terrain-splatting thread: ONE 256 px texture with four greyscale
    details packed in RGBA (grass streaks, mud cracks, road grit, pebbles), weighted per facet by the same
    splat weights that pick its colour. One texture, two reads a pixel, scaled for the game camera. */
@@ -1029,11 +1045,94 @@ function roadDist(x, z) {
   return best;
 }
 
+/* v24: roads as their own strips laid over the ground, so the edges are clean lines instead of the 1 m terrain
+   facets. Sampled every 0.9 m along the centre line, several columns across so the strip follows the camber.
+   A road: worn tarmac with patched repairs, a band of tan verge whose outer edge frays into the grass.
+   A track: packed earth, two darker ruts, grass up the crown. No paint anywhere — this is 1944. */
+const roadRoot = new THREE.Group(); scene.add(roadRoot);
+const roadMat = new THREE.MeshPhongMaterial({ vertexColors: true, flatShading: true, shininess: 3, specular: SC(0x0c0c0c), polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 });
+function buildRoadStrips() {
+  for (const m of roadRoot.children.slice()) { roadRoot.remove(m); m.geometry.dispose(); }
+  const c = new THREE.Color();
+  roads.forEach((r, ri) => {
+    const hw = r.w / 2, road = r.kind === 'road', lift = 0.012 + ri * 0.005;   // v26: the ground is sunk beneath, so the strip lies on groundY
+    // columns across: [offset, colour picker]
+    const cols = road
+      ? [[-(hw + 0.55), 'fray'], [-hw, 'verge'], [-hw + 0.25, 'tar'], [-hw * 0.4, 'tar'], [hw * 0.4, 'tar'], [hw - 0.25, 'tar'], [hw, 'verge'], [hw + 0.55, 'fray']]
+      : [[-(hw + 0.3), 'fray'], [-hw * 0.72, 'rut'], [-hw * 0.4, 'dirt'], [-hw * 0.12, 'crown'], [hw * 0.12, 'crown'], [hw * 0.4, 'dirt'], [hw * 0.72, 'rut'], [hw + 0.3, 'fray']];
+    // densify the centre line
+    const P = [];
+    for (let i = 0; i + 1 < r.pts.length; i++) {
+      const [ax, az] = r.pts[i], [bx, bz] = r.pts[i + 1], L = Math.hypot(bx - ax, bz - az), n = Math.max(1, Math.ceil(L / 0.9));
+      for (let k = 0; k < n; k++) P.push([ax + (bx - ax) * k / n, az + (bz - az) * k / n]);
+    }
+    P.push(r.pts[r.pts.length - 1]);
+    const rows = [];
+    for (let i = 0; i < P.length; i++) {
+      const a = P[Math.max(0, i - 1)], b = P[Math.min(P.length - 1, i + 1)], dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz) || 1, nx = -dz / l, nz = dx / l;
+      const [x, z] = P[i];
+      // v28: the strip stops at a bridge's ends (the deck carries the road across) and at water
+      if (waterFactor(x, z) > 0.04 || onBridge(x, z, 0.3) || x < -60 || x > MW + 60 || z < -60 || z > MH + 60) { rows.push(null); continue; }
+      rows.push(cols.map(([off, kind], j) => {
+        const fr = kind === 'fray' ? (hash2(x * 1.7 + j, z * 1.3) - 0.3) * 0.5 : 0, o = off + Math.sign(off) * fr;
+        const px = x + nx * o, pz = z + nz * o, h = hash2(px * 2.3, pz * 1.9), patch = vnoise(px * 0.32 + 11, pz * 0.32 - 5);
+        if (kind === 'tar') { c.copy(LP.tar).lerp(LP.tarD, h * 0.55); if (patch > 0.7) c.lerp(LP.grav, 0.2); else if (patch < 0.25) c.multiplyScalar(0.9); }
+        else if (kind === 'verge') c.copy(LP.verge).lerp(LP.dirtD, h * 0.45);
+        else if (kind === 'fray') c.copy(road ? LP.verge : LP.dirt).lerp(LP.dry, 0.35 + h * 0.3);
+        else if (kind === 'rut') c.copy(LP.rut).lerp(LP.dirtD, h * 0.4);
+        else if (kind === 'crown') c.copy(LP.dirt).lerp(LP.mid, 0.45 + h * 0.2);
+        else c.copy(LP.dirt).lerp(LP.dirtD, h * 0.5);
+        c.multiplyScalar(0.94 + hash2(px * 5.1, pz * 4.3) * 0.12);
+        return [px, groundY(px, pz) + lift, pz, c.r, c.g, c.b];
+      }));
+    }
+    const pos = [], col = [];
+    for (let i = 0; i + 1 < rows.length; i++) {
+      const A = rows[i], B = rows[i + 1]; if (!A || !B) continue;
+      for (let j = 0; j + 1 < cols.length; j++) {
+        for (const v of [A[j], B[j], A[j + 1], A[j + 1], B[j], B[j + 1]]) { pos.push(v[0], v[1], v[2]); col.push(v[3], v[4], v[5]); }
+      }
+    }
+    if (!pos.length) return;
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    g.computeVertexNormals();
+    // wind upward: if the first face points down, flip them all
+    if (g.attributes.normal.getY(0) < 0) { for (let i = 0; i < pos.length; i += 9) for (let k = 0; k < 3; k++) { const t = pos[i + 3 + k]; pos[i + 3 + k] = pos[i + 6 + k]; pos[i + 6 + k] = t; }
+      for (let i = 0; i < col.length; i += 9) for (let k = 0; k < 3; k++) { const t = col[i + 3 + k]; col[i + 3 + k] = col[i + 6 + k]; col[i + 6 + k] = t; }
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.computeVertexNormals(); }
+    const mt = ri ? roadMat.clone() : roadMat; if (ri) mt.polygonOffsetUnits = -4 - ri * 3;   // a later road wins where two cross
+    const m = new THREE.Mesh(g, mt); m.receiveShadow = true; m.renderOrder = 0; roadRoot.add(m);
+  });
+}
+
+/* v26: what the ground MESH shows, as opposed to groundY (where things stand). Two differences:
+   · under a road or track the mesh sinks 0.14 m, so the road strip can lie almost exactly on groundY — men,
+     their shadows and their base discs stand on the road instead of sinking into a strip raised over them;
+   · a canyon ridge is lifted into the ground itself (ridgeLift): the top and the steep earth faces are one
+     continuous mesh with the plain, the rock columns stand in front of the faces. Gameplay is unchanged:
+     groundY still has no ridge in it, and rim sentries stand at groundY + h, which is exactly the top. */
+let ridgeLifts = [];
+function ridgeLift(x, z) {
+  let best = 0;
+  for (const r of ridgeLifts) {
+    if (x < r.x0 - 0.5 || x > r.x1 + 0.5 || z < r.z0 - 0.5 || z > r.z1 + 0.5) continue;
+    const inset = Math.min(x - r.x0, r.x1 - x, z - r.z0, r.z1 - z), t = Math.max(0, Math.min(1, (inset - 0.1) / 0.9));
+    best = Math.max(best, r.h * t * t * (3 - 2 * t));
+  }
+  return best;
+}
+function terrainVisY(x, z) {
+  let y = groundY(x, z);
+  if (ridgeLifts.length) y += ridgeLift(x, z);
+  if (roads.length) { const rd = roadDist(x, z); if (rd && rd.t < 1.06) y -= 0.14; }
+  return y;
+}
+
 // called once at boot and again whenever a mission changes the rivers
 function rebuildTerrain() {
   const pa = gndGeo.attributes.position, ca = gndGeo.attributes.color, wa = gndGeo.attributes.wts, c = new THREE.Color(), cl = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   const wx = i => pa.getX(i) + MW / 2, wz = i => MH / 2 - pa.getY(i);
-  for (let i = 0; i < pa.count; i++) pa.setZ(i, groundY(wx(i), wz(i)));
+  for (let i = 0; i < pa.count; i++) pa.setZ(i, terrainVisY(wx(i), wz(i)));
   pa.needsUpdate = true;
   gndGeo.computeVertexNormals();
   for (let f = 0; f < pa.count; f += 3) {
@@ -1043,7 +1142,21 @@ function rebuildTerrain() {
     const h = hash2(cx * 1.7, cz * 1.3);
     let w0 = 0, w1 = 0, w2 = 0, w3 = 0;                  // splat weights: grass, mud, dirt, gravel
     const wf = waterFactor(cx, cz), pd = padBlend(cx, cz);
-    if (pd && pd.f > 0.5) {
+    // v23: how steep this facet is (1 flat, 0 vertical) — steep ground shows its earth, as on the sheet
+    let ny = 1;
+    { const ax = pa.getX(f), ay = pa.getY(f), az = pa.getZ(f);
+      const ux = pa.getX(f + 1) - ax, uy = pa.getY(f + 1) - ay, uz = pa.getZ(f + 1) - az, vx = pa.getX(f + 2) - ax, vy = pa.getY(f + 2) - ay, vz = pa.getZ(f + 2) - az;
+      const nx = uy * vz - uz * vy, nyy = uz * vx - ux * vz, nz = ux * vy - uy * vx;   // plane is x,y with z up
+      ny = Math.abs(nz) / (Math.hypot(nx, nyy, nz) || 1); }
+    const sy0 = baseY(cx, cz) - WATER_DROP;
+    if (ny < 0.72 && !(pd && pd.f > 0.5) && (wf > 0.02 ? cy > sy0 - 0.65 : true)) {
+      // a cut bank or cliff face: earth in bands, darker toward its foot
+      const band = hash2(Math.floor(cy * 2.2), Math.floor(cx * 0.3 + cz * 0.3));
+      c.copy(LP.earth).lerp(LP.earthD, band * 0.6 + (1 - ny) * 0.3); w1 = 1;
+    } else if (wf < 0.05 && waterZones.length && (() => { const q = riverInset(cx, cz); return q > -1.7 && q < -0.55; })() && !onBridge(cx, cz, 2.5) && vnoise(cx * 0.13 + 5, cz * 0.13 + 9) > 0.52) {
+      // a pebble beach along the top of the bank, in stretches
+      c.copy(LP.peb).lerp(LP.pebD, h * 0.7); w3 = 1;
+    } else if (pd && pd.f > 0.5) {
       c.copy(LP.mud).lerp(LP.mudWet, h * 0.5); w1 = 1;    // trodden mud round a building
     } else if (wf > 0.02) {
       // the bank goes to wet mud, the bed to grey-green silt that darkens with depth
@@ -1053,10 +1166,22 @@ function rebuildTerrain() {
       if (cy < sy) c.lerp(LP.sub, cl((sy - cy) * 0.9, 0, 0.7));
     } else {
       const rd = roadDist(cx, cz);
-      if (rd && rd.t < 1) {
-        const verge = rd.t > 0.8;
-        if (rd.kind === 'road') { c.copy(LP.grav).multiplyScalar(0.94 + h * 0.1); if (verge) c.lerp(LP.dry, 0.45); w3 = 1; }
-        else { c.copy(LP.dirt).lerp(LP.dirtD, h * 0.6); if (verge) { c.lerp(LP.dry, 0.4); w0 = 0.4; w2 = 0.6; } else w2 = 1; }
+      if (rd && rd.t < (rd.kind === 'road' ? 1.12 : 1)) {
+        // v23, after the sheet but in period: a road is dark worn tarmac with patched repairs and a crisp
+        // band of tan verge, no paint; a track is packed earth with two darker ruts and grass up the middle
+        if (rd.kind === 'road') {
+          if (rd.t > 0.8) { c.copy(LP.verge).lerp(LP.dirtD, h * 0.5); w2 = 1; }
+          else {
+            const patch = vnoise(cx * 0.32 + 11, cz * 0.32 - 5);
+            c.copy(LP.tar).lerp(LP.tarD, h * 0.6); if (patch > 0.7) c.lerp(LP.grav, 0.22); else if (patch < 0.25) c.multiplyScalar(0.9);
+            w2 = 0.5; w3 = 0.2;
+          }
+        } else {
+          c.copy(LP.dirt).lerp(LP.dirtD, h * 0.6); w2 = 1;
+          if (rd.t < 0.22) { c.lerp(LP.mid, 0.45); w0 = 0.5; w2 = 0.5; }          // grass up the crown
+          else if (rd.t < 0.66) c.lerp(LP.rut, 0.55);                                // the ruts
+          else if (rd.t > 0.82) { c.lerp(LP.dry, 0.4); w0 = 0.4; w2 = 0.6; }        // the verge
+        }
       } else {
         // three greens in clumps a metre or two across, drying in broad patches
         const clump = cl(vnoise(cx * 0.42 + 7.1, cz * 0.42 - 3.3) * 0.75 + h * 0.25, 0, 1);
@@ -1079,7 +1204,7 @@ function bakeGroundAO() {
     for (let k = 0; k < 3; k++) { cx += pa.getX(f + k) + MW / 2; cz += MH / 2 - pa.getY(f + k); }
     cx /= 3; cz /= 3;
     let v = 1;
-    if (cx > -3 && cx < MW + 3 && cz > -3 && cz < MH + 3) {
+    if (cx > -3 && cx < MW + 3 && cz > -3 && cz < MH + 3 && !(ridgeLifts.length && ridgeLift(cx, cz) > 0.3)) {   // v26: a ridge top is open ground, not the foot of a wall
       if (blocked(cx, cz, 0.35)) v = 0.74; else if (blocked(cx, cz, 0.9)) v = 0.8; else if (blocked(cx, cz, 1.6)) v = 0.89; else if (blocked(cx, cz, 2.4)) v = 0.95;
     }
     for (let k = 0; k < 3; k++) ao.setX(f + k, v);
@@ -1155,10 +1280,47 @@ waterMat.onBeforeCompile = sh => {
   lookInject(sh, waterMat);
 };
 waterMat.userData = { lookRim: false, lookAO: false };
+/* v23 river rocks, after the prop sheet: mossy boulders in clusters along the shallows, foam round each.
+   They stand in water that is already lethal, so they are scenery only: no collision, no cover. */
+const RROCK_MAX = 160, riverRocks = [];
+const rrockGeo = v => {
+  const p = [], n = 2 + v;
+  for (let i = 0; i < n; i++) {
+    const a = i * 2.4 + v, r = i ? 0.38 : 0, s = i ? 0.55 + hash2(v, i) * 0.25 : 1;
+    p.push({ g: i % 2 ? GEO.ico : GEO.blob, m: M4(Math.sin(a) * r, s * 0.18, Math.cos(a) * r, s, s * 0.82, s * 0.92, a), c: 0x7a7972, grad: [0x5e5d57, 0x9d9b92, -0.4, 0.45] });
+  }
+  if (v !== 1) p.push({ g: GEO.ico, m: M4(0.05, 0.42, -0.05, 0.62, 0.16, 0.55, v), c: 0x6f8a34 });   // a cap of moss
+  return mergeGeos(p);
+};
+let RROCK = null;   // built on first use: the geometry helpers are declared further down the file
+function placeRiverRocks() {
+  if (!RROCK) RROCK = [0, 1, 2].map(v => { const im = new THREE.InstancedMesh(rrockGeo(v), propMat, RROCK_MAX); im.count = 0; im.castShadow = true; im.receiveShadow = true; im.frustumCulled = false; waterRoot.add(im); return im; });
+  riverRocks.length = 0; for (const im of RROCK) im.count = 0;
+  const d = new THREE.Object3D();
+  for (const r of waterZones) {
+    const alongX = r.x1 - r.x0 >= r.z1 - r.z0;
+    const a0 = Math.max(alongX ? r.x0 : r.z0, -18), a1 = Math.min(alongX ? r.x1 : r.z1, (alongX ? MW : MH) + 18);
+    for (const side of [0, 1]) for (let t = a0 + 1; t < a1 - 1; t += 1.7) {
+      if (hash2(t * 1.3, side + r.x0 * 0.1) > 0.22) continue;
+      const n = 1 + (hash2(t, side * 7) * 3 | 0);
+      for (let q = 0; q < n; q++) {
+        const across = 0.15 + hash2(t + q, side + 3) * 0.9, along = t + (q ? (hash2(q, t) - 0.5) * 1.6 : 0);
+        const x = alongX ? along : (side ? r.x1 - across : r.x0 + across), z = alongX ? (side ? r.z1 - across : r.z0 + across) : along;
+        if (onBridge(x, z, 3)) continue;
+        const sc = (q ? 0.55 : 0.9) + hash2(x, z) * 0.7, im = RROCK[(Math.abs(x * 3 + z) | 0) % 3];
+        if (im.count >= RROCK_MAX) continue;
+        d.position.set(x, baseY(x, z) - WATER_DROP - 0.12 * sc, z); d.rotation.set(0, hash2(z, x) * 6.3, 0); d.scale.set(sc, sc * 1.1, sc); d.updateMatrix();
+        im.setMatrixAt(im.count++, d.matrix); riverRocks.push({ x, z, r: sc * 0.5 });
+      }
+    }
+  }
+  for (const im of RROCK) im.instanceMatrix.needsUpdate = true;
+}
 function buildWater() {
   for (const m of waterMeshes) { waterRoot.remove(m); m.geometry.dispose(); }
   waterMeshes.length = 0;
-  const deep = SC(0x2c6468), mid = SC(0x4a8c84), shal = SC(0x7cb2a0), foam = SC(0xe6efe8);
+  // v23: the sheet's clear blue, foam on the banks and round every rock, pale flow lines down the channel
+  const deep = SC(0x1d5a92), mid = SC(0x2b76b4), shal = SC(0x4e9cd0), foam = SC(0xeef5f6), _w = new THREE.Color();
   for (const r of waterZones) {
     const w = r.x1 - r.x0 + 2.4, d = r.z1 - r.z0 + 2.4, cell = 0.9;
     const g = new THREE.PlaneGeometry(w, d, Math.max(2, Math.round(w / cell)), Math.max(2, Math.round(d / cell)));
@@ -1170,7 +1332,12 @@ function buildWater() {
       let x = pa.getX(i), z = pa.getZ(i);
       if (x > ex0 && x < ex1 && z > ez0 && z < ez1) { x += (hash2(x * 3.1, z * 1.7) - 0.5) * cell * 0.5; z += (hash2(x * 1.3, z * 2.9) - 0.5) * cell * 0.5; }
       const sy = baseY(x, z) - WATER_DROP, dep = sy - groundY(x, z);
-      const c = dep < 0.08 ? foam : dep < 0.45 ? shal : dep < 0.9 ? mid : deep;   // foam only on the thin wet edge
+      const c = _w.copy(dep < 0.07 ? foam : dep < 0.5 ? shal : dep < 1.0 ? mid : deep);   // foam on the wet edge
+      let fo = 0;
+      for (const q of riverRocks) { const e = Math.hypot(x - q.x, z - q.z) - q.r; if (e < 0.55) fo = Math.max(fo, e < 0.12 ? 0.85 : 0.4 * (0.55 - e) / 0.43); }
+      { const a = w >= d ? x : z, b = w >= d ? z : x, st = vnoise(a * 0.22 + 4, b * 1.7 + 2);   // flow lines run with the river
+        if (st > 0.72 && dep > 0.3) fo = Math.max(fo, Math.min(0.32, (st - 0.72) * 1.6)); }
+      if (fo > 0) c.lerp(foam, Math.min(1, fo));
       pa.setXYZ(i, x, sy, z); col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
     }
     g.setAttribute('color', new THREE.BufferAttribute(col, 3)); g.computeVertexNormals();
@@ -1511,6 +1678,12 @@ const SFX = {
   hit(x, z) { if (!AC) return; const { g, p } = place(x, z); nburst(380, 1.0, 0.07, 0.30 * g, mixSfx, p, 0, 'lowpass'); nburst(1600, 0.8, 0.02, 0.12 * g, mixSfx, p); thump(120, 60, 0.06, 0.10 * g, mixSfx, p); },
   // ricochet: a ringing bandpass sweeping down — the zing is the filter, not an oscillator
   ric(x, z) { if (!AC) return; const { g, p } = place(x, z); nsweep(4200 + Math.random() * 2000, 900, 14, 0.16, 0.12 * g, mixSfx, p); nburst(2200, 0.7, 0.02, 0.10 * g, mixSfx, p); },
+  // v26: the knife — a short dry thrust and a breath, all low and close
+  stab(x, z) {
+    if (!AC) return; const { g, p } = place(x, z); const t = AC.currentTime;
+    nburst(900, 1.4, 0.03, 0.10 * g, mixSfx, p, t, 'lowpass'); thump(140, 70, 0.07, 0.10 * g, mixSfx, p, t + 0.02);
+    nburst(420, 0.9, 0.22, 0.05 * g, mixSfx, p, t + 0.06, 'lowpass');
+  },
   // a man going down: boots scuff, then the weight lands
   down(x, z) {
     if (!AC) return; const { g, p } = place(x, z); const t = AC.currentTime;
@@ -1754,17 +1927,27 @@ function mergeGeos(parts) {
     let g = p.g.index ? p.g.toNonIndexed() : p.g.clone();
     g.applyMatrix4(p.m);
     g.computeVertexNormals();
-    return { g, c: SC(p.c) };
+    return { g, c: SC(p.c === undefined ? 0xffffff : p.c), gr: p.grad ? [SC(p.grad[0]), SC(p.grad[1]), p.grad[2], p.grad[3]] : null, vc: !!(p.vc && g.attributes.color) };
   });
   let total = 0;
   for (const { g } of list) total += g.attributes.position.count;
   const pos = new Float32Array(total * 3), nor = new Float32Array(total * 3), col = new Float32Array(total * 3);
   let o = 0;
-  for (const { g, c } of list) {
+  const _gc = new THREE.Color();
+  for (const { g, c, gr, vc } of list) {
     const n = g.attributes.position.count;
     pos.set(g.attributes.position.array, o * 3);
     nor.set(g.attributes.normal.array, o * 3);
-    for (let i = 0; i < n; i++) { col[(o + i) * 3] = c.r; col[(o + i) * 3 + 1] = c.g; col[(o + i) * 3 + 2] = c.b; }
+    if (vc) { col.set(g.attributes.color.array, o * 3); o += n; g.dispose(); continue; }   // v24: a part may bring its own vertex colours (linear)
+    // v23: a part may carry grad [low, high, y0, y1] — its colour runs from low to high with height
+    if (gr) {
+      const ya = g.attributes.position.array;
+      for (let i = 0; i < n; i++) {
+        const t = Math.max(0, Math.min(1, (ya[i * 3 + 1] - gr[2]) / ((gr[3] - gr[2]) || 1)));
+        _gc.copy(gr[0]).lerp(gr[1], t);
+        col[(o + i) * 3] = _gc.r; col[(o + i) * 3 + 1] = _gc.g; col[(o + i) * 3 + 2] = _gc.b;
+      }
+    } else for (let i = 0; i < n; i++) { col[(o + i) * 3] = c.r; col[(o + i) * 3 + 1] = c.g; col[(o + i) * 3 + 2] = c.b; }
     o += n;
     g.dispose();
   }
@@ -1780,54 +1963,129 @@ const M4 = (px, py, pz, sx, sy, sz, ry, rz) =>
     new THREE.Vector3(px, py, pz),
     new THREE.Quaternion().setFromEuler(new THREE.Euler(0, ry || 0, rz || 0)),
     new THREE.Vector3(sx, sy, sz));
-
-// Two species, both with a real trunk and real branches. Broadleaf: a tapered trunk
-// forking into three limbs, each carrying a clump, plus a crown. Pine: a tall bare
-// trunk with stub branches under four stacked tiers. 6–9 units tall — they should
-// tower over a man, not come up to his shoulder.
-function treeGeo(v) {
-  const parts = [];
-  const bark = [0x5e4326, 0x6b4d2c, 0x54391f];
-  if (v > 0.35 && v < 0.65) {
-    // ---- pine
-    const h = 3.0;
-    parts.push({ g: GEO.taper, m: M4(0, h / 2, 0, 0.62, h, 0.62), c: bark[0] });
-    for (let i = 0; i < 4; i++) {                       // stub branches under the canopy
-      const a = i * 1.7 + v;
-      parts.push({ g: GEO.cyl, m: M4(Math.sin(a) * 0.62, 1.95 + i * 0.22, Math.cos(a) * 0.62, 0.10, 1.1, 0.10, a + Math.PI / 2, 1.35), c: bark[1] });
-    }
-    const tint = [0x2f6a23, 0x35762a, 0x2a5f20, 0x3b7d2e];
-    for (let i = 0; i < 4; i++) {
-      const r = 3.4 - i * 0.62, hh = 2.2 - i * 0.2, y = 2.1 + i * 1.28;
-      parts.push({ g: GEO.cone, m: M4(0, y + hh / 2, 0, r, hh, r, i * 0.6 + v), c: tint[i % 4] });
-    }
-    parts.push({ g: GEO.cone, m: M4(0, 7.35, 0, 0.9, 1.3, 0.9, v), c: tint[1] });
-  } else {
-    // ---- broadleaf
-    const big = v > 0.5;
-    const h = big ? 3.4 : 2.9;
-    parts.push({ g: GEO.taper, m: M4(0, h / 2, 0, big ? 0.74 : 0.62, h, big ? 0.74 : 0.62), c: bark[big ? 2 : 0] });
-    parts.push({ g: GEO.cyl, m: M4(0, 0.12, 0, 0.9, 0.24, 0.9), c: bark[1] });         // root flare
-    const tint = big ? [0x3f7d2c, 0x468a32, 0x397026, 0x4d9438] : [0x4a8a33, 0x52963a, 0x437c2d, 0x5aa040];
-    const limbs = 3;
-    for (let i = 0; i < limbs; i++) {
-      const a = i * (Math.PI * 2 / limbs) + v * 2.0, tilt = 0.75 + hash2(v * 31, i) * 0.25, len = big ? 2.3 : 1.9;
-      const bx = Math.sin(a) * 0.25, bz = Math.cos(a) * 0.25;
-      // branch: a cylinder tilted out from the trunk top, rotated to its bearing
-      parts.push({ g: GEO.taper, m: M4(bx + Math.sin(a) * Math.sin(tilt) * len * 0.5, h - 0.3 + Math.cos(tilt) * len * 0.5, bz + Math.cos(a) * Math.sin(tilt) * len * 0.5,
-                   0.26, len, 0.26, a + Math.PI / 2, tilt), c: bark[1] });
-      // clump at the branch tip
-      const tx = bx + Math.sin(a) * Math.sin(tilt) * len, ty = h - 0.3 + Math.cos(tilt) * len, tz = bz + Math.cos(a) * Math.sin(tilt) * len;
-      const s = (big ? 2.6 : 2.2) * (0.9 + hash2(v * 17, i) * 0.25);
-      parts.push({ g: GEO.blob, m: M4(tx, ty + 0.2, tz, s, s * 0.8, s, hash2(v, i) * 3), c: tint[i % 4] });
-      parts.push({ g: GEO.blob, m: M4(tx * 0.7, ty + 0.9, tz * 0.7, s * 0.7, s * 0.6, s * 0.7, hash2(v, i + 9) * 3), c: tint[(i + 2) % 4] });
-    }
-    // crown
-    const cs = big ? 3.0 : 2.5;
-    parts.push({ g: GEO.blob, m: M4(0, h + 1.9, 0, cs, cs * 0.85, cs, v * 4), c: tint[1] });
-    parts.push({ g: GEO.blob, m: M4(0.3, h + 2.9, -0.2, cs * 0.75, cs * 0.6, cs * 0.75, v * 2), c: tint[3] });
+// v24: the same with all three rotations (XYZ order) — barrels along z, a spare wheel lying on a sloped bonnet
+const M4e = (px, py, pz, sx, sy, sz, rx, ry, rz) =>
+  new THREE.Matrix4().compose(new THREE.Vector3(px, py, pz), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx || 0, ry || 0, rz || 0)), new THREE.Vector3(sx, sy, sz));
+/* v24: a six-sided slab from two rectangles — the bottom one at y, the top one sloping from yb (back) to yf
+   (front), each with its own half-widths at back and front and its own back/front z. Armour plates, a sloping
+   bonnet, a boat-nosed sidecar and a tapered turret are all this one shape. ox shifts it sideways. */
+function hexa(b, t, ox) {
+  const o = ox || 0, C = [
+    [o - b.xb, b.y, b.zb], [o + b.xb, b.y, b.zb], [o + b.xf, b.y, b.zf], [o - b.xf, b.y, b.zf],
+    [o - t.xb, t.yb, t.zb], [o + t.xb, t.yb, t.zb], [o + t.xf, t.yf, t.zf], [o - t.xf, t.yf, t.zf]];
+  const F = [[0, 2, 1], [0, 3, 2], [4, 5, 6], [4, 6, 7], [0, 1, 5], [0, 5, 4], [1, 2, 6], [1, 6, 5], [2, 3, 7], [2, 7, 6], [3, 0, 4], [3, 4, 7]];
+  const cx = C.reduce((a, q) => a + q[0], 0) / 8, cy = C.reduce((a, q) => a + q[1], 0) / 8, cz = C.reduce((a, q) => a + q[2], 0) / 8, v = [];
+  for (const [i, j, k] of F) {
+    const A = C[i], B = C[j], D = C[k];
+    const ux = B[0] - A[0], uy = B[1] - A[1], uz = B[2] - A[2], wx = D[0] - A[0], wy = D[1] - A[1], wz = D[2] - A[2];
+    const nx = uy * wz - uz * wy, ny = uz * wx - ux * wz, nz = ux * wy - uy * wx;
+    const mx = (A[0] + B[0] + D[0]) / 3 - cx, my = (A[1] + B[1] + D[1]) / 3 - cy, mz = (A[2] + B[2] + D[2]) / 3 - cz;
+    if (nx * mx + ny * my + nz * mz < 0) v.push(...A, ...D, ...B); else v.push(...A, ...B, ...D);   // always wind outward
   }
-  return mergeGeos(parts);
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3));
+  return g;
+}
+// shorthand: a slab x half-width w (same back and front), bottom y0 over z0..z1, top y1 over the same z unless given
+const slab = (w, y0, y1, z0, z1, o) => hexa({ xb: w, xf: w, y: y0, zb: z0, zf: z1 }, { xb: o && o.wt !== undefined ? o.wt : w, xf: o && o.wtf !== undefined ? o.wtf : (o && o.wt !== undefined ? o.wt : w),
+  yb: o && o.ybk !== undefined ? o.ybk : y1, yf: o && o.yft !== undefined ? o.yft : y1, zb: o && o.tz0 !== undefined ? o.tz0 : z0, zf: o && o.tz1 !== undefined ? o.tz1 : z1 }, o && o.ox);
+
+// v23 tree kit, after the prop sheet: a drooping pine with olive tips, a gnarled broadleaf with a two-tone
+// faceted crown, and a bare dead tree. Each stands on a root flare with a stone or two and a few blades of
+// grass. Authored 7–9 units tall, then squashed by TREE_H/TREE_W to about 4–5 m.
+const TREE_H = 0.6, TREE_W = 0.7;
+const TREE_KINDS = ['pine', 'broad', 'pineTall', 'broadBig', 'bare'];
+// which kind a placed tree gets, by a hash of where it stands: one in twelve is dead
+const TREE_PICK = [0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 3, 4];
+// a drooping skirt of branches: apex at y 1, a star-shaped rim at y 0 whose points hang lower than the notches
+GEO.skirt = (() => {
+  const N = 9, pts = [], v = [];
+  for (let i = 0; i < N * 2; i++) {
+    const a = i / (N * 2) * Math.PI * 2, tip = i % 2 === 0, r = tip ? 0.5 : 0.31;
+    pts.push([Math.sin(a) * r, tip ? -0.16 : 0.06, Math.cos(a) * r]);
+  }
+  for (let i = 0; i < pts.length; i++) {
+    const A = pts[i], B = pts[(i + 1) % pts.length];
+    v.push(0, 1, 0, ...A, ...B);                 // the outside, seen from above
+    v.push(0, 0.16, 0, ...B, ...A);              // the underside, so it closes for shadows and low angles
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3)); g.computeVertexNormals();
+  return g;
+})();
+GEO.skirtTop = (() => { const a = GEO.skirt.attributes.position.array, v = [];
+  for (let f = 0; f < a.length / 9; f += 2) for (let j = 0; j < 9; j++) v.push(a[f * 9 + j]);     // every other face is the outside
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3)); g.computeVertexNormals(); return g; })();
+GEO.ico = new THREE.IcosahedronGeometry(0.5, 0);           // a faceted leaf clump
+GEO.limb = new THREE.CylinderGeometry(0.3, 0.5, 1, 5);      // cheap tapered branch
+// one tapered segment from P along bearing a (radians about y), tilt t off vertical; returns its far end
+function limb(parts, P, a, t, L, r, c, geo) {
+  const dx = Math.sin(a) * Math.sin(t), dy = Math.cos(t), dz = Math.cos(a) * Math.sin(t);
+  parts.push({ g: geo || GEO.limb, m: M4(P[0] + dx * L / 2, P[1] + dy * L / 2, P[2] + dz * L / 2, r, L, r, a + Math.PI / 2, t), c });
+  return [P[0] + dx * L, P[1] + dy * L, P[2] + dz * L];
+}
+function treeBase(parts, k, bark, flare) {
+  for (let i = 0; i < 4; i++) {                              // root flare: wedges leaning out from the foot
+    const a = i * 1.57 + k * 0.7;
+    limb(parts, [Math.sin(a) * 0.15, 0.05, Math.cos(a) * 0.15], a, 1.15, flare, flare * 0.55, bark);
+  }
+  for (let i = 0; i < 3; i++) {                              // a stone or two
+    const a = k * 2.3 + i * 2.1, r = 0.9 + hash2(k, i) * 0.5, s = 0.3 + hash2(i, k) * 0.35;
+    parts.push({ g: GEO.ico, m: M4(Math.sin(a) * r, s * 0.25, Math.cos(a) * r, s, s * 0.7, s * 0.9, a), c: [0x8b8a82, 0x7c7b74, 0x96948a][i] });
+  }
+  for (let i = 0; i < 5; i++) {                              // grass blades round the foot
+    const a = k * 1.7 + i * 0.9, r = 0.7 + hash2(i * 3, k) * 0.7, h = 0.35 + hash2(k, i * 5) * 0.3;
+    parts.push({ g: GEO.cone, m: M4(Math.sin(a) * r, h / 2, Math.cos(a) * r, 0.14, h, 0.14, a, (hash2(i, 7) - 0.5) * 0.6), c: [0x6a9a34, 0x7fa83c, 0x58862c][i % 3] });
+  }
+}
+function treeGeo(kind) {
+  const parts = [], k = TREE_KINDS.indexOf(kind) + 1;
+  const bark = [0x5e4326, 0x6b4d2c, 0x54391f, 0x75583a];
+  if (kind === 'pine' || kind === 'pineTall') {
+    const tall = kind === 'pineTall', n = tall ? 6 : 5, top = tall ? 9.0 : 8.0;
+    treeBase(parts, k, bark[0], 0.55);
+    parts.push({ g: GEO.taper, m: M4(0, 1.6, 0, 0.6, 3.2, 0.6), c: bark[0] });
+    for (let i = 0; i < n; i++) {
+      const f = i / (n - 1), r = (tall ? 3.0 : 3.6) * (1 - f * 0.72), h = 2.1 - f * 0.6, y = 1.7 + i * (top - 2.9) / n;
+      parts.push({ g: GEO.skirtTop, m: M4(0, y, 0, r * 2, h, r * 2, i * 0.37 + k), c: 0x2d5a22,
+                   grad: [i % 2 ? 0x5e7c28 : 0x4f7424, 0x1f461a, y - 0.3, y + h * 0.35] });   // olive tips, dark into the heart
+    }
+    parts.push({ g: GEO.cone, m: M4(0, top - 0.3, 0, 0.8, 1.6, 0.8, k), c: 0x26501d });
+  } else if (kind === 'broad' || kind === 'broadBig') {
+    const big = kind === 'broadBig', h = big ? 3.0 : 2.6, sc = big ? 1.18 : 1;
+    treeBase(parts, k, bark[1], 0.75);
+    parts.push({ g: GEO.taper, m: M4(0, h / 2, 0, 1.0, h, 1.0), c: bark[1] });
+    const tips = [];
+    for (let i = 0; i < 4; i++) {                             // four gnarled limbs, each in two bends
+      const a = i * 1.57 + k * 0.6 + hash2(k, i) * 0.4;
+      const e1 = limb(parts, [Math.sin(a) * 0.15, h - 0.25, Math.cos(a) * 0.15], a, 0.55 + hash2(i, k) * 0.2, 1.5 * sc, 0.5, bark[i % 2 ? 1 : 3]);
+      const e2 = limb(parts, e1, a + 0.4, 0.3 + hash2(k * 3, i) * 0.3, 1.3 * sc, 0.34, bark[1]);
+      tips.push(e1, e2);
+    }
+    const lo = h + 0.6, hi = h + 4.6 * sc;
+    const leaf = () => ({ grad: [0x355f1c, 0x7ea436, lo, hi], c: 0x5a8a2a });
+    for (const [x, y, z] of tips) {                           // a clump on every elbow and branch end
+      const s = (1.7 + hash2(x, z) * 0.6) * sc;
+      parts.push({ g: GEO.ico, m: M4(x * 1.15, y + 0.5, z * 1.15, s, s * 0.88, s, hash2(z, x) * 3), ...leaf() });
+    }
+    for (let i = 0; i < 8; i++) {                             // the crown: a top, a ring, and a lower skirt of clumps
+      const ring = i === 0 ? 0 : i < 5 ? 1 : 2, a = i * 1.57 + k + (ring === 2 ? 0.78 : 0);
+      const r = [0, 1.4, 2.3][ring] * sc, s = [2.8, 2.2, 1.8][ring] * sc, y = h + [3.5, 2.8, 1.7][ring] * sc;
+      parts.push({ g: GEO.ico, m: M4(Math.sin(a) * r, y, Math.cos(a) * r, s, s * 0.85, s, a), ...leaf() });
+    }
+    parts.push({ g: GEO.ico, m: M4(0.5, 0.45, -0.9, 0.9, 0.7, 0.9, k), c: 0x4a7a26 });   // a little bush at its foot
+  } else {
+    // bare: a dead tree, forked three times
+    treeBase(parts, k, bark[2], 0.7);
+    const h = 3.0;
+    parts.push({ g: GEO.taper, m: M4(0, h / 2, 0, 0.85, h, 0.85), c: bark[2] });
+    for (let i = 0; i < 3; i++) {
+      const a = i * 2.09 + 0.4, e1 = limb(parts, [0, h - 0.2, 0], a, 0.5, 2.0, 0.42, bark[3]);
+      for (let j = 0; j < 2; j++) {
+        const b = a + (j ? 0.55 : -0.55), e2 = limb(parts, e1, b, 0.55 + j * 0.2, 1.5, 0.24, bark[2]);
+        for (let q = 0; q < 2; q++) limb(parts, e2, b + (q ? 0.5 : -0.4), 0.45 + q * 0.35, 1.0, 0.12, bark[3]);
+      }
+    }
+  }
+  return mergeGeos(parts).scale(TREE_W, TREE_H, TREE_W);
 }
 function rockGeo(v) {
   const parts = [];
@@ -1862,10 +2120,10 @@ const INST_MAX = 190;
 const propMat = new THREE.MeshPhongMaterial({ vertexColors: true, flatShading: true, shininess: 6, specular: SC(0x14140f) });
 const metalMat = new THREE.MeshPhongMaterial({ vertexColors: true, flatShading: true, shininess: 40, specular: SC(0x55554a) });
 const INST = {};
-for (const [key, maker, count] of [['tree', treeGeo, 3], ['rock', rockGeo, 3], ['bush', bushGeo, 3]]) {
+for (const [key, maker, count] of [['tree', k => treeGeo(TREE_KINDS[k]), TREE_KINDS.length], ['rock', v => rockGeo((v + 0.5) / 3), 3], ['bush', v => bushGeo((v + 0.5) / 3), 3]]) {
   INST[key] = [];
   for (let v = 0; v < count; v++) {
-    const im = new THREE.InstancedMesh(maker((v + 0.5) / count), propMat, INST_MAX);
+    const im = new THREE.InstancedMesh(maker(v), propMat, INST_MAX);
     im.castShadow = true; im.receiveShadow = true; im.count = 0;
     im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     im.frustumCulled = false;
@@ -1874,25 +2132,116 @@ for (const [key, maker, count] of [['tree', treeGeo, 3], ['rock', rockGeo, 3], [
   }
 }
 const _dummy = new THREE.Object3D();
-function resetInstances() { for (const k in INST) for (const im of INST[k]) im.count = 0; }
+function resetInstances() { resetTreeFade(); for (const k in INST) for (const im of INST[k]) im.count = 0; }
 function addInstance(kind, x, z, scale, rot, yOff) {
   const bank = INST[kind];
-  const im = bank[(Math.abs((x * 7 + z * 13) | 0)) % bank.length];
+  const hk = Math.abs((x * 7 + z * 13) | 0);
+  const im = bank[kind === 'tree' ? TREE_PICK[hk % TREE_PICK.length] : hk % bank.length];
   if (im.count >= INST_MAX) return;
   _dummy.position.set(x, groundY(x, z) + (yOff || 0), z);
   _dummy.rotation.set(0, rot, 0);
   _dummy.scale.setScalar(scale);
   _dummy.updateMatrix();
-  im.setMatrixAt(im.count++, _dummy.matrix);
+  const i = im.count++;
+  im.setMatrixAt(i, _dummy.matrix);
   im.instanceMatrix.needsUpdate = true;
+  return { im, i };
 }
 
 /*───────────────────── props ─────────────────────*/
 function mkTree(x, z, seed) {
-  const s = 0.85 + hash2(seed, 5) * 0.45;
-  addInstance('tree', x, z, s, hash2(seed, 7) * 6.3, 0);
-  // you collide with the trunk, not the canopy; the canopy is what hides you
-  return { type: 'tree', x, z, radius: 0.72 * s, h: 5.2 * s, tall: true, cover: true };
+  const s = 0.85 + hash2(seed, 5) * 0.45, rot = hash2(seed, 7) * 6.3;
+  placeTree(x, z, s, rot);
+  // you collide with the trunk, not the canopy; the canopy is what hides you (v22: trunk is slimmer, so is the footprint)
+  return { type: 'tree', x, z, s, rot, radius: 0.6 * s, h: 5.2 * TREE_H * s, tall: true, cover: true };
+}
+function placeTree(x, z, s, rot) {
+  const at = addInstance('tree', x, z, s, rot, 0);
+  if (at) regFade(at.im, at.i, x, z);
+}
+
+/* v22: a tree between the camera and one of our men turns to glass, so you can see what he is doing.
+   Instances can't fade one at a time, so an occluding tree is lifted out of its batch (zero matrix) and
+   drawn by a pooled stand-in instead: a depth-only pass, then a see-through colour pass that paints only
+   the nearest surface — the crown reads as one pale shape, not a tangle of inner faces. The stand-in still
+   casts its shadow. Placed trees and thicket trees both register; the boundary forest never stands
+   between the camera and the squad, so it doesn't. */
+const fadeTrees = [], treeGhosts = [], TREE_GHOSTS = 14, TREE_GLASS = 0.45;
+const _zeroM = new THREE.Matrix4().makeScale(0, 0, 0), _tfM = new THREE.Matrix4(), _tfC = new THREE.Color();
+// pushed back a hair: the two passes run different shaders over the same triangles, and without the offset
+// the colour pass loses the depth tie on most pixels and the crown all but vanishes
+const ghostDepthMat = new THREE.MeshBasicMaterial({ colorWrite: false, transparent: true, depthWrite: true,
+  polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 2 });
+for (let k = 0; k < TREE_GHOSTS; k++) {
+  const mat = propMat.clone(); mat.transparent = true; mat.depthWrite = false;
+  const d = new THREE.Mesh(GEO.box, ghostDepthMat), c = new THREE.Mesh(GEO.box, mat);
+  for (const m of [d, c]) { m.matrixAutoUpdate = false; m.frustumCulled = false; m.visible = false; propRoot.add(m); }
+  // after the ground decals and vision cones (3), before the fog of war (4), so unexplored ground still hides it
+  d.renderOrder = 3.4; c.renderOrder = 3.5; c.castShadow = true; c.receiveShadow = true;
+  treeGhosts.push({ d, c, t: null });
+}
+function regFade(im, i, x, z) {
+  const g = im.geometry; if (!g.boundingBox) g.computeBoundingBox();
+  const b = g.boundingBox; im.getMatrixAt(i, _tfM);
+  const e = _tfM.elements, sx = Math.hypot(e[0], e[1], e[2]), sy = Math.hypot(e[4], e[5], e[6]), gy = e[13];
+  // a slim box round the crown and trunk: pulled in a little, so brushing the edge of a crown doesn't set it off
+  const r = Math.max(-b.min.x, b.max.x, -b.min.z, b.max.z) * sx * 0.72;
+  const tint = im.instanceColor ? (im.getColorAt(i, _tfC), _tfC.r) : 1;
+  fadeTrees.push({ im, i, m: _tfM.clone(), tint, f: 0, ghost: null,
+    x0: x - r, x1: x + r, z0: z - r, z1: z + r, y0: gy + 0.25, y1: gy + b.max.y * sy * 0.92 });
+}
+function releaseGhost(T) {
+  const G = T.ghost; if (!G) return;
+  T.im.setMatrixAt(T.i, T.m); T.im.instanceMatrix.needsUpdate = true;
+  G.d.visible = G.c.visible = false; G.t = null; T.ghost = null;
+}
+function resetTreeFade() { for (const T of fadeTrees) releaseGhost(T); fadeTrees.length = 0; }
+// slab test: does the sight line from P along D (0..1) pass through T's box?
+function sightHits(px, py, pz, dx, dy, dz, T) {
+  let t0 = 0, t1 = 1;
+  const ax = [[px, dx, T.x0, T.x1], [py, dy, T.y0, T.y1], [pz, dz, T.z0, T.z1]];
+  for (let k = 0; k < 3; k++) {
+    const [p, d, lo, hi] = ax[k];
+    if (Math.abs(d) < 1e-6) { if (p < lo || p > hi) return false; continue; }
+    let a = (lo - p) / d, b = (hi - p) / d; if (a > b) { const q = a; a = b; b = q; }
+    if (a > t0) t0 = a; if (b < t1) t1 = b; if (t0 > t1) return false;
+  }
+  return true;
+}
+function stepTreeFade(dt) {
+  if (!fadeTrees.length) return;
+  const cx = camera.position.x, cy = camera.position.y, cz = camera.position.z;
+  for (const T of fadeTrees) T.hit = false;
+  for (const s of sol) {
+    if (s.dead) continue;
+    const gy = groundY(s.x, s.z);
+    // two points on the man — head and boots — so a crown that hides only his legs still clears
+    for (const h of s.prone ? [0.35] : [1.45, 0.4]) {
+      const py = gy + h, dx = cx - s.x, dy = cy - py, dz = cz - s.z;
+      for (const T of fadeTrees) {
+        if (T.hit || T.x1 < Math.min(s.x, cx) - 0.1 || T.x0 > Math.max(s.x, cx) + 0.1 || T.z1 < s.z - 0.5) continue;
+        if (T.z0 > s.z + 14) continue;   // the camera's line has risen clear of any crown by then
+        if (sightHits(s.x, py, s.z, dx, dy, dz, T)) T.hit = true;
+      }
+    }
+  }
+  for (const T of fadeTrees) {
+    T.f = T.hit ? Math.min(1, T.f + dt * 5) : Math.max(0, T.f - dt * 2.2);
+    if (T.f > 0 && !T.ghost) {
+      const G = treeGhosts.find(q => !q.t); if (!G) continue;   // more trees than stand-ins: the rest stay solid
+      G.t = T; T.ghost = G;
+      G.d.geometry = G.c.geometry = T.im.geometry;
+      G.d.matrix.copy(T.m); G.c.matrix.copy(T.m);
+      G.c.material.color.setRGB(T.tint, T.tint, T.tint);
+      G.d.visible = G.c.visible = true;
+      T.im.setMatrixAt(T.i, _zeroM); T.im.instanceMatrix.needsUpdate = true;
+    }
+    if (T.ghost) {
+      if (T.f <= 0) { releaseGhost(T); continue; }
+      const e = T.f * T.f * (3 - 2 * T.f);
+      T.ghost.c.material.opacity = 1 - (1 - TREE_GLASS) * e;
+    }
+  }
 }
 function mkRock(x, z, seed) {
   const s = 0.9 + hash2(seed, 3) * 0.5;
@@ -2418,54 +2767,121 @@ const BSCALE = { pelvis: [WID, TORK, WID], spine: [WID, TORK, WID], chest: [WID,
   shL: [1.12, 1, 1.12], elL: [1.12, 1, 1.12], wrL: [1.1, 1.1, 1.1], shR: [1.12, 1, 1.12], elR: [1.12, 1, 1.12], wrR: [1.1, 1.1, 1.1],
   hpL: [1.14, 1, 1.14], knL: [1.14, 1, 1.14], anL: [1.12, 1.1, 1.08], hpR: [1.14, 1, 1.14], knR: [1.14, 1, 1.14], anR: [1.12, 1.1, 1.08] };
 
-// the uniform: ours in the squad colour, theirs in field grey, with kit by role
-function rigLook(isFoe, colour, kind) {
+/* v25, after Khal's character sheets. Ours: British battledress in khaki, pale webbing (braces, two big basic
+   pouches, a small pack), khaki anklets, brown boots and the wide flat Brodie helmet. Four builds — short and
+   stocky, tall and thin, heavyset, small and tough — set by girth, a belly, and a small height difference
+   (±5%, small enough that the limb solver just takes each man's own scale). Faces get brows, eyes, a nose,
+   ears, a chin strap, and per man: hair colour, stubble, a moustache, Bob's red cheeks, Sarge's cigar.
+   Theirs: field grey with a dark collar, four pocket flaps and buttons, black Y-straps and belt with
+   three-cell ammo pouches, bread bag, canteen, spade, gas-mask tin, jackboots, the stahlhelm, a hard jaw. */
+const BUILDS = {
+  stocky: { h: 0.97, g: 1.12, limb: 1.08, belly: 0, jaw: 1.06 },
+  tall:   { h: 1.05, g: 0.88, limb: 0.9, belly: 0, jaw: 0.95 },
+  heavy:  { h: 1.0, g: 1.2, limb: 1.12, belly: 1, jaw: 1.12 },
+  small:  { h: 0.95, g: 0.96, limb: 0.97, belly: 0, jaw: 1.0 },
+  std:    { h: 1.0, g: 1.0, limb: 1.0, belly: 0, jaw: 1.0 },
+};
+const HAIR = { dark: 0x3a2a1e, brown: 0x5a3e26, ginger: 0xa4582a, grey: 0x8a8580, black: 0x1e1a18, fair: 0xb08a50 };
+// the named squad, after the sheet and the brief; replacements get a build and a face from their name
+const SQUAD_LOOK = {
+  Sarge: { build: 'heavy', hair: 'grey', skin: 0xd8a07a, mo: 1, stub: 1, cigar: 1 },
+  Stan:  { build: 'tall', hair: 'ginger', skin: 0xe8bc98, mo: 0, stub: 0 },
+  Cal:   { build: 'small', hair: 'black', skin: 0x7a5236, mo: 0, stub: 1 },
+  Bob:   { build: 'stocky', hair: 'brown', skin: 0xe2b08a, mo: 0, stub: 0, cheeks: 1 },
+};
+function lookFor(name) {
+  if (SQUAD_LOOK[name]) return SQUAD_LOOK[name];
+  let h = 7; for (const ch of String(name || '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  const r = k => ((h >>> (k * 3)) & 7) / 8;
+  return { build: ['stocky', 'tall', 'heavy', 'small'][h % 4], hair: ['dark', 'brown', 'ginger', 'fair', 'black', 'grey'][(h >>> 4) % 6],
+           skin: [0xd8a97e, 0xe2b48c, 0xc8956a, 0x9a6a46, 0xe8bc98][(h >>> 7) % 5], mo: r(4) < 0.25 ? 1 : 0, stub: r(5) < 0.5 ? 1 : 0 };
+}
+function rigLook(isFoe, colour, kind, who) {
   if (!isFoe) {
-    const t = new THREE.Color(colour).lerp(new THREE.Color(0x6f7a3a), 0.45), h = t.getHex();
-    const d = t.clone().multiplyScalar(0.82).getHex();
-    return { ours: true, kind, tunic: h, tunicD: d, trous: new THREE.Color(h).multiplyScalar(0.92).getHex(), helm: 0x55602f, web: 0xb8a878, boot: 0x4a3424, skin: 0xd8a97e, pack: 0x5a6230 };
+    // khaki battledress, a shade apart man to man
+    const L = who || lookFor(''), k = 0.96 + ((colour >>> 3) % 9) * 0.01;
+    const sh = hex => new THREE.Color(hex).multiplyScalar(k).getHex();
+    return { ours: true, kind, build: L.build || 'std', tunic: sh(0x7c704c), tunicD: sh(0x665c3e), trous: sh(0x766a48), helm: 0x5e5c40, web: 0xb5a77a, ank: 0xa89a70,
+             boot: 0x3a2c22, skin: L.skin || 0xd8a97e, hair: HAIR[L.hair] || HAIR.brown, mo: L.mo, stub: L.stub, cheeks: L.cheeks, cigar: L.cigar, pack: 0x9c8f64 };
   }
   // field grey, lifted: true feldgrau reads near-black from the game camera against the grass
-  return { ours: false, kind, tunic: 0x8c948e, tunicD: 0x737b76, trous: 0x7c847f, helm: 0x575d61, web: 0x34342e, boot: 0x26261f, skin: 0xd2a17a, pack: 0x9a8a62 };
+  const v = who || 0;
+  return { ours: false, kind, build: 'std', tunic: 0x8c948e, tunicD: 0x737b76, collar: 0x56604f, trous: 0x7c847f, helm: 0x575d61, web: 0x2c2a26, boot: 0x26261f,
+           skin: [0xd2a17a, 0xc8956a, 0xdcae88][v % 3], hair: [HAIR.dark, HAIR.fair, HAIR.brown][v % 3], mo: v % 4 === 3 ? 1 : 0, stub: v % 3 !== 1 ? 1 : 0, pack: 0x9a8a62 };
+}
+// a face on the front of the head (+z): brows, eyes, nose, ears, and whatever this man has on his lip and jaw
+function faceParts(C, B) {
+  const hair = C.hair, skD = new THREE.Color(C.skin).multiplyScalar(0.86).getHex(), J = B.jaw;
+  const stubble = new THREE.Color(C.skin).lerp(new THREE.Color(C.hair === HAIR.grey ? 0x9a948c : 0x4a3e34), 0.45).getHex();
+  const P = [
+    RP_(RG.box, RM4(0, 0.035, 0.03, 0.15 * J, 0.075, 0.145), C.stub ? stubble : C.skin),                 // the jaw
+    RP_(RG.box, RM4(0, 0.03, 0.095, 0.08 * J, 0.05, 0.03), C.stub ? stubble : C.skin),                   // chin
+    RP_(RG.box, RM4(0, 0.09, 0.113, 0.032, 0.05, 0.036), skD),                                           // nose
+    RP_(RG.box, RM4(0.038, 0.117, 0.104, 0.026, 0.016, 0.01), 0x1e1a18), RP_(RG.box, RM4(-0.038, 0.117, 0.104, 0.026, 0.016, 0.01), 0x1e1a18),   // eyes
+    RP_(RG.box, RM4(0.04, 0.136, 0.106, 0.046, 0.013, 0.014, 0, 0, -0.12), hair), RP_(RG.box, RM4(-0.04, 0.136, 0.106, 0.046, 0.013, 0.014, 0, 0, 0.12), hair),   // brows
+    RP_(RG.box, RM4(0.107, 0.1, 0.0, 0.022, 0.048, 0.036), C.skin), RP_(RG.box, RM4(-0.107, 0.1, 0.0, 0.022, 0.048, 0.036), C.skin),   // ears
+    RP_(RG.box, RM4(0, 0.1, -0.088, 0.17, 0.09, 0.05), hair), RP_(RG.box, RM4(0.1, 0.12, 0.04, 0.02, 0.05, 0.04), hair), RP_(RG.box, RM4(-0.1, 0.12, 0.04, 0.02, 0.05, 0.04), hair),
+  ];
+  if (C.mo) P.push(RP_(RG.box, RM4(0, 0.063, 0.11, 0.08, 0.02, 0.022), hair));
+  if (C.cheeks) P.push(RP_(RG.box, RM4(0.058, 0.082, 0.096, 0.03, 0.022, 0.01), 0xd47a6a), RP_(RG.box, RM4(-0.058, 0.082, 0.096, 0.03, 0.022, 0.01), 0xd47a6a));
+  if (C.cigar) P.push(RP_(RG.box, RM4(0.03, 0.05, 0.135, 0.016, 0.016, 0.075, 0, 0.3), 0x6a4a2a), RP_(RG.box, RM4(0.05, 0.05, 0.172, 0.018, 0.018, 0.012, 0, 0.3), 0xd4562a));
+  return P;
 }
 function rigParts(C) {
   const ours = C.ours, k = C.kind, B = {};
   B.pelvis = [
     RP_(RG.box, RM4(0, -0.01, 0, 0.30, 0.17, 0.21), C.trous), RP_(RG.box, RM4(0, 0.07, 0, 0.32, 0.05, 0.23), C.web),
-    ...(ours ? [RP_(RG.box, RM4(0.1, 0.05, 0.12, 0.08, 0.08, 0.05), C.web), RP_(RG.box, RM4(-0.1, 0.05, 0.12, 0.08, 0.08, 0.05), C.web), RP_(RG.cyl, RM4(0.14, 0.0, -0.1, 0.08, 0.14, 0.08), 0x4a5a30)]
-          : [RP_(RG.box, RM4(-0.15, 0, -0.08, 0.06, 0.13, 0.15), 0x9a8a60)]),
+    ...(ours ? [RP_(RG.cyl, RM4(0.15, 0.0, -0.1, 0.085, 0.15, 0.085), 0x8a7f58), RP_(RG.box, RM4(0.15, 0.08, -0.1, 0.05, 0.02, 0.05), 0x3a3a30),   // water bottle in its cloth carrier
+                RP_(RG.box, RM4(-0.155, -0.02, -0.05, 0.03, 0.16, 0.05), C.web)]                                                                    // bayonet frog
+          : [RP_(RG.box, RM4(-0.16, -0.01, -0.07, 0.07, 0.15, 0.17), C.pack), RP_(RG.box, RM4(-0.165, 0.055, -0.07, 0.075, 0.04, 0.175), 0x857650),   // bread bag and its flap
+             RP_(RG.cyl, RM4(-0.13, -0.02, -0.16, 0.085, 0.15, 0.085), 0x5c6466), RP_(RG.cyl, RM4(-0.13, 0.065, -0.16, 0.09, 0.04, 0.09), 0x3c4246),   // canteen and cup
+             RP_(RG.box, RM4(0.16, -0.06, -0.06, 0.02, 0.14, 0.1), 0x3a3c3a), RP_(RG.box, RM4(0.16, 0.06, -0.06, 0.025, 0.12, 0.025), 0x7a5a32),   // spade
+             RP_(RG.box, RM4(0, 0.075, 0.118, 0.045, 0.04, 0.012), 0x8a8a7e)]),                                                                     // buckle
     ...(k === 'mg' ? [RP_(RG.box, RM4(0.19, 0.0, 0.04, 0.12, 0.14, 0.18), 0x4a4a3c)] : []),
     ...(k === 'gren' ? [RP_(RG.box, RM4(0.06, 0.08, 0.15, 0.025, 0.24, 0.025, 0.3), 0x7a5a32), RP_(RG.cyl, RM4(0.03, 0.2, 0.17, 0.06, 0.08, 0.06, 0.3), 0x3a3e3a),
                         RP_(RG.box, RM4(-0.08, 0.08, 0.15, 0.025, 0.24, 0.025, -0.3), 0x7a5a32), RP_(RG.cyl, RM4(-0.05, 0.2, 0.17, 0.06, 0.08, 0.06, -0.3), 0x3a3e3a)] : []),
   ];
-  B.spine = [RP_(RG.box, RM4(0, 0.08, 0, 0.29, 0.18, 0.20), C.tunic)];
+  B.spine = [RP_(RG.box, RM4(0, 0.08, 0, 0.29, 0.18, 0.20), C.tunic),
+    ...(BUILDS[C.build].belly ? [RP_(RG.sph, RM4(0, 0.07, 0.06, 0.27, 0.2, 0.16), C.tunic)] : []),                                                // a belly
+    ...(!ours && k !== 'cmd' ? [RP_(RG.box, RM4(0.09, 0.07, 0.102, 0.08, 0.03, 0.012), C.tunicD), RP_(RG.box, RM4(-0.09, 0.07, 0.102, 0.08, 0.03, 0.012), C.tunicD)] : [])];   // lower pockets
   B.chest = [
-    RP_(RG.box, RM4(0, 0.12, 0, 0.37, 0.25, 0.22), C.tunic), RP_(RG.box, RM4(0, 0.225, 0, 0.42, 0.07, 0.21), C.tunic), RP_(RG.box, RM4(0, 0.255, 0.01, 0.17, 0.045, 0.16), C.tunicD),
+    RP_(RG.box, RM4(0, 0.12, 0, 0.37, 0.25, 0.22), C.tunic), RP_(RG.box, RM4(0, 0.225, 0, 0.42, 0.07, 0.21), C.tunic), RP_(RG.box, RM4(0, 0.255, 0.01, 0.17, 0.045, 0.16), C.collar || C.tunicD),
     ...(ours ? [
-      RP_(RG.box, RM4(0.09, 0.12, 0.116, 0.05, 0.26, 0.02), C.web), RP_(RG.box, RM4(-0.09, 0.12, 0.116, 0.05, 0.26, 0.02), C.web),
-      RP_(RG.box, RM4(0.09, 0.03, 0.125, 0.09, 0.08, 0.05), C.web), RP_(RG.box, RM4(-0.09, 0.03, 0.125, 0.09, 0.08, 0.05), C.web),
-      RP_(RG.box, RM4(0, 0.12, -0.17, 0.28, 0.28, 0.13), C.pack), RP_(RG.cyl, RM4(0, 0.29, -0.16, 0.09, 0.32, 0.09, 0, 0, Math.PI / 2), 0x6b6a48),
+      RP_(RG.box, RM4(0.11, 0.17, 0.113, 0.075, 0.028, 0.012), C.tunicD), RP_(RG.box, RM4(-0.11, 0.17, 0.113, 0.075, 0.028, 0.012), C.tunicD),   // breast pocket flaps
+      RP_(RG.box, RM4(0.075, 0.13, 0.118, 0.045, 0.27, 0.02), C.web), RP_(RG.box, RM4(-0.075, 0.13, 0.118, 0.045, 0.27, 0.02), C.web),           // braces
+      RP_(RG.box, RM4(0.1, 0.035, 0.132, 0.11, 0.12, 0.065), C.web), RP_(RG.box, RM4(-0.1, 0.035, 0.132, 0.11, 0.12, 0.065), C.web),             // the two basic pouches
+      RP_(RG.box, RM4(0.1, 0.09, 0.15, 0.11, 0.03, 0.03), 0x9a8c62), RP_(RG.box, RM4(-0.1, 0.09, 0.15, 0.11, 0.03, 0.03), 0x9a8c62),             // their flaps
+      RP_(RG.box, RM4(0, -0.03, 0, 0.385, 0.045, 0.235), C.web),                                                                                // the belt
+      RP_(RG.box, RM4(0, 0.13, -0.165, 0.26, 0.24, 0.1), C.pack), RP_(RG.box, RM4(0, 0.22, -0.17, 0.27, 0.06, 0.11), 0x8a7d56),                  // small pack
+      RP_(RG.box, RM4(0.165, 0.24, 0, 0.07, 0.03, 0.15), C.tunic), RP_(RG.box, RM4(-0.165, 0.24, 0, 0.07, 0.03, 0.15), C.tunic),                 // epaulettes
     ] : k === 'cmd' ? [
       RP_(RG.box, RM4(0, -0.02, 0, 0.39, 0.05, 0.235), 0x2a2420),                                       // officer's belt
       RP_(RG.box, RM4(0.16, 0.255, 0, 0.11, 0.03, 0.17), 0xd9b23a), RP_(RG.box, RM4(-0.16, 0.255, 0, 0.11, 0.03, 0.17), 0xd9b23a),
     ] : [
-      RP_(RG.box, RM4(0.085, 0.12, 0.116, 0.04, 0.26, 0.02), C.web), RP_(RG.box, RM4(-0.085, 0.12, 0.116, 0.04, 0.26, 0.02), C.web),
-      RP_(RG.box, RM4(0, 0.10, -0.115, 0.05, 0.30, 0.02), C.web), RP_(RG.box, RM4(0.1, -0.03, 0.12, 0.1, 0.07, 0.05), C.web), RP_(RG.box, RM4(-0.1, -0.03, 0.12, 0.1, 0.07, 0.05), C.web),
-      RP_(RG.cyl, RM4(0.07, 0.06, -0.16, 0.11, 0.26, 0.11), 0x6a7268),
+      RP_(RG.box, RM4(0.085, 0.12, 0.116, 0.04, 0.26, 0.02), C.web), RP_(RG.box, RM4(-0.085, 0.12, 0.116, 0.04, 0.26, 0.02), C.web),               // Y-straps
+      RP_(RG.box, RM4(0, 0.10, -0.115, 0.05, 0.30, 0.02), C.web),
+      ...[0.055, 0.1, 0.145].flatMap(x => [RP_(RG.box, RM4(x, -0.035, 0.125, 0.04, 0.07, 0.05), C.web), RP_(RG.box, RM4(-x, -0.035, 0.125, 0.04, 0.07, 0.05), C.web)]),   // three-cell ammo pouches
+      RP_(RG.cyl, RM4(0.07, 0.06, -0.16, 0.11, 0.26, 0.11), 0x6a7268), RP_(RG.cyl, RM4(0.07, 0.195, -0.16, 0.115, 0.02, 0.115), 0x4e5650),           // gas-mask tin, ribbed
+      RP_(RG.box, RM4(0.11, 0.165, 0.113, 0.07, 0.026, 0.012), C.tunicD), RP_(RG.box, RM4(-0.11, 0.165, 0.113, 0.07, 0.026, 0.012), C.tunicD),     // pocket flaps
+      ...[0.2, 0.13, 0.06].map(y => RP_(RG.box, RM4(0, y, 0.113, 0.018, 0.018, 0.01), 0x9a9a8a)),                                                // buttons
     ]),
     ...(k === 'mg' ? [RP_(RG.box, RM4(0, 0.13, 0.125, 0.05, 0.40, 0.03, 0, 0, -0.62), 0xc7a54a), RP_(RG.box, RM4(0, 0.12, -0.18, 0.30, 0.30, 0.14), C.pack)] : []),
     ...(k === 'gren' ? [RP_(RG.box, RM4(0, 0.12, 0.125, 0.06, 0.42, 0.03, 0, 0, 0.62), 0x8a6a3c)] : []),
   ];
   B.neck = [RP_(RG.cyl, RM4(0, 0.03, 0, 0.11, 0.09, 0.11), C.skin)];
   B.head = [
-    RP_(RG.sph, RM4(0, 0.10, 0, 0.21, 0.24, 0.22), C.skin), RP_(RG.box, RM4(0, 0.035, 0.03, 0.15, 0.07, 0.14), C.skin),
+    RP_(RG.sph, RM4(0, 0.10, 0, 0.21, 0.24, 0.22), C.skin), ...faceParts(C, BUILDS[C.build]),
     ...(ours ? [
-      RP_(RG.sph, RM4(0, 0.17, 0, 0.29, 0.21, 0.31), C.helm), RP_(RG.cyl, RM4(0, 0.15, 0, 0.35, 0.022, 0.37), C.helm),
+      RP_(RG.sph, RM4(0, 0.175, 0, 0.27, 0.15, 0.29), C.helm), RP_(RG.cyl, RM4(0, 0.158, 0, 0.43, 0.022, 0.45), C.helm),                         // the Brodie: shallow dome, wide flat brim
+      RP_(RG.cyl, RM4(0, 0.148, 0, 0.44, 0.01, 0.46), 0x4a4832),
+      RP_(RG.box, RM4(0.098, 0.085, 0.035, 0.012, 0.12, 0.014), 0x3a2e22), RP_(RG.box, RM4(-0.098, 0.085, 0.035, 0.012, 0.12, 0.014), 0x3a2e22),   // chin strap
     ] : k === 'cmd' ? [
       RP_(RG.cyl, RM4(0, 0.20, 0, 0.25, 0.10, 0.25), 0x3a4048), RP_(RG.cyl, RM4(0, 0.26, 0.02, 0.29, 0.05, 0.31), 0x3a4048),   // peaked cap
       RP_(RG.box, RM4(0, 0.17, 0.14, 0.17, 0.02, 0.08), 0x1c2130), RP_(RG.box, RM4(0, 0.215, 0.125, 0.16, 0.025, 0.02), 0xd9b23a),
     ] : [
       RP_(RG.sph, RM4(0, 0.175, -0.005, 0.28, 0.25, 0.30), C.helm), RP_(RG.frust, RM4(0, 0.112, -0.015, 0.36, 0.075, 0.38), C.helm),
+      RP_(RG.sph, RM4(0.135, 0.17, 0.02, 0.025, 0.025, 0.02), 0x3c4246), RP_(RG.sph, RM4(-0.135, 0.17, 0.02, 0.025, 0.025, 0.02), 0x3c4246),       // vent lugs
+      RP_(RG.box, RM4(0.1, 0.075, 0.03, 0.012, 0.1, 0.014), 0x2a2622), RP_(RG.box, RM4(-0.1, 0.075, 0.03, 0.012, 0.1, 0.014), 0x2a2622),           // chin strap
     ]),
   ];
   const arm = s => [
@@ -2476,7 +2892,8 @@ function rigParts(C) {
   const leg = () => [
     [RP_(RG.sph, RM4(0, 0, 0, 0.16, 0.15, 0.17), C.trous), RP_(RG.limb, RM4(0, -TH / 2, 0, 0.155, TH, 0.165), C.trous)],
     [RP_(RG.sph, RM4(0, 0, 0.005, 0.135, 0.13, 0.14), C.trous), RP_(RG.limb, RM4(0, -SH / 2, 0, 0.125, SH, 0.13), C.trous),
-     ours ? RP_(RG.cyl, RM4(0, -SH + 0.07, 0, 0.135, 0.12, 0.14), C.web) : RP_(RG.cyl, RM4(0, -SH * 0.6, 0, 0.145, SH * 0.78, 0.15), C.boot)],
+     ...(ours ? [RP_(RG.cyl, RM4(0, -SH + 0.075, 0, 0.14, 0.13, 0.145), C.ank), RP_(RG.box, RM4(0.06, -SH + 0.1, 0.02, 0.02, 0.02, 0.06), 0x6a5e40)]
+           : [RP_(RG.cyl, RM4(0, -SH * 0.6, 0, 0.145, SH * 0.78, 0.15), C.boot), RP_(RG.cyl, RM4(0, -SH * 0.2, 0, 0.155, 0.03, 0.16), 0x1c1c18)])],
     [RP_(RG.box, RM4(0, -0.015, 0.01, 0.12, 0.09, 0.13), C.boot), RP_(RG.box, RM4(0, -0.05, 0.075, 0.12, 0.07, 0.25), C.boot)],
   ];
   [B.shL, B.elL, B.wrL] = arm(1); [B.shR, B.elR, B.wrR] = arm(-1);
@@ -2490,7 +2907,9 @@ function rigGeo(C) {
   if (rigGeoCache.has(key)) return rigGeoCache.get(key);
   const parts = rigParts(C), rest = [];
   BONES.forEach(([n, p, o], i) => { rest[i] = RV(...o); if (p >= 0) rest[i].add(rest[p]); });
-  const geos = BONES.map(([n], i) => { const g = mergeGeos(parts[n]); g.scale(...BSCALE[n]); g.translate(rest[i].x, rest[i].y, rest[i].z); return g; });
+  const Bd = BUILDS[C.build] || BUILDS.std, TORSO = { pelvis: 1, spine: 1, chest: 1 };
+  const geos = BONES.map(([n], i) => { const g = mergeGeos(parts[n]), s = BSCALE[n], k = TORSO[n] ? Bd.g : n === 'head' || n === 'neck' ? 1 : Bd.limb;
+    g.scale(s[0] * k, s[1], s[2] * k); g.translate(rest[i].x, rest[i].y, rest[i].z); return g; });
   let total = 0; for (const g of geos) total += g.attributes.position.count;
   const pos = new Float32Array(total * 3), nor = new Float32Array(total * 3), col = new Float32Array(total * 3), si = new Uint16Array(total * 4), sw = new Float32Array(total * 4);
   let o = 0;
@@ -2528,8 +2947,8 @@ const rigFlashMat = new THREE.MeshBasicMaterial({ color: SC(0xffd890), transpare
 const rigFlashGeo = new THREE.ConeGeometry(0.09, 0.42, 6);
 const rigBaseGeo = new THREE.CircleGeometry(0.42, 14); rigBaseGeo.rotateX(-Math.PI / 2);
 
-function buildRig(isFoe, colour, kind) {
-  const C = rigLook(isFoe, colour, kind);
+function buildRig(isFoe, colour, kind, who) {
+  const C = rigLook(isFoe, colour, kind, who);
   const root = new THREE.SkinnedMesh(rigGeo(C), rigSkinMat);
   root.castShadow = true;
   const bones = BONES.map(([n, p, o]) => { const b = new THREE.Bone(); b.position.set(...o); b.rotation.order = 'YXZ'; return b; });
@@ -2538,11 +2957,18 @@ function buildRig(isFoe, colour, kind) {
   root.bind(new THREE.Skeleton(bones));
   const rifle = new THREE.Mesh(rifleGeo(kind), figMat); rifle.castShadow = true; root.add(rifle);
   const flash = new THREE.Mesh(rigFlashGeo, rigFlashMat); flash.rotation.x = Math.PI / 2; flash.position.copy(MUZZLE).add(RV(0, 0, 0.2)); flash.visible = false; rifle.add(flash);
+  // v26: the stiletto, in the right hand, shown only while it is being used
+  let blade = null;
+  if (!isFoe) {
+    if (!rigGeoCache.has('blade')) rigGeoCache.set('blade', mergeGeos([RP_(RG.box, RM4(0, -0.1, 0.02, 0.028, 0.09, 0.03), 0x2a2622), RP_(RG.box, RM4(0, -0.15, 0.02, 0.07, 0.014, 0.03), 0x8a8c8c),
+      RP_(RG.box, RM4(0, -0.27, 0.02, 0.016, 0.22, 0.03), 0xcfd2d4)]));
+    blade = new THREE.Mesh(rigGeoCache.get('blade'), figMat); blade.visible = false; bones[BI.wrR].add(blade);
+  }
   const base = new THREE.Mesh(rigBaseGeo, basic(isFoe ? P.baseFoe : P.base, { transparent: true, opacity: 0.55, depthWrite: false }));
   base.position.y = 0.03; base.renderOrder = 1; root.add(base);
   const b = n => bones[BI[n]];
   return {
-    rig: true, ours: !isFoe, root, base, rifle, flash, weapPivot: rifle, bones,
+    rig: true, ours: !isFoe, root, base, rifle, flash, weapPivot: rifle, bones, blade, sc: RS * (BUILDS[C.build] || BUILDS.std).h,
     pelvis: b('pelvis'), spine: b('spine'), chest: b('chest'), neck: b('neck'), head: b('head'),
     armL: { sh: b('shL'), el: b('elL'), wr: b('wrL'), s: 1 }, armR: { sh: b('shR'), el: b('elR'), wr: b('wrR'), s: -1 },
     legL: { hp: b('hpL'), kn: b('knL'), an: b('anL'), s: 1 }, legR: { hp: b('hpR'), kn: b('knR'), an: b('anR'), s: -1 },
@@ -2708,7 +3134,7 @@ function applyPose(F, Pz) {
   for (const [L, ft, fp] of [[F.legL, Pz.fL, Pz.fpL], [F.legR, Pz.fR, Pz.fpR]]) {
     root.localToWorld(_v1.copy(ft));
     _pole.set(Pz.kp.x * L.s, Pz.kp.y, Pz.kp.z).applyQuaternion(_rq);
-    twoBone(L.hp, L.kn, _v1, _pole, TH * RS, SH * RS);
+    twoBone(L.hp, L.kn, _v1, _pole, TH * (F.sc || RS), SH * (F.sc || RS));
     _q1.copy(_rq).multiply(qAxisInto(_q2, XA, fp));
     L.kn.getWorldQuaternion(_pq);
     _pq.invert().multiply(_q1);
@@ -2738,8 +3164,8 @@ function applyPose(F, Pz) {
   r.quaternion.copy(Pz.rq).multiply(qAxisInto(_q2, XA, -0.11 * F.recoil));
   r.position.copy(_v1).add(Pz.rp).add(_v2.set(0, 0, -0.06 * F.recoil).applyQuaternion(r.quaternion));
   r.updateMatrixWorld(true);
-  twoBone(F.armR.sh, F.armR.el, r.localToWorld(_v3.copy(GRIP)), _pole.copy(Pz.apR).applyQuaternion(_rq), UA * RS, FA * RS);
-  twoBone(F.armL.sh, F.armL.el, r.localToWorld(_v3.copy(FORE)), _pole.copy(Pz.apL).applyQuaternion(_rq), UA * RS, FA * RS);
+  twoBone(F.armR.sh, F.armR.el, r.localToWorld(_v3.copy(GRIP)), _pole.copy(Pz.apR).applyQuaternion(_rq), UA * (F.sc || RS), FA * (F.sc || RS));
+  twoBone(F.armL.sh, F.armL.el, r.localToWorld(_v3.copy(FORE)), _pole.copy(Pz.apL).applyQuaternion(_rq), UA * (F.sc || RS), FA * (F.sc || RS));
   F.armR.wr.quaternion.identity(); F.armL.wr.quaternion.identity();
   F.armR.wr.updateMatrixWorld(true); F.armL.wr.updateMatrixWorld(true);
 }
@@ -2888,7 +3314,7 @@ function stepRigDeath(u, dt) {
   root.updateMatrixWorld(true);
   const legs = [F.legL.hp, F.legL.kn, F.legL.an, F.legR.hp, F.legR.kn, F.legR.an];
   if (t < 0.42 && !D.prone) {
-    for (const [L, ft] of [[F.legL, B.fL], [F.legR, B.fR]]) twoBone(L.hp, L.kn, root.localToWorld(_v1.copy(ft)), _pole.set(B.kp.x * L.s, 0, 1).applyQuaternion(D.yawQ), TH * RS, SH * RS);
+    for (const [L, ft] of [[F.legL, B.fL], [F.legR, B.fR]]) twoBone(L.hp, L.kn, root.localToWorld(_v1.copy(ft)), _pole.set(B.kp.x * L.s, 0, 1).applyQuaternion(D.yawQ), TH * (F.sc || RS), SH * (F.sc || RS));
   } else {
     if (!D.legQ) D.legQ = legs.map(b => b.quaternion.clone());
     const k = D.prone ? easeR(t / 0.6) : easeR((t - 0.42) / 0.5);
@@ -3078,8 +3504,9 @@ function mkUnit(cfg, isFoe) {
   const cb = isFoe ? P.foe : cfg.colour;
   const ch = isFoe ? P.foeDark : ((cb & 0xfefefe) >> 1) + 0x102008;
   const kind = cfg.isCommander ? 'cmd' : cfg.rapidFire ? 'mg' : cfg.hasGrenade ? 'gren' : cfg.guard ? 'guard' : null;
-  const F = cfg.dog ? buildDog() : buildRig(isFoe, cb, kind);
-  F.root.scale.setScalar(F.rig ? RS : UNIT_SCALE);
+  const who = isFoe ? ((Math.random() * 12) | 0) : lookFor(cfg.name);
+  const F = cfg.dog ? buildDog() : buildRig(isFoe, cb, kind, who);
+  F.root.scale.setScalar(F.rig ? F.sc : UNIT_SCALE);
   unitRoot.add(F.root);
   const u = {
     F, mesh: F.root, bar: mkBar(isFoe), name: cfg.name || 'Sentry', foe: !!isFoe, friendly: !isFoe,
@@ -3475,6 +3902,7 @@ const MISSIONS = [
       { t: 'fence', x: .55, z: .24, w: .11, d: .006 }, { t: 'fence', x: .71, z: .24, w: .09, d: .006 },
       { t: 'thicket', x: 0, z: .45, w: .45, d: .2 }, { t: 'thicket', x: .53, z: .45, w: .47, d: .2 },
       { t: 'house', x: .2, z: .1, w: 6, d: 4.5 }, { t: 'crate', x: .58, z: .2 }, { t: 'crate', x: .77, z: .2 },
+      { t: 'tank', kind: 'stug', x: .9, z: .17, a: -Math.PI / 2 }, { t: 'tank', kind: 'pz4', x: .42, z: .18, a: 0 },   // v24: armour waiting on the fuel
       ...[[.47, .75], [.52, .8], [.44, .86], [.3, .72], [.68, .74], [.4, .4], [.57, .42], [.15, .4], [.88, .4]].map(([x, z]) => ({ t: 'bush', x, z })),
       ...[[.2, .82], [.8, .84], [.1, .76], [.9, .72], [.35, .9], [.65, .92]].map(([x, z]) => ({ t: 'tree', x, z })),
     ],
@@ -3570,6 +3998,7 @@ const MISSIONS = [
       { t: 'wall', x: .22, z: .4, w: 11.0, d: 1.2 },
       { t: 'wall', x: .66, z: .4, w: 10.5, d: 1.2 },
       { t: 'house', x: .36, z: .07, w: 11.0, d: 6.0 },
+      { t: 'tank', kind: 'pz4', x: .68, z: .12, a: 0 },   // v24: the commander's own tank, parked in the yard
       { t: 'tree', x: .06, z: .52 },
       { t: 'tree', x: .94, z: .52 },
       { t: 'tree', x: .1, z: .65 },
@@ -3702,6 +4131,7 @@ const MISSIONS = [
       { t: 'wall', x: .6, z: .08, w: 1.0, d: 8.0 },
       { t: 'house', x: .43, z: .04, w: 5.5, d: 4.0 },
       { t: 'house', x: .43, z: .16, w: 5.5, d: 3.5 },
+      { t: 'tank', kind: 'stug', x: .38, z: .62, a: Math.PI, burnt: true }, { t: 'tank', kind: 'pz4', x: .66, z: .66, a: Math.PI / 2, burnt: true },   // v24: knocked out on the approach
       { t: 'tree', x: .1, z: .55 },
       { t: 'tree', x: .9, z: .55 },
       { t: 'tree', x: .15, z: .65 },
@@ -4007,6 +4437,39 @@ function showHint(i) { const h = $('hint'); h.innerHTML = TUT[i]; h.style.displa
 function hideHint() { $('hint').style.display = 'none'; }
 function finishTut() { tutStep = -1; hideHint(); tutDone = true; try { PF.set('gs3d_tut', '1'); } catch (e) { } }
 const AMBUSH_T = 2.0;          // seconds of first-shot advantage after coming up
+/* v27: the knife (a Fairbairn–Sykes stiletto, standard issue). Select it (🗡️ or K) and tap a sentry: the
+   nearest man detaches and goes for him on his own — crawling if the squad is down — while the rest hold where
+   they are. Inside KNIFE_RUSH with a clear line he comes up and sprints the last metres. Nobody fires, no
+   footsteps carry, and the kill raises no alarm. If the mark turns and engages, or the run takes too long, or
+   you tap the ground, it is called off and he rejoins. (v26 tied this to marking with the rifle cursor and
+   standing up; any ground tap or the mark leaving sight dropped it, so in play it never fired.) */
+const KNIFE_RUSH = 4.5, KNIFE_SPRINT = 1.35, KNIFE_QUIET = 3.5, KNIFE_REACH = 30;
+let knife = null, quietT = 0;   // quietT: after a silent kill the squad stays weapons-tight while the camp is unaware
+function startKnife(e) {
+  if (e.dead || e.tower || e.elev || e.inBox || e.dog) { showToast('NOT WITH A KNIFE', e.dog ? 'the dog would have your hand off' : 'you cannot get at him'); return; }
+  if (e.state === 'engage') { showToast('NO KNIFE', 'he is already fighting — rifles'); return; }
+  let best = null, bd = KNIFE_REACH;
+  for (const s of sol) { if (s.dead) continue; const d = dst(s, e); if (d < bd) { bd = d; best = s; } }
+  if (!best) { showToast('TOO FAR', `get within ${KNIFE_REACH} metres first`); return; }
+  if (knife) endKnife();
+  knife = { s: best, e, t: 0, rush: false, rp: 0, path: null };
+  setFocus(null); setWeapon('gun'); SFX.ui();
+  showToast('KNIFE', `${best.name} goes in — the rest hold`);
+}
+function endKnife(title, sub) {
+  if (!knife) return;
+  const s = knife.s; knife = null;
+  if (!s.dead) { s.prone = squadProne; s.tx = s.x; s.tz = s.z; s.path = null; s.fpath = null; }
+  if (title) showToast(title, sub || '');
+}
+function stab(s, e) {
+  knife = null; s.knifeVis = 0.7; quietT = KNIFE_QUIET; s.prone = squadProne; s.tx = s.x; s.tz = s.z; s.path = null;
+  s.angle = s.aim = Math.atan2(e.x - s.x, e.z - s.z);
+  e.toppleDir = 1; killUnit(e, 'knife');
+  SFX.stab(e.x, e.z);
+  spawnParts(e.x, groundY(e.x, e.z) + 1.0, e.z, 4, 0x6a1a14, 2.5, 0.06, 0.5);
+  showToast('SILENT KILL', ['he never heard it', 'not a sound', 'quietly done', 'one fewer, and nobody the wiser'][(Math.random() * 4) | 0]);
+}
 const AMBUSH_MIN_PRONE = 1.2;  // must have actually been hiding, not stance-spamming
 
 const TRAIL_STEP = 0.28;
@@ -4408,10 +4871,9 @@ function killUnit(u, kind, byFriendly) {
     let best = null, bd = 1e9;
     for (const s of sol) { if (s.dead) continue; const d = dst(s, u); if (d < bd) { bd = d; best = s; } }
     if (best && best.ref) { best.ref.kills++; campaignKills++; }
-    if (best) setTimeout(() => say(best, 'kill'), 260);
-    globalAlert = Math.min(globalAlert + 0.3, 2);
-    // a body hitting the ground is worth a look, but it is not a shout
-    noiseEvent(u.x, u.z, 12, 0.3);
+    if (best && kind !== 'knife') setTimeout(() => say(best, 'kill'), 260);
+    // v26: a knife kill is silent — no alarm, no sound carrying. A body hitting the ground otherwise is worth a look
+    if (kind !== 'knife') { globalAlert = Math.min(globalAlert + 0.3, 2); noiseEvent(u.x, u.z, 12, 0.3); }
   } else {
     if (u.ref) { u.ref.dead = true; u.ref.cause = pickObit(byFriendly ? 'friendly' : kind || 'shot', u.ref.kills); stats.lost++; }
     bloodTimer = 1.0;
@@ -4450,16 +4912,32 @@ function throwGrenade(tx, tz) {
   let thr = live[0], bd = 1e9;
   for (const s of live) { const d = dst(s, { x: tx, z: tz }); if (d < bd) { bd = d; thr = s; } }
   if (bd > 26) return;
+  /* v26: posting one through a pillbox slit. A tap anywhere on or around the pillbox used to find the ground
+     behind it (the tap ray passes through the concrete), so the grenade landed on the roof. Now, thrown from
+     in front or from either flank (not from behind) within 10.5 m of the slit, it snaps to the slit and goes in
+     on a low lob; from further off it still bounces off. */
+  let ey = null, apex = 6.2;
+  for (const T of targets) {
+    if (T.kind !== 'pillbox' || T.dead) continue;
+    const onIt = Math.abs(tx - T.x) < 3.4 && Math.abs(tz - T.z) < 3.4;
+    if (!onIt && Math.hypot(tx - T.sx, tz - T.sz) > 3.0) continue;
+    const fd = Math.hypot(thr.x - T.sx, thr.z - T.sz), front = (thr.x - T.x) * T.fx + (thr.z - T.z) * T.fz;
+    if (fd < 10.5 && front > -1.2) {
+      tx = T.sx - T.fx * 0.5; tz = T.sz - T.fz * 0.5;                    // just inside the slit
+      ey = groundY(T.sx, T.sz) + 1.1; apex = 0.8 + fd * 0.14;
+    } else { tx = T.sx + T.fx * 0.4; tz = T.sz + T.fz * 0.4; }          // off the face: blastTargets explains why
+    break;
+  }
   grenCount--; stats.nades++; $('nc').textContent = grenCount;
   const m = new THREE.Mesh(GEO.sph, mat(0x4a5a2a, { shininess: 30 }));
   m.scale.setScalar(0.30); m.castShadow = true; fxRoot.add(m);
-  grn.push({ sx: thr.x, sz: thr.z, sy: groundY(thr.x, thr.z) + 1.0, tx, tz, t: 0, dur: clamp(bd / 20, 0.45, 1.15), mesh: m, done: false });
+  grn.push({ sx: thr.x, sz: thr.z, sy: groundY(thr.x, thr.z) + 1.0, tx, tz, t: 0, dur: clamp(Math.hypot(tx - thr.x, tz - thr.z) / 20, 0.45, 1.15), mesh: m, done: false, ey, apex });
   thr.aim = Math.atan2(tx - thr.x, tz - thr.z);
   SFX.whoosh(thr.x, thr.z);
   globalAlert = Math.min(globalAlert + 0.3, 2);
 }
-function explode(gx, gz, fromX, fromZ) {
-  const gy = groundY(gx, gz);
+function explode(gx, gz, fromX, fromZ, inside) {
+  const gy = groundY(gx, gz) + (inside ? 0.7 : 0);
   spawnParts(gx, gy + 0.4, gz, 26, 0xffb347, 12, 0.20, 0.55, 14);
   spawnParts(gx, gy + 0.4, gz, 14, 0xff6a2a, 9, 0.26, 0.4, 12);
   spawnParts(gx, gy + 0.6, gz, 12, 0x6a6a62, 5, 0.34, 1.1, 3);
@@ -4470,7 +4948,8 @@ function explode(gx, gz, fromX, fromZ) {
   hitStop = Math.max(hitStop, 0.07);
   flashScreen(0.5);
   muzzleT = 0.16; muzzleLight.position.set(gx, gy + 1.5, gz);
-  const B = 6.5;
+  // v26: posted through a slit, the concrete takes the blast: only the crew inside, and anyone right at the slit
+  const B = inside ? 1.6 : 6.5;
   for (const e of ens) { if (!e.dead && !e.inBox && dst({ x: gx, z: gz }, e) < B) damage(e, dst({ x: gx, z: gz }, e) < B * 0.45 ? 4 : 2, 'foeblast'); }
   blastTargets(gx, gz, 'grenade', fromX === undefined ? gx : fromX, fromZ === undefined ? gz : fromZ);
   for (const s of sol) { if (!s.dead && dst({ x: gx, z: gz }, s) < B * 0.62) damage(s, s.prone ? 1 : 2, 'ownblast'); }
@@ -4632,6 +5111,7 @@ function clearHostage() {
 
 /*───────────────────── mission setup ─────────────────────*/
 function clearMission() {
+  knife = null; quietT = 0;
   for (const u of [...sol, ...ens]) {
     unitRoot.remove(u.mesh);
     if (u.F.rifle && u.F.rifle.parent === unitRoot) unitRoot.remove(u.F.rifle);
@@ -4715,15 +5195,18 @@ function extendRoadsPastEdge(list) {
 // cheap parts for the forest wall: hundreds of trees at under 50 triangles each
 const EGTRUNK = new THREE.CylinderGeometry(0.4, 0.5, 1, 5, 1, true), EGLEAF = new THREE.IcosahedronGeometry(0.5, 0);
 const EG = {
-  pine: (() => { const t = [0x2c6422, 0x33702a, 0x285c1f]; return mergeGeos([
+  // v23: the same drooping skirts and olive tips as the placed pines, top faces only (nobody sees under the wall)
+  pine: (() => mergeGeos([
     { g: EGTRUNK, m: M4(0, 1.1, 0, 0.55, 2.2, 0.55), c: 0x55391f },
-    { g: GEO.cone, m: M4(0, 3.5, 0, 4.6, 3.8, 4.6, 0.3), c: t[0] },
-    { g: GEO.cone, m: M4(0, 5.8, 0, 3.6, 3.4, 3.6, 0.9), c: t[1] },
-    { g: GEO.cone, m: M4(0, 7.9, 0, 2.5, 3.0, 2.5, 1.6), c: t[2] }]); })(),
-  leaf: (() => { const t = [0x3c7a2a, 0x46862f, 0x356c24]; return mergeGeos([
+    { g: GEO.skirtTop, m: M4(0, 2.4, 0, 6.4, 2.6, 6.4, 0.3), c: 0x2a5520, grad: [0x557828, 0x1f461a, 2.1, 3.3] },
+    { g: GEO.skirtTop, m: M4(0, 4.4, 0, 4.8, 2.4, 4.8, 0.9), c: 0x2a5520, grad: [0x4f7424, 0x1f461a, 4.1, 5.2] },
+    { g: GEO.skirtTop, m: M4(0, 6.3, 0, 3.0, 2.4, 3.0, 1.6), c: 0x2a5520, grad: [0x557828, 0x22491b, 6.0, 7.1] },
+    { g: GEO.cone, m: M4(0, 8.4, 0, 0.9, 1.6, 0.9, 1.6), c: 0x26501d }]).scale(TREE_W, TREE_H, TREE_W))(),
+  leaf: (() => mergeGeos([
     { g: EGTRUNK, m: M4(0, 1.7, 0, 0.62, 3.4, 0.62), c: 0x5e4326 },
-    { g: EGLEAF, m: M4(0, 4.9, 0, 5.0, 3.8, 5.0, 0.4), c: t[0] },
-    { g: EGLEAF, m: M4(0.6, 6.5, -0.3, 3.4, 2.6, 3.4, 1.3), c: t[1] }]); })(),
+    { g: EGLEAF, m: M4(0, 4.9, 0, 5.0, 3.8, 5.0, 0.4), c: 0x4a7a26, grad: [0x355f1c, 0x6f9832, 3.4, 6.6] },
+    { g: EGLEAF, m: M4(1.2, 4.4, 0.6, 3.0, 2.6, 3.0, 2.1), c: 0x4a7a26, grad: [0x355f1c, 0x6f9832, 3.4, 6.6] },
+    { g: EGLEAF, m: M4(0.6, 6.5, -0.3, 3.4, 2.6, 3.4, 1.3), c: 0x4a7a26, grad: [0x3e6a20, 0x86ab3a, 5.4, 7.6] }]).scale(TREE_W, TREE_H, TREE_W))(),
 };
 function clearBoundary() {
   for (const c of edgeRoot.children.slice()) { edgeRoot.remove(c); if (c.isInstancedMesh || c.userData.own) c.geometry.dispose(); }
@@ -4732,24 +5215,39 @@ function clearBoundary() {
 // a road leaves the map through a tunnel in a rocky ridge; P is the crossing on the edge, n points into the map
 function mkPortal(cx, cz, nx, nz) {
   const px = cx - nx * 5, pz = cz - nz * 5, yaw = Math.atan2(nx, nz);
-  const conc = 0x8d8a80, concD = 0x77736a, rock = [0x7d7a6c, 0x8e8b7c, 0x6c6a5e, 0x75735f];
-  const p = [
-    { g: GEO.box, m: M4(-3.5, 2.5, 0, 1.4, 5.0, 1.8), c: conc }, { g: GEO.box, m: M4(3.5, 2.5, 0, 1.4, 5.0, 1.8), c: conc },
-    { g: GEO.box, m: M4(0, 5.4, 0, 8.4, 1.4, 2.0), c: concD }, { g: GEO.box, m: M4(0, 6.25, 0.1, 8.8, 0.3, 2.2), c: conc },
-    { g: GEO.box, m: M4(0, 2.3, -0.7, 5.8, 4.8, 0.2), c: 0x050605 },                          // the dark of the tunnel
-    { g: GEO.box, m: M4(-6.6, 1.6, 0.2, 5.2, 3.2, 1.2, 0, 0), c: concD }, { g: GEO.box, m: M4(6.6, 1.6, 0.2, 5.2, 3.2, 1.2), c: concD },
-  ];
-  for (let i = 0; i < 16; i++) {                       // the ridge: rock piled over and either side of the portal
-    const s = i / 15, along = (s - 0.5) * 30 + (hash2(i, cx) - 0.5) * 3, side = Math.abs(along);
-    const back = -2.5 - hash2(i, cz) * 6, r = 4.5 + hash2(i + 3, cx) * 3.5;
-    const h = side < 5 ? 7.2 : 2.6 + hash2(i, 7) * 3 + Math.max(0, 9 - side) * 0.3;
-    p.push({ g: GEO.blob, m: M4(along, h, back, r * 1.6, r * 1.2, r * 1.3, hash2(i, 2) * 3), c: rock[i % 4] });
+  // v23, after the sheet's road tunnel: a dressed-stone arch in a hill of rock columns, turf and pines on top
+  const base = Math.min(groundY(px, pz), groundY(cx, cz)) - 0.3, cy = Math.cos(yaw), sy = Math.sin(yaw);
+  const toW = (lx, lz) => [px + lx * cy + lz * sy, pz - lx * sy + lz * cy];
+  const foot = (lx, lz) => { const [wx, wz] = toW(lx, lz); return groundY(wx, wz) - base; };
+  const st = [0x9a968c, 0x8b877d, 0xa29e93], p = [];
+  const R = 3.0, SPRING = 2.7, CROWN = SPRING + R, HILL = CROWN + 1.6;
+  for (const side of [-1, 1]) for (let j = 0; j < 3; j++)                      // jambs: three courses each side
+    p.push({ g: GEO.box, m: M4(side * (R + 0.5), j * 0.9 + 0.45, 0.2, 1.0 + (j % 2) * 0.12, 0.88, 1.6), c: st[j % 3] });
+  for (let i = 0; i < 9; i++) {                                                  // the arch ring, a keystone at the crown
+    const a = Math.PI * (i + 0.5) / 9, key = i === 4, rr = R + 0.5;
+    p.push({ g: GEO.box, m: M4(Math.cos(a) * rr, SPRING + Math.sin(a) * rr, 0.25, key ? 1.15 : 0.95, key ? 1.25 : 1.0, 1.7, 0, a - Math.PI / 2), c: key ? 0xaaa69a : st[i % 3] });
   }
-  for (let i = 0; i < 6; i++) p.push({ g: GEO.blob, m: M4((hash2(i, 9) - 0.5) * 6, 7.6 + hash2(i, 4), -2.2 - hash2(i, 5) * 3, 4.2, 2.6, 3.4, i), c: rock[(i + 1) % 4] });
+  p.push({ g: GEO.box, m: M4(0, CROWN + 1.3, 0.25, 2 * R + 3.4, 0.5, 1.8), c: 0x8b877d });   // the coping course over the ring
+  p.push({ g: GEO.box, m: M4(0, SPRING / 2, -0.75, 2 * R + 0.2, SPRING, 0.3), c: 0x060706 });   // the dark of the tunnel
+  const mouth = new THREE.CircleGeometry(R + 0.05, 14, 0, Math.PI);
+  p.push({ g: mouth, m: M4(0, SPRING, -0.6, 1, 1, 1), c: 0x060706 });
+  // the hill: an earth core with a turf cap, faced with rock columns either side of the arch, earth over it
+  p.push({ g: GEO.box, m: M4(0, (HILL - 1.5) / 2, -5.6, 34, HILL + 1.5, 9.3), c: 0x6e4c30, grad: [0x4e3420, 0x7a5636, -1.5, HILL] });   // behind the mouth
+  for (const side of [-1, 1]) p.push({ g: GEO.box, m: M4(side * (R + 1 + 6.5), (HILL - 1.5) / 2, -0.35, 13, HILL + 1.5, 1.3), c: 0x6e4c30, grad: [0x4e3420, 0x7a5636, -1.5, HILL] });
+  p.push({ g: GEO.box, m: M4(0, HILL, -5.0, 34.6, 0.35, 11), c: 0x5c8c34, grad: [0x4a7a2a, 0x6a9a3c, HILL - 0.2, HILL + 0.2] });
+  p.push({ g: GEO.box, m: M4(0, CROWN + 0.9, -0.3, 2 * R + 4, HILL - CROWN - 0.6, 1.3), c: 0x6e4c30 });
+  cliffFace(p, -17, 0.3, -(R + 1.2), 0.3, 0, 1, HILL, foot, cx * 0.3 + cz, { hMin: 0.7, out: 0 });
+  cliffFace(p, R + 1.2, 0.3, 17, 0.3, 0, 1, HILL, foot, cx + cz * 0.3, { hMin: 0.7, out: 0 });
+  cliffLip(p, -17, 0.2, 17, 0.2, 0, 1, HILL + 0.15, cx + cz);
+  p.push({ g: GEO.box, m: M4(-(R + 3.2), 0.5, 1.0, 3.2, 1.0, 1.0), c: 0x8b877d }, { g: GEO.box, m: M4(R + 3.2, 0.5, 1.0, 3.2, 1.0, 1.0), c: 0x8b877d });   // low wing walls
   const g = mergeGeos(p);
   const m = new THREE.Mesh(g, propMat); m.userData.own = true; m.castShadow = true; m.receiveShadow = true;
-  m.position.set(px, Math.min(groundY(px, pz), groundY(cx, cz)) - 0.3, pz); m.rotation.y = yaw;
+  m.position.set(px, base, pz); m.rotation.y = yaw;
   edgeRoot.add(m);
+  for (let i = 0; i < 5; i++) {                                                  // pines on the hill
+    const [wx, wz] = toW((hash2(i, cx) - 0.5) * 28, -2.5 - hash2(cz, i) * 6.5);
+    looseTree(i % 2 ? 'pine' : 'pineTall', wx, base + HILL + 0.15, wz, 0.8 + hash2(wx, wz) * 0.3);
+  }
   // the barrier: a red and white pole across the road in front of the portal, lifting for traffic
   const bar = new THREE.Group(), bp = [{ g: GEO.box, m: M4(0, 0.55, 0, 0.35, 1.1, 0.35), c: 0x3a3c40 }];
   for (let i = 0; i < 6; i++) bp.push({ g: GEO.box, m: M4(0.45 + i * 0.82, 0, 0, 0.82, 0.16, 0.16), c: i % 2 ? 0xe8e4d8 : 0xb8332a });
@@ -4830,12 +5328,12 @@ function stepBoundary(dt) {
 const RIDGE_C = [0x7d7a6c, 0x8e8b7c, 0x6c6a5e, 0x75735f, 0x857f6a];
 let thicketSpots = [];
 function mkThicket(x, z, w, d) {
-  for (let gz = z + 1.4; gz < z + d - 0.4; gz += 3.3) for (let gx = x + 1.4; gx < x + w - 0.4; gx += 3.3) {
+  for (let gz = z + 1.2; gz < z + d - 0.4; gz += 2.6) for (let gx = x + 1.2; gx < x + w - 0.4; gx += 2.6) {
     const jx = gx + (hash2(gx, gz) - 0.5) * 2.0, jz = gz + (hash2(gz, gx + 7) - 0.5) * 2.0;
     const edge = Math.min(jx - x, x + w - jx, jz - z, z + d - jz) < 3;
     thicketSpots.push([jx, jz, edge ? 0.9 + hash2(jx, jz) * 0.3 : 1.05 + hash2(jx, jz) * 0.45, hash2(jz, jx) * 6.3, hash2(jx * 1.3, jz * 0.7) < 0.55]);
   }
-  return { type: 'thicket', x, z, w, d, tall: true, h: 7 };
+  return { type: 'thicket', x, z, w, d, tall: true, h: 7 * TREE_H };
 }
 function flushThickets() {
   if (!thicketSpots.length) return;
@@ -4845,18 +5343,142 @@ function flushThickets() {
     const im = new THREE.InstancedMesh(pine ? EG.pine : EG.leaf, propMatI, L.length);
     L.forEach(([x, z, sc, r], i) => { d.position.set(x, groundY(x, z) - 0.2, z); d.rotation.set(0, r, 0); d.scale.set(sc, sc * (0.9 + hash2(x, z) * 0.25), sc); d.updateMatrix(); im.setMatrixAt(i, d.matrix); const v = 0.8 + hash2(z * 3.1, x) * 0.28; im.setColorAt(i, col.setRGB(v, v, v)); });
     im.castShadow = true; im.receiveShadow = true; im.frustumCulled = false; edgeRoot.add(im);
+    L.forEach((q, i) => regFade(im, i, q[0], q[1]));
   }
   thicketSpots = [];
 }
-function mkRidge(x, z, w, d, h) {
-  const p = [], base = groundY(x + w / 2, z + d / 2);
-  for (let gz = z + 1.2; gz < z + d; gz += 2.6) for (let gx = x + 1.2; gx < x + w; gx += 2.6) {
-    const r = 2.6 + hash2(gx, gz) * 1.4, hh = h * (0.85 + hash2(gz, gx) * 0.3);
-    p.push({ g: GEO.blob, m: M4(gx - x - w / 2 + (hash2(gx * 2, gz) - 0.5) * 1.2, hh * 0.5 - 0.3, gz - z - d / 2 + (hash2(gz * 2, gx) - 0.5) * 1.2, r * 1.5, hh * 1.25, r * 1.5, hash2(gx, gz) * 3), c: RIDGE_C[(Math.abs(gx * 7 + gz * 3) | 0) % 5] });
+/* v23 cliff kit, after the prop sheet: a face of tall six-sided rock columns of uneven height, earth showing
+   between them, a shorter column stepped out in front here and there, boulders and a bush at the foot.
+   Shared by canyon ridges, plateau cliffs and the hills over the tunnel portals. Coordinates are the mesh's own;
+   foot(x, z) gives the ground under a point in those coordinates. */
+GEO.col6 = new THREE.CylinderGeometry(0.42, 0.5, 1, 6);
+const ROCK_LO = 0x5c5b55, ROCK_HI = 0x9d9b91;
+function cliffFace(p, ax, az, bx, bz, nx, nz, H, foot, seed, o) {
+  const hMin = (o && o.hMin) || 0.66, outB = o && o.out !== undefined ? o.out : 0.1;
+  const L = Math.hypot(bx - ax, bz - az), n = Math.max(1, Math.round(L / 1.45));
+  for (let i = 0; i < n; i++) {
+    const t = (i + 0.5) / n, k = seed + i * 1.37;
+    const x = ax + (bx - ax) * t, z = az + (bz - az) * t;
+    const r = 0.7 + hash2(k, 1) * 0.55, hh = H * (hMin + hash2(k, 2) * (1.04 - hMin)), out = outB + hash2(k, 3) * 0.45;
+    const cx = x + nx * out, cz = z + nz * out, y0 = foot(cx, cz) - 0.5;
+    p.push({ g: GEO.col6, m: M4(cx, y0 + (hh + 0.5) / 2, cz, r * 2, hh + 0.5, r * 2, hash2(k, 4) * 1.05, (hash2(k, 5) - 0.5) * 0.12), c: ROCK_LO, grad: [ROCK_LO, ROCK_HI, y0, y0 + H + 0.5] });
+    if (hash2(k, 6) > 0.55) {                       // a shorter column stepped out in front
+      const r2 = r * 0.8, h2 = H * (0.25 + hash2(k, 7) * 0.25), fx = cx + nx * (r + 0.4), fz = cz + nz * (r + 0.4), f0 = foot(fx, fz) - 0.4;
+      p.push({ g: GEO.col6, m: M4(fx, f0 + (h2 + 0.4) / 2, fz, r2 * 2, h2 + 0.4, r2 * 2, hash2(k, 8), (hash2(k, 9) - 0.5) * 0.15), c: ROCK_LO, grad: [ROCK_LO, ROCK_HI, f0, f0 + H] });
+    }
+    if (hash2(k, 10) > 0.62) {                      // boulders at the foot
+      const s = 0.6 + hash2(k, 11) * 0.5, fx = cx + nx * (r + 1.1), fz = cz + nz * (r + 1.1);
+      p.push({ g: GEO.blob, m: M4(fx, foot(fx, fz) + s * 0.2, fz, s, s * 0.75, s, k), c: 0x83827a, grad: [0x6a6963, 0x9a988e, foot(fx, fz) - 0.2, foot(fx, fz) + s] });
+    }
+    if (hash2(k, 12) > 0.7) {                       // a bush or a tuft at the foot
+      const s = 0.7 + hash2(k, 13) * 0.5, fx = cx + nx * (r + 0.6) + (hash2(k, 14) - 0.5), fz = cz + nz * (r + 0.6);
+      p.push({ g: GEO.ico, m: M4(fx, foot(fx, fz) + s * 0.3, fz, s, s * 0.8, s, k), c: 0x4f7f28, grad: [0x3b6420, 0x6f9a32, foot(fx, fz), foot(fx, fz) + s] });
+    }
   }
-  for (let i = 0; i < Math.max(3, (w * d) / 40); i++) p.push({ g: GEO.blob, m: M4((hash2(i, x) - 0.5) * (w - 2), h + 0.1, (hash2(z, i) - 0.5) * (d - 2), 2.4, 0.7, 2.0, i), c: [0x5a7a36, 0x4e6e2e][i % 2] });   // scrub on top
+}
+// grass along the top lip of a cliff, so the cap reads as turf over rock as on the sheet
+function cliffLip(p, ax, az, bx, bz, nx, nz, y, seed) {
+  const L = Math.hypot(bx - ax, bz - az), n = Math.max(1, Math.round(L / 2.2));
+  for (let i = 0; i < n; i++) {
+    const t = (i + hash2(seed, i) * 0.8) / n, k = seed + i * 2.3, s = 0.7 + hash2(k, 1) * 0.6;
+    if (hash2(k, 2) > 0.6) continue;
+    const x = ax + (bx - ax) * t - nx * 0.6, z = az + (bz - az) * t - nz * 0.6, yy = typeof y === 'function' ? y(x, z) : y;
+    p.push({ g: GEO.ico, m: M4(x, yy + s * 0.3, z, s * 1.05, s * 0.82, s * 1.05, k), c: 0x5a8a2c, grad: [0x3b6420, 0x6f9a32, yy, yy + s] });
+  }
+}
+/* v24: turf over a cliff top — an undulating sheet of grass facets in the ground's own greens whose edge droops
+   and frays out over the rock, the way the sheet's cliffs read: turf, then a lip, then rock. Coordinates are
+   the mesh's; hw/hd are the half sizes of the area it covers, y the level the rim sentries stand at. */
+function turfCap(p, hw, hd, y, seed) {
+  const nx = Math.max(3, Math.round(hw * 2 / 1.3)), nz = Math.max(3, Math.round(hd * 2 / 1.3)), V = [];
+  for (let j = 0; j <= nz; j++) { V.push([]); for (let i = 0; i <= nx; i++) {
+    const edge = i === 0 || j === 0 || i === nx || j === nz, k = seed + i * 7.1 + j * 3.3;
+    let x = -hw + 2 * hw * i / nx, z = -hd + 2 * hd * j / nz, yy;
+    if (edge) {                                             // the lip: pushed out over the rock and dropped
+      const out = 0.15 + hash2(k, 1) * 0.45;
+      x += (i === 0 ? -out : i === nx ? out : (hash2(k, 2) - 0.5) * 0.5); z += (j === 0 ? -out : j === nz ? out : (hash2(k, 3) - 0.5) * 0.5);
+      yy = y - 0.3 - hash2(k, 4) * 0.35;
+    } else { x += (hash2(k, 5) - 0.5) * 0.5; z += (hash2(k, 6) - 0.5) * 0.5; yy = y + 0.05 + vnoise(x * 0.35 + seed, z * 0.35) * 0.24; }
+    V[j].push([x, yy, z, edge]);
+  } }
+  const pos = [], col = [], c = new THREE.Color();
+  const face = (A, B, C) => {
+    const cx = (A[0] + B[0] + C[0]) / 3, cz = (A[2] + B[2] + C[2]) / 3, rim = A[3] || B[3] || C[3], h = hash2(cx * 1.7 + seed, cz * 1.3);
+    const clump = vnoise(cx * 0.42 + 7.1 + seed, cz * 0.42 - 3.3) * 0.75 + h * 0.25;
+    c.copy(clump < 0.33 ? LP.lush : clump < 0.66 ? LP.mid : LP.deep).lerp(LP.dry, h * 0.25);
+    if (rim) c.multiplyScalar(0.82);                        // the lip in its own shade
+    c.multiplyScalar(0.92 + hash2(cx * 7.3, cz * 5.9) * 0.16);
+    for (const v of [A, B, C]) { pos.push(v[0], v[1], v[2]); col.push(c.r, c.g, c.b); }
+  };
+  for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
+    const a = V[j][i], b = V[j][i + 1], d = V[j + 1][i], e = V[j + 1][i + 1];
+    if ((i + j) % 2) { face(a, d, b); face(b, d, e); } else { face(a, d, e); face(a, e, b); }
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  p.push({ g, m: M4(0, 0, 0, 1, 1, 1), vc: true });
+  // what grows and pokes through: grass tufts, rocks breaking the turf, a stub of column near the edge
+  const n = Math.round(hw * hd / 6);
+  for (let q = 0; q < n; q++) {
+    const k = seed + q * 13.7, x = (hash2(k, 1) - 0.5) * 2 * (hw - 1), z = (hash2(k, 2) - 0.5) * 2 * (hd - 1), r = hash2(k, 3), yy = y + 0.1;
+    if (r < 0.5) for (let t = 0; t < 4; t++) { const a = t * 1.6 + k, hh = 0.35 + hash2(k, t) * 0.3; p.push({ g: GEO.cone, m: M4(x + Math.sin(a) * 0.25, yy + hh / 2, z + Math.cos(a) * 0.25, 0.16, hh, 0.16, a, (hash2(t, k) - 0.5) * 0.5), c: [0x6a9a34, 0x7fa83c, 0x58862c][t % 3] }); }
+    else if (r < 0.78) { const sz = 0.5 + hash2(k, 4) * 0.7; p.push({ g: GEO.blob, m: M4(x, yy, z, sz, sz * 0.6, sz * 0.9, k), c: 0x83827a, grad: [0x6a6963, 0x9a988e, yy - 0.2, yy + sz * 0.4] }); }
+    else { const sz = 0.7 + hash2(k, 5) * 0.5; p.push({ g: GEO.ico, m: M4(x, yy + sz * 0.3, z, sz, sz * 0.8, sz, k), c: 0x4f7f28, grad: [0x3b6420, 0x6f9a32, yy, yy + sz] }); }
+  }
+}
+// v26: what grows on a ridge top, each piece set on the ground there (top(x, z) in the ridge mesh's coordinates)
+function ridgeTopDecor(p, hw, hd, top, seed) {
+  const n = Math.round(hw * hd / 6);
+  for (let q = 0; q < n; q++) {
+    const k = seed + q * 13.7, x = (hash2(k, 1) - 0.5) * 2 * hw, z = (hash2(k, 2) - 0.5) * 2 * hd, r = hash2(k, 3), yy = top(x, z);
+    if (r < 0.5) for (let t = 0; t < 4; t++) { const a = t * 1.6 + k, hh = 0.35 + hash2(k, t) * 0.3; p.push({ g: GEO.cone, m: M4(x + Math.sin(a) * 0.25, yy + hh / 2, z + Math.cos(a) * 0.25, 0.16, hh, 0.16, a, (hash2(t, k) - 0.5) * 0.5), c: [0x6a9a34, 0x7fa83c, 0x58862c][t % 3] }); }
+    else if (r < 0.78) { const sz = 0.5 + hash2(k, 4) * 0.7; p.push({ g: GEO.blob, m: M4(x, yy + 0.05, z, sz, sz * 0.6, sz * 0.9, k), c: 0x83827a, grad: [0x6a6963, 0x9a988e, yy - 0.2, yy + sz * 0.4] }); }
+    else { const sz = 0.7 + hash2(k, 5) * 0.5; p.push({ g: GEO.ico, m: M4(x, yy + sz * 0.3, z, sz, sz * 0.8, sz, k), c: 0x4f7f28, grad: [0x3b6420, 0x6f9a32, yy, yy + sz] }); }
+  }
+}
+// a strip of turf along a plateau edge, from the flat top out over the lip, so the grass ends in a clean drooping edge
+function turfLip(p, ax, az, bx, bz, nx, nz, seed) {
+  const L = Math.hypot(bx - ax, bz - az), n = Math.max(1, Math.round(L / 1.0)), pos = [], col = [], c = new THREE.Color(), rows = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n, x = ax + (bx - ax) * t, z = az + (bz - az) * t, k = seed + i * 3.7;
+    const ix = x - nx * 1.7, iz = z - nz * 1.7, top = groundY(ix, iz) + 0.06, out = -0.25 + hash2(k, 1) * 0.5;
+    rows.push([[ix, top, iz], [x - nx * 0.6, top + 0.02, z - nz * 0.6], [x + nx * out, top - 0.3 - hash2(k, 2) * 0.3, z + nz * out]]);
+  }
+  for (let i = 0; i < n; i++) for (let j = 0; j < 2; j++) {
+    const A = rows[i][j], B = rows[i][j + 1], C = rows[i + 1][j], D = rows[i + 1][j + 1];
+    for (const tri of [[A, C, B], [B, C, D]]) {
+      const h = hash2(tri[0][0] * 1.7, tri[0][2] * 1.3), clump = vnoise(tri[0][0] * 0.42 + 7.1, tri[0][2] * 0.42 - 3.3);
+      c.copy(clump < 0.4 ? LP.lush : clump < 0.7 ? LP.mid : LP.deep).lerp(LP.dry, h * 0.2); if (j === 1) c.multiplyScalar(0.84);
+      for (const v of tri) { pos.push(...v); col.push(c.r, c.g, c.b); }
+    }
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  // the segment can run either way round, so check the first face and flip the lot if it faces down
+  { const u = [pos[3] - pos[0], pos[4] - pos[1], pos[5] - pos[2]], v = [pos[6] - pos[0], pos[7] - pos[1], pos[8] - pos[2]];
+    if (u[2] * v[0] - u[0] * v[2] < 0) for (let i = 0; i < pos.length; i += 9) for (let k = 0; k < 3; k++) { let t = pos[i + 3 + k]; pos[i + 3 + k] = pos[i + 6 + k]; pos[i + 6 + k] = t; t = col[i + 3 + k]; col[i + 3 + k] = col[i + 6 + k]; col[i + 6 + k] = t; } }
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  p.push({ g, m: M4(0, 0, 0, 1, 1, 1), vc: true });
+}
+// a pine from the placed-tree batch, set down anywhere (no collision): used on cliff tops
+function looseTree(kind, x, y, z, s) {
+  const im = INST.tree[TREE_KINDS.indexOf(kind)]; if (!im || im.count >= INST_MAX) return;
+  _dummy.position.set(x, y, z); _dummy.rotation.set(0, hash2(x, z) * 6.3, 0); _dummy.scale.setScalar(s); _dummy.updateMatrix();
+  im.setMatrixAt(im.count++, _dummy.matrix); im.instanceMatrix.needsUpdate = true;
+}
+function mkRidge(x, z, w, d, h) {
+  const p = [], base = groundY(x + w / 2, z + d / 2), cx = x + w / 2, cz = z + d / 2;
+  const foot = (lx, lz) => groundY(cx + lx, cz + lz) - base, hw = w / 2, hd = d / 2;
+  // v26: the top and the earth faces are the ground mesh itself (ridgeLift); this mesh is the rock in front and what grows on top
+  const top = (lx, lz) => foot(lx, lz) + h;
+  ridgeTopDecor(p, hw - 1.2, hd - 1.2, top, x * 0.3 + z * 0.7);
+  const sides = [[-hw, -hd, hw, -hd, 0, -1], [hw, hd, -hw, hd, 0, 1], [-hw, hd, -hw, -hd, -1, 0], [hw, -hd, hw, hd, 1, 0]];
+  sides.forEach(([ax, az, bx, bz, nx, nz], i) => { cliffFace(p, ax, az, bx, bz, nx, nz, h, foot, x * 0.37 + z * 0.11 + i * 17, { out: 0.0 }); cliffLip(p, ax - nx * 0.9, az - nz * 0.9, bx - nx * 0.9, bz - nz * 0.9, nx, nz, top, x + z + i * 5); });
   const m = new THREE.Mesh(mergeGeos(p), propMat); m.userData.own = true; m.castShadow = true; m.receiveShadow = true;
-  m.position.set(x + w / 2, base, z + d / 2); edgeRoot.add(m);
+  m.position.set(cx, base, cz); edgeRoot.add(m);
+  // a few pines well back from the lip, where they can't hide a man on the rim
+  for (let i = 0; i < Math.max(2, (w * d) / 220); i++) {
+    const px = cx + (hash2(i * 3, x) - 0.5) * (w - 9), pz = cz + (hash2(z, i * 3) - 0.5) * (d - 9);
+    looseTree(hash2(px, pz) > 0.5 ? 'pine' : 'pineTall', px, groundY(px, pz) + h, pz, 0.75 + hash2(pz, px) * 0.3);
+  }
   return { type: 'ridge', x, z, w, d, tall: true, h, top: base + h };
 }
 function setupMesas(M) {
@@ -4885,10 +5507,12 @@ function mesaObstacles() {
       for (const [g0, g1] of gaps) segs = segs.flatMap(([s0, s1]) => g1 <= s0 || g0 >= s1 ? [[s0, s1]] : [[s0, g0], [g1, s1]].filter(([u, v]) => v - u > 0.3));
       for (const [s0, s1] of segs) {
         out.push(along ? { type: 'cliff', x: s0, z: S.az - 0.8, w: s1 - s0, d: 1.6, tall: false } : { type: 'cliff', x: S.ax - 0.8, z: s0, w: 1.6, d: s1 - s0, tall: false });
-        for (let q = s0 + 1.0; q < s1 - 0.4; q += 2.2) {
-          const x = along ? q : S.ax + S.nx * 0.5, z = along ? S.az + S.nz * 0.5 : q, lo = groundY(x + S.nx * 2.5, z + S.nz * 2.5);
-          rocks.push({ g: GEO.blob, m: M4(x + S.nx * 0.4, lo + m.h * 0.42, z + S.nz * 0.4, 2.6 + hash2(q, m.h) * 1.0, m.h * 1.0, 2.2 + hash2(m.h, q) * 0.8, hash2(q, 3) * 3), c: RIDGE_C[(Math.abs(q * 3) | 0) % 5] });
-        }
+        // v23: the cliff kit, its foot taken from the low ground just outside the edge
+        const ax = along ? s0 : S.ax + S.nx * 0.6, az = along ? S.az + S.nz * 0.6 : s0, bx = along ? s1 : S.ax + S.nx * 0.6, bz = along ? S.az + S.nz * 0.6 : s1;
+        const lo = (px, pz) => groundY(px + S.nx * 2.5, pz + S.nz * 2.5);
+        const top = groundY((ax + bx) / 2 - S.nx * 3, (az + bz) / 2 - S.nz * 3), H = top - lo((ax + bx) / 2, (az + bz) / 2);
+        cliffFace(rocks, ax, az, bx, bz, S.nx, S.nz, H, lo, s0 * 0.7 + m.h, { hMin: 0.84, out: -0.45 });
+        cliffLip(rocks, ax - S.nx * 0.6, az - S.nz * 0.6, bx - S.nx * 0.6, bz - S.nz * 0.6, S.nx, S.nz, top, s1);
       }
     }
   }
@@ -4979,13 +5603,8 @@ function mkExtract(E) {
 // is standing near it, theirs or yours.
 function mkLorry(T) {
   const fx = Math.round(Math.sin(T.a)), fz = Math.round(Math.cos(T.a)), yaw = Math.atan2(fx, fz);
-  const p = [
-    { g: GEO.box, m: M4(0, 0.95, 1.9, 2.0, 1.3, 1.5), c: 0x5f655c }, { g: GEO.box, m: M4(0, 1.3, 2.66, 1.8, 0.5, 0.06), c: 0x26323a },
-    { g: GEO.box, m: M4(0, 0.7, 2.75, 1.9, 0.7, 0.5), c: 0x5f655c }, { g: GEO.box, m: M4(0, 0.62, -0.6, 2.0, 0.24, 4.6), c: 0x3a3c40 },
-    { g: GEO.cyl, m: M4(0, 1.45, -0.6, 2.0, 4.2, 1.6, Math.PI / 2, 0, 0), c: 0x7a7a6a }, { g: GEO.cyl, m: M4(0, 2.3, -0.4, 0.5, 0.2, 0.5), c: 0x5a5a4e },
-    { g: GEO.box, m: M4(0, 1.45, -0.6, 2.06, 0.18, 0.12), c: 0xb8332a }, { g: GEO.box, m: M4(0, 1.45, 0.6, 2.06, 0.18, 0.12), c: 0xb8332a },
-  ];
-  for (const sx of [-1, 1]) for (const zz of [-2.2, -1.1, 2.0]) p.push({ g: GEO.cyl, m: M4(sx * 1.0, 0.46, zz, 0.92, 0.32, 0.92, 0, 0, Math.PI / 2), c: 0x1e1e1c });
+  // v24: an Opel Blitz with a fuel tank on the back (the vehicle kit), drums stacked beside it
+  const p = [{ g: vehGeo('tanker', true), m: M4(0, 0, 0, 1, 1, 1), c: 0xffffff, vc: true }];
   for (let i = 0; i < 3; i++) p.push({ g: GEO.cyl, m: M4(1.9 + i * 0.75, 0.45, -1.5 + (i % 2) * 0.4, 0.62, 0.9, 0.62), c: [0x6b4a2a, 0x3a5a3a, 0x6b4a2a][i] });
   const m = new THREE.Mesh(mergeGeos(p), propMat); m.castShadow = true; m.receiveShadow = true;
   m.position.set(T.x, groundY(T.x, T.z), T.z); m.rotation.y = yaw; propRoot.add(m);
@@ -5076,7 +5695,7 @@ function destroyTarget(T, how) {
   } else if (T.kind === 'bridge') {
     bridgeZones = bridgeZones.filter(r => r !== T.zone);
     T.mesh.rotation.z = 0.35; T.mesh.position.y -= 1.6;
-    rebuildTerrain(); buildWater(); buildGrid(); buildPathGrid(); bakeLookHeights();
+    rebuildTerrain(); buildRoadStrips(); buildWater(); buildGrid(); buildPathGrid(); bakeLookHeights();   // v28: the road goes with the bridge
     spawnParts(T.x, groundY(T.x, T.z) + 1, T.z, 40, 0x8a6a3c, 10, 0.22, 1.2, 12);
     showToast('BRIDGE DOWN', 'nothing crosses here now');
   }
@@ -5197,6 +5816,7 @@ function initMission(idx) {
   bridgeZones = (M.bridge || []).map(r => ({ x0: r.x1 * MW, z0: r.z1 * MH, x1: r.x2 * MW, z1: r.z2 * MH }));
   extendRiversToEdge();
   setupMesas(M);
+  ridgeLifts = (M.obstacles || []).filter(o => o.t === 'ridge').map(o => ({ x0: o.x * MW, z0: o.z * MH, x1: (o.x + o.w) * MW, z1: (o.z + o.d) * MH, h: o.h || 5 }));
   pads = (M.buildings || []).map(b => ({
     x0: b.x * MW - 1.2, z0: b.z * MH - 1.2, x1: (b.x + b.w) * MW + 1.2, z1: (b.z + b.d) * MH + 1.2,
     y: baseY((b.x + b.w / 2) * MW, (b.z + b.d / 2) * MH),
@@ -5219,7 +5839,9 @@ function initMission(idx) {
     setRoads(list);
   }
   rebuildTerrain();
+  buildRoadStrips();
   buildTufts();
+  placeRiverRocks();
   buildWater();
   for (const r of bridgeZones) bridges.push(mkBridge(r));
   buildBoundary();
@@ -5239,6 +5861,7 @@ function initMission(idx) {
     else if (o.t === 'tower') { const t = mkTower(x, z); t.light.baseYaw = o.yaw || 0; t.light.speed = o.speed || 0.33; obs.push(t); }
     else if (o.t === 'thicket') obs.push(mkThicket(x, z, o.w * MW, o.d * MH));
     else if (o.t === 'ridge') obs.push(mkRidge(x, z, o.w * MW, o.d * MH, o.h || 5));
+    else if (o.t === 'tank') obs.push(mkHulk(x, z, o.kind || 'pz4', o.a || 0, o.burnt));
   }
   flushThickets();
   obs.push(...mesaObstacles());
@@ -5332,18 +5955,11 @@ function spawnReinforcements(n) {
 
 /*───────────────────── the truck ─────────────────────*/
 function mkTruckMesh() {
-  const parts = [
-    { g: GEO.box, m: M4(0, 1.0, 0.6, 2.2, 1.0, 5.2), c: 0x4a4e3c },                 // bed
-    { g: GEO.box, m: M4(0, 1.95, 0.9, 2.3, 1.0, 4.4), c: 0x5c5a48 },                // canvas tilt
-    { g: GEO.box, m: M4(0, 1.4, -2.3, 2.0, 1.5, 1.6), c: 0x4a4e3c },                // cab
-    { g: GEO.box, m: M4(0, 1.75, -1.75, 1.8, 0.7, 0.08), c: 0x1f2b30 },             // windscreen
-    { g: GEO.box, m: M4(0, 0.9, -3.3, 2.0, 0.9, 0.6), c: 0x3e4234 },                // bonnet
-    { g: GEO.box, m: M4(0, 0.5, -3.65, 1.6, 0.4, 0.1), c: 0x2a2a28 },
-  ];
-  for (const sx of [-1, 1]) for (const z of [-2.6, 1.0, 2.4]) parts.push({ g: GEO.cyl, m: M4(sx * 1.1, 0.5, z, 1.0, 0.4, 1.0, 0, 0, Math.PI / 2), c: 0x1e1e1c });
-  const m = new THREE.Mesh(mergeGeos(parts), propMat); m.castShadow = true; m.receiveShadow = true;
-  const l1 = new THREE.Mesh(new THREE.SphereGeometry(0.14, 6, 4), basic(0xfff0c0)); l1.position.set(-0.7, 0.9, -3.7); m.add(l1);
-  const l2 = l1.clone(); l2.position.x = 0.7; m.add(l2);
+  // v24: the Opel Blitz from the vehicle kit, turned to face -z as the old truck did (its lamps and beams are placed for that)
+  if (!vehGeoCache.blitzRev) { vehGeoCache.blitzRev = vehGeo('truck', true).clone(); vehGeoCache.blitzRev.rotateY(Math.PI); }
+  const m = new THREE.Mesh(vehGeoCache.blitzRev, propMat); m.castShadow = true; m.receiveShadow = true;
+  const l1 = new THREE.Mesh(new THREE.SphereGeometry(0.1, 6, 4), basic(0xfff0c0)); l1.position.set(-0.86, 1.12, -2.72); m.add(l1);
+  const l2 = l1.clone(); l2.position.x = 0.86; m.add(l2);
   // headlamp beams as additive cones, no real light: a sixth shadow-casting spot is not worth it
   for (const sx of [-0.7, 0.7]) { const beam = new THREE.Mesh(new THREE.ConeGeometry(2.2, 14, 14, 1, true), basic(0xffe9b0, { transparent: true, opacity: night ? 0.09 : 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }).clone()); beam.rotation.x = Math.PI / 2; beam.position.set(sx, 0.9, -10.6); m.add(beam); }
   return m;
@@ -5703,49 +6319,214 @@ function planThroughRoad(M) {
    wrecks one. */
 let roadPath = null, vehs = [], vehT = 0;
 const VEH = {
-  jeep:  { len: 3.6, w: 1.7, speed: 10, crew: 2, name: 'jeep', base: 52 },
-  truck: { len: 5.8, w: 2.3, speed: 7.5, crew: 4, name: 'lorry', base: 38 },
-  bike:  { len: 2.2, w: 1.5, speed: 12, crew: 2, name: 'motorcycle', base: 78 },
+  jeep:  { len: 3.6, w: 1.7, speed: 10, crew: 2, name: 'Kübelwagen', base: 52 },
+  truck: { len: 6.0, w: 2.3, speed: 7.5, crew: 4, name: 'lorry', base: 38 },
+  bike:  { len: 2.2, w: 1.6, speed: 12, crew: 2, name: 'motorcycle', base: 78 },
+  // v24: the half-track carries four in the back. Its armour is not modelled: a grenade under it still does the job
+  halftrack: { len: 5.9, w: 2.2, speed: 7, crew: 4, name: 'half-track', base: 34 },
 };
-const VC = { body: 0x5f655c, dark: 0x464b44, tyre: 0x1e1e1c, canvas: 0x6a6650, crew: 0x8c948e, helm: 0x575d61, skin: 0xd2a17a, glass: 0x26323a, metal: 0x3a3c40 };
+/* v24 vehicle kit, after Khal's reference sheets: Kübelwagen, BMW R75 combination, Opel Blitz, Sd.Kfz. 251,
+   Panzer IV and StuG III. Panzer grey with lighter edges, tan canvas, wooden tool handles, chunky tyres.
+   Every model faces +z, stands on y = 0 and is one merged mesh. Seen from above most of the time, so the
+   open tops (seats, benches, the crew's helmets), the spare wheels and the stowage carry the read. */
+const VC = { body: 0x5d6266, light: 0x6e7378, dark: 0x43474a, tyre: 0x262624, hub: 0x575c61, canvas: 0x857a58, canvasD: 0x6c6347,
+             wood: 0xa47c48, olive: 0x5c5a3e, lamp: 0xe6e2d2, tail: 0x8c2a22, glass: 0x2b363c, floor: 0x35383a, seat: 0x4b4b46,
+             metal: 0x3a3c40, steel: 0x8a8c8c, crew: 0x8c948e, helm: 0x575d61, skin: 0xd2a17a, track: 0x2c2d2c, rust: 0x5a4a3a };
+GEO.tyre = new THREE.CylinderGeometry(0.5, 0.5, 1, 12);
+GEO.hub = new THREE.CylinderGeometry(0.5, 0.5, 1, 10);   // a hub (not GEO.disc: that is the flat circle the decals use)
+const I4 = new THREE.Matrix4();
 const vehGeoCache = {};
 function crewMan(px, py, pz, ry) {
   return [{ g: GEO.box, m: M4(px, py + 0.28, pz, 0.42, 0.5, 0.3, ry || 0), c: VC.crew }, { g: GEO.sph, m: M4(px, py + 0.68, pz, 0.24, 0.26, 0.25), c: VC.skin },
           { g: GEO.sph, m: M4(px, py + 0.76, pz - 0.01, 0.32, 0.22, 0.34), c: VC.helm }];
 }
+// a wheel on an axle along x: chunky tyre, a pressed hub, a cap
+function wheelP(p, x, y, z, r, wd, side) {
+  const s = side || Math.sign(x) || 1;
+  p.push({ g: GEO.tyre, m: M4(x, y, z, r * 2, wd, r * 2, 0, Math.PI / 2), c: VC.tyre },
+         { g: GEO.hub, m: M4(x + s * 0.01, y, z, r * 1.25, wd + 0.02, r * 1.25, 0, Math.PI / 2), c: VC.hub },
+         { g: GEO.hub, m: M4(x + s * (wd / 2 + 0.01), y, z, r * 0.45, 0.04, r * 0.45, 0, Math.PI / 2), c: VC.dark });
+}
+const lampP = (p, x, y, z, r) => p.push({ g: GEO.sph, m: M4(x, y, z, r * 2, r * 2, r * 2), c: VC.body }, { g: GEO.sph, m: M4(x, y, z + r * 0.55, r * 1.5, r * 1.5, r * 0.6), c: VC.lamp });
+const S_ = (g, c, extra) => Object.assign({ g, m: I4, c }, extra || {});
+// a track run on one side: the belt, road wheels on its outer face, sprocket at the front, idler at the back
+function trackP(p, xc, w, z0, z1, h, nWheels, wr, rollers) {
+  const s = Math.sign(xc);
+  p.push(S_(hexa({ xb: w / 2, xf: w / 2, y: 0.05, zb: z0 + 0.45, zf: z1 - 0.45 }, { xb: w / 2, xf: w / 2, yb: h, yf: h, zb: z0, zf: z1 }, xc), VC.track));
+  for (let i = 0; i < nWheels; i++) { const z = z0 + 0.75 + i * ((z1 - z0 - 1.5) / (nWheels - 1)); wheelP(p, xc + s * (w / 2 - 0.02), wr + 0.06, z, wr, 0.1, s); }
+  wheelP(p, xc + s * (w / 2 - 0.04), h - 0.35, z1 - 0.3, 0.3, 0.12, s); wheelP(p, xc + s * (w / 2 - 0.04), h - 0.38, z0 + 0.3, 0.27, 0.12, s);
+  for (let i = 0; i < (rollers || 0); i++) p.push({ g: GEO.hub, m: M4(xc + s * (w / 2 - 0.02), h - 0.12, z0 + 1.1 + i * ((z1 - z0 - 2.2) / Math.max(1, rollers - 1)), 0.16, 0.08, 0.16, 0, Math.PI / 2), c: VC.hub });
+}
+function toolsP(p, x, y, z, len) {           // a shovel and a pick lashed to a side: wooden hafts, steel heads
+  p.push({ g: GEO.box, m: M4(x, y, z, 0.06, 0.06, len), c: VC.wood }, { g: GEO.box, m: M4(x, y, z + len / 2 + 0.12, 0.05, 0.2, 0.24), c: VC.metal },
+         { g: GEO.box, m: M4(x, y - 0.12, z - 0.15, 0.05, 0.05, len * 0.8), c: VC.wood });
+}
+function stowP(p, x, y, z, w, h, d, c) { p.push({ g: GEO.box, m: M4(x, y, z, w, h, d), c: c || VC.olive }, { g: GEO.box, m: M4(x, y + h / 2 + 0.01, z, w * 0.9, 0.02, d * 0.9), c: VC.canvasD }); }
+
+const VEH_BUILD = {
+  // ── Kübelwagen: a slab-sided tub, a sloping nose with the spare on it, a fold-down screen, canvas rolled at the back
+  kubel(p, empty) {
+    for (const sx of [-1, 1]) for (const z of [-1.15, 1.15]) wheelP(p, sx * 0.68, 0.34, z, 0.34, 0.24);
+    p.push(S_(slab(0.72, 0.42, 1.02, -1.72, 1.2, { wt: 0.76, tz0: -1.66, tz1: 1.15 }), VC.body));                         // the tub
+    p.push(S_(slab(0.62, 0.45, 1.02, 1.2, 1.86, { wt: 0.58, tz1: 1.7, yft: 0.74 }), VC.body));                              // the nose
+    for (const sx of [-1, 1]) for (const [z0, z1] of [[0.72, 1.62], [-1.62, -0.7]])                                          // flared wings over the wheels
+      p.push(S_(hexa({ xb: 0.14, xf: 0.14, y: 0.5, zb: z0, zf: z1 }, { xb: 0.1, xf: 0.1, yb: 0.8, yf: 0.8, zb: z0 + 0.12, zf: z1 - 0.12 }, sx * 0.78), VC.light));
+    p.push({ g: GEO.box, m: M4(0, 1.035, -0.32, 1.26, 0.03, 2.3), c: VC.floor });                                            // the open interior
+    for (const sx of [-1, 1]) p.push({ g: GEO.box, m: M4(sx * 0.33, 1.1, 0.22, 0.44, 0.12, 0.44), c: VC.seat }, { g: GEO.box, m: M4(sx * 0.33, 1.32, 0.0, 0.44, 0.4, 0.1), c: VC.seat });
+    p.push({ g: GEO.box, m: M4(0, 1.1, -0.85, 1.14, 0.12, 0.5), c: VC.seat }, { g: GEO.box, m: M4(0, 1.3, -1.12, 1.14, 0.36, 0.1), c: VC.seat });
+    p.push({ g: GEO.torus, m: M4e(0.33, 1.3, 0.62, 0.5, 0.5, 0.5, -0.5, 0, 0), c: VC.metal });                                  // steering wheel
+    for (const sx of [-1, 1]) p.push({ g: GEO.box, m: M4(sx * 0.68, 1.3, 0.8, 0.05, 0.56, 0.05), c: VC.dark });               // screen posts
+    p.push({ g: GEO.box, m: M4(0, 1.57, 0.8, 1.4, 0.05, 0.05), c: VC.dark }, { g: GEO.box, m: M4(0, 1.32, 0.8, 1.3, 0.46, 0.03), c: VC.glass });
+    p.push({ g: GEO.tyre, m: M4e(0, 1.0, 1.42, 0.68, 0.22, 0.68, -0.42, 0, 0), c: VC.tyre }, { g: GEO.hub, m: M4e(0, 1.03, 1.43, 0.36, 0.22, 0.36, -0.42, 0, 0), c: VC.hub });   // the spare on the nose
+    for (const sx of [-1, 1]) lampP(p, sx * 0.72, 0.9, 1.45, 0.1);
+    p.push({ g: GEO.cyl, m: M4(0, 1.18, -1.6, 0.44, 1.42, 0.4, 0, Math.PI / 2), c: VC.canvas });                              // the hood, folded
+    p.push({ g: GEO.box, m: M4(0, 1.12, -1.38, 1.3, 0.05, 0.05), c: VC.dark });
+    toolsP(p, 0.79, 0.62, -0.2, 1.0);
+    for (const sx of [-1, 1]) p.push({ g: GEO.box, m: M4(sx * 0.55, 0.82, -1.73, 0.12, 0.1, 0.04), c: VC.tail });
+    if (!empty) p.push(...crewMan(0.33, 0.8, 0.22), ...crewMan(-0.33, 0.8, 0.22));
+  },
+  // ── BMW R75 and sidecar: boxer twins jutting out, a tank, a big lamp; a boat-nosed chair with the spare on its tail
+  r75(p, empty) {
+    wheelP(p, 0, 0.33, 0.72, 0.33, 0.13); wheelP(p, 0, 0.33, -0.7, 0.33, 0.13); wheelP(p, 1.12, 0.31, -0.12, 0.31, 0.13);
+    p.push({ g: GEO.box, m: M4(0, 0.5, 0.0, 0.2, 0.16, 1.2), c: VC.dark });                                                   // frame
+    p.push({ g: GEO.box, m: M4(0, 0.45, 0.12, 0.3, 0.28, 0.4), c: VC.metal });                                                // engine
+    for (const sx of [-1, 1]) p.push({ g: GEO.cyl, m: M4(sx * 0.26, 0.47, 0.2, 0.22, 0.24, 0.22, 0, Math.PI / 2), c: VC.steel });   // boxer cylinders
+    p.push(S_(slab(0.15, 0.72, 0.94, -0.05, 0.55, { wt: 0.12, tz0: 0.0, tz1: 0.5 }), VC.body));                                // tank
+    p.push({ g: GEO.box, m: M4(0, 0.92, -0.25, 0.24, 0.08, 0.36), c: VC.seat }, { g: GEO.box, m: M4(0, 0.92, -0.66, 0.22, 0.08, 0.28), c: VC.seat });
+    p.push({ g: GEO.box, m: M4(0, 0.72, -0.7, 0.18, 0.06, 0.5), c: VC.body }, { g: GEO.box, m: M4(0, 0.7, 0.75, 0.16, 0.06, 0.46), c: VC.body });   // mudguards
+    for (const sx of [-1, 1]) p.push({ g: GEO.box, m: M4e(sx * 0.07, 0.8, 0.72, 0.04, 0.62, 0.04, -0.3, 0, 0), c: VC.metal });   // fork
+    p.push({ g: GEO.box, m: M4(0, 1.12, 0.6, 0.78, 0.04, 0.04), c: VC.metal });                                              // bars
+    lampP(p, 0, 0.98, 0.8, 0.12);
+    p.push({ g: GEO.cyl, m: M4(-0.22, 0.32, -0.5, 0.08, 0.7, 0.08, 0, 0), c: VC.rust });
+    p.push(S_(hexa({ xb: 0.28, xf: 0.18, y: 0.3, zb: -0.92, zf: 0.62 }, { xb: 0.32, xf: 0.2, yb: 0.8, yf: 0.6, zb: -0.96, zf: 0.82 }, 0.82), VC.body));   // the chair, boat-nosed
+    p.push(S_(hexa({ xb: 0.26, xf: 0.16, y: 0.8, zb: -0.05, zf: 0.6 }, { xb: 0.22, xf: 0.12, yb: 0.9, yf: 0.66, zb: 0.0, zf: 0.62 }, 0.82), VC.canvas));   // its apron
+    p.push({ g: GEO.tyre, m: M4(0.82, 0.88, -0.66, 0.6, 0.16, 0.6), c: VC.tyre }, { g: GEO.hub, m: M4(0.82, 0.9, -0.66, 0.3, 0.16, 0.3), c: VC.hub });   // spare, lying on the tail
+    p.push({ g: GEO.box, m: M4(1.16, 0.62, 0.2, 0.14, 0.38, 0.3), c: VC.olive });                                             // jerrycan
+    p.push({ g: GEO.box, m: M4(1.12, 0.66, -0.12, 0.22, 0.06, 0.6), c: VC.body });                                            // chair mudguard
+    p.push({ g: GEO.box, m: M4(0.5, 0.4, 0.0, 0.7, 0.06, 0.06), c: VC.dark }, { g: GEO.box, m: M4(0.5, 0.4, -0.6, 0.7, 0.06, 0.06), c: VC.dark });   // the frame between
+    p.push({ g: GEO.box, m: M4(0.82, 0.62, -0.95, 0.1, 0.08, 0.04), c: VC.tail }, { g: GEO.box, m: M4(0, 0.78, -0.96, 0.08, 0.08, 0.04), c: VC.tail });
+    if (!empty) p.push(...crewMan(0, 0.62, -0.2), ...crewMan(0.82, 0.35, -0.12));
+  },
+  // ── Opel Blitz: long bonnet with the tall grille, round-wing cab, planked bed under a faceted tilt, twin rear wheels
+  blitz(p, empty, tanker) {
+    for (const sx of [-1, 1]) { wheelP(p, sx * 0.93, 0.47, 2.1, 0.47, 0.3); wheelP(p, sx * 0.95, 0.47, -1.55, 0.47, 0.26); wheelP(p, sx * 0.68, 0.47, -1.55, 0.47, 0.24); }
+    p.push({ g: GEO.box, m: M4(0, 0.72, -0.2, 0.9, 0.18, 5.6), c: VC.dark });                                                 // chassis
+    p.push(S_(slab(0.55, 0.78, 1.55, 1.55, 2.95, { wt: 0.5, tz1: 2.88, yft: 1.45 }), VC.body));                               // bonnet
+    p.push({ g: GEO.box, m: M4(0, 1.13, 2.95, 0.72, 0.62, 0.06), c: VC.dark });
+    for (let i = 0; i < 7; i++) p.push({ g: GEO.box, m: M4(-0.3 + i * 0.1, 1.13, 2.98, 0.035, 0.58, 0.03), c: VC.light });    // grille slats
+    for (const sx of [-1, 1]) {
+      p.push(S_(hexa({ xb: 0.26, xf: 0.26, y: 0.62, zb: 1.4, zf: 2.78 }, { xb: 0.2, xf: 0.2, yb: 1.08, yf: 0.98, zb: 1.6, zf: 2.6 }, sx * 0.88), VC.light));   // front wings
+      lampP(p, sx * 0.86, 1.12, 2.62, 0.12);
+      p.push({ g: GEO.box, m: M4(sx * 0.6, 1.3, 2.25, 0.04, 0.3, 0.8), c: VC.dark });                                         // louvres
+      p.push({ g: GEO.box, m: M4(sx * 1.12, 2.02, 1.45, 0.06, 0.2, 0.14), c: VC.metal });                                      // mirrors
+    }
+    p.push({ g: GEO.box, m: M4(0, 0.62, 3.02, 2.2, 0.16, 0.12), c: VC.dark });                                                // bumper
+    p.push(S_(slab(1.0, 0.78, 2.36, 0.25, 1.6, { wt: 0.95, tz0: 0.3, tz1: 1.32 }), VC.body));                                  // cab
+    p.push(S_(slab(0.96, 2.36, 2.44, 0.3, 1.3, { wt: 0.86, tz0: 0.4, tz1: 1.2 }), VC.light));                                  // roof
+    p.push({ g: GEO.box, m: M4e(0, 1.96, 1.47, 1.72, 0.5, 0.05, -0.32, 0, 0), c: VC.glass });
+    for (const sx of [-1, 1]) p.push({ g: GEO.box, m: M4(sx * 1.0, 1.92, 0.95, 0.04, 0.42, 0.5), c: VC.glass });
+    if (tanker) {
+      p.push({ g: GEO.box, m: M4(0, 0.98, -1.4, 2.1, 0.2, 3.1), c: VC.dark });
+      p.push({ g: GEO.cyl, m: M4e(0, 1.62, -1.4, 1.85, 3.0, 1.45, Math.PI / 2, 0, 0), c: 0x6f6f62 });                           // the tank
+      for (const z of [-2.7, -1.4, -0.1]) p.push({ g: GEO.cyl, m: M4e(0, 1.62, z, 1.92, 0.12, 1.52, Math.PI / 2, 0, 0), c: VC.dark });
+      p.push({ g: GEO.cyl, m: M4(0, 2.4, -1.0, 0.5, 0.2, 0.5), c: VC.metal }, { g: GEO.box, m: M4(0, 1.62, -1.4, 1.9, 0.16, 0.12), c: 0xb8332a });
+    } else {
+      p.push({ g: GEO.box, m: M4(0, 1.05, -1.4, 2.26, 0.16, 3.1), c: VC.dark });                                              // bed floor
+      for (const sx of [-1, 1]) {
+        p.push({ g: GEO.box, m: M4(sx * 1.1, 1.38, -1.4, 0.08, 0.52, 3.1), c: VC.body });                                     // planked sides
+        for (const y of [1.25, 1.5]) p.push({ g: GEO.box, m: M4(sx * 1.145, y, -1.4, 0.02, 0.03, 3.08), c: VC.dark });
+        for (let i = 0; i < 4; i++) p.push({ g: GEO.box, m: M4(sx * 1.15, 1.38, -2.85 + i * 0.96, 0.05, 0.56, 0.08), c: VC.dark });   // stakes
+      }
+      p.push({ g: GEO.box, m: M4(0, 1.38, -2.94, 2.2, 0.52, 0.08), c: VC.body });                                             // tailgate
+      p.push(S_(slab(1.14, 1.62, 2.7, -2.98, 0.18, { wt: 1.0, tz0: -2.92, tz1: 0.1 }), VC.canvas, { grad: [VC.canvasD, VC.canvas, 1.6, 2.7] }));   // the tilt
+      for (const z of [-2.1, -1.3, -0.5]) p.push(S_(slab(1.02, 2.68, 2.74, z - 0.03, z + 0.03), VC.canvasD));                   // its seams
+      for (const sx of [-1, 1]) for (let i = 0; i < 5; i++) p.push({ g: GEO.box, m: M4(sx * 1.16, 1.62, -2.7 + i * 0.68, 0.04, 0.14, 0.04), c: VC.wood });   // lashings
+    }
+    p.push({ g: GEO.box, m: M4(1.05, 0.78, -0.35, 0.3, 0.34, 0.8), c: VC.metal });                                            // fuel tank
+    for (const sx of [-1, 1]) p.push({ g: GEO.box, m: M4(sx * 1.0, 0.95, -2.98, 0.12, 0.1, 0.04), c: VC.tail });
+    if (!empty) p.push(...crewMan(0.45, 0.95, 0.85), ...crewMan(-0.45, 0.95, 0.85));
+  },
+  // ── Sd.Kfz. 251: a long faceted armoured nose, the open troop compartment, steered wheels in front and tracks behind
+  sdkfz(p, empty) {
+    for (const sx of [-1, 1]) { wheelP(p, sx * 0.86, 0.42, 2.2, 0.42, 0.26); trackP(p, sx * 0.8, 0.4, -2.85, 1.25, 0.82, 6, 0.3, 0);
+      p.push(S_(hexa({ xb: 0.16, xf: 0.16, y: 0.72, zb: 1.6, zf: 2.85 }, { xb: 0.12, xf: 0.12, yb: 0.95, yf: 0.82, zb: 1.75, zf: 2.7 }, sx * 0.88), VC.light)); }
+    p.push(S_(slab(0.6, 0.45, 1.0, -2.88, 1.6, { wt: 1.06, tz0: -2.92, tz1: 1.7 }), VC.body));                                 // lower hull, flaring over the tracks
+    p.push(S_(slab(1.06, 1.0, 1.86, -2.92, 0.95, { wt: 0.93, tz0: -2.96, tz1: 1.05 }), VC.body));                               // the compartment walls, raked in
+    p.push(S_(hexa({ xb: 0.98, xf: 0.6, y: 0.8, zb: 0.95, zf: 2.95 }, { xb: 0.9, xf: 0.5, yb: 1.86, yf: 1.18, zb: 1.05, zf: 2.85 }), VC.body));   // the nose
+    p.push({ g: GEO.box, m: M4(0, 1.875, -0.95, 1.62, 0.03, 3.7), c: VC.floor });                                              // the open top
+    for (const sx of [-1, 1]) { p.push({ g: GEO.box, m: M4(sx * 0.62, 1.93, -1.3, 0.32, 0.1, 2.5), c: VC.seat }); lampP(p, sx * 0.76, 1.08, 2.55, 0.11); toolsP(p, sx * 1.04, 1.42, -1.1, 1.6); }
+    p.push({ g: GEO.box, m: M4(0, 2.0, 0.8, 0.5, 0.3, 0.06), c: VC.dark }, { g: GEO.cyl, m: M4e(0, 2.02, 1.25, 0.07, 0.9, 0.07, Math.PI / 2, 0, 0), c: VC.metal });   // MG and shield
+    for (const sx of [-1, 1]) p.push({ g: GEO.box, m: M4(sx * 0.4, 1.72, 1.07, 0.32, 0.08, 0.05), c: VC.dark });                // vision slits
+    for (const sx of [-1, 1]) p.push({ g: GEO.box, m: M4(sx * 0.8, 1.2, -2.98, 0.12, 0.1, 0.04), c: VC.tail });
+    if (!empty) for (const [x, z] of [[0.45, -0.4], [-0.45, -0.9], [0.45, -1.6], [-0.45, -2.2]]) p.push(...crewMan(x, 1.42, z));
+  },
+  // ── Panzer IV: eight road wheels a side, a slab hull, the faceted turret with its cupola and the long 75
+  pz4(p) {
+    for (const sx of [-1, 1]) { trackP(p, sx * 1.2, 0.48, -2.95, 2.95, 1.0, 8, 0.24, 4); p.push({ g: GEO.box, m: M4(sx * 1.2, 1.1, 0, 0.6, 0.05, 5.95), c: VC.dark }); }
+    p.push({ g: GEO.box, m: M4(0, 0.72, 0, 1.9, 0.75, 5.4), c: VC.body });
+    p.push(S_(slab(1.42, 1.1, 1.78, -2.85, 2.0, { wt: 1.36, tz0: -2.8, tz1: 1.75 }), VC.body));                                 // superstructure
+    p.push(S_(slab(0.95, 0.55, 1.1, 2.0, 2.92, { tz1: 2.3 }), VC.light));                                                       // the glacis
+    p.push({ g: GEO.box, m: M4(0.5, 1.5, 1.77, 0.34, 0.1, 0.04), c: VC.dark }, { g: GEO.box, m: M4(-0.45, 1.55, 1.78, 0.18, 0.18, 0.06), c: VC.dark });
+    p.push(S_(hexa({ xb: 0.95, xf: 0.95, y: 1.78, zb: -1.35, zf: 1.0 }, { xb: 0.78, xf: 0.72, yb: 2.48, yf: 2.48, zb: -1.18, zf: 0.72 }), VC.body));   // turret
+    p.push({ g: GEO.box, m: M4(0, 2.08, -1.55, 1.4, 0.48, 0.42), c: VC.body });                                                 // turret bin
+    p.push({ g: GEO.cyl, m: M4(0, 2.62, -0.55, 0.72, 0.3, 0.72), c: VC.light }, { g: GEO.hub, m: M4(0, 2.79, -0.55, 0.52, 0.04, 0.52), c: VC.dark });   // cupola
+    for (const sx of [-1, 1]) p.push({ g: GEO.box, m: M4(sx * 0.86, 2.1, -0.2, 0.06, 0.4, 0.42), c: VC.dark });
+    p.push({ g: GEO.box, m: M4(0, 2.12, 1.04, 0.64, 0.52, 0.3), c: VC.light });                                                 // mantlet
+    p.push({ g: GEO.cyl, m: M4e(0, 2.12, 1.45, 0.24, 0.6, 0.24, Math.PI / 2, 0, 0), c: VC.body }, { g: GEO.cyl, m: M4e(0, 2.12, 2.9, 0.15, 2.9, 0.15, Math.PI / 2, 0, 0), c: VC.body },
+           { g: GEO.box, m: M4(0, 2.12, 4.4, 0.26, 0.2, 0.26), c: VC.dark });                                                    // the gun
+    for (const z of [-2.2, -1.6]) p.push({ g: GEO.box, m: M4(0, 1.8, z, 1.4, 0.04, 0.4), c: VC.dark });                         // engine grilles
+    p.push({ g: GEO.cyl, m: M4(0, 0.85, -2.98, 0.36, 1.1, 0.36, 0, Math.PI / 2), c: VC.rust });                                   // muffler
+    for (const sx of [-1, 1]) { stowP(p, sx * 1.22, 1.3, 0.9, 0.42, 0.3, 0.6, VC.canvasD); toolsP(p, sx * 1.15, 1.18, -1.4, 1.4); }
+    for (const sx of [-1, 1]) lampP(p, sx * 1.05, 1.28, 2.5, 0.1);
+  },
+  // ── StuG III: the same running gear with six road wheels, a low casemate, the gun straight out of the front plate
+  stug(p) {
+    for (const sx of [-1, 1]) { trackP(p, sx * 1.2, 0.48, -2.75, 2.75, 1.0, 6, 0.3, 3); p.push({ g: GEO.box, m: M4(sx * 1.2, 1.1, 0, 0.6, 0.05, 5.55), c: VC.dark }); }
+    p.push({ g: GEO.box, m: M4(0, 0.72, 0, 1.9, 0.75, 5.1), c: VC.body });
+    p.push(S_(slab(1.42, 1.1, 1.55, -2.7, 1.9, { wt: 1.38, tz0: -2.66, tz1: 1.7 }), VC.body));
+    p.push(S_(slab(0.95, 0.55, 1.1, 1.9, 2.75, { tz1: 2.15 }), VC.light));
+    p.push(S_(hexa({ xb: 1.2, xf: 1.2, y: 1.55, zb: -0.95, zf: 1.7 }, { xb: 0.98, xf: 0.92, yb: 2.12, yf: 2.12, zb: -0.8, zf: 1.0 }), VC.body));   // casemate
+    p.push(S_(hexa({ xb: 0.32, xf: 0.26, y: 1.6, zb: 1.3, zf: 2.15 }, { xb: 0.28, xf: 0.22, yb: 2.02, yf: 1.9, zb: 1.3, zf: 2.0 }), VC.light));   // the mantlet
+    p.push({ g: GEO.cyl, m: M4e(0, 1.82, 3.55, 0.15, 2.9, 0.15, Math.PI / 2, 0, 0), c: VC.body }, { g: GEO.box, m: M4(0, 1.82, 5.05, 0.26, 0.2, 0.26), c: VC.dark });
+    p.push({ g: GEO.box, m: M4(-0.45, 2.15, -0.2, 0.5, 0.06, 0.55), c: VC.light }, { g: GEO.box, m: M4(0.45, 2.15, 0.2, 0.42, 0.06, 0.42), c: VC.light });   // hatches
+    for (const z of [-2.1, -1.5]) p.push({ g: GEO.box, m: M4(0, 1.57, z, 1.5, 0.04, 0.42), c: VC.dark });
+    p.push({ g: GEO.cyl, m: M4(0, 0.85, -2.8, 0.36, 1.1, 0.36, 0, Math.PI / 2), c: VC.rust });
+    for (const sx of [-1, 1]) { stowP(p, sx * 1.22, 1.3, -1.6, 0.42, 0.32, 0.7, VC.canvasD); toolsP(p, sx * 1.16, 1.18, 0.2, 1.4); }
+    for (const sx of [-1, 1]) lampP(p, sx * 1.0, 1.25, 2.45, 0.1);
+  },
+};
+/* v24: a parked or knocked-out tank — scenery and hard cover, no crew. Turned to a quarter so its footprint
+   stays a rectangle; it blocks movement, sight and rounds like a wall. A burnt one is scorched dark and smokes. */
+const hulkMat = propMat;
+function mkHulk(x, z, kind, a, burnt) {
+  const q = Math.round(a / (Math.PI / 2)) & 3, yaw = q * Math.PI / 2;
+  let g = vehGeo(kind);
+  if (burnt) {
+    if (!vehGeoCache[kind + '_burnt']) {
+      const b = g.clone(), c = b.attributes.color.array;
+      for (let i = 0; i < c.length; i += 3) { const k = 0.34 + hash2(i * 0.013, 7) * 0.12; c[i] = c[i] * k + 0.035; c[i + 1] = c[i + 1] * k + 0.022; c[i + 2] = c[i + 2] * k + 0.012; }
+      vehGeoCache[kind + '_burnt'] = b;
+    }
+    g = vehGeoCache[kind + '_burnt'];
+  }
+  const m = new THREE.Mesh(g, hulkMat); m.castShadow = true; m.receiveShadow = true; m.userData.own = false;
+  m.position.set(x, groundY(x, z) - (burnt ? 0.08 : 0), z); m.rotation.y = yaw + (burnt ? 0.0 : 0); propRoot.add(m);
+  if (burnt) decal(x, z, 4.2, 0x1a1410, 0.55);
+  const L = kind === 'stug' ? 5.6 : 6.0, W = 2.95, along = q % 2 === 1;
+  const hw = (along ? L : W) / 2, hd = (along ? W : L) / 2;
+  return { type: 'hulk', x: x - hw, z: z - hd, w: hw * 2, d: hd * 2, tall: true, cover: true, cx: x, cz: z, h: 2.4, mesh: m, burnt: !!burnt, smokeT: 0 };
+}
 function vehGeo(kind, empty) {
   const key = kind + (empty ? '_e' : '');
   if (vehGeoCache[key]) return vehGeoCache[key];
-  const crewMan_ = (...a) => empty ? [] : crewMan(...a);
-  const p = [], wheel = (x, z, r, wd) => p.push({ g: GEO.cyl, m: M4(x, r, z, r * 2, wd, r * 2, 0, Math.PI / 2), c: VC.tyre }, { g: GEO.cyl, m: M4(x, r, z, r * 1.1, wd + 0.02, r * 1.1, 0, Math.PI / 2), c: VC.dark });
-  if (kind === 'jeep') {
-    p.push({ g: GEO.box, m: M4(0, 0.72, 0, 1.55, 0.5, 3.3), c: VC.body }, { g: GEO.box, m: M4(0, 0.88, 1.15, 1.35, 0.3, 1.0), c: VC.body },
-           { g: GEO.box, m: M4(0, 0.6, 1.72, 1.2, 0.3, 0.1), c: VC.dark }, { g: GEO.box, m: M4(0, 1.25, 0.55, 1.45, 0.5, 0.06), c: VC.metal },
-           { g: GEO.box, m: M4(0, 1.25, 0.57, 1.3, 0.38, 0.04), c: VC.glass }, { g: GEO.cyl, m: M4(0, 0.95, -1.75, 0.6, 0.18, 0.6, 0, Math.PI / 2), c: VC.tyre });
-    for (const sx of [-1, 1]) p.push({ g: GEO.box, m: M4(sx * 0.82, 0.62, 1.15, 0.14, 0.12, 0.9), c: VC.dark }, { g: GEO.box, m: M4(sx * 0.82, 0.62, -1.1, 0.14, 0.12, 0.9), c: VC.dark });
-    for (const sx of [-0.68, 0.68]) for (const z of [-1.1, 1.15]) wheel(sx, z, 0.36, 0.26);
-    p.push(...crewMan_(0.35, 0.72, 0.1), ...crewMan_(-0.35, 0.72, 0.1));
-  } else if (kind === 'truck') {
-    p.push({ g: GEO.box, m: M4(0, 1.0, -0.6, 2.2, 0.5, 4.0), c: VC.dark }, { g: GEO.box, m: M4(0, 1.9, -0.6, 2.3, 1.4, 3.9), c: VC.canvas },
-           { g: GEO.box, m: M4(0, 1.45, 1.95, 2.0, 1.4, 1.4), c: VC.body }, { g: GEO.box, m: M4(0, 1.75, 2.66, 1.8, 0.55, 0.06), c: VC.glass },
-           { g: GEO.box, m: M4(0, 0.95, 3.05, 1.9, 0.9, 0.9), c: VC.body }, { g: GEO.box, m: M4(0, 0.85, 3.52, 1.6, 0.6, 0.08), c: VC.metal });
-    for (let i = 0; i < 4; i++) p.push({ g: GEO.box, m: M4(0, 2.62, -2.3 + i * 1.15, 2.34, 0.06, 0.1), c: 0x5a5644 });
-    for (const sx of [-1, 1]) for (const z of [-1.9, -0.9, 2.4]) wheel(sx * 1.0, z, 0.48, 0.34);
-    p.push(...crewMan_(0.45, 1.05, 1.95), ...crewMan_(-0.45, 1.05, 1.95));
-  } else {
-    // a motorcycle combination: rider, and a man in the sidecar
-    p.push({ g: GEO.box, m: M4(0, 0.6, 0, 0.3, 0.35, 1.5), c: VC.body }, { g: GEO.box, m: M4(0, 0.82, 0.25, 0.36, 0.22, 0.5), c: VC.dark },
-           { g: GEO.box, m: M4(0, 1.0, 0.72, 0.7, 0.05, 0.05), c: VC.metal }, { g: GEO.box, m: M4(0.78, 0.55, 0.1, 0.62, 0.45, 1.4), c: VC.body },
-           { g: GEO.box, m: M4(0.78, 0.8, 0.55, 0.5, 0.06, 0.4), c: VC.dark });
-    wheel(0, 0.7, 0.3, 0.12); wheel(0, -0.7, 0.3, 0.12); wheel(0.98, 0.1, 0.27, 0.12);
-    p.push(...crewMan_(0, 0.62, -0.05), ...crewMan_(0.78, 0.35, 0.2));
-  }
+  const p = [], b = { jeep: 'kubel', truck: 'blitz', bike: 'r75', halftrack: 'sdkfz', tanker: 'blitz' }[kind] || kind;
+  VEH_BUILD[b](p, empty, kind === 'tanker');
   return (vehGeoCache[key] = mergeGeos(p));
 }
 const wreckMat = new THREE.MeshPhongMaterial({ color: SC(0x2a2622), flatShading: true, shininess: 4 });
-function spawnVehicle() {
+function spawnVehicle(force) {
   if (!roadPath) return;
-  const r = Math.random(), kind = r < 0.45 ? 'jeep' : r < 0.75 ? 'truck' : 'bike', K = VEH[kind];
+  const r = Math.random(), kind = force || (r < 0.36 ? 'jeep' : r < 0.6 ? 'truck' : r < 0.84 ? 'bike' : 'halftrack'), K = VEH[kind];
   const fwd = Math.random() < 0.5, pts = fwd ? roadPath : roadPath.slice().reverse();
   const cum = [0]; for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
   const mesh_ = new THREE.Mesh(vehGeo(kind), propMat); mesh_.castShadow = true; mesh_.receiveShadow = true; propRoot.add(mesh_);
@@ -5754,7 +6535,7 @@ function spawnVehicle() {
     const beam = new THREE.Mesh(new THREE.ConeGeometry(2.4, 15, 14, 1, true), basic(0xffe9b0, { transparent: true, opacity: 0.09, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }).clone());
     beam.rotation.x = -Math.PI / 2; beam.position.set(sx, 0.9, K.len / 2 + 7.5); mesh_.add(beam); v.beams.push(beam);
   }
-  engineOn(v, K.base, kind === 'bike' ? 1100 : 520, kind === 'truck' ? 0.16 : 0.12);
+  engineOn(v, K.base, kind === 'bike' ? 1100 : 520, kind === 'truck' || kind === 'halftrack' ? 0.16 : 0.12);
   vehs.push(v); placeVehicle(v);
 }
 function placeVehicle(v) {
@@ -5768,6 +6549,7 @@ function placeVehicle(v) {
   v.mesh.visible = beyondEdge(v.x, v.z) < 5.4;   // inside the tunnel
 }
 function stepTraffic(dt) {
+  for (const o of obs) if (o.type === 'hulk' && o.burnt && Math.random() < dt * 2.2) spawnParts(o.cx + (Math.random() - 0.5) * 1.2, groundY(o.cx, o.cz) + 2.2, o.cz + (Math.random() - 0.5) * 1.2, 1, 0x3a3834, 1.2, 0.5, 2.6, -0.6);
   if (!roadPath) return;
   vehT -= dt;
   if (vehT <= 0) { if (vehs.filter(v => !v.parked && !v.dead).length < 2) spawnVehicle(); vehT = 15 + Math.random() * 22; }
@@ -5958,7 +6740,7 @@ function stepPlane(dt) {
 
 // a two-tone horn: the crew have seen you
 SFX.horn = (x, z) => { if (!AC) return; const { g, p } = place(x, z); tone('square', 415, 410, 0.26, 0.10 * g, mixSfx, p); tone('square', 415, 410, 0.3, 0.10 * g, mixSfx, p, AC.currentTime + 0.36); };
-OBIT.runover = ['run over by a lorry on a road he had been told about', 'standing in the road. The jeep did not stop', 'under the wheels of a motorcycle combination, which is a sentence nobody expected'];
+OBIT.runover = ['run over by a lorry on a road he had been told about', 'standing in the road. The Kübelwagen did not stop', 'under the wheels of a motorcycle combination, which is a sentence nobody expected'];
 // when play stops (debrief, pause screens), the engines go quiet
 function muteEngines() {
   if (!AC) return;
@@ -5972,7 +6754,7 @@ function setProne(v) {
   squadProne = v;
   for (const s of sol) if (!s.dead) s.prone = v;
   if (v) proneSince = missionTime;
-  else if (missionTime - proneSince >= AMBUSH_MIN_PRONE) {
+  else if (missionTime - proneSince >= AMBUSH_MIN_PRONE && !knife) {
     // came up out of concealment: the squad gets the drop, briefly
     for (const s of sol) if (!s.dead) { s.ambushT = AMBUSH_T; s.fireT = 0; }
     // only the sentries you actually surprised are caught out; anyone already in a
@@ -6002,6 +6784,7 @@ function update(dt) {
   if (phase !== 'play' || paused) return;
   pathBudget = 2;
   missionTime += dt;
+  quietT = Math.max(0, quietT - dt);
   globalAlert = Math.max(0, globalAlert - dt * 0.09);
   MUS.setIntensity(clamp(globalAlert / 1.4, 0, 1));
 
@@ -6046,13 +6829,36 @@ function update(dt) {
         if (s.fpath.length && Math.hypot(tx - s.x, tz - s.z) > 2.5) { tx = s.fpath[0].x; tz = s.fpath[0].z; } else s.fpath = null;
       }
     }
+    // v27: while the knife is out, the rest hold where they are; the knifeman stalks his mark, then rushes
+    if (knife && knife.s !== s) { tx = s.x; tz = s.z; }
+    const kn = knife && knife.s === s ? knife : null;
+    if (kn) {
+      kn.t += dt;
+      const e = kn.e, de = dst(s, e);
+      if (e.dead) endKnife();
+      else if (kn.t > 40) endKnife('KNIFE CALLED OFF', 'he could not get to him');
+      else if (e.state === 'engage') endKnife('HE TURNED', 'rifles, then');
+      else {
+        if (!kn.rush && de < KNIFE_RUSH && hasLOS(s.x, s.z, e.x, e.z)) kn.rush = true;
+        if (kn.rush) { s.prone = false; tx = e.x; tz = e.z; if (de < 1.05) stab(s, e); }
+        else {
+          s.prone = squadProne;
+          kn.rp -= dt;
+          if ((kn.rp <= 0 || !kn.path) && pathBudget > 0) { pathBudget--; kn.rp = 1.0; kn.path = de > 3 ? findPath(s.x, s.z, e.x, e.z) : null; }
+          if (kn.path && kn.path.length && Math.hypot(kn.path[0].x - s.x, kn.path[0].z - s.z) < 1.0) kn.path.shift();
+          const w = kn.path && kn.path.length ? kn.path[0] : null;
+          tx = w ? w.x : e.x; tz = w ? w.z : e.z;
+        }
+      }
+    }
+    if (s.F.blade) { s.knifeVis = Math.max(0, (s.knifeVis || 0) - dt); s.F.blade.visible = !!(knife && knife.s === s) || s.knifeVis > 0; }
     let d = Math.hypot(tx - s.x, tz - s.z);
     // a follower who is shooting holds his ground until the leader gets well ahead,
     // instead of being towed through the firefight by the snake
     if (s !== leader && s.lastTarget && !s.lastTarget.dead && leader && dst(s, leader) < 7.5 && !s.prone) d = 0;
     if (d > 0.35) {
       const limp = s.hp <= 1 ? 0.8 : 1;          // one round left in him and it shows
-      steerMove(s, tx, tz, s.speed * moveSpeedMul * limp, dt);
+      steerMove(s, tx, tz, s.speed * (s.prone ? 0.36 : 1) * limp * (knife && knife.s === s && knife.rush ? KNIFE_SPRINT : 1), dt);
       if (s !== leader) {
         // progress test, not motion: a man sliding up and down a wall is moving and getting nowhere
         const nd2 = Math.hypot(tx - s.x, tz - s.z);
@@ -6076,7 +6882,7 @@ function update(dt) {
     s.ambushT = Math.max(0, (s.ambushT || 0) - dt);
     const amb = s.ambushT > 0;
     // during the ambush window they come up shooting rather than waiting to be fully upright
-    const armed = !s.prone && s.proneB < (amb ? 0.62 : 0.30);
+    const armed = !s.prone && s.proneB < (amb ? 0.62 : 0.30) && !((knife || quietT > 0) && !spotted);   // v26: everyone holds fire while the knife goes in, and for a moment after
     // while the camp is unaware, hold until the target is close enough that four
     // rifles win the exchange outright. Once spotted, engage at full range.
     const eRange = spotted ? s.range : Math.min(s.range, s.K ? s.K.hold : 12.5);
@@ -6116,7 +6922,7 @@ function update(dt) {
     }
     // footfalls carry. Crawling does not.
     noiseTimer -= dt;
-    if (noiseTimer <= 0 && !squadProne && sol.some(s => !s.dead && s.moving)) {
+    if (noiseTimer <= 0 && !squadProne && !knife && sol.some(s => !s.dead && s.moving)) {
       noiseEvent(leader.x, leader.z, 9.5, 0.16);
       noiseTimer = 0.5;
     }
@@ -6411,9 +7217,9 @@ function update(dt) {
     g.t += dt;
     const p = Math.min(g.t / g.dur, 1);
     const gx = g.sx + (g.tx - g.sx) * p, gz = g.sz + (g.tz - g.sz) * p;
-    g.mesh.position.set(gx, g.sy + Math.sin(p * Math.PI) * 6.2 + (groundY(gx, gz) - g.sy) * p, gz);
+    g.mesh.position.set(gx, g.sy + Math.sin(p * Math.PI) * (g.apex || 6.2) + ((g.ey != null ? g.ey : groundY(gx, gz)) - g.sy) * p, gz);
     g.mesh.rotation.x += dt * 14; g.mesh.rotation.z += dt * 9;
-    if (p >= 1) { fxRoot.remove(g.mesh); grn.splice(i, 1); explode(g.tx, g.tz, g.sx, g.sz); }
+    if (p >= 1) { fxRoot.remove(g.mesh); grn.splice(i, 1); explode(g.tx, g.tz, g.sx, g.sz, g.ey != null); }
   }
   for (let i = nadeMarks.length - 1; i >= 0; i--) {
     const n = nadeMarks[i];
@@ -6517,7 +7323,7 @@ function update(dt) {
   stepParts(dt);
   stepBarks(dt);
   stepMarks(dt);
-  stepBirds(dt);
+  stepBirds(dt); stepTreeFade(dt);
   stepFauna(dt); stepTraffic(dt); stepBoundary(dt); stepPlane(dt);
   rigBeginFrame();
   [...sol, ...ens].forEach(u => { if (!u.dead) animateUnit(u, dt); });
@@ -6538,6 +7344,8 @@ function update(dt) {
   }
 
   if (focus && (focus.dead || !focus.visible)) setFocus(null);
+  if (knife && !focus) { const e = knife.e; xhair.visible = true; xhair.position.set(e.x, groundY(e.x, e.z) + 0.95, e.z); xhair.quaternion.copy(camera.quaternion); xhair.scale.setScalar(0.8 + Math.sin(missionTime * 8) * 0.05); }
+  else if (!focus && xhair.visible) xhair.visible = false;
   if (focus) { xhair.position.set(focus.x, groundY(focus.x, focus.z) + (focus.elev || 0) + 0.95, focus.z); xhair.quaternion.copy(camera.quaternion); const k = 1 + Math.sin(missionTime * 6) * 0.06; xhair.scale.setScalar(k); }
   updateStanceReadout();
   updFog();
@@ -6893,6 +7701,7 @@ function setWeapon(w) {
   $('bg').className = w === 'gun' ? 'on' : '';
   $('bn').className = w === 'grenade' ? 'on2' : '';
   $('bx').className = w === 'charge' ? 'on3' : '';
+  $('bk').className = w === 'knife' ? 'on4' : '';
   aimLine.visible = false;
   if (w !== 'charge') plantOrder = null;
 }
@@ -7544,10 +8353,17 @@ function order(cx, cy) {
     if (chargeCount > 0) { plantOrder = { x: tx, z: tz }; const L0 = sol.find(s => !s.dead); if (L0) { L0.tx = tx; L0.tz = tz; L0.path = findPath(L0.x, L0.z, tx, tz); } moveRing.material.color.copy(SC(0xff8a5a)); moveRing.position.set(tx, surfY(tx, tz) + 0.07, tz); moveRingT = 0.9; SFX.ui(); }
     return;
   }
+  // v27: the knife — tap a sentry and the nearest man goes in on his own
+  if (weapon === 'knife') {
+    const k = enemyAt(cx, cy);
+    if (k) startKnife(k); else showToast('KNIFE', 'tap a sentry to send a man in');
+    return;
+  }
   // tap an enemy: focus him. Tap the focused one again: release.
   const e = enemyAt(cx, cy);
   if (e) { setFocus(e === focus ? null : e); return; }
   if (focus) setFocus(null);
+  if (knife) endKnife('KNIFE CALLED OFF', 'he comes back to the squad');
   const L = sol.find(s => !s.dead);
   if (!L) return;
   L.tx = tx; L.tz = tz;
@@ -7611,6 +8427,7 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyQ' && !paused) { initAudio(); setProne(!squadProne); }
   if (e.code === 'KeyG' && !paused) setWeapon(weapon === 'gun' ? 'grenade' : 'gun');
   if (e.code === 'KeyC' && !paused && chargeCount > 0) setWeapon(weapon === 'charge' ? 'gun' : 'charge');
+  if (e.code === 'KeyK' && !paused) setWeapon(weapon === 'knife' ? 'gun' : 'knife');
   if (e.code === 'KeyX' && !paused) setFocus(null);
   if (e.code === 'Space' || e.code === 'Escape') { e.preventDefault(); togglePause(); }
   if (e.code === 'KeyR' && paused) { SFX.ui(); restartOp(); }
@@ -7675,13 +8492,11 @@ function applyGfx() {
   R.setPixelRatio(Math.min(devicePixelRatio, gfxLow ? 1 : DPR_MAX) * dprScale);
 }
 function setGfx(low) { gfxLow = low; PF.set('gs_gfx', low ? 'low' : 'high'); applyGfx(); }
-function syncSettings() { $('slooksub').textContent = LOOK.on ? 'v21 · rich' : 'v20 · plain'; $('ssndsub').textContent = audioOn ? 'on' : 'off'; $('smussub').textContent = musicOn ? 'on' : 'off'; $('sgfxsub').textContent = gfxLow ? 'low · faster' : 'high'; }
+function syncSettings() { $('ssndsub').textContent = audioOn ? 'on' : 'off'; $('smussub').textContent = musicOn ? 'on' : 'off'; $('sgfxsub').textContent = gfxLow ? 'low · faster' : 'high'; }
 function openSettings() { syncSettings(); $('settings').classList.add('on'); }
 $('ssnd').addEventListener('click', () => { initAudio(); setAudio(!audioOn); syncSettings(); SFX.ui(); });
 $('smus').addEventListener('click', () => { initAudio(); setMusic(!musicOn); syncSettings(); SFX.ui(); });
 $('sgfx').addEventListener('click', () => { setGfx(!gfxLow); syncSettings(); SFX.ui(); });
-$('slook').addEventListener('click', () => { setLook(!LOOK.on); PF.set('gs_look', LOOK.on ? '1' : '0'); syncSettings(); SFX.ui(); });
-try { if (PF.get('gs_look') === '0') setLook(false); } catch (e) { }
 $('sback').addEventListener('click', () => { SFX.ui(); $('settings').classList.remove('on'); });
 applyGfx();
 $('opsret').addEventListener('click', () => { SFX.ui(); fadeTo(goTitle, true); });
@@ -7958,6 +8773,50 @@ window.GS = { MISSIONS, get roster() { return roster; }, get fallen() { return f
   kit(i, k) { const g = activeRoster()[i]; if (g && arms.includes(k)) g.kit = k; return g && g.kit; },
   prone(v) { setProne(v === undefined ? !squadProne : v); },
   look(v) { setLook(v === undefined ? !LOOK.on : !!v); return LOOK.on; },
+  skip() { endIntro(true); },
+  // v23 prop bench: clear round the squad and stand one of each tree kind in a row in front of it
+  bench(gap) {
+    const L = sol.find(s => !s.dead) || sol[0]; this.clearArea(22); const g = gap || 5;
+    TREE_KINDS.forEach((k, i) => { const im = INST.tree[i], x = L.x + (i - (TREE_KINDS.length - 1) / 2) * g, z = L.z - 7;
+      _dummy.position.set(x, groundY(x, z), z); _dummy.rotation.set(0, i, 0); _dummy.scale.setScalar(1); _dummy.updateMatrix();
+      im.setMatrixAt(im.count++, _dummy.matrix); im.instanceMatrix.needsUpdate = true; });
+    return TREE_KINDS;
+  },
+  zoom(z) { camZoom = z; return camZoom; },
+  tgts() { return targets.map(T => ({ k: T.kind, x: +T.x.toFixed(1), z: +T.z.toFixed(1), sx: T.sx, sz: T.sz, fx: T.fx, fz: T.fz, dead: !!T.dead })); },
+  nade(x, z) { setProne(false); throwGrenade(x, z); return grn.length && { tx: grn[grn.length - 1].tx, tz: grn[grn.length - 1].tz, ey: grn[grn.length - 1].ey }; },
+  knife() { return knife && { s: knife.s.name, e: [knife.e.x, knife.e.z], rush: knife.rush, d: +dst(knife.s, knife.e).toFixed(1) }; },
+  scr(u) { const v = new THREE.Vector3(u.x, groundY(u.x, u.z) + 0.9, u.z).project(camera); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight]; },
+  // v25 line-up: the squad in a row facing the camera, three of theirs behind, blind and still (for screenshots)
+  mbench(n) {
+    const L = sol.find(s => !s.dead) || sol[0], cx = L.x, cz = L.z; this.clearArea(16); reinfSent = true;
+    const N = sol.length + (n || 3), x0 = cx - (N - 1) / 2 * 1.45;
+    sol.forEach((s, i) => { s.x = s.tx = x0 + i * 1.45; s.z = s.tz = cz; s.path = null; s.angle = s.aim = 0; s.moving = false; s.range = 0; });
+    posH.length = 0;
+    ens.forEach(e => { e.dead = true; e.mesh.visible = false; if (e.cone) { e.cone.visible = false; e.coneLine.visible = false; } });
+    const pick = ens.filter(e => !e.dog).slice(0, n || 3);
+    pick.forEach((e, i) => { e.dead = false; e.hp = e.maxHp; e.topple = 0; e.dying = 0; rigRevive(e); e.mesh.visible = true;
+      e.x = e.tx = x0 + (sol.length + i) * 1.45; e.z = e.tz = cz; e.angle = e.aim = e.homeA = 0; e.patrol = null; e.fixed = true;
+      e.visionRange = 0; e.range = 0; e.alert = 0; e.state = 'patrol'; });
+    camTgt.set(cx, 0, cz - 1); camPos.set(cx, CAM_H * camZoom, cz - 1 + CAM_Z * camZoom);
+    return pick.length;
+  },
+  car(kind) { spawnVehicle(kind); const v = vehs[vehs.length - 1]; return v && [v.kind, +v.x.toFixed(1), +v.z.toFixed(1)]; },
+  cars() { return vehs.map(v => [v.kind, +v.x.toFixed(1), +v.z.toFixed(1), v.dead]); },
+  // v24 vehicle bench: every model in a row in front of the squad (static, for screenshots)
+  vbench(kinds, gap) {
+    const L = sol.find(s => !s.dead) || sol[0]; this.clearArea(24); const K = kinds || ['jeep', 'bike', 'truck', 'halftrack', 'pz4', 'stug'], g = gap || 4.2;
+    K.forEach((k, i) => { const m = new THREE.Mesh(vehGeo(k), propMat); const x = L.x + (i - (K.length - 1) / 2) * g, z = L.z - 8;
+      m.position.set(x, groundY(x, z), z); m.rotation.y = this._vy === undefined ? -0.6 : this._vy; m.castShadow = m.receiveShadow = true; propRoot.add(m); });
+    return K;
+  },
+  env() { return { MW, MH, water: waterZones, bridges: bridgeZones, mesas: mesas.map(m => [m.x0, m.z0, m.x1, m.z1, m.h]),
+                   ridges: obs.filter(o => o.type === 'ridge').map(o => [o.x, o.z, o.w, o.d, o.h]), roads: roads.map(r => ({ k: r.kind, w: r.w, pts: r.pts })), portals: portals.map(p => [p.cx, p.cz]), hulks: obs.filter(o => o.type === 'hulk').map(o => [o.cx, o.cz, o.mesh.visible, o.mesh.position.y]) }; },
+  // put the squad down at (x, z) in a column running south, facing north — for lining a man up behind something
+  tp(x, z) { sol.forEach((s, i) => { s.x = s.tx = x; s.z = s.tz = z + i * 1.4; s.path = null; s.angle = Math.PI; });
+             posH.length = 0; camTgt.set(x, 0, z); camPos.set(x, CAM_H * camZoom, z + CAM_Z * camZoom); },
+  trees() { return obs.filter(o => o.type === 'tree').map(o => [+o.x.toFixed(1), +o.z.toFixed(1)]); },
+  glass(all) { const L = fadeTrees.filter(t => t.ghost); return all ? L.map(t => ({ x: +((t.x0 + t.x1) / 2).toFixed(1), z: +((t.z0 + t.z1) / 2).toFixed(1), f: +t.f.toFixed(2), hit: t.hit, y: [t.y0, t.y1].map(v => +v.toFixed(1)) })) : L.length; },
   // stage a clean n-v-4 in the open at `range` metres, both sides aware. Balance rig.
   // strip cover around the squad — for isolating mechanics on a clean field
   clearArea(r) {
@@ -7966,7 +8825,7 @@ window.GS = { MISSIONS, get roster() { return roster; }, get fallen() { return f
     obs = obs.filter(o => Math.hypot((o.cx !== undefined ? o.cx : o.x) - L.x, (o.cz !== undefined ? o.cz : o.z) - L.z) > (r || 16));
     resetInstances();
     for (const o of obs) {
-      if (o.type === 'tree') addInstance('tree', o.x, o.z, o.radius / 0.72, 0, 0);
+      if (o.type === 'tree') placeTree(o.x, o.z, o.s, o.rot);
       else if (o.type === 'rock') addInstance('rock', o.x, o.z, o.radius / 1.05, 0, 0);
       else if (o.type === 'bush') addInstance('bush', o.x, o.z, o.radius / 1.8, 0, -0.1);
     }
