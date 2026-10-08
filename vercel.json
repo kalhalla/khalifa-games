@@ -7,6 +7,7 @@
     { "source": "/shackleton.html",       "destination": "/shackleton/",           "permanent": true },
     { "source": "/shackleton-title.png",  "destination": "/shackleton/title.png",  "permanent": true },
     { "source": "/WildSoccer.html",       "destination": "/wildsoccer/",           "permanent": true },
-    { "source": "/glider-title.png",      "destination": "/glider/title.png",      "permanent": true }
+    { "source": "/glider-title.png",      "destination": "/glider/title.png",      "permanent": true },
+    { "source": "/mascon",                "destination": "/mascon/",               "permanent": true }
   ]
 }

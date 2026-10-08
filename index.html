@@ -5,15 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Khalifa Games — Three.js games that run in the browser</title>
 
-<meta name="description" content="I build Three.js games that run right in the browser. No installs, no engines, no launchers. Fly a glider, jump a canyon, win the league, walk on the Moon, lead a squad — just press play." />
+<meta name="description" content="I build Three.js games that run right in the browser. No installs, no engines, no launchers. Fly a glider, jump a canyon, win the league, walk on the Moon, lead a squad, build a factory on the Moon — just press play." />
 <meta property="og:type" content="website" />
 <meta property="og:title" content="Khalifa Games — browser games built with Three.js" />
-<meta property="og:description" content="Five worlds, one browser. Glider, Stuntmania '76, Fitba Crazy, Shackleton and Grunt Squad — no install, just press play." />
+<meta property="og:description" content="Six worlds, one browser. Glider, Stuntmania '76, Fitba Crazy, Shackleton, Grunt Squad and MASCON — no install, just press play." />
 <meta property="og:url" content="https://khalifa.games/" />
 <meta property="og:image" content="https://khalifa.games/glider/title.png" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="Khalifa Games — browser games built with Three.js" />
-<meta name="twitter:description" content="Five worlds, one browser. No install, just press play." />
+<meta name="twitter:description" content="Six worlds, one browser. No install, just press play." />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b1030'/%3E%3Cpath d='M5 20 L27 8 L17 24 L14.5 17.5 Z' fill='%23ffb84d'/%3E%3C/svg%3E" />
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -34,6 +34,7 @@
     --c-fitba:  #59e07a;
     --c-moon:   #b9c4d6;
     --c-grunt:  #d9c86a;
+    --c-mascon: #f0a35e;
   }
   * { box-sizing: border-box; }
   html, body { height: 100%; }
@@ -291,7 +292,7 @@
 <body>
 <script>document.body.classList.add('js');</script>
 
-<canvas id="scene" aria-label="Interactive 3D map of Khalifa's games — five floating islands, one per game"></canvas>
+<canvas id="scene" aria-label="Interactive 3D map of Khalifa's games — six floating islands, one per game"></canvas>
 
 <div id="loading" aria-hidden="true">LOADING WORLDS…</div>
 
@@ -303,7 +304,7 @@
   </div>
 
   <div id="intro">
-    <h1>FIVE WORLDS.<br>ONE <em>BROWSER.</em></h1>
+    <h1>SIX WORLDS.<br>ONE <em>BROWSER.</em></h1>
     <p>Games built with Three.js. No installs, no engines, no launchers.<br>Even this page is one — drag to look around.</p>
     <span class="press">▸ TAP AN ISLAND TO VISIT ◂</span>
   </div>
@@ -325,7 +326,7 @@
 <!-- ============ static fallback: no JS, no WebGL, crawlers ============ -->
 <section id="static">
   <header>
-    <h1>FIVE WORLDS.<br>ONE <em>BROWSER.</em></h1>
+    <h1>SIX WORLDS.<br>ONE <em>BROWSER.</em></h1>
     <p class="lede">I'm Khalifa. I build Three.js games that run right in the browser — no installs, no engines, no launchers. Pick a world and press play.</p>
     <a class="dm-link" href="https://x.com/khalbuildsapps" target="_blank" rel="noopener">DM me on X — @khalbuildsapps ↗</a>
   </header>
@@ -370,6 +371,14 @@
         <a class="btn-play" href="/grunt-squad/">▶ PLAY</a>
       </div>
     </article>
+    <article class="scard" style="--ac:#f0a35e">
+      <a href="/mascon/"><img src="/mascon/title.png" alt="MASCON — a self-replicating factory on the Moon" width="1200" height="630" loading="lazy"></a>
+      <div class="sbody">
+        <h2>MASCON</h2>
+        <p>The Seed Factory. A lunar Starship lands a 12-tonne seed on the Moon, and you drive its robots from Earth, every command 2.56 seconds late. Dig regolith, feed a furnace that splits it into oxygen, iron, aluminium and silicon, and grow a factory that builds its own robots — until one rolls off the line made entirely from the Moon.</p>
+        <a class="btn-play" href="/mascon/">▶ PLAY</a>
+      </div>
+    </article>
   </div>
   <footer>KHALIFA.GAMES · built with Three.js · <a href="https://x.com/khalbuildsapps" target="_blank" rel="noopener">@khalbuildsapps</a></footer>
 </section>
@@ -395,6 +404,10 @@ const GAMES = [
   {
     slug: "grunt", name: "GRUNT SQUAD", url: "/grunt-squad/", accent: "#d9c86a",
     desc: "Four grunts, fifteen operations. Crawl past the sentries, post a grenade through the slit, get home."
+  },
+  {
+    slug: "mascon", name: "MASCON", url: "/mascon/", accent: "#f0a35e",
+    desc: "A seed factory on the Moon, run from Earth 2.56 seconds late. Dig regolith, fire the furnace, build robots from moon rock."
   }
 ];
 
@@ -494,7 +507,7 @@ async function boot() {
   // per-face colour variation for that hand-shaded low-poly look
   const facetMat = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.95, metalness: 0 });
   function fMesh(geo, hex, variance = 0.16) {
-    const g = geo.toNonIndexed();
+    const g = geo.index ? geo.toNonIndexed() : geo; // icosahedra arrive non-indexed already
     const c = new THREE.Color(hex);
     const n = g.attributes.position.count;
     const cols = new Float32Array(n * 3);
@@ -1181,6 +1194,147 @@ async function boot() {
     };
   }
 
+  function buildMascon() {
+    const g = islandBase(6.4, 0x8a8781, 0x4a4b52);   // warm grey regolith, darker basalt below
+    const TOP = 0.66;
+
+    // impact crater: raised rim, dark floor in hard shadow
+    const rim = fMesh(jitter(new THREE.TorusGeometry(1.7, 0.42, 6, 16), 0.2), 0x9b978f, 0.16);
+    rim.rotation.x = Math.PI / 2;
+    rim.position.set(-2.9, TOP, 2.4);
+    const floor = new THREE.Mesh(new THREE.CircleGeometry(1.45, 14), mat(0x2b2b2e));
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.set(-2.9, TOP + 0.02, 2.4);
+    g.add(rim, floor);
+
+    for (const [rx, rz, rs] of [[4.3, -2.4, 0.4], [-4.6, -0.8, 0.5], [0.4, 4.6, 0.35], [4.8, 1.2, 0.3], [-1.0, -4.6, 0.45]]) {
+      const rock = fMesh(jitter(new THREE.IcosahedronGeometry(rs, 0), rs * 0.4), 0x77746e, 0.22);
+      rock.position.set(rx, TOP + rs * 0.3, rz);
+      rock.rotation.set(rx, rz, rs);
+      g.add(rock);
+    }
+
+    // the lander: white HLS-style Starship standing on its legs
+    const SHIP = new THREE.Vector3(-1.5, TOP, -1.4);
+    const ship = new THREE.Group();
+    const white = 0xeceae4;
+    const hull = fMesh(new THREE.CylinderGeometry(0.62, 0.62, 4.6, 12), white, 0.05);
+    hull.position.y = 3.0;
+    const nose = fMesh(new THREE.SphereGeometry(0.62, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), white, 0.05);
+    nose.scale.y = 1.9;
+    nose.position.y = 5.3;
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(0.635, 0.635, 0.36, 12), mat(0x1d2235));
+    band.position.y = 4.35;
+    const windows = new THREE.Mesh(new THREE.CylinderGeometry(0.64, 0.64, 0.08, 12),
+      new THREE.MeshStandardMaterial({ color: 0x222222, emissive: 0xffe3b0, emissiveIntensity: 0.9, flatShading: true }));
+    windows.position.y = 4.85;
+    const skirt = fMesh(new THREE.CylinderGeometry(0.62, 0.7, 0.5, 12), 0xd6d3cc, 0.06);
+    skirt.position.y = 0.95;
+    ship.add(hull, nose, band, windows, skirt);
+    for (let k = 0; k < 4; k++) {
+      const a = k * Math.PI / 2 + Math.PI / 4;
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.5, 0.1), mat(0xbdbab3));
+      leg.position.set(Math.cos(a) * 0.95, 0.65, Math.sin(a) * 0.95);
+      leg.rotation.set(-Math.sin(a) * 0.45, 0, Math.cos(a) * 0.45);  // top in at the hull, foot out
+      const pad = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.24, 0.08, 8), mat(0x8f8c86));
+      pad.position.set(Math.cos(a) * 1.25, 0.04, Math.sin(a) * 1.25);
+      ship.add(leg, pad);
+    }
+    ship.position.copy(SHIP);
+    g.add(ship);
+
+    // the furnace: squat block, amber slot, glowing from inside
+    const FURN = new THREE.Vector3(2.6, TOP, 1.2);
+    const furnace = new THREE.Group();
+    const fBody = fMesh(new THREE.BoxGeometry(1.5, 1.0, 1.2), 0x6e6c68, 0.1);
+    fBody.position.y = 0.5;
+    const fHood = fMesh(new THREE.BoxGeometry(1.1, 0.35, 0.9), 0x5d5b58, 0.1);
+    fHood.position.y = 1.17;
+    const flue = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 0.9, 6), mat(0x55534f));
+    flue.position.set(0.4, 1.6, -0.2);
+    const glowMat = new THREE.MeshStandardMaterial({ color: 0x331800, emissive: 0xff9a2e, emissiveIntensity: 2.0, flatShading: true });
+    const slot = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.22, 0.06), glowMat);
+    slot.position.set(0, 0.55, 0.61);
+    furnace.add(fBody, fHood, flue, slot);
+    const furnaceLight = new THREE.PointLight(0xff9a3c, 10, 6, 2);
+    furnaceLight.position.set(0, 0.7, 1.1);
+    furnace.add(furnaceLight);
+    furnace.position.copy(FURN);
+    furnace.rotation.y = -0.6;   // slot faces the ship's side of the island
+    g.add(furnace);
+
+    // ingots stacked by the furnace: what the regolith becomes
+    for (const [ix, iz, c] of [[3.9, 2.4, 0x9aa0a8], [4.2, 2.0, 0xc9ccd2], [3.7, 2.0, 0x5a6a8a]]) {
+      const ingot = fMesh(new THREE.BoxGeometry(0.42, 0.16, 0.22), c, 0.08);
+      ingot.position.set(ix, TOP + 0.08, iz);
+      ingot.rotation.y = ix;
+      g.add(ingot);
+    }
+
+    // two small rovers with drum diggers, shuttling regolith from the ship's side to the furnace
+    function rover() {
+      const r = new THREE.Group();
+      const chassis = fMesh(new THREE.BoxGeometry(0.75, 0.24, 0.5), 0xdcd8cf, 0.08);
+      chassis.position.y = 0.32;
+      const mast = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.32, 0.06), mat(0x55534f));
+      mast.position.set(-0.22, 0.6, 0);
+      const cam = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.08, 0.16), mat(0x2a2a2e));
+      cam.position.set(-0.22, 0.78, 0);
+      const drum = fMesh(new THREE.CylinderGeometry(0.2, 0.2, 0.56, 8), 0x8a6a3a, 0.12);
+      drum.rotation.x = Math.PI / 2;
+      drum.position.set(0.5, 0.24, 0);
+      r.add(chassis, mast, cam, drum);
+      for (const [wx, wz] of [[0.24, 0.3], [-0.24, 0.3], [0.24, -0.3], [-0.24, -0.3]]) {
+        const w = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.08, 8), mat(0x1c1b20));
+        w.rotation.x = Math.PI / 2;
+        w.position.set(wx, 0.13, wz);
+        r.add(w);
+      }
+      r.userData.drum = drum;
+      g.add(r);
+      return r;
+    }
+    const rovers = [rover(), rover()];
+    const A = new THREE.Vector3(SHIP.x + 1.6, TOP, SHIP.z + 1.3);   // dig site near the ship
+    const B = new THREE.Vector3(FURN.x - 1.0, TOP, FURN.z + 0.9);   // tipping point at the furnace
+    const LANE = new THREE.Vector3(B.z - A.z, 0, A.x - B.x).normalize().multiplyScalar(0.45);
+
+    // Earth, hanging in the black above the island
+    const earth = new THREE.Group();
+    const ocean = new THREE.Mesh(new THREE.IcosahedronGeometry(0.55, 2),
+      new THREE.MeshStandardMaterial({ color: 0x2f6fd0, emissive: 0x0b2350, emissiveIntensity: 0.6, roughness: 0.6, flatShading: true }));
+    earth.add(ocean);
+    for (const [lat, lon, s, c] of [[0.5, 0.3, 0.24, 0x4f8f4a], [-0.3, 1.9, 0.21, 0x6f8f47], [0.2, 3.6, 0.17, 0x5a8a4a], [1.2, 2.4, 0.17, 0xf2f4f8], [-1.2, 0.8, 0.16, 0xf2f4f8]]) {
+      const patch = fMesh(new THREE.IcosahedronGeometry(s, 0), c, 0.1);
+      patch.position.set(Math.cos(lat) * Math.cos(lon) * 0.45, Math.sin(lat) * 0.45, Math.cos(lat) * Math.sin(lon) * 0.45);
+      earth.add(patch);
+    }
+    earth.position.set(1.2, 11.2, -1.2);
+    earth.rotation.z = 0.41;
+    g.add(earth);
+
+    const smooth = u => u * u * (3 - 2 * u);
+    return {
+      group: g,
+      animate(t) {
+        rovers.forEach((r, i) => {
+          // ping-pong between dig site and furnace; each rover keeps to its own lane
+          const ph = (t * 0.16 + i * 0.5) % 1;
+          const outbound = ph < 0.5;
+          const u = smooth(outbound ? ph * 2 : 2 - ph * 2);
+          const lane = (i === 0 ? 1 : -1);
+          r.position.lerpVectors(A, B, u).addScaledVector(LANE, lane);
+          r.rotation.y = Math.atan2(-(B.z - A.z), B.x - A.x) + (outbound ? 0 : Math.PI);
+          r.userData.drum.rotation.y = t * 4;
+        });
+        const flicker = 0.85 + Math.sin(t * 7.3) * 0.08 + Math.sin(t * 3.1) * 0.07;
+        glowMat.emissiveIntensity = 1.8 * flicker;
+        furnaceLight.intensity = 9 * flicker;
+        earth.rotation.y = t * 0.12;
+      }
+    };
+  }
+
   // ---------- drifting clouds ----------
   const cloudLayer = new THREE.Group();
   {
@@ -1201,15 +1355,17 @@ async function boot() {
   }
 
   // ---------- place islands ----------
-  const R = 24;
+  // six islands, 60° apart; ring widened from 24 so neighbours keep their breathing room
+  const R = 26;
   const layout = [
-    { angle: -2.51, y: 2.0 },   // glider
-    { angle: -1.26, y: -1.2 },  // stuntmania
-    { angle: 0.0, y: 1.0 },     // fitba
-    { angle: 1.26, y: -1.6 },   // shackleton
-    { angle: 2.51, y: 0.6 }     // grunt squad
+    { angle: -2.62, y: 2.0 },   // glider
+    { angle: -1.57, y: -1.2 },  // stuntmania
+    { angle: -0.52, y: 1.0 },   // fitba
+    { angle: 0.52, y: -1.6 },   // shackleton
+    { angle: 1.57, y: 0.6 },    // grunt squad
+    { angle: 2.62, y: -0.6 }    // mascon
   ];
-  const builders = [buildGlider, buildStunt, buildFitba, buildMoon, buildGrunt];
+  const builders = [buildGlider, buildStunt, buildFitba, buildMoon, buildGrunt, buildMascon];
   const islands = [];
 
   GAMES.forEach((game, i) => {
