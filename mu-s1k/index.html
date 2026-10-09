@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="MU-S1K: a pocket groovebox for acid, techno and house, with drums, a 303-style acid synth, chords, vocal pads, sampling, a song arranger and WAV export.">
+<meta name="theme-color" content="#dcdfe1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="MU-S1K">
+<link rel="manifest" href="/mu-s1k/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/mu-s1k/apple-touch-icon.png">
+<link rel="icon" type="image/png" href="/mu-s1k/icon-192.png">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}img{max-width:100%}</style>
+<title>MU-S1K</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="/mu-s1k/app.css">
+<style>body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;overscroll-behavior:none}input,select{-webkit-user-select:text;user-select:text}button{touch-action:manipulation}.knob,.wheel,.pp{touch-action:none}</style>
+</head>
+<body>
+<div class="sheen" aria-hidden="true"></div>
+<div class="app">
+<div class="device">
+<header class="brandrow">
+<div>
+<div class="logo">MU-S1K</div>
+<div class="model">pocket groovebox</div>
+</div>
+<div class="marks">
+<div class="vsw" role="tablist" aria-label="View"><button class="cap" role="tab" data-v="home">player</button><button class="cap" role="tab" data-v="compose">compose</button></div>
+<div class="pwr"><i class="led" id="pwrLed"></i>run</div>
+<i class="hex" aria-hidden="true"></i>
+</div>
+</header>
+<div id="homeView">
+<div class="bezel pocketed"><div class="screen home-screen">
+<div class="scr-top"><span id="hKey">F minor · 130 bpm</span><span id="hState">ready</span></div>
+<div class="h-title" id="hTitle">Euphoric break</div>
+<div class="h-sub" id="hSub"></div>
+<canvas id="scope2" aria-hidden="true"></canvas>
+<div class="h-prog" aria-hidden="true"><i id="hBar"></i></div>
+<div class="scr-top"><span id="hTime">0:00</span><span id="hTotal">0:00</span></div>
+<div class="h-list" id="hList" role="listbox" aria-label="Tracks"></div>
+</div></div>
+<div>
+<div class="wheel pocketed" id="wheel2" role="slider" tabindex="0" aria-label="Choose a track"><div class="drum" id="drum2"></div></div>
+<div class="wheel-cap etch"><span>turn the wheel to choose a track</span><span>◂ ▸</span></div>
+</div>
+<div class="h-keys">
+<button class="hk play-k" id="hPlay" aria-label="Play"><svg viewBox="0 0 24 24"><path id="hIcon" d="M7 4.5v15l13-7.5z"/></svg></button>
+<button class="hk comp-k" id="hCompose">compose</button>
+</div>
+</div>
+<div id="composeView" hidden>
+<div class="bezel pocketed">
+<div class="screen" aria-live="off">
+<div class="scr-top"><span id="keyLbl">F minor</span><span id="posLbl">Song</span></div>
+<div class="scr-mid">
+<div class="bigbpm"><span id="bpmVal">130</span><small>bpm</small></div>
+<div class="scr-pos"><b id="posBar">–</b><span id="posStep">stopped</span></div>
+</div>
+<canvas id="scope" aria-hidden="true"></canvas>
+</div>
+</div>
+<div>
+<div class="wheelrow">
+<div class="wl"><span id="wName">tempo</span><b id="wVal">130 bpm</b></div>
+<div class="wheel pocketed" id="wheel" role="slider" tabindex="0" aria-label="Data wheel"><div class="drum" id="drum"></div></div>
+</div>
+<div class="wheel-cap etch"><span>data wheel</span><span>◂ drag ▸</span></div>
+</div>
+<div class="presets" id="presets" role="group" aria-label="Starting points"></div>
+<div class="bar">
+<div class="transport">
+<button id="play" class="play cap" aria-label="Play"><svg viewBox="0 0 24 24"><path id="playIcon" d="M7 4.5v15l13-7.5z"/></svg></button>
+<div class="tlabel etch"><b>play / stop</b><span>loop or whole song</span></div>
+<div class="wordmark etch" id="wmark">1 layer<br>1 section</div>
+</div>
+<div class="lchips" id="lchips" role="group" aria-label="Layers"></div>
+<nav class="tabs" role="tablist">
+<button class="tab cap" role="tab" data-tab="layers" style="--tc:var(--kick)">layers</button>
+<button class="tab cap" role="tab" data-tab="song" style="--tc:var(--signal)">song</button>
+<button class="tab cap" role="tab" data-tab="mix" style="--tc:var(--mix)">mix</button>
+</nav>
+</div>
+<section class="panel" id="p-layers" style="--tc:var(--kick)"></section>
+<section class="panel" id="p-edit" hidden></section>
+<section class="panel" id="p-song" hidden style="--tc:var(--signal)"></section>
+<section class="panel" id="p-mix" hidden style="--tc:var(--mix)"></section>
+</div>
+</div>
+<p class="hint"><b>Tap play to start.</b> Each part of your track is a layer. Tap + to add drums, an acid line, a bassline, chords, vocal chops or your own samples, and tap a layer to edit it. Every layer has a main and an alt pattern. In loop mode you hear every unmuted layer; on the song page you switch layers on and off, section by section, to build intros, drops and breaks. Drag or flick the data wheel to set the tempo; on an acid line it changes the selected note. Turn a knob by dragging up or down on it. On iPhone, flip the silent switch off if you hear nothing. Export a WAV from the song page. Your work saves on this device automatically.</p>
+</div>
+<script src="/mu-s1k/app.js"></script>
+<script>(()=>{const r=document.documentElement;let q=false;const f=()=>{q=false;const m=Math.max(1,r.scrollHeight-innerHeight);r.style.setProperty('--shift',(10+scrollY/m*80).toFixed(2))};addEventListener('scroll',()=>{if(!q){q=true;requestAnimationFrame(f)}},{passive:true});f()})();</script>
+<script>if('serviceWorker' in navigator){addEventListener('load',()=>navigator.serviceWorker.register('/mu-s1k/sw.js',{scope:'/mu-s1k/'}).catch(()=>{}))}</script>
+</body>
+</html>
