@@ -30,7 +30,7 @@
 <div class="model">pocket groovebox</div>
 </div>
 <div class="marks">
-<div class="vsw" role="tablist" aria-label="View"><button class="cap" role="tab" data-v="home">player</button><button class="cap" role="tab" data-v="compose">compose</button></div>
+<div class="vsw" role="tablist" aria-label="View"><button class="cap" role="tab" data-v="home">player</button><button class="cap" role="tab" data-v="learn">learn</button><button class="cap" role="tab" data-v="compose">compose</button></div>
 <div class="pwr"><i class="led" id="pwrLed"></i>run</div>
 <i class="hex" aria-hidden="true"></i>
 </div>
@@ -54,6 +54,7 @@
 <button class="hk comp-k" id="hCompose">compose</button>
 </div>
 </div>
+<div id="learnView" hidden></div>
 <div id="composeView" hidden>
 <div class="bezel pocketed">
 <div class="screen" aria-live="off">
@@ -92,8 +93,9 @@
 <section class="panel" id="p-mix" hidden style="--tc:var(--mix)"></section>
 </div>
 </div>
-<p class="hint"><b>Tap play to start.</b> Each part of your track is a layer. Tap + to add drums, an acid line, a bassline, chords, vocal chops or your own samples, and tap a layer to edit it. Every layer has a main and an alt pattern. In loop mode you hear every unmuted layer; on the song page you switch layers on and off, section by section, to build intros, drops and breaks. Drag or flick the data wheel to set the tempo; on an acid line it changes the selected note. Turn a knob by dragging up or down on it. On iPhone, flip the silent switch off if you hear nothing. Export a WAV from the song page. Your work saves on this device automatically.</p>
+<p class="hint"><b>New to making music?</b> Tap learn: seven short steps build a whole track with you, from the kick drum to the drop. <b>Tap play to start.</b> Each part of your track is a layer. Tap + add a sound to record your voice or pick a vocal; it is trimmed and tuned to your key. On the song page, arrange it for me builds an intro, build-ups and drops, and you can switch layers on and off section by section. Turn a knob by dragging up or down on it. Tap show advanced for the full controls. On iPhone, flip the silent switch off if you hear nothing. Your work saves on this device automatically.</p>
 </div>
+<div id="sheet" class="sheet" hidden role="dialog" aria-modal="true" aria-label="Add a sound"><div class="sheet-card panel" id="sheetCard"></div></div>
 <script src="/mu-s1k/app.js"></script>
 <script>(()=>{const r=document.documentElement;let q=false;const f=()=>{q=false;const m=Math.max(1,r.scrollHeight-innerHeight);r.style.setProperty('--shift',(10+scrollY/m*80).toFixed(2))};addEventListener('scroll',()=>{if(!q){q=true;requestAnimationFrame(f)}},{passive:true});f()})();</script>
 <script>if('serviceWorker' in navigator){addEventListener('load',()=>navigator.serviceWorker.register('/mu-s1k/sw.js',{scope:'/mu-s1k/'}).catch(()=>{}))}</script>

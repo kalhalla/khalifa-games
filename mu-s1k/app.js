@@ -109,6 +109,7 @@ return{v:3,preset:o.preset||null,name:o.name||'',bpm:o.bpm,swing:o.swing,root:o.
 }
 function load(o){if(!o||typeof o!=='object')return null;try{return o.v===3?norm(o):norm(fromV2(o))}catch(e){return null}}
 function build(k){
+if(k==='glue')return buildGlue();
 const p=PRESETS[k],pd=PAD_DEMO[k]||{};
 const full=Object.fromEntries(DR.map(d=>[d.id,P(p.drums[d.id]||'')])),bl=clone(full);bl.kick=Z();bl.clap=P('x.x.x.x.x.x.x.x.');
 const dr=mkLayer('drums',{name:'drums',pats:[full,bl],vol:.9});
@@ -121,11 +122,42 @@ const on=(d,a,c,v)=>{const o={[dr.id]:d,[ac.id]:a,[vx.id]:v};if(ch)o[ch.id]=c;re
 const secs=[{name:'intro',bars:4,on:on(1,0,0,0)},{name:'build',bars:4,on:on(2,1,1,2)},{name:'drop',bars:8,on:on(1,1,1,1)},{name:'break',bars:4,on:on(0,ch?0:1,1,2)},{name:'build',bars:2,on:on(2,1,1,2)},{name:'drop',bars:8,on:on(1,1,1,1)}];
 return norm({v:3,preset:k,name:p.name,bpm:p.bpm,swing:p.swing,root:p.root,scale:p.scale,fx:{...p.fx,filter:1,master:.8},layers:Ls,secs,mode:'song',sel:dr.id,cs:0});
 }
+/* "Euphoric break": an original track in the UK breaks / emotional-house style: broken beat, sub bass,
+   warm minor pads, plucked arpeggio, drifting vocal "ooh"s, filter-rise build-ups and a long arrangement. */
+function buildGlue(){
+const p=PRESETS.glue,z=()=>Object.fromEntries(DR.map(d=>[d.id,Z()])),dr=o=>{const x=z();for(const k in o)x[k]=P(o[k]);return x};
+const beat=mkLayer('drums',{name:'beat',vol:.92,pats:[dr({kick:'x.........x.....',clap:'....x.......x...'}),dr({clap:'....x.......x.xx'})],dvol:{kick:.95,clap:.55,hat:.4,open:.35,perc:.5}});
+const hats=mkLayer('drums',{name:'hats & shakers',col:'var(--hat)',vol:.8,pats:[dr({hat:'x.xxx.x.x.xxx.xx',open:'......x.......x.',perc:'..x....x..x...x.'}),dr({hat:'x.x.x.x.x.x.x.x.',perc:'..x.......x.....'})],dvol:{kick:.9,clap:.6,hat:.26,open:.2,perc:.3}});
+const bass=mkLayer('acid',{name:'sub bass',col:'var(--perc)',vol:.78,pats:[acidFrom([[0,0,0,1],[1,0,0,0],[6,0,0,0],[8,0,0,1],[9,0,0,0],[14,0,0,0]]),blankAcid()],p:{wave:'square',cutoff:.1,res:.06,env:.1,decay:.6,dist:.04,follow:true}});
+const pads=mkLayer('chords',{name:'warm pads',vol:.78,pats:[{mode:'pad',prog:[0,5,3,4],stab:Z()},{mode:'pad',prog:[0,5,3,4],stab:Z()}],p:{cutoff:.5,ext:true}});
+const plucks=mkLayer('chords',{name:'plucks',col:'var(--acid)',vol:.5,pats:[{mode:'arp',prog:[0,5,3,4],stab:Z()},{mode:'off',prog:[0,5,3,4],stab:Z()}],p:{cutoff:.66,ext:true}});
+const vph=m=>{const a=blankPh();Object.entries(m).forEach(([s,v])=>a[+s]=[...v]);return a};
+const vox=mkLayer('pads',{name:'vocals',vol:.85,pats:[vph({0:[2],6:[0],11:[1]}),vph({0:[7,14]})]});
+vox.pads[2].pitch=0;vox.pads[0].pitch=3;vox.pads[1].pitch=-2;vox.pads[7].vol=.6;vox.pads[14].vol=.55;
+const Ls=[beat,hats,bass,pads,plucks,vox];
+const on=o=>Object.fromEntries(Ls.map(L=>[L.id,o[L.name]||0]));
+const secs=[
+{name:'intro',bars:8,on:on({'hats & shakers':2,'warm pads':1})},
+{name:'build',bars:4,rise:true,on:on({beat:2,'hats & shakers':1,'warm pads':1,vocals:2})},
+{name:'drop',bars:8,on:on({beat:1,'hats & shakers':1,'sub bass':1,'warm pads':1,plucks:1,vocals:1})},
+{name:'break',bars:8,on:on({'warm pads':1,plucks:1,vocals:1})},
+{name:'build',bars:4,rise:true,on:on({beat:2,'hats & shakers':1,'warm pads':1,plucks:1,vocals:2})},
+{name:'drop',bars:8,on:on({beat:1,'hats & shakers':1,'sub bass':1,'warm pads':1,plucks:1,vocals:1})},
+{name:'outro',bars:4,on:on({'hats & shakers':2,'warm pads':1})}];
+return norm({v:3,preset:'glue',name:p.name,bpm:130,swing:.14,root:p.root,scale:'minor',fx:{rev:.58,dly:.36,pump:.55,filter:1,master:.82},layers:Ls,secs,mode:'song',sel:beat.id,cs:0});
+}
 function blank(){
 const dr=mkLayer('drums',{name:'drums',vol:.9});dr.pats[0].kick=P('x...x...x...x...');
 return norm({v:3,preset:null,name:'',bpm:S?S.bpm:124,swing:.06,root:S?S.root:9,scale:S?S.scale:'minor',fx:{rev:.35,dly:.3,pump:.4,filter:1,master:.8},layers:[dr],secs:[{name:'loop',bars:4,on:{[dr.id]:1}}],mode:'loop',sel:dr.id,cs:0});
 }
 const KEY='afterglow.v1';
+/* saved tracks handed over from the old mu-s1k.vercel.app address arrive in the URL hash */
+try{const h=location.hash.match(/^#move=([A-Za-z0-9_-]+)/);if(h){
+const js=JSON.parse(decodeURIComponent(escape(atob(h[1].replace(/-/g,'+').replace(/_/g,'/')))));
+for(const [k,v] of Object.entries(js||{})){if(!/^(cur|prev|slot[1-4])$/.test(k)||typeof v!=='string')continue;const kk=KEY+'.'+k;
+if(k==='cur'&&localStorage.getItem(kk)){localStorage.setItem(KEY+'.prev',v);continue}
+if(!localStorage.getItem(kk))localStorage.setItem(kk,v)}
+history.replaceState(null,'',location.pathname+location.search)}}catch(e){}
 let S=null;
 try{const raw=localStorage.getItem(KEY+'.cur');S=raw?load(JSON.parse(raw)):null}catch(e){S=null}
 if(!S)S=build('glue');
@@ -264,6 +296,8 @@ S.layers.forEach(L=>{const v=layerVar(L,sec);
 if(v<0){if(L.type==='acid'){const n=lnode(L);if(n.gate)gateOff(n,t)}return}
 playLayer(L,v,s,cb,t,sd,sec)});
 }
+/* build-ups: the master filter opens across a section marked as a rise */
+function sweepAt(t,sec,bar,st){const base=120*Math.pow(2,S.fx.filter*7.4);if(sec&&sec.rise){const p=(bar*16+st)/(sec.bars*16);N.mfilt.frequency.setTargetAtTime(Math.min(base,180*Math.pow(2,p*6.6)),t,.03);N.swept=true}else if(N.swept){N.mfilt.frequency.setTargetAtTime(base,t,.01);N.swept=false}}
 /* ---------- built-in vocal chops (formant synthesis), effects, user samples ---------- */
 const BUF={},USER={};let lastSrc={},BUILT=Promise.resolve();
 const FORM={a:[730,1090,2440],o:[570,840,2410],u:[300,870,2240],i:[270,2290,3010],e:[530,1840,2480]};
@@ -332,7 +366,7 @@ const Pd=L.pads[i];if(!Pd)return;const n=lnode(L);
 if(Pd.snd.startsWith('d:')){VOICE[Pd.snd.slice(2)](t,Pd.vol,Math.pow(2,Pd.pitch/12),n);return}
 const buf=Pd.snd==='user'?USER[Pd.sid]:BUF[Pd.snd];if(!buf)return;
 const keyed=Pd.snd.startsWith('v:')||Pd.snd==='fx:stab',sh=keyed?(((S.root+6)%12)-6):0;
-const src=ctx.createBufferSource();src.buffer=buf;src.playbackRate.value=Math.pow(2,(Pd.pitch+sh)/12);
+const src=ctx.createBufferSource();src.buffer=buf;const rt=Math.pow(2,((+Pd.pitch||0)+(+Pd.fine||0)+sh)/12);src.playbackRate.value=isFinite(rt)?rt:1;
 const g=gn(Pd.vol);src.connect(g).connect(n.out);
 const key=L.id+':'+i,prev=lastSrc[key];if(prev&&prev.c===ctx&&t<prev.end){try{prev.g.gain.cancelScheduledValues(t);prev.g.gain.setValueAtTime(prev.v,t);prev.g.gain.linearRampToValueAtTime(0,t+.015);prev.s.stop(t+.02)}catch(e){}}
 lastSrc[key]={g,s:src,c:ctx,v:Pd.vol,end:t+buf.duration/src.playbackRate.value};src.start(t);
@@ -417,7 +451,7 @@ try{
 buildGraph();applyParams();
 let t0=.05;
 plan.forEach(({si,b})=>{const sec=si<0?null:S.secs[si],cb=b%4;
-for(let st=0;st<16;st++)stepAll(st,cb,t0+st*sd+(st%2?S.swing*sd*.6:0),sd,sec);
+for(let st=0;st<16;st++){const tt=t0+st*sd+(st%2?S.swing*sd*.6:0);stepAll(st,cb,tt,sd,sec);sweepAt(tt,sec,b,st)}
 t0+=16*sd});
 }finally{ctx=lc;N=lN;lastSrc=ls;applyParams()}
 const buf=normPeak(await off.startRendering(),.97);
@@ -449,7 +483,7 @@ function sched(){
 while(nextT<ctx.currentTime+.12){
 if(secIdx>=S.secs.length)secIdx=0;
 const sd=stepDur(),t=nextT+(step%2?S.swing*sd*.6:0),cb=secBar%4;
-stepAll(step,cb,t,sd,curSec());
+stepAll(step,cb,t,sd,curSec());sweepAt(t,curSec(),secBar,step);
 hist.push({s:step,t,si:secIdx});while(hist.length>64)hist.shift();
 q.push({s:step,b:secBar,i:secIdx,t});nextT+=sd;step++;if(step===16){step=0;advanceBar()}
 }
@@ -462,11 +496,11 @@ try{navigator.wakeLock&&navigator.wakeLock.request('screen').then(l=>wl=l).catch
 paintPlay();
 }
 function stop(){
-playing=false;clearInterval(timer);const t=ctx.currentTime;
+playing=false;clearInterval(timer);const t=ctx.currentTime;if(N.swept){N.mfilt.frequency.cancelScheduledValues(t);N.mfilt.frequency.setTargetAtTime(120*Math.pow(2,S.fx.filter*7.4),t,.02);N.swept=false}
 for(const id in N.L){const n=N.L[id];if(n.amp){n.amp.gain.cancelScheduledValues(t);n.amp.gain.setValueAtTime(n.amp.gain.value,t);n.amp.gain.linearRampToValueAtTime(0,t+.02);n.gate=false}}
 q=[];cur={s:-1,b:0,i:0};highlight();try{wl&&wl.release()}catch(e){}wl=null;paintPlay();
 }
-function paintPlay(){const hp=document.getElementById('hPlay');if(hp){hp.classList.toggle('on',playing);hp.setAttribute('aria-label',playing?'Stop':'Play');document.getElementById('hIcon').setAttribute('d',playing?'M6 6h12v12H6z':'M7 4.5v15l13-7.5z');if(document.documentElement.dataset.view==='home')renderHome()}document.getElementById('pwrLed').classList.toggle('on',playing);$('#play').classList.toggle('on',playing);$('#play').setAttribute('aria-label',playing?'Stop':'Play');
+function paintPlay(){const lp=document.getElementById('lPlay');if(lp){lp.classList.toggle('on',playing);lp.setAttribute('aria-label',playing?'Stop':'Play');document.getElementById('lIcon').setAttribute('d',playing?'M6 6h12v12H6z':'M7 4.5v15l13-7.5z');const lt=document.getElementById('lPlayT');if(lt)lt.textContent=playing?'playing · tap to stop':'tap to hear your track'}const hp=document.getElementById('hPlay');if(hp){hp.classList.toggle('on',playing);hp.setAttribute('aria-label',playing?'Stop':'Play');document.getElementById('hIcon').setAttribute('d',playing?'M6 6h12v12H6z':'M7 4.5v15l13-7.5z');if(document.documentElement.dataset.view==='home')renderHome()}document.getElementById('pwrLed').classList.toggle('on',playing);$('#play').classList.toggle('on',playing);$('#play').setAttribute('aria-label',playing?'Stop':'Play');
 $('#playIcon').setAttribute('d',playing?'M6 6h12v12H6z':'M7 4.5v15l13-7.5z')}
 $('#play').addEventListener('click',()=>playing?stop():start());
 function highlight(){
@@ -536,25 +570,35 @@ if(L.type==='drums')return Array.from({length:16},(_,i)=>DR.some(d=>p[d.id][i]))
 if(L.type==='acid')return p.map(s=>!!s.on);
 if(L.type==='chords')return Array.from({length:16},(_,i)=>p.mode==='pad'?i===0:p.mode==='stab'?!!p.stab[i]:p.mode==='arp');
 return p.map(a=>a.length>0)}
+const SIMPLE_ADD=['beat','acid','bass','pad','stab','vox'];
+function setLvl(v){UI.lvl=v;saveUI();renderAll()}
 function renderLayers(){
-const p=$('#p-layers');
-p.innerHTML=`<div class="h"><h2>layers</h2><span class="meta">${S.mode==='song'?'song mode: the grid decides':'loop plays every unmuted layer'}</span></div>
-<div class="pair"><div><label for="rootSel">key</label><select id="rootSel">${NOTE.map((n,i)=>`<option value="${i}" ${i===S.root?'selected':''}>${n}</option>`).join('')}</select></div>
+const p=$('#p-layers'),sm=simple();
+p.innerHTML=`<div class="h"><h2>layers</h2><button class="btn lvlb" data-act="lvl">${sm?'show advanced':'simple view'}</button></div>
+<p class="meta" style="margin:0">${sm?'Each layer is one part of your track, like the drums or the bass. Tap a layer to change it.':(S.mode==='song'?'Song mode: the song grid decides what plays.':'Loop mode plays every unmuted layer.')}</p>
+<div class="pair adv"><div><label for="rootSel">key</label><select id="rootSel">${NOTE.map((n,i)=>`<option value="${i}" ${i===S.root?'selected':''}>${n}</option>`).join('')}</select></div>
 <div><label for="scaleSel">scale</label><select id="scaleSel">${Object.keys(SCALES).map(k=>`<option ${k===S.scale?'selected':''}>${k}</option>`).join('')}</select></div></div>
 <div class="lrows">${S.layers.map(L=>`<div class="lrow ${lg(L)>0?'':'muted'}" style="--c:${L.col}">
-<button class="lname" data-open="${L.id}"><span class="t">${esc(L.name)}<small>${TNAME[L.type]}${L.ev?' · alt':''}</small></span><span class="dots">${miniSteps(L).map((v,i)=>`<i class="dot ${v?'on':''}" data-s="${i}"></i>`).join('')}</span></button>
-<button class="ms ${L.mute?'on':''}" data-mute="${L.id}" aria-label="Mute ${esc(L.name)}" aria-pressed="${L.mute}" style="--tc:var(--hat)">M</button>
-<button class="ms ${L.solo?'on':''}" data-solo="${L.id}" aria-label="Solo ${esc(L.name)}" aria-pressed="${L.solo}" style="--tc:var(--signal)">S</button></div>`).join('')}</div>
-${S.layers.length<MAXL?`<div><div class="meta" style="margin-bottom:8px">add a layer${S.mode==='song'?` · it starts switched on in section ${S.cs+1}`:''}</div><div class="addgrid" id="addgrid">${ADD.map(([k,n,d,c])=>`<button class="addb cap" data-addk="${k}" style="--c:${c}"><b>${n}</b><small>${d}</small></button>`).join('')}</div></div>`:`<p class="meta" style="margin:0">That is the maximum of ${MAXL} layers.</p>`}`;
+<button class="lname" data-open="${L.id}"><span class="t">${esc(L.name)}<small>${TNAME[L.type]}${L.ev&&!sm?' · alt':''}</small></span><span class="dots">${miniSteps(L).map((v,i)=>`<i class="dot ${v?'on':''}" data-s="${i}"></i>`).join('')}</span></button>
+<button class="ms ${sm?'w':''} ${L.mute?'on':''}" data-mute="${L.id}" aria-label="Mute ${esc(L.name)}" aria-pressed="${L.mute}" style="--tc:var(--hat)">${sm?(L.mute?'muted':'mute'):'M'}</button>
+<button class="ms adv ${L.solo?'on':''}" data-solo="${L.id}" aria-label="Solo ${esc(L.name)}" aria-pressed="${L.solo}" style="--tc:var(--signal)">S</button></div>`).join('')}</div>
+<button class="addsnd cap" data-act="addsound"><b>+ add a sound</b><small>your voice, a ready-made vocal or a sound file</small></button>
+${S.layers.length<MAXL?`<div><div class="meta" style="margin-bottom:8px">${sm?'add an instrument':'add a layer'}${S.mode==='song'?` · it starts switched on in section ${S.cs+1}`:''}</div><div class="addgrid" id="addgrid">${ADD.map(([k,n,d,c])=>`<button class="addb cap ${SIMPLE_ADD.includes(k)?'':'adv'}" data-addk="${k}" style="--c:${c}"><b>${n}</b><small>${d}</small></button>`).join('')}</div></div>`:`<p class="meta" style="margin:0">That is the maximum of ${MAXL} layers.</p>`}`;
 highlight();
 }
 $('#p-layers').addEventListener('change',e=>{if(e.target.id==='rootSel')S.root=+e.target.value;else if(e.target.id==='scaleSel')S.scale=e.target.value;else return;save();paintKey()});
 $('#p-layers').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+if(b.dataset.act==='lvl'){setLvl(simple()?'adv':'simple');return}
+if(b.dataset.act==='addsound'){openSheet({});return}
 if(b.dataset.open){openLayer(b.dataset.open);return}
 if(b.dataset.addk){addLayer(b.dataset.addk);return}
 const id=b.dataset.mute||b.dataset.solo;if(!id)return;const L=S.layers.find(x=>x.id===id);if(!L)return;
 if(b.dataset.mute)L.mute=!L.mute;else L.solo=!L.solo;
 applyParams();save();renderLayers();renderChips()});
+function uniq(L){
+const used=new Set(S.layers.map(x=>x.col));if(used.has(L.col)){const c=COLS.find(x=>!used.has(x));if(c)L.col=c}
+const names=new Set(S.layers.map(x=>x.name));if(names.has(L.name)){let i=2;while(names.has(L.name+' '+i))i++;L.name+=' '+i}
+}
 function addLayer(k){
 if(S.layers.length>=MAXL)return;let L;
 switch(k){
@@ -569,8 +613,7 @@ case 'arp':L=mkLayer('chords',{name:'arp',vol:.7,pats:[{mode:'arp',prog:[0,5,2,4
 case 'vox':L=mkLayer('pads',{name:'vocals',vol:.9});break;
 default:L=mkLayer('pads',{name:'sampler',vol:.9,pads:Array.from({length:16},()=>({snd:'user',pitch:0,vol:.85}))});
 }
-const used=new Set(S.layers.map(x=>x.col));if(used.has(L.col)){const c=COLS.find(x=>!used.has(x));if(c)L.col=c}
-const names=new Set(S.layers.map(x=>x.name));if(names.has(L.name)){let i=2;while(names.has(L.name+' '+i))i++;L.name+=' '+i}
+uniq(L);
 S.layers.push(L);S.secs[S.cs].on[L.id]=1;
 applyParams();save();openLayer(L.id);
 }
@@ -582,48 +625,59 @@ S.sel=S.layers[0].id;delArm=null;applyParams();save();showTab('layers');
 /* layer editor: one screen per layer type, each with a main and an alt pattern */
 const PCAT=x=>x.startsWith('v:')?'var(--chords)':x.startsWith('d:')?`var(--${x.slice(2)})`:x==='user'?'var(--hat)':'var(--mix)';
 const padName=(L,i)=>{const Pd=L.pads[i];return Pd.snd==='user'?(Pd.sid?(Pd.name||'sample'):'empty'):SND_NAME[Pd.snd]};
+const simple=()=>UI.lvl!=='adv';
+const DPAT={house:{kick:'x...x...x...x...',clap:'....x.......x...',hat:'..x...x...x...x.'},breakbeat:{kick:'x.........x.....',clap:'....x.......x...',hat:'x.xxx.x.x.xxx.xx',perc:'..x....x..x...x.'},techno:{kick:'x...x...x...x...',hat:'.x.x.x.x.x.x.x.x',open:'..x...x...x...x.',perc:'.x....x...x..x..'}};
+const RIFFS=[['rolling',[[0,0,0,0],[2,0,0,0],[3,0,0,0],[6,0,0,0],[8,0,0,0],[10,0,0,0],[11,0,0,0],[14,0,0,0]]],['off-beat',[[2,0,0,0],[6,0,0,0],[10,0,0,0],[14,0,0,0]]],['squelchy',PRESETS.acid.acid.steps],['bouncy',[[0,0,1,0],[3,0,0,0],[6,7,0,1],[8,0,0,0],[11,3,1,0],[14,0,0,0]]]];
+const MOODS={happy:{scale:'major',prog:[0,4,5,3],ext:false,d:'bright and uplifting'},sad:{scale:'minor',prog:[0,5,2,6],ext:false,d:'emotional, a little melancholy'},dreamy:{scale:'dorian',prog:[0,3,5,4],ext:true,d:'soft and floating, late at night'},dark:{scale:'phrygian',prog:[0,1,0,6],ext:false,d:'tense, warehouse techno'}};
+const MODEN={pad:'long',stab:'short',arp:'rolling',off:'off'};
 const EDIT={
 drums(L){const D=L.pats[L.ev],pat=D[selTrack],d=DR.find(x=>x.id===selTrack);
 return `<div class="ov">${DR.map(t=>`<button class="ovrow ${t.id===selTrack?'sel':''} ${L.dmute[t.id]?'muted':''}" data-track="${t.id}" style="--c:var(--${t.id})"><span>${t.name}</span><span class="dots">${D[t.id].map((v,i)=>`<i class="dot ${v?'on':''}" data-s="${i}"></i>`).join('')}</span></button>`).join('')}</div>
+<p class="meta simp" style="margin:0">Choose a drum above, then tap steps to switch it on or off.</p>
 <div class="grid8" style="--tc:var(--${selTrack})">${pat.map((v,i)=>`<button class="pad ${v?'on':''} ${i%4===0?'beat':''}" data-s="${i}" data-pad="${i}" aria-pressed="${!!v}" aria-label="${d.name} step ${i+1}">${i+1}</button>`).join('')}</div>
-<div class="tools"><button class="btn ${L.dmute[selTrack]?'on':''}" data-act="vmute" style="--tc:var(--hat)">${L.dmute[selTrack]?d.name+' muted':'mute '+d.name.toLowerCase()}</button><button class="btn" data-act="clear">clear</button><button class="btn" data-act="four">every beat</button><button class="btn" data-act="off">offbeats</button></div>`},
+<div class="simp"><div class="meta" style="margin-bottom:8px">ready-made beats</div><div class="tools">${Object.keys(DPAT).map(k=>`<button class="btn" data-act="dpat" data-p="${k}">${k}</button>`).join('')}<button class="btn" data-act="dpat" data-p="clear">clear all</button></div></div>
+<div class="tools adv"><button class="btn ${L.dmute[selTrack]?'on':''}" data-act="vmute" style="--tc:var(--hat)">${L.dmute[selTrack]?d.name+' muted':'mute '+d.name.toLowerCase()}</button><button class="btn" data-act="clear">clear</button><button class="btn" data-act="four">every beat</button><button class="btn" data-act="off">offbeats</button></div>`},
 acid(L){const steps=L.pats[L.ev],st=steps[selStep];
-return `<div class="grid8">${steps.map((s,i)=>`<button class="pad acid ${s.on?'on':''} ${s.a?'acc':''} ${s.s&&s.on?'sl':''} ${i===selStep?'sel':''} ${i%4===0?'beat':''}" data-s="${i}" data-astep="${i}" aria-label="Step ${i+1}">${s.on?nn(acidMidi(L,s.d)):''}</button>`).join('')}</div>
-<div class="editor"><span class="lbl">step ${selStep+1}</span>
+return `<div class="grid8">${steps.map((s,i)=>`<button class="pad acid ${s.on?'on':''} ${s.a?'acc':''} ${s.s&&s.on?'sl':''} ${i===selStep&&!simple()?'sel':''} ${i%4===0?'beat':''}" data-s="${i}" data-astep="${i}" aria-label="Step ${i+1}">${s.on?nn(acidMidi(L,s.d)):''}</button>`).join('')}</div>
+<div class="simp"><div class="meta" style="margin-bottom:8px">ready-made riffs · tap a step to switch a note on or off</div><div class="tools">${RIFFS.map(([n],i)=>`<button class="btn" data-act="riff" data-r="${i}">${n}</button>`).join('')}<button class="btn" data-act="rand">surprise me</button></div></div>
+<div class="editor adv"><span class="lbl">step ${selStep+1}</span>
 <div class="row">
 <div class="stepper"><button class="btn" data-act="dn" aria-label="Note down">▼</button><b>${st.on?nn(acidMidi(L,st.d)):'—'}</b><button class="btn" data-act="up" aria-label="Note up">▲</button></div>
 <button class="btn ${st.on?'on':''}" data-act="on">${st.on?'on':'off'}</button>
 <button class="btn ${st.a?'on':''}" data-act="acc">accent</button>
 <button class="btn ${st.s?'on':''}" data-act="slide">slide</button>
 </div></div>
-<div class="tools"><button class="btn" data-act="rand">randomise</button><button class="btn" data-act="left" aria-label="Shift pattern left">◀ shift</button><button class="btn" data-act="right" aria-label="Shift pattern right">shift ▶</button><button class="btn" data-act="clear">clear</button></div>
-<div class="tools"><div class="seg" style="flex:1"><button class="${L.wave!=='square'?'on':''}" data-act="saw">saw</button><button class="${L.wave==='square'?'on':''}" data-act="sq">square</button></div>
+<div class="tools adv"><button class="btn" data-act="rand">randomise</button><button class="btn" data-act="left" aria-label="Shift pattern left">◀ shift</button><button class="btn" data-act="right" aria-label="Shift pattern right">shift ▶</button><button class="btn" data-act="clear">clear</button></div>
+<div class="tools adv"><div class="seg" style="flex:1"><button class="${L.wave!=='square'?'on':''}" data-act="saw">saw</button><button class="${L.wave==='square'?'on':''}" data-act="sq">square</button></div>
 <button class="btn ${L.oct?'on':''}" data-act="oct">octave up</button><button class="btn ${L.follow?'on':''}" data-act="follow">follow chords</button></div>`},
-chords(L){const pt=L.pats[L.ev];
-return `<div class="seg">${['pad','stab','arp','off'].map(m=>`<button class="${pt.mode===m?'on':''}" data-mode="${m}">${m}</button>`).join('')}</div>
-<div class="bars">${pt.prog.map((dg,i)=>`<div class="slot" data-bar="${i}"><label for="bar${i}">bar ${i+1}</label><select id="bar${i}" data-bsel="${i}">${[0,1,2,3,4,5,6].map(x=>{const ci=chordInfo(x,L);return`<option value="${x}" ${x===dg?'selected':''}>${ci.ro} · ${ci.name}</option>`}).join('')}</select></div>`).join('')}</div>
+chords(L){const pt=L.pats[L.ev],sm=simple();
+return `<div class="simp"><div class="meta" style="margin-bottom:8px">mood · this sets the key for the whole track</div><div class="choices two">${Object.entries(MOODS).map(([k,m])=>`<button class="choice cap ${L.mood===k?'on':''}" data-act="mood" data-m="${k}"><b>${k}</b><small>${m.d}</small></button>`).join('')}</div></div>
+<div><div class="meta simp" style="margin-bottom:8px">style</div><div class="seg">${['pad','stab','arp','off'].map(m=>`<button class="${pt.mode===m?'on':''}" data-mode="${m}">${sm?MODEN[m]:m}</button>`).join('')}</div></div>
+<div class="bars adv">${pt.prog.map((dg,i)=>`<div class="slot" data-bar="${i}"><label for="bar${i}">bar ${i+1}</label><select id="bar${i}" data-bsel="${i}">${[0,1,2,3,4,5,6].map(x=>{const ci=chordInfo(x,L);return`<option value="${x}" ${x===dg?'selected':''}>${ci.ro} · ${ci.name}</option>`}).join('')}</select></div>`).join('')}</div>
 ${pt.mode==='stab'?`<div><div class="meta" style="margin-bottom:8px">stab rhythm</div><div class="grid8">${pt.stab.map((v,i)=>`<button class="pad ${v?'on':''} ${i%4===0?'beat':''}" data-s="${i}" data-stab="${i}" aria-pressed="${!!v}" aria-label="Stab step ${i+1}">${i+1}</button>`).join('')}</div></div>`:''}
-<div class="tools"><button class="btn ${L.ext?'on':''}" data-act="ext">add 7ths</button></div>`},
+<div class="tools adv"><button class="btn ${L.ext?'on':''}" data-act="ext">add 7ths</button></div>`},
 pads(L){const Pd=L.pads[selPad],ph=L.pats[L.ev],has=Pd.snd!=='user'||USER[Pd.sid];
-return `<div class="pp-grid">${L.pads.map((x,i)=>`<button class="pp ${padSel&&i===selPad?'psel':''} ${x.snd==='user'&&!USER[x.sid]?'empty':''}" data-pp="${i}" style="--pc:${PCAT(x.snd)}" aria-label="Pad ${i+1}, ${esc(padName(L,i))}"><span>${esc(padName(L,i))}</span><small>${i+1}</small></button>`).join('')}</div>
-<div class="tools"><button class="btn ${rec?'on':''}" data-act="rec" style="--tc:var(--kick)">${rec?'● recording':'● rec'}</button><button class="btn ${padSel?'on':''}" data-act="sel">select pad</button><button class="btn" data-act="clrpad">clear pad ${selPad+1}</button><button class="btn" data-act="clrall">clear all</button></div>
+return `<p class="meta simp" style="margin:0">Tap a pad to hear it. Tap steps below to make the selected pad play there.</p>
+<div class="pp-grid">${L.pads.map((x,i)=>`<button class="pp ${(padSel||simple())&&i===selPad?'psel':''} ${x.snd==='user'&&!USER[x.sid]?'empty':''}" data-pp="${i}" style="--pc:${PCAT(x.snd)}" aria-label="Pad ${i+1}, ${esc(padName(L,i))}"><span>${esc(padName(L,i))}</span><small>${i+1}</small></button>`).join('')}</div>
+<div class="tools simp"><button class="btn on" data-act="addsound" style="--tc:var(--hat)">+ add a sound</button><button class="btn ${rec?'on':''}" data-act="rec" style="--tc:var(--kick)">${rec?'● recording what you play':'● record what I play'}</button></div>
+<div class="tools adv"><button class="btn ${rec?'on':''}" data-act="rec" style="--tc:var(--kick)">${rec?'● recording':'● rec'}</button><button class="btn ${padSel?'on':''}" data-act="sel">select pad</button><button class="btn" data-act="clrpad">clear pad ${selPad+1}</button><button class="btn" data-act="clrall">clear all</button></div>
 <div><div class="meta" style="margin-bottom:8px">pad ${selPad+1} · ${esc(padName(L,selPad))}. Tap a step to place it.</div>
 <div class="grid8">${ph.map((a,st)=>`<button class="pad ${a.includes(selPad)?'on':''} ${st%4===0?'beat':''}" data-s="${st}" data-ps="${st}" style="--tc:${PCAT(Pd.snd)}" aria-pressed="${a.includes(selPad)}" aria-label="Step ${st+1}">${a.length&&!a.includes(selPad)?'•'.repeat(Math.min(3,a.length)):st+1}</button>`).join('')}</div></div>
-<div class="editor"><label class="lbl" for="padSnd">pad ${selPad+1} sound</label><div class="row" style="min-width:0"><select id="padSnd" style="max-width:100%">${PADS_DEF.map(([id,n])=>`<option value="${id}" ${Pd.snd===id?'selected':''}>${n}</option>`).join('')}<option value="user" ${Pd.snd==='user'?'selected':''}>${Pd.snd==='user'&&USER[Pd.sid]?'your sample: '+esc(Pd.name||''):'your sample (record one)'}</option></select></div></div>
-<div class="tools"><button class="btn ${recState?'on':''}" data-act="mic" style="--tc:var(--kick)">${recState?'■ stop':'● sample mic'}</button><button class="btn" data-act="file">load a sound file</button><input type="file" id="padFile" accept="audio/*" hidden></div>
-<div class="status" id="padMsg" role="status">${has?'':'This pad is empty. Tap sample mic to record into it, or load a sound file.'}</div>`}
+<div class="editor adv"><label class="lbl" for="padSnd">pad ${selPad+1} sound</label><div class="row" style="min-width:0"><select id="padSnd" style="max-width:100%">${PADS_DEF.map(([id,n])=>`<option value="${id}" ${Pd.snd===id?'selected':''}>${n}</option>`).join('')}<option value="user" ${Pd.snd==='user'?'selected':''}>${Pd.snd==='user'&&USER[Pd.sid]?'your sample: '+esc(Pd.name||''):'your sample (record one)'}</option></select></div></div>
+<div class="tools adv"><button class="btn ${recState?'on':''}" data-act="mic" style="--tc:var(--kick)">${recState?'■ stop':'● sample mic'}</button><button class="btn" data-act="file">load a sound file</button><button class="btn" data-act="addsound">+ add a sound</button><input type="file" id="padFile" accept="audio/*" hidden></div>
+<div class="status" id="padMsg" role="status">${has?'':'This pad is empty. Tap + add a sound to record or pick one.'}</div>`}
 };
 const KNOBS={
-drums(L,i){const d=DR.find(x=>x.id===selTrack);return[[d.name.toLowerCase()+' level',`layers.${i}.dvol.${selTrack}`,0,1,.01,pct],[d.name.toLowerCase()+' tune',`layers.${i}.dtune.${selTrack}`,-12,12,1,stF],['layer level',`layers.${i}.vol`,0,1,.01,pct]]},
-acid(L,i){return[['cutoff',`layers.${i}.cutoff`,0,1,.01,pct],['resonance',`layers.${i}.res`,0,1,.01,pct],['env mod',`layers.${i}.env`,0,1,.01,pct],['decay',`layers.${i}.decay`,0,1,.01,pct],['drive',`layers.${i}.dist`,0,1,.01,pct],['level',`layers.${i}.vol`,0,1,.01,pct]]},
-chords(L,i){return[['brightness',`layers.${i}.cutoff`,0,1,.01,pct],['level',`layers.${i}.vol`,0,1,.01,pct]]},
-pads(L,i){return[[`pad ${selPad+1} pitch`,`layers.${i}.pads.${selPad}.pitch`,-12,12,1,stF],[`pad ${selPad+1} level`,`layers.${i}.pads.${selPad}.vol`,0,1,.01,pct],['layer level',`layers.${i}.vol`,0,1,.01,pct]]}
+drums(L,i){if(simple())return[['volume',`layers.${i}.vol`,0,1,.01,pct]];const d=DR.find(x=>x.id===selTrack);return[[d.name.toLowerCase()+' level',`layers.${i}.dvol.${selTrack}`,0,1,.01,pct],[d.name.toLowerCase()+' tune',`layers.${i}.dtune.${selTrack}`,-12,12,1,stF],['layer level',`layers.${i}.vol`,0,1,.01,pct]]},
+acid(L,i){if(simple())return[['brightness',`layers.${i}.cutoff`,0,1,.01,pct],['squelch',`layers.${i}.res`,0,1,.01,pct],['volume',`layers.${i}.vol`,0,1,.01,pct]];return[['cutoff',`layers.${i}.cutoff`,0,1,.01,pct],['resonance',`layers.${i}.res`,0,1,.01,pct],['env mod',`layers.${i}.env`,0,1,.01,pct],['decay',`layers.${i}.decay`,0,1,.01,pct],['drive',`layers.${i}.dist`,0,1,.01,pct],['level',`layers.${i}.vol`,0,1,.01,pct]]},
+chords(L,i){return[['brightness',`layers.${i}.cutoff`,0,1,.01,pct],[simple()?'volume':'level',`layers.${i}.vol`,0,1,.01,pct]]},
+pads(L,i){if(simple())return[['volume',`layers.${i}.vol`,0,1,.01,pct]];return[[`pad ${selPad+1} pitch`,`layers.${i}.pads.${selPad}.pitch`,-12,12,1,stF],[`pad ${selPad+1} level`,`layers.${i}.pads.${selPad}.vol`,0,1,.01,pct],['layer level',`layers.${i}.vol`,0,1,.01,pct]]}
 };
 function renderEdit(){
 const L=CL(),i=LI(),p=$('#p-edit');p.style.setProperty('--tc',L.col);
 p.innerHTML=`<div class="h"><button class="btn back" data-act="back">‹ all layers</button><span class="meta">${TNAME[L.type]}</span></div>
-<div class="ehead"><input type="text" id="lname" maxlength="16" value="${esc(L.name)}" aria-label="Layer name"><div class="seg" role="group" aria-label="Pattern">${['main','alt'].map((n,v)=>`<button class="${L.ev===v?'on':''}" data-ev="${v}">${n}</button>`).join('')}</div></div>
-<div class="tools"><button class="btn ${L.mute?'on':''}" data-act="mute" style="--tc:var(--hat)">${L.mute?'muted':'mute'}</button><button class="btn ${L.solo?'on':''}" data-act="solo" style="--tc:var(--signal)">solo</button><button class="btn" data-act="copyv">copy to ${L.ev?'main':'alt'}</button><button class="btn ${delArm===L.id?'on':''}" data-act="del" style="--tc:var(--kick)">${delArm===L.id?'tap again to delete':'delete layer'}</button></div>
+<div class="ehead"><input type="text" id="lname" maxlength="16" value="${esc(L.name)}" aria-label="Layer name"><div class="seg adv" role="group" aria-label="Pattern">${['main','alt'].map((n,v)=>`<button class="${L.ev===v?'on':''}" data-ev="${v}">${n}</button>`).join('')}</div></div>
+<div class="tools"><button class="btn ${L.mute?'on':''}" data-act="mute" style="--tc:var(--hat)">${L.mute?'muted':'mute'}</button><button class="btn adv ${L.solo?'on':''}" data-act="solo" style="--tc:var(--signal)">solo</button><button class="btn adv" data-act="copyv">copy to ${L.ev?'main':'alt'}</button><button class="btn ${delArm===L.id?'on':''}" data-act="del" style="--tc:var(--kick)">${delArm===L.id?'tap again to delete':'delete layer'}</button></div>
 ${EDIT[L.type](L)}`;
 sliders(p,KNOBS[L.type](L,i));
 highlight();
@@ -632,18 +686,20 @@ const ECLICK={
 drums(L,b,a){const pat=L.pats[L.ev][selTrack],hit=()=>{if(ctx&&!playing)VOICE[selTrack](ctx.currentTime+.01,L.dvol[selTrack],tune(L,selTrack),lnode(L))};
 if(b.dataset.track){selTrack=b.dataset.track;hit()}
 else if(b.dataset.pad){const i=+b.dataset.pad;pat[i]=pat[i]?0:1;if(pat[i])hit()}
+else if(a==='dpat'){const np=emptyDrums(),k=b.dataset.p;if(k!=='clear')for(const [v,s] of Object.entries(DPAT[k]))np[v]=P(s);L.pats[L.ev]=np;if(!playing)start()}
 else if(a==='vmute')L.dmute[selTrack]=!L.dmute[selTrack];
 else if(a==='clear')pat.fill(0);
 else if(a==='four')pat.forEach((_,i)=>pat[i]=i%4===0?1:0);
 else if(a==='off')pat.forEach((_,i)=>pat[i]=i%4===2?1:0);
 else return false},
 acid(L,b,a){const pt=L.pats[L.ev],st=pt[selStep];
-if(b.dataset.astep){const i=+b.dataset.astep,s=pt[i];if(i===selStep||!s.on){s.on=i===selStep&&s.on?0:1}selStep=i;if(s.on)preview(L,s.d)}
+if(b.dataset.astep){const i=+b.dataset.astep,s=pt[i];if(simple())s.on=s.on?0:1;else if(i===selStep||!s.on){s.on=i===selStep&&s.on?0:1}selStep=i;if(s.on)preview(L,s.d)}
+else if(a==='riff'){L.pats[L.ev]=acidFrom(RIFFS[+b.dataset.r][1]);L.follow=true;if(!playing)start()}
 else if(a==='up'||a==='dn'){st.on=1;st.d=Math.max(-7,Math.min(14,st.d+(a==='up'?1:-1)));preview(L,st.d)}
 else if(a==='on')st.on=st.on?0:1;
 else if(a==='acc'){st.a=st.a?0:1;st.on=1}
 else if(a==='slide'){st.s=st.s?0:1;st.on=1}
-else if(a==='rand'){const pool=[0,0,0,0,7,3,5,-2,2,4,10,7];L.pats[L.ev]=pt.map((_,i)=>({on:Math.random()<(i%4===0?.85:.6)?1:0,d:pool[Math.floor(Math.random()*pool.length)],a:Math.random()<.25?1:0,s:Math.random()<.22?1:0}))}
+else if(a==='rand'){const pool=[0,0,0,0,7,3,5,-2,2,4,10,7];L.pats[L.ev]=pt.map((_,i)=>({on:Math.random()<(i%4===0?.85:.6)?1:0,d:pool[Math.floor(Math.random()*pool.length)],a:Math.random()<.25?1:0,s:Math.random()<.22?1:0}));if(!playing&&simple())start()}
 else if(a==='left')pt.push(pt.shift());
 else if(a==='right')pt.unshift(pt.pop());
 else if(a==='clear')L.pats[L.ev]=blankAcid();
@@ -655,6 +711,7 @@ updWheel()},
 chords(L,b,a){const pt=L.pats[L.ev];
 if(b.dataset.mode)pt.mode=b.dataset.mode;
 else if(b.dataset.stab){const i=+b.dataset.stab;pt.stab[i]=pt.stab[i]?0:1}
+else if(a==='mood'){const m=MOODS[b.dataset.m];S.scale=m.scale;pt.prog=[...m.prog];L.ext=m.ext;L.mood=b.dataset.m;paintKey();if(!playing)start()}
 else if(a==='ext')L.ext=!L.ext;
 else return false},
 pads(L,b,a){const ph=L.pats[L.ev];
@@ -663,6 +720,7 @@ else if(a==='rec')rec=!rec;
 else if(a==='sel')padSel=!padSel;
 else if(a==='clrpad')ph.forEach(arr=>{const ix=arr.indexOf(selPad);if(ix>=0)arr.splice(ix,1)});
 else if(a==='clrall')ph.forEach(arr=>arr.length=0);
+else if(a==='addsound'){openSheet({});return false}
 else if(a==='mic'){capture(L,selPad);return false}
 else if(a==='file'){const f=$('#padFile');if(f)f.click();return false}
 else return false}
@@ -696,17 +754,19 @@ $('#p-edit').addEventListener('pointerup',e=>{if(e.target.closest('[data-pp]'))h
 $('#p-edit').addEventListener('pointerdown',e=>{const b=e.target.closest('[data-pp]');if(!b)return;e.preventDefault();const L=CL(),i=+b.dataset.pp;hitPad(L,i);if(padSel&&i!==selPad){selPad=i;renderEdit()}});
 /* song: the arrangement grid */
 function songLength(){const bars=S.secs.reduce((a,e)=>a+e.bars,0),sec=Math.round(bars*4*60/S.bpm);return{bars,time:`${Math.floor(sec/60)}:${String(sec%60).padStart(2,'0')}`}}
+let arrArm=false;
 function renderSong(){
-const p=$('#p-song'),old=p.querySelector('.agw'),sl=old?old.scrollLeft:0,L=songLength(),cs=S.secs[S.cs];
+const p=$('#p-song'),old=p.querySelector('.agw'),sl=old?old.scrollLeft:0,L=songLength(),cs=S.secs[S.cs],sm=simple();
 p.innerHTML=`<div class="h"><h2>song</h2><span class="meta">${L.bars} bars · ${L.time}</span></div>
 <div><label class="meta" for="trkName" style="display:block;margin-bottom:5px">track name</label><input type="text" id="trkName" maxlength="28" value="${esc(S.name||'')}" placeholder="Untitled track"></div>
+<div class="tools"><button class="btn on" data-act="arr" style="--tc:var(--chords)">${arrArm?'tap again: this replaces your sections':'✦ arrange it for me'}</button></div>
 <div class="seg"><button class="${S.mode==='loop'?'on':''}" data-pm="loop">loop all layers</button><button class="${S.mode==='song'?'on':''}" data-pm="song">play song</button></div>
-<div class="agw"><table class="agrid"><thead><tr><th class="ln"></th>${S.secs.map((s,i)=>`<th><button class="sech cap ${i===S.cs?'sel':''}" data-sec="${i}" data-col="${i}" aria-label="Section ${i+1}, ${esc(s.name)}"><b>${i+1}</b><small>${esc(s.name)}</small><small>${s.bars} bar${s.bars>1?'s':''}</small></button></th>`).join('')}${S.secs.length<MAXS?`<th><button class="sech cap addsec" data-act="addsec" aria-label="Add a section">+</button></th>`:''}</tr></thead>
-<tbody>${S.layers.map(Ly=>`<tr><th class="ln" style="--c:${Ly.col}">${esc(Ly.name)}</th>${S.secs.map((s,i)=>{const o=s.on[Ly.id]|0;return`<td><button class="cell v${o}" data-cell="${Ly.id}" data-ci="${i}" data-col="${i}" style="--c:${Ly.col}" aria-label="${esc(Ly.name)} in section ${i+1}: ${['off','main','alt'][o]}">${o===2?'alt':''}</button></td>`}).join('')}</tr>`).join('')}</tbody></table></div>
-<p class="meta" style="margin:0">Tap a cell to cycle a layer through off, main and alt for that section. Tap a section number to edit it. ${S.mode==='loop'?'Choose play song to hear the arrangement.':''}</p>
-<div class="secbox"><div class="ehead"><input type="text" id="secName" maxlength="12" value="${esc(cs.name)}" aria-label="Section ${S.cs+1} name"><div class="stepper"><button class="ib" data-act="bars" data-dir="-1" aria-label="Shorter">−</button><b>${cs.bars} bar${cs.bars>1?'s':''}</b><button class="ib" data-act="bars" data-dir="1" aria-label="Longer">+</button></div></div>
-<div class="tools"><button class="btn" data-act="playsec">▶ play from ${S.cs+1}</button><button class="btn" data-act="mvl" ${S.cs===0?'disabled':''} aria-label="Move section earlier">◀ move</button><button class="btn" data-act="mvr" ${S.cs===S.secs.length-1?'disabled':''} aria-label="Move section later">move ▶</button><button class="btn" data-act="dupsec" ${S.secs.length>=MAXS?'disabled':''}>duplicate</button><button class="btn" data-act="delsec" ${S.secs.length<2?'disabled':''}>delete</button></div></div>
-<div><div class="meta" style="margin-bottom:8px">export · renders the ${S.mode==='song'?'whole song':'loop, 4 bars'} as a WAV</div>
+<div class="agw"><table class="agrid"><thead><tr><th class="ln"></th>${S.secs.map((s,i)=>`<th><button class="sech cap ${i===S.cs?'sel':''}" data-sec="${i}" data-col="${i}" aria-label="Section ${i+1}, ${esc(s.name)}${s.rise?', build-up':''}"><b>${i+1}${s.rise?' ↗':''}</b><small>${esc(s.name)}</small><small>${s.bars} bar${s.bars>1?'s':''}</small></button></th>`).join('')}${S.secs.length<MAXS?`<th><button class="sech cap addsec" data-act="addsec" aria-label="Add a section">+</button></th>`:''}</tr></thead>
+<tbody>${S.layers.map(Ly=>`<tr><th class="ln" style="--c:${Ly.col}">${esc(Ly.name)}</th>${S.secs.map((s,i)=>{const o=s.on[Ly.id]|0,vc=sm&&o?1:o;return`<td><button class="cell v${vc}" data-cell="${Ly.id}" data-ci="${i}" data-col="${i}" style="--c:${Ly.col}" aria-label="${esc(Ly.name)} in section ${i+1}: ${sm?(o?'on':'off'):['off','main','alt'][o]}">${o===2&&!sm?'alt':''}</button></td>`}).join('')}</tr>`).join('')}</tbody></table></div>
+<p class="meta" style="margin:0">${sm?'Your song plays left to right, one section after another. Tap a square to switch a layer on or off in that section. ↗ marks a build-up, where a filter slowly opens.':'Tap a cell to cycle a layer through off, main and alt for that section. Tap a section number to edit it. ↗ marks a filter rise.'} ${S.mode==='loop'?'Choose play song to hear the arrangement.':''}</p>
+<div class="secbox"><div class="ehead"><input type="text" id="secName" maxlength="12" value="${esc(cs.name)}" aria-label="Section ${S.cs+1} name"><div class="stepper adv"><button class="ib" data-act="bars" data-dir="-1" aria-label="Shorter">−</button><b>${cs.bars} bar${cs.bars>1?'s':''}</b><button class="ib" data-act="bars" data-dir="1" aria-label="Longer">+</button></div></div>
+<div class="tools"><button class="btn" data-act="playsec">▶ play from ${S.cs+1}</button><button class="btn adv ${cs.rise?'on':''}" data-act="rise" style="--tc:var(--chords)">↗ filter rise</button><button class="btn adv" data-act="mvl" ${S.cs===0?'disabled':''} aria-label="Move section earlier">◀ move</button><button class="btn adv" data-act="mvr" ${S.cs===S.secs.length-1?'disabled':''} aria-label="Move section later">move ▶</button><button class="btn adv" data-act="dupsec" ${S.secs.length>=MAXS?'disabled':''}>duplicate</button><button class="btn adv" data-act="delsec" ${S.secs.length<2?'disabled':''}>delete</button></div></div>
+<div><div class="meta" style="margin-bottom:8px">export · saves the ${S.mode==='song'?'whole song':'loop, 4 bars'} as a WAV file</div>
 <div class="tools"><button class="btn" data-act="wav">render ${S.mode==='song'?'song':'loop'} to wav</button>${EXP?`<a class="btn" href="${EXP.url}" download="${esc(EXP.name)}" style="display:inline-flex;align-items:center;text-decoration:none">save wav</a><button class="btn" data-act="share">share</button>`:''}</div>
 <div class="status" id="expMsg" role="status">${EXP?`Ready: ${esc(EXP.name)}, ${EXP.secs} seconds, ${EXP.mb} MB.`:''}</div></div>`;
 const w=p.querySelector('.agw');if(w)w.scrollLeft=sl;
@@ -714,13 +774,16 @@ highlight();
 }
 $('#p-song').addEventListener('click',e=>{
 const b=e.target.closest('button');if(!b||b.disabled)return;const a=b.dataset.act;
+if(a!=='arr')arrArm=false;
 if(a==='wav'){exportWav();return}
 if(a==='share'){shareExp();return}
+if(a==='arr'){if(S.secs.length>1&&!arrArm){arrArm=true;renderSong();return}arrArm=false;if(playing)stop();autoArrange();save();renderSong();renderChips();start(0);return}
 if(b.dataset.pm){S.mode=b.dataset.pm;secBar=0}
-else if(b.dataset.cell){const i=+b.dataset.ci,s=S.secs[i],id=b.dataset.cell;s.on[id]=((s.on[id]|0)+1)%3;S.cs=i}
+else if(b.dataset.cell){const i=+b.dataset.ci,s=S.secs[i],id=b.dataset.cell;s.on[id]=simple()?(s.on[id]?0:1):((s.on[id]|0)+1)%3;S.cs=i}
 else if(b.dataset.sec!=null)S.cs=+b.dataset.sec;
 else if(a==='addsec'){S.secs.push({name:'section',bars:4,on:{...S.secs[S.secs.length-1].on}});S.cs=S.secs.length-1}
 else if(a==='bars'){const s=S.secs[S.cs],ix=BARS.indexOf(s.bars);s.bars=BARS[Math.max(0,Math.min(BARS.length-1,(ix<0?2:ix)+(+b.dataset.dir)))]}
+else if(a==='rise'){const s=S.secs[S.cs];s.rise=!s.rise}
 else if(a==='playsec'){S.mode='song';if(playing)jumpTo=S.cs;else start(S.cs)}
 else if(a==='mvl'||a==='mvr'){const j=S.cs+(a==='mvl'?-1:1);[S.secs[S.cs],S.secs[j]]=[S.secs[j],S.secs[S.cs]];S.cs=j}
 else if(a==='dupsec'){S.secs.splice(S.cs+1,0,clone(S.secs[S.cs]));S.cs++}
@@ -733,17 +796,19 @@ if(t.id==='trkName'){S.name=t.value.trim();save()}
 else if(t.id==='secName'){S.secs[S.cs].name=t.value.trim()||'section';save();const h=document.querySelector(`.sech[data-sec="${S.cs}"] small`);if(h)h.textContent=S.secs[S.cs].name}});
 /* mix */
 function renderMix(){
-const p=$('#p-mix');let slots='';
+const p=$('#p-mix'),sm=simple();let slots='';
 for(let i=1;i<=4;i++){let info='Empty';try{const r=localStorage.getItem(KEY+'.slot'+i);if(r){const o=JSON.parse(r);info=`${o.name?esc(o.name)+' · ':''}${o.bpm} bpm`}}catch(e){}
 slots+=`<div class="slot"><span>slot ${i}<small>${info}</small></span><span class="tools"><button class="btn" data-load="${i}" ${info==='Empty'?'disabled':''}>load</button><button class="btn" data-save="${i}">save</button></span></div>`}
-p.innerHTML=`<div class="h"><h2>mix</h2><span class="meta">the whole track</span></div>`;
-sliders(p,[['tempo','bpm',90,160,1,v=>v+' bpm',()=>{$('#bpmVal').textContent=S.bpm;updWheel()}],['swing','swing',0,.6,.01,pct],
-['reverb','fx.rev',0,1,.01,pct],['delay','fx.dly',0,1,.01,pct],['pump','fx.pump',0,1,.01,pct],['filter','fx.filter',0,1,.01,v=>v>.98?'open':pct(v)],
-['master','fx.master',0,1,.01,pct]]);
+p.innerHTML=`<div class="h"><h2>mix</h2><button class="btn lvlb" data-act="lvl">${sm?'show advanced':'simple view'}</button></div>
+<p class="meta simp" style="margin:0">Tempo is the speed. Space adds room and echo. Drag a knob up or down to turn it.</p>`;
+sliders(p,[['tempo','bpm',90,160,1,v=>v+' bpm',()=>{$('#bpmVal').textContent=S.bpm;updWheel()}],[sm?'space':'reverb','fx.rev',0,1,.01,pct],[sm?'volume':'master','fx.master',0,1,.01,pct]]);
+sliders(p,[['swing','swing',0,.6,.01,pct],['delay','fx.dly',0,1,.01,pct],['pump','fx.pump',0,1,.01,pct],['filter','fx.filter',0,1,.01,v=>v>.98?'open':pct(v)]]);
+const ks=p.querySelectorAll('.knobs');ks[ks.length-1].classList.add('adv');
 const tg=document.createElement('div');tg.className='tools';tg.innerHTML=`<button class="btn ${UI.snd?'on':''}" data-ui="snd">key sounds</button><button class="btn ${UI.hap?'on':''}" data-ui="hap">haptics</button>`;p.appendChild(tg);
 const sw=document.createElement('div');sw.innerHTML=`<div class="meta" style="margin-bottom:8px">saved tracks on this device</div><div class="slots">${slots}</div><div class="status" id="status" role="status"></div>`;p.appendChild(sw);
 }
 $('#p-mix').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+if(b.dataset.act==='lvl'){setLvl(simple()?'adv':'simple');return}
 if(b.dataset.ui){UI[b.dataset.ui]=UI[b.dataset.ui]?0:1;saveUI();renderMix();if(b.dataset.ui==='hap'&&UI.hap)haptic(20);return}
 if(b.dataset.save){try{localStorage.setItem(KEY+'.slot'+b.dataset.save,JSON.stringify(S));renderMix();$('#status').textContent=`Saved to slot ${b.dataset.save}.`}catch(er){$('#status').textContent='This browser blocked saving. Your track is still loaded.'}}
 else if(b.dataset.load){loadTrack('slot'+b.dataset.load);if(tab==='mix'){renderMix();$('#status').textContent=`Loaded slot ${b.dataset.load}.`}}
@@ -753,7 +818,7 @@ function renderPresets(){$('#presets').innerHTML=Object.entries(PRESETS).map(([k
 $('#presets').addEventListener('click',e=>{const b=e.target.closest('[data-p]');if(!b)return;loadTrack('demo:'+b.dataset.p)});
 function bump(d){S.bpm=Math.max(90,Math.min(160,S.bpm+d));$('#bpmVal').textContent=S.bpm;applyParams();save();if(tab==='mix')renderMix();if(tab==='song')renderSong();updWheel()}
 /* ---------- feel: key sounds, haptics, weighted data wheel ---------- */
-let UI={snd:1,hap:1};try{const r=localStorage.getItem(KEY+'.ui');if(r)UI=Object.assign(UI,JSON.parse(r))}catch(e){}
+let UI={snd:1,hap:1,lvl:'simple',lesson:0};try{const r=localStorage.getItem(KEY+'.ui');if(r)UI=Object.assign(UI,JSON.parse(r))}catch(e){}
 const saveUI=()=>{try{localStorage.setItem(KEY+'.ui',JSON.stringify(UI))}catch(e){}};
 let lastHap=0;
 /* iOS has no vibrate(); toggling a native switch input gives a system tick (iOS 18+), but only
@@ -831,10 +896,11 @@ const sel=$('#hList').querySelector('.tsel'),box=$('#hList');if(sel){const top=s
 homeProgress();
 }
 function setView(v){
-view=v;document.documentElement.dataset.view=v;$('#homeView').hidden=v!=='home';$('#composeView').hidden=v!=='compose';
+if(!['home','learn','compose'].includes(v))v='home';
+view=v;document.documentElement.dataset.view=v;$('#homeView').hidden=v!=='home';$('#learnView').hidden=v!=='learn';$('#composeView').hidden=v!=='compose';
 document.querySelectorAll('.vsw [data-v]').forEach(b=>b.setAttribute('aria-selected',b.dataset.v===v));
 try{localStorage.setItem(KEY+'.view',v)}catch(e){}
-if(v==='home'){hSel=0;renderHome()}else showTab(tab);
+if(v==='home'){hSel=0;renderHome()}else if(v==='learn')renderLearn();else showTab(tab);
 updWheel();window.scrollTo(0,0);
 }
 $('#hList').addEventListener('click',e=>{const b=e.target.closest('[data-tr]');if(!b)return;const i=+b.dataset.tr,t=trackList()[i];
@@ -881,13 +947,295 @@ w.addEventListener('pointerup',end);w.addEventListener('pointercancel',end);
 w.addEventListener('keydown',e=>{const m={ArrowRight:1,ArrowUp:1,ArrowLeft:-1,ArrowDown:-1}[e.key];if(m){e.preventDefault();stopAnim();vel=0;spin(m*DET)}});
 }
 setupWheel($('#wheel'),$('#drum'));setupWheel($('#wheel2'),$('#drum2'));
+/* ---------- + add a sound: first choose the sound, then where it plays ---------- */
+const SHVOX=[['v:ooh','Ooh'],['v:ah','Ah'],['v:oh','Oh'],['v:ee','Ee'],['v:hey','Hey!'],['v:yeah','Yeah'],['v:ohoh','Oh-oh'],['v:choir','Choir'],['fx:stab','Chord stab'],['fx:riser','Riser']];
+const WHERE=[['bar','once a bar','on the first beat: a big, clear statement',[0]],['beat','on every beat','with the kick: steady and hypnotic',[0,4,8,12]],['off','between the beats','with the hi-hats: bouncy',[2,6,10,14]],['drop','only in the drop','twice a bar, saved for the big moment',[0,8]],['tap','I will tap it in','play it live on a pad while the beat runs',[]]];
+let SH=null;
+function openSheet(o){
+SH=Object.assign({step:'src',snd:null,sid:null,pitch:0,fine:0,name:'',note:'',msg:'',from:'src',lesson:false,rec:null},o);
+if(S.layers.length>=MAXL)SH.step='full';
+$('#sheet').hidden=false;renderSheet();
+}
+function closeSheet(){if(SH&&SH.rec)SH.rec.cancel();SH=null;$('#sheet').hidden=true}
+function renderSheet(){
+if(!SH)return;const c=$('#sheetCard');let h='';
+const head=(t,back)=>`<div class="h">${back?`<button class="btn back" data-sh="back" data-to="${back}">‹ back</button>`:'<span class="meta">add a sound</span>'}<button class="btn back" data-sh="close" aria-label="Close">✕ close</button></div><h3 class="sh-t">${t}</h3>`;
+if(SH.step==='full')h=head('No room for another layer')+`<p class="meta" style="margin:0">A track can have ${MAXL} layers. Delete one on the layers page, then add your sound.</p>`;
+else if(SH.step==='src')h=head('Step 1 · choose a sound')+`<div class="choices">
+<button class="choice" data-sh="rec" style="--c:var(--kick)"><b>record my voice</b><small>sing, hum, clap or say a word</small></button>
+<button class="choice" data-sh="vox" style="--c:var(--chords)"><b>a ready-made vocal</b><small>ooh, hey, a choir and more</small></button>
+<button class="choice" data-sh="file" style="--c:var(--perc)"><b>a sound file</b><small>a WAV, MP3 or M4A on this device</small></button></div><input type="file" id="shFile" accept="audio/*" hidden>`;
+else if(SH.step==='vox')h=head('Step 1 · choose a vocal','src')+`<p class="meta" style="margin:0">Tap one to hear it. They are already in your key.</p><div class="choices three">${SHVOX.map(([id,n])=>`<button class="choice ${SH.snd===id?'on':''}" data-sh="pick" data-v="${id}" style="--c:var(--chords)"><b>${n}</b></button>`).join('')}</div>
+<div class="tools"><button class="btn on" data-sh="next" ${SH.snd?'':'disabled'} style="--tc:var(--signal)">use this ▸</button></div>`;
+else if(SH.step==='rec')h=head('Step 1 · record','src')+`<p class="meta" style="margin:0">Sing, hum, clap or say a word. Short is best: under 2 seconds makes the strongest hook. The music pauses while you record, and recording stops by itself after 4 seconds.</p>
+<button class="recbtn ${SH.rec?'on':''}" data-sh="recgo">${SH.rec?'■ stop':'● record'}</button><div class="recbar" aria-hidden="true"><i id="recBar"></i></div>`;
+else if(SH.step==='review')h=head('Your sound','src')+`<p class="meta" style="margin:0">${esc(SH.note)}</p><div class="tools"><button class="btn" data-sh="hear">▶ hear it</button><button class="btn" data-sh="again">record again</button><button class="btn on" data-sh="next" style="--tc:var(--signal)">use this ▸</button></div>`;
+else if(SH.step==='where')h=head('Step 2 · where should it play?',SH.from)+`<div class="choices">${WHERE.filter(w=>!(SH.lesson&&w[0]==='tap')).map(([k,n,d])=>`<button class="choice" data-sh="where" data-w="${k}" style="--c:var(--signal)"><b>${n}</b><small>${d}</small></button>`).join('')}</div>`;
+h+=`<div class="status" id="shMsg" role="status">${esc(SH.msg||'')}</div>`;
+c.innerHTML=h;
+}
+async function audition(){
+if(!SH||!SH.snd)return;if(!ctx)initAudio();if(ctx.state!=='running')ctx.resume();await BUILT;if(!SH)return;
+const buf=SH.snd==='user'?USER[SH.sid]:BUF[SH.snd];if(!buf)return;
+const keyed=SH.snd.startsWith('v:')||SH.snd==='fx:stab',sh=keyed?(((S.root+6)%12)-6):0;
+const s=ctx.createBufferSource();s.buffer=buf;const rt=Math.pow(2,((+SH.pitch||0)+(+SH.fine||0)+sh)/12);s.playbackRate.value=isFinite(rt)?rt:1;
+const g=gn(.8);s.connect(g).connect(N.mfilt);s.start(ctx.currentTime+.01);
+}
+/* pitch: normalised autocorrelation over short frames, then the median, so one bad frame cannot win */
+function detectPitch(d,sr){
+const x=new Float32Array(d.length>>1);for(let i=0;i<x.length;i++)x[i]=(d[2*i]+d[2*i+1])*.5;
+const fs=sr/2,W=1024,minL=Math.floor(fs/1000),maxL=Math.ceil(fs/70),F=W+maxL+2,len=Math.min(x.length,Math.floor(fs*2));
+if(len<F)return null;
+let gr=0;for(let i=0;i<len;i++)gr=Math.max(gr,Math.abs(x[i]));
+const n=24,hop=Math.max(1,Math.floor((len-F)/n)),res=[],r=new Float32Array(maxL+2);
+for(let f=0;f<=n;f++){const o=f*hop;if(o+F>len)break;
+let e0=0;for(let i=0;i<W;i++)e0+=x[o+i]*x[o+i];if(Math.sqrt(e0/W)<gr*.06)continue;
+let eL=0;for(let i=0;i<W;i++)eL+=x[o+minL+i]*x[o+minL+i];
+let best=0;
+for(let L=minL;L<=maxL+1;L++){let s=0;for(let i=0;i<W;i++)s+=x[o+i]*x[o+i+L];r[L]=eL>1e-9?s/Math.sqrt(e0*eL):0;if(L<=maxL&&r[L]>best)best=r[L];
+eL=Math.max(0,eL+x[o+L+W]*x[o+L+W]-x[o+L]*x[o+L])}
+if(best<.72)continue;
+let L=minL+1;while(L<maxL&&r[L]<.9*best)L++;while(L<maxL&&r[L+1]>r[L])L++;
+const a=r[L-1],b=r[L],c=r[L+1],den=a-2*b+c,lag=L+(den?(a-c)/(2*den):0);
+const mm=69+12*Math.log2(fs/lag/440);if(isFinite(mm))res.push(mm)}
+if(res.length<3)return null;
+res.sort((p,q)=>p-q);return res[res.length>>1];
+}
+/* the smallest move that lands the sound on a note of the current scale, plus the fine correction */
+function fitKey(m){
+if(!isFinite(m))return{sh:0,fine:0,to:0};const r=Math.round(m),fine=+(r-m).toFixed(3),pc=((r-S.root)%12+12)%12,sc=SCALES[S.scale];
+for(const sh of [0,1,-1,2,-2])if(sc.includes((pc+sh+12)%12))return{sh,fine,to:r+sh};
+return{sh:0,fine,to:r};
+}
+async function processClip(buf,name){
+if(!SH)return;
+const d=trimNorm(buf);if(!d){SH.step='rec';SH.msg='That was silent. Try again a little closer to the microphone.';renderSheet();return}
+const sr=buf.sampleRate,m=detectPitch(d,sr),secs=(d.length/sr).toFixed(1);
+SH.pitch=0;SH.fine=0;
+if(m!=null){const k=fitKey(m);SH.pitch=k.sh;SH.fine=k.fine;
+SH.note=`Trimmed and levelled: ${secs} seconds. `+(k.sh?`It sang about ${nn(Math.round(m))}, so it moves ${Math.abs(k.sh)} semitone${Math.abs(k.sh)>1?'s':''} ${k.sh>0?'up':'down'} to ${nn(k.to)} to fit your key of ${NOTE[S.root]} ${S.scale}.`:`It sang about ${nn(k.to)}, which is already in your key of ${NOTE[S.root]} ${S.scale}, so it only gets a fine tune.`)}
+else SH.note=`Trimmed and levelled: ${secs} seconds. There is no clear note in it, so it plays as recorded. That suits claps, words and beatbox.`;
+const sid='s'+Date.now().toString(36),rr={sr,data:d,name};USER[sid]=toBuf(rr);
+let kept=true;try{await IDB.put(sid,rr)}catch(e){kept=false}
+if(!SH)return;
+SH.snd='user';SH.sid=sid;SH.name=name;SH.step='review';SH.msg=kept?'':'This browser blocked saving sounds, so this one lasts until you close the page.';
+renderSheet();audition();
+}
+async function sheetRec(){
+if(!SH)return;if(SH.rec){SH.rec.stop();return}
+const fail=t=>{if(!SH)return;SH.msg=t;renderSheet()};
+if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)return fail(window.isSecureContext===false?'The microphone only works on a secure (https) page.':'This browser window cannot use the microphone. If you opened the link inside another app, open khalifa.games/mu-s1k in Safari itself, or from your home-screen icon.');
+if(!window.MediaRecorder)return fail('This browser cannot record audio. Update iOS, or use Safari.');
+if(!ctx)initAudio();if(ctx.state!=='running')ctx.resume();
+let stream;
+try{stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}})}
+catch(e){if(e&&e.name==='OverconstrainedError'){try{stream=await navigator.mediaDevices.getUserMedia({audio:true})}catch(e2){return fail(micProblem(e2).replace('sample mic','record'))}}else return fail(micProblem(e).replace('sample mic','record'))}
+if(!SH){stream.getTracks().forEach(t=>t.stop());return}
+if(playing)stop();
+try{if(navigator.audioSession)navigator.audioSession.type='play-and-record'}catch(e){}
+let mr;try{mr=new MediaRecorder(stream)}catch(e){stream.getTracks().forEach(t=>t.stop());return fail('This browser cannot record audio.')}
+const chunks=[];let to,cancelled=false;
+mr.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};
+mr.onstop=async()=>{clearTimeout(to);stream.getTracks().forEach(t=>t.stop());try{if(navigator.audioSession)navigator.audioSession.type='playback'}catch(e){}
+if(cancelled||!SH)return;SH.rec=null;SH.msg='Tidying up your sound…';renderSheet();
+try{const buf=await ctx.decodeAudioData(await new Blob(chunks,{type:mr.mimeType||'audio/mp4'}).arrayBuffer());await processClip(buf,'my voice')}
+catch(e){fail('That recording could not be read. Try again.')}};
+SH.rec={stop:()=>{if(mr.state!=='inactive')mr.stop()},cancel:()=>{cancelled=true;clearTimeout(to);if(mr.state!=='inactive')mr.stop()}};
+mr.start();SH.msg='Recording…';renderSheet();
+const bar=$('#recBar');if(bar){void bar.offsetWidth;bar.style.transition='width 4s linear';bar.style.width='100%'}
+to=setTimeout(()=>SH&&SH.rec&&SH.rec.stop(),4000);
+}
+function placeSound(w){
+const W=WHERE.find(x=>x[0]===w);if(!W||!SH||!SH.snd)return;
+const lesson=SH.lesson;
+if(lesson&&S.learn&&S.learn.hook){const old=S.layers.find(x=>x.id===S.learn.hook);if(old){S.layers=S.layers.filter(x=>x!==old);S.secs.forEach(s=>delete s.on[old.id])}}
+if(S.layers.length>=MAXL){SH.step='full';renderSheet();return}
+const pads=defPads();pads[0]={snd:SH.snd,pitch:SH.pitch,fine:SH.fine,vol:.85};if(SH.snd==='user'){pads[0].sid=SH.sid;pads[0].name=SH.name}
+const ph=blankPh();W[3].forEach(s=>ph[s].push(0));
+const nm=(SH.snd==='user'?SH.name:SND_NAME[SH.snd]||'sound').toLowerCase().replace(/!/g,'').slice(0,16);
+const L=mkLayer('pads',{name:nm,vol:.85,pats:[ph,blankPh()],pads});L.where=w;uniq(L);S.layers.push(L);
+const song=S.mode==='song'&&S.secs.length>1,hasDrop=S.secs.some(s=>/drop/i.test(s.name));
+S.secs.forEach((s,i)=>{s.on[L.id]=!song?(i===S.cs?1:0):(w==='drop'&&hasDrop)?(/drop/i.test(s.name)?1:0):(/intro|outro/i.test(s.name)?0:1)});
+closeSheet();applyParams();save();
+if(lesson){S.learn.hook=L.id;save();renderLearn()}
+else{if(w==='tap')rec=true;if(view!=='compose')setView('compose');openLayer(L.id);
+padMsg(w==='tap'?'Tap pad 1 in time with the beat. Every tap is recorded into the pattern. Tap the record button to stop.':'Added. Tap pad 1 to hear it, or tap steps to move it.')}
+if(!playing)start();
+}
+$('#sheet').addEventListener('click',e=>{
+if(e.target.id==='sheet'){closeSheet();return}
+const b=e.target.closest('[data-sh]');if(!b||b.disabled||!SH)return;const a=b.dataset.sh;SH.msg='';
+if(a==='close'){closeSheet();return}
+if(a==='back'){if(SH.rec){SH.rec.cancel();SH.rec=null}SH.step=b.dataset.to||'src';renderSheet();return}
+if(a==='rec'||a==='again'){SH.step='rec';renderSheet();return}
+if(a==='vox'){if(SH.snd==='user')SH.snd=null;SH.pitch=0;SH.fine=0;SH.step='vox';renderSheet();return}
+if(a==='file'){const f=$('#shFile');if(f)f.click();return}
+if(a==='pick'){SH.snd=b.dataset.v;SH.pitch=0;SH.fine=0;SH.name=SND_NAME[SH.snd]||'';audition();renderSheet();return}
+if(a==='recgo'){sheetRec();return}
+if(a==='hear'){audition();return}
+if(a==='next'){SH.from=SH.step;SH.step='where';renderSheet();return}
+if(a==='where')placeSound(b.dataset.w);
+});
+$('#sheet').addEventListener('change',async e=>{if(e.target.id!=='shFile'||!SH)return;const f=e.target.files&&e.target.files[0];if(!f)return;
+if(!ctx)initAudio();SH.msg='Reading the file…';renderSheet();
+try{const buf=await ctx.decodeAudioData(await f.arrayBuffer());await processClip(buf,f.name.replace(/\.[^.]+$/,'').slice(0,16))}
+catch(er){if(SH){SH.msg='That file could not be read. Try a WAV, MP3 or M4A.';renderSheet()}}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&SH)closeSheet()});
+/* ---------- arrange it for me: the classic intro, build, drop, break, build, drop ---------- */
+function autoArrange(){
+const first=S.layers.find(L=>L.type==='drums');
+if(first){const a=first.pats[1];if(DR.every(d=>!a[d.id].some(Boolean))){const al=clone(first.pats[0]);al.kick=Z();al.clap=P('....x.......x.xx');first.pats[1]=al}}
+const plan=[['intro',4,0],['build',4,1],['drop',8,2],['break',4,3],['build',2,1],['drop',8,2]];
+const role=L=>L===first?[1,2,1,0]:L.type==='drums'?[1,1,1,0]:L.type==='acid'?[0,0,1,0]:L.type==='chords'?[0,1,1,1]:L.where==='drop'?[0,0,1,0]:[0,0,1,1];
+S.secs=plan.map(([name,bars,k])=>({name,bars,rise:name==='build',on:Object.fromEntries(S.layers.map(L=>[L.id,role(L)[k]]))}));
+S.mode='song';S.cs=0;secBar=0;secIdx=0;jumpTo=null;
+}
+/* ---------- learn: seven lessons that build one real track ---------- */
+const LESSONS=[
+{k:'kick',t:'The kick',sub:'the heartbeat',tg:[0,4,8,12],
+txt:'Almost all dance music sits on a kick drum on every beat. The 16 squares below are one bar: 4 beats, each split into 4 steps. Tap the four dashed squares, 1, 5, 9 and 13.',
+why:'A kick on every beat is called four to the floor. It is the pulse your body locks onto, and it is why house and techno feel like they never stop.'},
+{k:'clap',t:'The clap',sub:'the backbeat',tg:[4,12],
+txt:'Now a clap on beats 2 and 4. That is steps 5 and 13. Watch how it sits between the kicks in the rows above.',
+why:'Boom, clap, boom, clap. Putting weight on beats 2 and 4 is called the backbeat. It is the part that makes you nod your head.'},
+{k:'hat',t:'The hi-hats',sub:'the groove',tg:[2,6,10,14],
+txt:'Put a hi-hat in each gap between the kicks: steps 3, 7, 11 and 15.',
+why:'Hats halfway between the beats are called off-beats. They pull against the kick and give house its tss, tss bounce. That is a complete beat: kick, clap, hats.'},
+{k:'bass',t:'The bassline',sub:'the low end',
+txt:'A bassline fills the deep sound under the drums. Pick one to hear it. You can switch as often as you like.',
+why:'A good bassline leaves room for the kick. The off-beat style plays in the gaps between kicks so the two never fight. It is the oldest trick in house.'},
+{k:'chords',t:'Chords',sub:'the feeling',
+txt:'Chords are a few notes played together, and they decide the mood. Pick one. Your bassline follows the chords automatically.',
+why:'Each mood uses a different scale, the set of notes that sound right together. Minor and dreamy are the sound of emotional, late-night dance music.'},
+{k:'hook',t:'The hook',sub:'the bit people remember',
+txt:'A hook is a short sound that repeats: a sung ooh, a word, a hum. Record your own voice or pick a ready-made vocal. MU-S1K trims it, levels it and tunes it to your key.',
+why:'Producers like Fred again.. and Bicep build whole tracks around one short vocal, repeated. Repetition is what turns a sound into a hook.'},
+{k:'arr',t:'Arrange it',sub:'the journey',
+txt:'So far you have one loop. A track takes the listener on a journey: a quiet intro, a build-up, the drop where everything comes in, a breakdown, then a second drop. Tap arrange it for me, then listen from the start.',
+why:'Taking things away is as powerful as adding them. The drop hits hard because the build-up before it left out the kick and the bass while a filter slowly opened.'}];
+const LCOL=['var(--kick)','var(--clap)','var(--hat)','var(--perc)','var(--chords)','var(--mix)','var(--signal)'];
+const BASSES=[['off-beat','bouncy, in the gaps between kicks',[[2,0,0,0],[6,0,0,0],[10,0,0,0],[14,0,0,0]],{wave:'square',cutoff:.16,res:.12,env:.2,decay:.35,dist:.08}],
+['rolling','driving, a note on most steps',[[0,0,0,0],[2,0,0,0],[3,0,0,0],[6,0,0,0],[8,0,0,0],[10,0,0,0],[11,0,0,0],[14,0,0,0]],{wave:'square',cutoff:.14,res:.1,env:.25,decay:.3,dist:.1}],
+['acid','squelchy and wild: the 303 sound',[[0,0,1,0],[3,0,0,0],[6,7,0,1],[8,0,0,0],[11,3,1,0],[14,0,0,0]],{wave:'saw',cutoff:.3,res:.7,env:.55,decay:.4,dist:.35}]];
+let lMenu=false;
+const lDrums=()=>{let L=S.layers.find(x=>x.id===S.learn.drums)||S.layers.find(x=>x.type==='drums');
+if(!L){L=mkLayer('drums',{name:'drums',vol:.9});S.layers.unshift(L);S.secs.forEach(s=>s.on[L.id]=1);applyParams()}S.learn.drums=L.id;return L};
+function lessonDone(i){
+if(!S.learn)return false;const ls=LESSONS[i];if(!ls)return false;
+if(ls.tg){const L=S.layers.find(x=>x.id===S.learn.drums);return !!L&&ls.tg.every(j=>L.pats[0][ls.k][j])}
+if(ls.k==='bass')return S.layers.some(x=>x.id===S.learn.bass);
+if(ls.k==='chords')return S.layers.some(x=>x.id===S.learn.chords&&x.mood);
+if(ls.k==='hook')return S.layers.some(x=>x.id===S.learn.hook);
+return !!S.learn.arr;
+}
+function startLessons(){
+const dr=mkLayer('drums',{name:'drums',vol:.9});
+const o=norm({v:3,preset:null,name:'My first track',bpm:124,swing:.08,root:9,scale:'minor',fx:{rev:.38,dly:.28,pump:.45,filter:1,master:.82},layers:[dr],secs:[{name:'loop',bars:4,on:{[dr.id]:1}}],mode:'loop',sel:dr.id,cs:0,lesson:true,learn:{drums:dr.id}});
+try{localStorage.setItem(KEY+'.prev',JSON.stringify(S))}catch(e){}
+if(playing)stop();
+S=o;selStep=0;selPad=0;delArm=null;tab='layers';applyParams();save();
+UI.lesson=0;saveUI();lMenu=false;renderAll();renderLearn();
+}
+function lessonBass(j){
+const B=BASSES[j];let L=S.layers.find(x=>x.id===S.learn.bass);
+if(!L){L=mkLayer('acid',{name:'bass',vol:.7});uniq(L);S.layers.push(L);S.secs.forEach(s=>s.on[L.id]=1);S.learn.bass=L.id}
+L.pats[0]=acidFrom(B[2]);Object.assign(L,B[3],{follow:true,oct:0});L.vol=j===2?.5:.7;S.learn.bk=j;
+applyParams();save();if(!playing)start();
+}
+function lessonChords(m){
+const M=MOODS[m];let L=S.layers.find(x=>x.id===S.learn.chords);
+if(!L){L=mkLayer('chords',{name:'chords',vol:.7});uniq(L);S.layers.push(L);S.secs.forEach(s=>s.on[L.id]=1);S.learn.chords=L.id}
+S.scale=M.scale;L.pats.forEach(pt=>pt.prog=[...M.prog]);L.ext=M.ext;L.mood=m;
+applyParams();save();paintKey();if(!playing)start();
+}
+function lessonAuto(i){
+const ls=LESSONS[i];
+if(ls.tg){const L=lDrums();ls.tg.forEach(j=>L.pats[0][ls.k][j]=1);save();if(!playing)start()}
+else if(ls.k==='bass')lessonBass(0);
+else if(ls.k==='chords')lessonChords('dreamy');
+else if(ls.k==='hook'){SH={snd:'v:ooh',pitch:0,fine:0,name:'Ooh',lesson:true};placeSound('bar');return}
+else lessonArr();
+renderLearn();
+}
+function lessonArr(){if(playing)stop();autoArrange();S.learn.arr=true;save();start(0)}
+function arrMini(){return`<div class="amini">${S.secs.map((s,i)=>`<div class="asec" data-col="${i}" style="flex:${s.bars}"><b>${esc(s.name)}${s.rise?' ↗':''}</b><small>${s.bars} bars</small></div>`).join('')}</div>`}
+const lscreen=(top,title,sub)=>`<div class="bezel pocketed"><div class="screen lscreen"><div class="scr-top"><span>${top}</span><span>${NOTE[S.root]} ${S.scale} · ${S.bpm} bpm</span></div><div class="h-title">${title}</div><div class="h-sub">${sub}</div></div></div>`;
+const lplay=()=>`<div class="lplayrow"><button class="play cap lplay ${playing?'on':''}" id="lPlay" data-l="play" aria-label="${playing?'Stop':'Play'}"><svg viewBox="0 0 24 24"><path id="lIcon" d="${playing?'M6 6h12v12H6z':'M7 4.5v15l13-7.5z'}"/></svg></button><span class="meta" id="lPlayT">${playing?'playing · tap to stop':'tap to hear your track'}</span></div>`;
+function lessonBody(i){
+const ls=LESSONS[i];
+if(ls.tg){const L=lDrums(),k=ls.k,pat=L.pats[0][k];
+return`<div class="ov lov">${DR.slice(0,3).map(t=>`<div class="ovrow ${t.id===k?'sel':''}" style="--c:var(--${t.id})"><span>${t.name}</span><span class="dots">${L.pats[0][t.id].map((v,j)=>`<i class="dot ${v?'on':''}" data-s="${j}"></i>`).join('')}</span></div>`).join('')}</div>
+<div class="grid8" style="--tc:var(--${k})">${pat.map((v,j)=>`<button class="pad ${v?'on':''} ${j%4===0?'beat':''} ${ls.tg.includes(j)&&!v?'tgt':''}" data-l="step" data-i="${j}" data-s="${j}" aria-pressed="${!!v}" aria-label="${k} step ${j+1}">${j+1}</button>`).join('')}</div>`}
+if(ls.k==='bass')return`<div class="choices">${BASSES.map(([n,d],j)=>`<button class="choice ${S.learn.bk===j&&lessonDone(i)?'on':''}" data-l="bass" data-i="${j}" style="--c:var(--perc)"><b>${n}</b><small>${d}</small></button>`).join('')}</div>`;
+if(ls.k==='chords'){const C=S.layers.find(x=>x.id===S.learn.chords);
+return`<div class="choices two">${Object.entries(MOODS).map(([k,m])=>`<button class="choice ${C&&C.mood===k?'on':''}" data-l="mood" data-m="${k}" style="--c:var(--chords)"><b>${k}</b><small>${m.d}</small></button>`).join('')}</div>
+${C?`<div><div class="meta" style="margin-bottom:8px">style · how the chords are played</div><div class="seg">${['pad','stab','arp'].map(m=>`<button class="${C.pats[0].mode===m?'on':''}" data-l="style" data-m="${m}">${MODEN[m]}</button>`).join('')}</div></div>`:''}`}
+if(ls.k==='hook'){const H=S.layers.find(x=>x.id===S.learn.hook);
+if(!H)return`<button class="addsnd cap" data-l="hook"><b>+ add a sound</b><small>record your voice, or pick a ready-made vocal</small></button>`;
+const w=WHERE.find(x=>x[0]===H.where);
+return`<div class="secbox"><b class="hk-n">${esc(H.name)}</b><span class="meta">plays ${w?w[1]:'in your pattern'}</span><div class="tools"><button class="btn" data-l="hookhear">▶ hear it alone</button><button class="btn" data-l="hook">change it</button></div></div>`}
+return S.learn.arr?`${arrMini()}<div class="tools"><button class="btn" data-l="arr">play from the start</button></div>`:`<button class="addsnd cap" data-l="arr" style="--c:var(--signal)"><b>✦ arrange it for me</b><small>intro, build-up, drop, breakdown, build-up, drop</small></button>`;
+}
+function renderLearn(){
+const v=$('#learnView');if(!v)return;const on=!!(S.lesson&&S.learn);let i=Math.max(0,UI.lesson|0);
+if(!on||lMenu){
+v.innerHTML=`${lscreen('learn','Make your first track','7 short steps · about 10 minutes')}<section class="panel learn" style="--tc:var(--acid)">
+<div class="h"><h2>learn</h2><span class="meta">no music knowledge needed</span></div>
+<p class="ltxt">You will build a dance track one layer at a time: drums first, then a bassline, chords, a vocal hook, and finally an arrangement with a build-up and a drop. Each step says why it works.</p>
+<ol class="lsteps">${LESSONS.map((l,j)=>`<li class="${on&&lessonDone(j)?'ok':''}"><b>${l.t}</b> <span>${l.sub}</span></li>`).join('')}</ol>
+<div class="tools">${on?`<button class="btn on" data-l="cont" style="--tc:var(--signal)">continue step ${Math.min(i+1,LESSONS.length)} ▸</button><button class="btn" data-l="start">start over</button>`:`<button class="btn on" data-l="start" style="--tc:var(--signal)">start step 1 ▸</button>`}</div>
+<p class="meta" style="margin:0">${on?'Start over begins a new track.':'This starts a fresh track. Whatever you had open stays in the player as “last edit”.'}</p></section>`;
+return}
+if(i>=LESSONS.length){
+v.innerHTML=`${lscreen('all 7 steps done','You made a track',`${S.layers.length} layers · ${songLength().time}`)}<section class="panel learn" style="--tc:var(--signal)">
+<div class="ldots">${LESSONS.map(()=>'<i class="ok"></i>').join('')}</div>
+<p class="ltxt">That is the recipe most dance tracks follow: a beat, a bassline, chords for the feeling, a hook to remember, and an arrangement that builds and drops.${S.learn.saved?` It is saved in slot ${S.learn.saved}.`:''}</p>
+${lplay()}
+<div class="why"><b>where to go next</b><p>Open it in compose to change anything: every layer you made is there. Tap show advanced when you want the full controls. Or listen to the demo Euphoric break to hear the same recipe stretched into a longer track.</p></div>
+<div class="tools"><button class="btn on" data-l="compose" style="--tc:var(--signal)">open in compose</button><button class="btn" data-l="wav">save as a WAV</button><button class="btn" data-l="demo">hear Euphoric break</button><button class="btn" data-l="start">start again</button></div></section>`;
+highlight();return}
+const ls=LESSONS[i],done=lessonDone(i);
+v.innerHTML=`${lscreen(`step ${i+1} of ${LESSONS.length}`,ls.t,ls.sub)}<section class="panel learn" style="--tc:${LCOL[i]}">
+<div class="ldots">${LESSONS.map((_,j)=>`<i class="${lessonDone(j)?'ok':''} ${j===i?'cur':''}"></i>`).join('')}</div>
+<p class="ltxt">${ls.txt}</p>
+${lessonBody(i)}
+${lplay()}
+${done?`<div class="why"><b>✓ why it works</b><p>${ls.why}</p></div>`:''}
+<div class="lnav"><button class="btn" data-l="prev">‹ ${i?'back':'menu'}</button>${done?'':`<button class="btn" data-l="auto">do it for me</button>`}<button class="btn ${done?'on':''}" data-l="next" ${done?'':'disabled'} style="--tc:var(--signal)">${i===LESSONS.length-1?'finish':'next'} ›</button></div></section>`;
+highlight();
+}
+function saveLessonSlot(){
+if(S.learn.saved)return;
+for(let k=1;k<=4;k++){let r=null;try{r=localStorage.getItem(KEY+'.slot'+k)}catch(e){return}
+if(!r){S.learn.saved=k;try{localStorage.setItem(KEY+'.slot'+k,JSON.stringify(S))}catch(e){S.learn.saved=0}save();return}}
+}
+$('#learnView').addEventListener('click',e=>{
+const b=e.target.closest('[data-l]');if(!b||b.disabled)return;const a=b.dataset.l,i=Math.max(0,UI.lesson|0);
+if(a==='start'){startLessons();return}
+if(a==='cont'){lMenu=false;renderLearn();return}
+if(a==='play'){playing?stop():start();return}
+if(a==='prev'){if(i===0)lMenu=true;else UI.lesson=i-1;saveUI();renderLearn();window.scrollTo(0,0);return}
+if(a==='next'){UI.lesson=i+1;if(UI.lesson>=LESSONS.length)saveLessonSlot();saveUI();renderLearn();window.scrollTo(0,0);return}
+if(a==='auto'){lessonAuto(i);return}
+if(a==='step'){const ls=LESSONS[i],L=lDrums(),pat=L.pats[0][ls.k],j=+b.dataset.i;pat[j]=pat[j]?0:1;save();
+if(pat[j]&&!playing)start();renderLearn();return}
+if(a==='bass'){lessonBass(+b.dataset.i);renderLearn();return}
+if(a==='mood'){lessonChords(b.dataset.m);renderLearn();return}
+if(a==='style'){const C=S.layers.find(x=>x.id===S.learn.chords);if(C){C.pats[0].mode=b.dataset.m;if(b.dataset.m==='stab'&&!C.pats[0].stab.some(Boolean))C.pats[0].stab=P('..x...x...x...x.');save()}renderLearn();return}
+if(a==='hook'){openSheet({lesson:true});return}
+if(a==='hookhear'){const H=S.layers.find(x=>x.id===S.learn.hook);if(H){if(!ctx)initAudio();if(ctx.state!=='running')ctx.resume();playPad(H,0,ctx.currentTime+.02)}return}
+if(a==='arr'){lessonArr();renderLearn();return}
+if(a==='compose'){setView('compose');showTab('song');return}
+if(a==='wav'){setView('compose');showTab('song');exportWav();return}
+if(a==='demo'){loadTrack('demo:glue');setView('home');if(!playing)start();return}
+});
 const PANELS={layers:renderLayers,edit:renderEdit,song:renderSong,mix:renderMix};
 function showTab(t){if(!PANELS[t])t='layers';tab=t;const nav=t==='edit'?'layers':t;
 document.querySelectorAll('.tab').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===nav));
 Object.keys(PANELS).forEach(x=>$('#p-'+x).hidden=x!==t);PANELS[t]();renderChips();updWheel();try{localStorage.setItem(KEY+'.tab',t)}catch(e){}}
 document.querySelector('.tabs').addEventListener('click',e=>{const b=e.target.closest('[data-tab]');if(b)showTab(b.dataset.tab)});
-function renderAll(){paintKey();renderPresets();$('#bpmVal').textContent=S.bpm;showTab(tab)}
+function renderAll(){document.documentElement.classList.toggle('simple',UI.lvl!=='adv');paintKey();renderPresets();$('#bpmVal').textContent=S.bpm;showTab(tab)}
 try{const t=localStorage.getItem(KEY+'.tab');if(t&&PANELS[t])tab=t}catch(e){}
 renderAll();
-try{setView(localStorage.getItem(KEY+'.view')==='compose'?'compose':'home')}catch(e){setView('home')}
+try{setView(localStorage.getItem(KEY+'.view')||'home')}catch(e){setView('home')}
 })();
