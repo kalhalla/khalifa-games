@@ -952,11 +952,11 @@ const SHVOX=[['v:ooh','Ooh'],['v:ah','Ah'],['v:oh','Oh'],['v:ee','Ee'],['v:hey',
 const WHERE=[['bar','once a bar','on the first beat: a big, clear statement',[0]],['beat','on every beat','with the kick: steady and hypnotic',[0,4,8,12]],['off','between the beats','with the hi-hats: bouncy',[2,6,10,14]],['drop','only in the drop','twice a bar, saved for the big moment',[0,8]],['tap','I will tap it in','play it live on a pad while the beat runs',[]]];
 let SH=null;
 function openSheet(o){
-SH=Object.assign({step:'src',snd:null,sid:null,pitch:0,fine:0,name:'',note:'',msg:'',from:'src',lesson:false,rec:null},o);
+SH=Object.assign({step:'src',snd:null,sid:null,pitch:0,fine:0,name:'',note:'',msg:'',from:'src',lesson:false,rec:null,origin:'',vcap:false},o);
 if(S.layers.length>=MAXL)SH.step='full';
 $('#sheet').hidden=false;renderSheet();
 }
-function closeSheet(){if(SH&&SH.rec)SH.rec.cancel();SH=null;$('#sheet').hidden=true}
+function closeSheet(){if(SH&&SH.rec)SH.rec.cancel();freeMedia();SH=null;$('#sheet').hidden=true}
 function renderSheet(){
 if(!SH)return;const c=$('#sheetCard');let h='';
 const head=(t,back)=>`<div class="h">${back?`<button class="btn back" data-sh="back" data-to="${back}">‹ back</button>`:'<span class="meta">add a sound</span>'}<button class="btn back" data-sh="close" aria-label="Close">✕ close</button></div><h3 class="sh-t">${t}</h3>`;
@@ -964,15 +964,17 @@ if(SH.step==='full')h=head('No room for another layer')+`<p class="meta" style="
 else if(SH.step==='src')h=head('Step 1 · choose a sound')+`<div class="choices">
 <button class="choice" data-sh="rec" style="--c:var(--kick)"><b>record my voice</b><small>sing, hum, clap or say a word</small></button>
 <button class="choice" data-sh="vox" style="--c:var(--chords)"><b>a ready-made vocal</b><small>ooh, hey, a choir and more</small></button>
-<button class="choice" data-sh="file" style="--c:var(--perc)"><b>a sound file</b><small>a WAV, MP3 or M4A on this device</small></button></div><input type="file" id="shFile" accept="audio/*" hidden>`;
+<button class="choice" data-sh="video" style="--c:var(--acid)"><b>from a video</b><small>a screen recording or any clip in Photos</small></button>
+<button class="choice" data-sh="file" style="--c:var(--perc)"><b>a sound file</b><small>a WAV, MP3 or M4A on this device</small></button></div>`;
+else if(SH.step==='clip')h=head('Step 1 · pick the moment','src')+clipStep();
 else if(SH.step==='vox')h=head('Step 1 · choose a vocal','src')+`<p class="meta" style="margin:0">Tap one to hear it. They are already in your key.</p><div class="choices three">${SHVOX.map(([id,n])=>`<button class="choice ${SH.snd===id?'on':''}" data-sh="pick" data-v="${id}" style="--c:var(--chords)"><b>${n}</b></button>`).join('')}</div>
 <div class="tools"><button class="btn on" data-sh="next" ${SH.snd?'':'disabled'} style="--tc:var(--signal)">use this ▸</button></div>`;
 else if(SH.step==='rec')h=head('Step 1 · record','src')+`<p class="meta" style="margin:0">Sing, hum, clap or say a word. Short is best: under 2 seconds makes the strongest hook. The music pauses while you record, and recording stops by itself after 4 seconds.</p>
 <button class="recbtn ${SH.rec?'on':''}" data-sh="recgo">${SH.rec?'■ stop':'● record'}</button><div class="recbar" aria-hidden="true"><i id="recBar"></i></div>`;
-else if(SH.step==='review')h=head('Your sound','src')+`<p class="meta" style="margin:0">${esc(SH.note)}</p><div class="tools"><button class="btn" data-sh="hear">▶ hear it</button><button class="btn" data-sh="again">record again</button><button class="btn on" data-sh="next" style="--tc:var(--signal)">use this ▸</button></div>`;
+else if(SH.step==='review')h=head('Your sound','src')+`<p class="meta" style="margin:0">${esc(SH.note)}</p><div class="tools"><button class="btn" data-sh="hear">▶ hear it</button>${SH.origin==='rec'?'<button class="btn" data-sh="again">record again</button>':SH.origin==='file'&&!SH.vbuf?'<button class="btn" data-sh="file">choose another file</button>':'<button class="btn" data-sh="reclip">pick another moment</button>'}<button class="btn on" data-sh="next" style="--tc:var(--signal)">use this ▸</button></div>`;
 else if(SH.step==='where')h=head('Step 2 · where should it play?',SH.from)+`<div class="choices">${WHERE.filter(w=>!(SH.lesson&&w[0]==='tap')).map(([k,n,d])=>`<button class="choice" data-sh="where" data-w="${k}" style="--c:var(--signal)"><b>${n}</b><small>${d}</small></button>`).join('')}</div>`;
 h+=`<div class="status" id="shMsg" role="status">${esc(SH.msg||'')}</div>`;
-c.innerHTML=h;
+c.innerHTML=h;if(SH.step==='clip')bindClip();
 }
 async function audition(){
 if(!SH||!SH.snd)return;if(!ctx)initAudio();if(ctx.state!=='running')ctx.resume();await BUILT;if(!SH)return;
@@ -1007,9 +1009,9 @@ if(!isFinite(m))return{sh:0,fine:0,to:0};const r=Math.round(m),fine=+(r-m).toFix
 for(const sh of [0,1,-1,2,-2])if(sc.includes((pc+sh+12)%12))return{sh,fine,to:r+sh};
 return{sh:0,fine,to:r};
 }
-async function processClip(buf,name){
+async function processClip(buf,name,back){
 if(!SH)return;
-const d=trimNorm(buf);if(!d){SH.step='rec';SH.msg='That was silent. Try again a little closer to the microphone.';renderSheet();return}
+const d=trimNorm(buf);if(!d){if(back==='clip'){SH.step='clip';SH.msg='That moment is silent. Pick a louder spot on the waveform.'}else{SH.step=SH.origin==='rec'?'rec':'src';SH.msg=SH.origin==='rec'?'That was silent. Try again a little closer to the microphone.':'That file is silent.'}renderSheet();return}
 const sr=buf.sampleRate,m=detectPitch(d,sr),secs=(d.length/sr).toFixed(1);
 SH.pitch=0;SH.fine=0;
 if(m!=null){const k=fitKey(m);SH.pitch=k.sh;SH.fine=k.fine;
@@ -1023,6 +1025,7 @@ renderSheet();audition();
 }
 async function sheetRec(){
 if(!SH)return;if(SH.rec){SH.rec.stop();return}
+SH.origin='rec';
 const fail=t=>{if(!SH)return;SH.msg=t;renderSheet()};
 if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)return fail(window.isSecureContext===false?'The microphone only works on a secure (https) page.':'This browser window cannot use the microphone. If you opened the link inside another app, open khalifa.games/mu-s1k in Safari itself, or from your home-screen icon.');
 if(!window.MediaRecorder)return fail('This browser cannot record audio. Update iOS, or use Safari.');
@@ -1045,6 +1048,132 @@ mr.start();SH.msg='Recording…';renderSheet();
 const bar=$('#recBar');if(bar){void bar.offsetWidth;bar.style.transition='width 4s linear';bar.style.width='100%'}
 to=setTimeout(()=>SH&&SH.rec&&SH.rec.stop(),4000);
 }
+/* ---------- sampling from a video or a long recording: pick the moment on a waveform ---------- */
+const VLENS=[[.25,'¼ s'],[.5,'½ s'],[1,'1 s'],[2,'2 s'],[4,'4 s']];
+function freeMedia(){
+if(!SH)return;
+if(SH.vel){try{SH.vel.pause()}catch(e){}if(SH.vsrc){try{SH.vsrc.disconnect()}catch(e){}}SH.vel.removeAttribute('src');try{SH.vel.load()}catch(e){}}
+if(SH.vurl)URL.revokeObjectURL(SH.vurl);
+if(SH.vplay){try{SH.vplay.stop()}catch(e){}}
+clearTimeout(SH.vtimer);
+SH.vel=SH.vsrc=SH.vurl=SH.vbuf=SH.vpk=SH.vplay=null;
+}
+function wavePeaks(buf,n){
+const len=buf.length,d0=buf.getChannelData(0),d1=buf.numberOfChannels>1?buf.getChannelData(1):null,out=new Float32Array(n),step=len/n;let mx=0;
+for(let i=0;i<n;i++){const a=Math.floor(i*step),b=Math.min(len,Math.floor((i+1)*step)),st=b-a>4000?3:1;let m=0;
+for(let k=a;k<b;k+=st){const v=Math.abs(d1?(d0[k]+d1[k])*.5:d0[k]);if(v>m)m=v}out[i]=m;if(m>mx)mx=m}
+out.max=mx;return out;
+}
+/* start on the first strong sound, so a screen recording does not open on its silent first second */
+function firstHit(pk,dur){const th=pk.max*.35;for(let i=0;i<pk.length;i++)if(pk[i]>=th)return Math.max(0,i/pk.length*dur-.03);return 0}
+const fmtS=t=>`${Math.floor(t/60)}:${(t%60).toFixed(1).padStart(4,'0')}`;
+async function loadMedia(f,kind){
+if(!SH||!f)return;
+if(!ctx)initAudio();if(ctx.state!=='running')ctx.resume();
+if(playing)stop();
+freeMedia();
+const isVid=kind==='video'||/^video\//.test(f.type||'');
+SH.origin=isVid?'video':'file';SH.vkind=isVid?'video':'recording';SH.msg=isVid?'Reading the sound out of the video…':'Reading the file…';renderSheet();
+let buf=null;
+if(f.size<400*1048576){try{buf=await ctx.decodeAudioData(await f.arrayBuffer())}catch(e){buf=null}}
+if(!SH)return;
+if(buf){const pk=wavePeaks(buf,800);
+if(pk.max<1e-4){SH.step='src';SH.msg=isVid?'There is no sound in this video. iPhone screen recordings are silent for Apple Music, Spotify, Netflix and most streaming apps, because they block recording. Try a clip from YouTube in Safari, TikTok or Instagram, or a video you filmed yourself.':'That file is silent.';renderSheet();return}
+if(buf.duration<=4.5){await processClip(buf,isVid?'video clip':f.name.replace(/\.[^.]+$/,'').slice(0,16));return}
+SH.vbuf=buf;SH.vpk=pk;SH.vdur=buf.duration;SH.vstart=firstHit(pk,buf.duration)}
+else if(!isVid){SH.step='src';SH.msg='That file could not be read. Try a WAV, MP3 or M4A.';renderSheet();return}
+if(isVid){
+const v=document.createElement('video');v.className='shvid';v.muted=true;v.playsInline=true;v.setAttribute('playsinline','');v.preload='auto';
+SH.vurl=URL.createObjectURL(f);v.src=SH.vurl;SH.vel=v;
+const ok=await new Promise(res=>{const to=setTimeout(()=>res(false),10000);v.addEventListener('loadedmetadata',()=>{clearTimeout(to);res(true)},{once:true});v.addEventListener('error',()=>{clearTimeout(to);res(false)},{once:true})});
+if(!SH)return;
+if(!buf){if(!ok||!isFinite(v.duration)){freeMedia();SH.step='src';SH.msg='That video could not be opened in this browser. Try saving it again from Photos, or a shorter clip.';renderSheet();return}
+SH.vdur=v.duration;SH.vstart=0}
+}
+SH.vlen=SH.vdur>=1?1:.5;SH.vname=isVid?'clip':f.name.replace(/\.[^.]+$/,'').slice(0,10);
+SH.step='clip';SH.msg='';renderSheet();
+}
+function clampClip(){SH.vstart=Math.max(0,Math.min(SH.vstart,Math.max(0,SH.vdur-Math.min(SH.vlen,SH.vdur))))}
+function drawWave(cv,from,span,full){
+const dpr=window.devicePixelRatio||1,w=Math.max(1,Math.round(cv.clientWidth*dpr)),h=Math.max(1,Math.round(cv.clientHeight*dpr));
+if(cv.width!==w||cv.height!==h){cv.width=w;cv.height=h}
+const x=cv.getContext('2d'),cs=getComputedStyle(document.documentElement),ink=cs.getPropertyValue('--lcd').trim()||'#262b20',hi=cs.getPropertyValue('--kick').trim()||'#d24e2a';
+x.clearRect(0,0,w,h);
+const s0=(SH.vstart-from)/span*w,s1=(SH.vstart+SH.vlen-from)/span*w;
+x.fillStyle=hi;x.globalAlpha=.22;x.fillRect(s0,0,Math.max(2*dpr,s1-s0),h);x.globalAlpha=1;
+x.fillStyle=ink;
+if(full){const pk=SH.vpk,n=pk.length,g=1/(pk.max||1);for(let px=0;px<w;px+=Math.max(1,Math.round(dpr*1.5))){const i=Math.min(n-1,Math.floor(px/w*n)),a=Math.pow(pk[i]*g,.7)*h*.46;x.fillRect(px,h/2-a,Math.max(1,dpr),Math.max(1,a*2))}}
+else{const b=SH.vbuf,sr=b.sampleRate,d0=b.getChannelData(0),d1=b.numberOfChannels>1?b.getChannelData(1):null,g=.46*h/(SH.vpk.max||1);
+for(let px=0;px<w;px++){const a=Math.floor((from+px/w*span)*sr),e=Math.floor((from+(px+1)/w*span)*sr);let lo=0,hh=0;
+for(let k=Math.max(0,a);k<Math.min(b.length,e);k++){const v=d1?(d0[k]+d1[k])*.5:d0[k];if(v<lo)lo=v;if(v>hh)hh=v}
+x.fillRect(px,h/2-hh*g,1,Math.max(1,(hh-lo)*g))}}
+x.fillStyle=hi;x.fillRect(Math.round(s0),0,Math.max(1,Math.round(2*dpr)),h);
+}
+const zoomSpan=()=>Math.max(1.5,SH.vlen*2.5);
+function paintClip(seekVideo=true){
+if(!SH||SH.step!=='clip')return;clampClip();
+const a=$('#wvAll'),z=$('#wvZoom');
+if(SH.vbuf){if(a)drawWave(a,0,SH.vdur,true);if(z){const sp=zoomSpan();drawWave(z,SH.vstart+SH.vlen/2-sp/2,sp,false)}}
+const sk=$('#vSeek');if(sk)sk.value=SH.vstart;
+const p=$('#vPos');if(p)p.textContent=`${fmtS(SH.vstart)} → ${fmtS(Math.min(SH.vdur,SH.vstart+SH.vlen))}`;
+document.querySelectorAll('[data-sh="vlen"]').forEach(b=>b.classList.toggle('on',+b.dataset.l===SH.vlen));
+if(seekVideo&&SH.vel&&SH.vel.readyState>=1&&!SH.vcap){try{SH.vel.currentTime=SH.vstart}catch(e){}}
+}
+function clipStep(){
+return`<p class="meta" style="margin:0">${SH.vbuf?'Tap the waveform where the sound you want starts, then drag the zoomed view to fine-tune.':'Drag the slider to the moment you want. Tap hear it to check.'} Short, clean moments work best: one word, one hit or one held note.</p>
+${SH.vel?'<div class="vbox" id="vBox"></div>':''}
+${SH.vbuf?`<div><div class="meta wl2">the whole ${SH.vkind} · ${fmtT(SH.vdur)}</div><canvas id="wvAll" class="wv" tabindex="0" aria-label="Whole ${SH.vkind}. Tap to choose where the sample starts. Arrow keys move it."></canvas></div>
+<div><div class="meta wl2">zoomed in · drag sideways to fine-tune</div><canvas id="wvZoom" class="wv zoom" tabindex="0" aria-label="Zoomed waveform. Drag sideways to fine-tune the start. Arrow keys nudge it."></canvas></div>`
+:`<input type="range" id="vSeek" class="vseek" min="0" max="${Math.max(0,SH.vdur-.25).toFixed(2)}" step="0.05" value="${SH.vstart}" aria-label="Start of the sample">`}
+<div class="vpos"><button class="btn" data-sh="nudge" data-d="-0.1" aria-label="Start 0.1 seconds earlier">‹ 0.1 s</button><b id="vPos"></b><button class="btn" data-sh="nudge" data-d="0.1" aria-label="Start 0.1 seconds later">0.1 s ›</button></div>
+<div><div class="meta wl2">how much to keep</div><div class="seg">${VLENS.map(([l,n])=>`<button class="${SH.vlen===l?'on':''}" data-sh="vlen" data-l="${l}" ${l>SH.vdur+.01?'disabled':''}>${n}</button>`).join('')}</div></div>
+<div class="tools"><button class="btn" data-sh="vhear">▶ hear it</button><button class="btn on" data-sh="vuse" style="--tc:var(--signal)">use this ▸</button></div>`;
+}
+function bindClip(){
+const box=$('#vBox');if(box&&SH.vel)box.appendChild(SH.vel);
+const a=$('#wvAll'),z=$('#wvZoom'),sk=$('#vSeek');
+const key=e=>{const m={ArrowLeft:-.1,ArrowRight:.1,ArrowDown:-.01,ArrowUp:.01}[e.key];if(m!=null){e.preventDefault();SH.vstart+=m;paintClip()}};
+if(a){let on=false;const set=e=>{const r=a.getBoundingClientRect();SH.vstart=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width))*SH.vdur;paintClip(false)};
+a.addEventListener('pointerdown',e=>{on=true;a.setPointerCapture(e.pointerId);set(e)});a.addEventListener('pointermove',e=>{if(on)set(e)});
+const end=()=>{if(on){on=false;paintClip()}};a.addEventListener('pointerup',end);a.addEventListener('pointercancel',end);a.addEventListener('keydown',key)}
+if(z){let lx=null;z.addEventListener('pointerdown',e=>{lx=e.clientX;z.setPointerCapture(e.pointerId)});
+z.addEventListener('pointermove',e=>{if(lx==null)return;const r=z.getBoundingClientRect();SH.vstart-=(e.clientX-lx)/r.width*zoomSpan();lx=e.clientX;paintClip(false)});
+const end=()=>{if(lx!=null){lx=null;paintClip()}};z.addEventListener('pointerup',end);z.addEventListener('pointercancel',end);z.addEventListener('keydown',key)}
+if(sk)sk.addEventListener('input',()=>{SH.vstart=+sk.value;paintClip()});
+requestAnimationFrame(()=>paintClip());
+}
+function stopClipAudio(){if(!SH)return;clearTimeout(SH.vtimer);if(SH.vplay){try{SH.vplay.stop()}catch(e){}SH.vplay=null}if(SH.vel&&!SH.vcap){try{SH.vel.pause()}catch(e){}}}
+/* when the browser cannot decode the video's soundtrack, route the video itself into the audio graph */
+function elRoute(){const v=SH.vel;if(!SH.vsrc){SH.vsrc=ctx.createMediaElementSource(v);SH.vsrc.connect(ctx.destination)}v.muted=false}
+async function seekTo(v,t){if(Math.abs(v.currentTime-t)<.01)return;await new Promise(res=>{const to=setTimeout(res,1500);v.addEventListener('seeked',()=>{clearTimeout(to);res()},{once:true});v.currentTime=t})}
+async function clipHear(){
+if(!SH)return;if(!ctx)initAudio();if(ctx.state!=='running')ctx.resume();stopClipAudio();clampClip();
+const t0=SH.vstart,len=Math.min(SH.vlen,SH.vdur-t0),v=SH.vel;
+if(SH.vbuf){const s=ctx.createBufferSource(),g=gn(0),t=ctx.currentTime+.03;s.buffer=SH.vbuf;s.connect(g).connect(ctx.destination);
+g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.9,t+.005);g.gain.setValueAtTime(.9,t+len-.02);g.gain.linearRampToValueAtTime(0,t+len);s.start(t,t0,len);SH.vplay=s;
+if(v){v.muted=true;try{v.currentTime=t0;v.play().catch(()=>{})}catch(e){}SH.vtimer=setTimeout(()=>{try{v.pause();v.currentTime=t0}catch(e){}},len*1000)}return}
+elRoute();await seekTo(v,t0);try{await v.play()}catch(e){SH.msg='This browser would not play the video. Tap hear it again.';renderSheet();return}
+SH.vtimer=setTimeout(()=>{try{v.pause();v.currentTime=t0}catch(e){}},len*1000);
+}
+async function clipUse(){
+if(!SH)return;stopClipAudio();clampClip();
+const t0=SH.vstart,len=Math.min(SH.vlen,SH.vdur-t0),name=`${SH.vname} ${fmtT(t0)}`;
+if(SH.vbuf){const b=SH.vbuf,sr=b.sampleRate,a=Math.floor(t0*sr),n=Math.max(1,Math.min(b.length-a,Math.floor(len*sr)));
+const out=new AudioBuffer({length:n,numberOfChannels:b.numberOfChannels,sampleRate:sr});
+for(let c=0;c<b.numberOfChannels;c++)out.copyToChannel(b.getChannelData(c).subarray(a,a+n),c);
+await processClip(out,name,'clip');return}
+/* fallback: play the moment once and record it */
+if(!window.MediaRecorder||!ctx.createMediaStreamDestination){SH.msg='This browser cannot capture sound from a video.';renderSheet();return}
+const v=SH.vel;elRoute();const dest=ctx.createMediaStreamDestination();SH.vsrc.connect(dest);
+let mr;try{mr=new MediaRecorder(dest.stream)}catch(e){SH.vsrc.disconnect(dest);SH.msg='This browser cannot capture sound from a video.';renderSheet();return}
+SH.vcap=true;SH.msg='Capturing: the moment plays once…';const m=$('#shMsg');if(m)m.textContent=SH.msg;
+await seekTo(v,t0);const chunks=[];mr.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};
+mr.onstop=async()=>{try{SH&&SH.vsrc&&SH.vsrc.disconnect(dest)}catch(e){}if(!SH)return;SH.vcap=false;
+try{const buf=await ctx.decodeAudioData(await new Blob(chunks,{type:mr.mimeType||'audio/mp4'}).arrayBuffer());await processClip(buf,name,'clip')}
+catch(e){SH.msg='That capture could not be read. Try again.';renderSheet()}};
+mr.start();try{await v.play()}catch(e){mr.stop();return}
+setTimeout(()=>{try{v.pause()}catch(e){}if(mr.state!=='inactive')mr.stop()},len*1000+120);
+}
 function placeSound(w){
 const W=WHERE.find(x=>x[0]===w);if(!W||!SH||!SH.snd)return;
 const lesson=SH.lesson;
@@ -1066,20 +1195,23 @@ $('#sheet').addEventListener('click',e=>{
 if(e.target.id==='sheet'){closeSheet();return}
 const b=e.target.closest('[data-sh]');if(!b||b.disabled||!SH)return;const a=b.dataset.sh;SH.msg='';
 if(a==='close'){closeSheet();return}
-if(a==='back'){if(SH.rec){SH.rec.cancel();SH.rec=null}SH.step=b.dataset.to||'src';renderSheet();return}
+if(a==='back'){if(SH.rec){SH.rec.cancel();SH.rec=null}stopClipAudio();if(SH.step==='clip')freeMedia();SH.step=b.dataset.to||'src';renderSheet();return}
 if(a==='rec'||a==='again'){SH.step='rec';renderSheet();return}
 if(a==='vox'){if(SH.snd==='user')SH.snd=null;SH.pitch=0;SH.fine=0;SH.step='vox';renderSheet();return}
-if(a==='file'){const f=$('#shFile');if(f)f.click();return}
+if(a==='file'||a==='video'){const f=$(a==='file'?'#shFile':'#shVidIn');if(f){f.value='';f.click()}return}
+if(a==='reclip'){if(SH.vbuf||SH.vel){SH.step='clip';renderSheet()}else{SH.step='src';renderSheet()}return}
+if(a==='nudge'){SH.vstart+=+b.dataset.d;paintClip();return}
+if(a==='vlen'){SH.vlen=+b.dataset.l;paintClip();return}
+if(a==='vhear'){clipHear();return}
+if(a==='vuse'){clipUse();return}
 if(a==='pick'){SH.snd=b.dataset.v;SH.pitch=0;SH.fine=0;SH.name=SND_NAME[SH.snd]||'';audition();renderSheet();return}
 if(a==='recgo'){sheetRec();return}
 if(a==='hear'){audition();return}
 if(a==='next'){SH.from=SH.step;SH.step='where';renderSheet();return}
 if(a==='where')placeSound(b.dataset.w);
 });
-$('#sheet').addEventListener('change',async e=>{if(e.target.id!=='shFile'||!SH)return;const f=e.target.files&&e.target.files[0];if(!f)return;
-if(!ctx)initAudio();SH.msg='Reading the file…';renderSheet();
-try{const buf=await ctx.decodeAudioData(await f.arrayBuffer());await processClip(buf,f.name.replace(/\.[^.]+$/,'').slice(0,16))}
-catch(er){if(SH){SH.msg='That file could not be read. Try a WAV, MP3 or M4A.';renderSheet()}}});
+$('#sheet').addEventListener('change',e=>{const id=e.target.id;if((id!=='shFile'&&id!=='shVidIn')||!SH)return;const f=e.target.files&&e.target.files[0];if(!f)return;
+loadMedia(f,id==='shVidIn'?'video':'file').catch(()=>{if(SH){SH.step='src';SH.msg='That file could not be read.';renderSheet()}})});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&SH)closeSheet()});
 /* ---------- arrange it for me: the classic intro, build, drop, break, build, drop ---------- */
 function autoArrange(){
@@ -1108,7 +1240,7 @@ why:'A good bassline leaves room for the kick. The off-beat style plays in the g
 txt:'Chords are a few notes played together, and they decide the mood. Pick one. Your bassline follows the chords automatically.',
 why:'Each mood uses a different scale, the set of notes that sound right together. Minor and dreamy are the sound of emotional, late-night dance music.'},
 {k:'hook',t:'The hook',sub:'the bit people remember',
-txt:'A hook is a short sound that repeats: a sung ooh, a word, a hum. Record your own voice or pick a ready-made vocal. MU-S1K trims it, levels it and tunes it to your key.',
+txt:'A hook is a short sound that repeats: a sung ooh, a word, a hum. Record your own voice, take a moment from a video, or pick a ready-made vocal. MU-S1K trims it, levels it and tunes it to your key.',
 why:'Producers like Fred again.. and Bicep build whole tracks around one short vocal, repeated. Repetition is what turns a sound into a hook.'},
 {k:'arr',t:'Arrange it',sub:'the journey',
 txt:'So far you have one loop. A track takes the listener on a journey: a quiet intro, a build-up, the drop where everything comes in, a breakdown, then a second drop. Tap arrange it for me, then listen from the start.',
@@ -1171,7 +1303,7 @@ if(ls.k==='chords'){const C=S.layers.find(x=>x.id===S.learn.chords);
 return`<div class="choices two">${Object.entries(MOODS).map(([k,m])=>`<button class="choice ${C&&C.mood===k?'on':''}" data-l="mood" data-m="${k}" style="--c:var(--chords)"><b>${k}</b><small>${m.d}</small></button>`).join('')}</div>
 ${C?`<div><div class="meta" style="margin-bottom:8px">style · how the chords are played</div><div class="seg">${['pad','stab','arp'].map(m=>`<button class="${C.pats[0].mode===m?'on':''}" data-l="style" data-m="${m}">${MODEN[m]}</button>`).join('')}</div></div>`:''}`}
 if(ls.k==='hook'){const H=S.layers.find(x=>x.id===S.learn.hook);
-if(!H)return`<button class="addsnd cap" data-l="hook"><b>+ add a sound</b><small>record your voice, or pick a ready-made vocal</small></button>`;
+if(!H)return`<button class="addsnd cap" data-l="hook"><b>+ add a sound</b><small>record your voice, use a video, or pick a ready-made vocal</small></button>`;
 const w=WHERE.find(x=>x[0]===H.where);
 return`<div class="secbox"><b class="hk-n">${esc(H.name)}</b><span class="meta">plays ${w?w[1]:'in your pattern'}</span><div class="tools"><button class="btn" data-l="hookhear">▶ hear it alone</button><button class="btn" data-l="hook">change it</button></div></div>`}
 return S.learn.arr?`${arrMini()}<div class="tools"><button class="btn" data-l="arr">play from the start</button></div>`:`<button class="addsnd cap" data-l="arr" style="--c:var(--signal)"><b>✦ arrange it for me</b><small>intro, build-up, drop, breakdown, build-up, drop</small></button>`;

@@ -351,3 +351,12 @@ html:not(.simple) .simp{display:none!important}
 .recbar{height:8px;border-radius:4px;background:var(--lcd-bg);box-shadow:inset 0 1px 3px rgba(0,0,0,.3);overflow:hidden}
 .recbar i{display:block;height:100%;width:0;background:var(--kick)}
 @media (max-width:380px){.vsw button{padding:7px 7px;font-size:11.5px}.choices.three{grid-template-columns:repeat(2,minmax(0,1fr))}}
+/* sampling from a video */
+.vbox{border-radius:12px;overflow:hidden;background:#111;box-shadow:0 0 0 1px var(--edge);display:flex;justify-content:center}
+.shvid{display:block;width:100%;max-height:26vh;object-fit:contain;background:#111}
+.wl2{margin-bottom:5px}
+.wv{display:block;width:100%;height:52px;border-radius:9px;background:var(--lcd-bg);box-shadow:inset 0 2px 5px rgba(0,0,0,.3),0 1px 0 rgba(255,255,255,.8);touch-action:none;cursor:pointer}
+.wv.zoom{height:84px;cursor:ew-resize}
+.vpos{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.vpos b{flex:1;text-align:center;font-family:var(--mono);font-weight:500;font-size:13px;color:var(--lcd);background:var(--lcd-bg);border-radius:7px;padding:9px 4px;box-shadow:inset 0 2px 4px rgba(0,0,0,.28),0 1px 0 rgba(255,255,255,.8);white-space:nowrap}
+.vseek{width:100%;accent-color:var(--kick)}

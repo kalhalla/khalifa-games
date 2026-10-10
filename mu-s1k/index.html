@@ -93,9 +93,9 @@
 <section class="panel" id="p-mix" hidden style="--tc:var(--mix)"></section>
 </div>
 </div>
-<p class="hint"><b>New to making music?</b> Tap learn: seven short steps build a whole track with you, from the kick drum to the drop. <b>Tap play to start.</b> Each part of your track is a layer. Tap + add a sound to record your voice or pick a vocal; it is trimmed and tuned to your key. On the song page, arrange it for me builds an intro, build-ups and drops, and you can switch layers on and off section by section. Turn a knob by dragging up or down on it. Tap show advanced for the full controls. On iPhone, flip the silent switch off if you hear nothing. Your work saves on this device automatically.</p>
+<p class="hint"><b>New to making music?</b> Tap learn: seven short steps build a whole track with you, from the kick drum to the drop. <b>Tap play to start.</b> Each part of your track is a layer. Tap + add a sound to record your voice, take a moment from a video or a screen recording, or pick a vocal; it is trimmed and tuned to your key. On the song page, arrange it for me builds an intro, build-ups and drops, and you can switch layers on and off section by section. Turn a knob by dragging up or down on it. Tap show advanced for the full controls. On iPhone, flip the silent switch off if you hear nothing. Your work saves on this device automatically.</p>
 </div>
-<div id="sheet" class="sheet" hidden role="dialog" aria-modal="true" aria-label="Add a sound"><div class="sheet-card panel" id="sheetCard"></div></div>
+<div id="sheet" class="sheet" hidden role="dialog" aria-modal="true" aria-label="Add a sound"><div class="sheet-card panel" id="sheetCard"></div><input type="file" id="shFile" accept="audio/*" hidden><input type="file" id="shVidIn" accept="video/*" hidden></div>
 <script src="/mu-s1k/app.js"></script>
 <script>(()=>{const r=document.documentElement;let q=false;const f=()=>{q=false;const m=Math.max(1,r.scrollHeight-innerHeight);r.style.setProperty('--shift',(10+scrollY/m*80).toFixed(2))};addEventListener('scroll',()=>{if(!q){q=true;requestAnimationFrame(f)}},{passive:true});f()})();</script>
 <script>if('serviceWorker' in navigator){addEventListener('load',()=>navigator.serviceWorker.register('/mu-s1k/sw.js',{scope:'/mu-s1k/'}).catch(()=>{}))}</script>
