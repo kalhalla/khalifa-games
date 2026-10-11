@@ -59,7 +59,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
 #abar.a{background:rgba(216,72,58,.18);border:1px solid var(--blood);color:#ff7a68;animation:pulse .55s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
 
-#wbar{position:fixed;left:8px;top:calc(48px + env(safe-area-inset-top));z-index:11;display:none;flex-direction:column;gap:6px}
+#wbar{position:fixed;left:8px;top:calc(48px + env(safe-area-inset-top));z-index:11;display:none;flex-direction:column;flex-wrap:wrap;align-content:flex-start;gap:6px;max-height:calc(100vh - 100px - env(safe-area-inset-top))}
 #wbar button{width:44px;height:44px;border-radius:6px;cursor:pointer;font-size:18px;position:relative;
   border:2px solid rgba(201,192,138,.28);background:rgba(10,18,6,.72);color:#8d8659;
   font-family:inherit;transition:transform .08s,border-color .12s}
@@ -77,6 +77,9 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
 #truck{position:fixed;right:8px;top:calc(176px + env(safe-area-inset-top));z-index:11;display:none;padding:3px 10px;border-radius:2px;font-size:12px;font-weight:bold;letter-spacing:2px;color:var(--amber);border:1px solid rgba(255,194,61,.5);background:rgba(6,12,4,.7)}
 #truck.hot{color:#ff7a68;border-color:var(--blood);animation:pulse .55s infinite}
 #bc{font-size:8.5px!important;letter-spacing:.5px;font-weight:bold}
+#bs,#bt{font-size:8.5px!important;letter-spacing:.5px;font-weight:bold;line-height:1.15}
+#bt.tA{border-color:#ffd25a;color:#ffd25a;background:rgba(255,210,90,.14)}
+#bt.tB{border-color:#6fd8ff;color:#6fd8ff;background:rgba(111,216,255,.14)}
 #wbar button.slung{opacity:.32;filter:grayscale(1)}
 
 #roster{position:fixed;left:0;right:0;bottom:0;z-index:10;display:none;justify-content:center;gap:5px;flex-wrap:wrap;
@@ -182,7 +185,14 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
 #bqm.has{background:#c9a43a;color:#1c2208;border:none;font-weight:bold}
 .medal{display:inline-block;margin:0 5px 3px 0;padding:2px 7px;border-radius:2px;font-size:10px;font-weight:bold;letter-spacing:1.5px;border:1px solid rgba(32,40,15,.3);color:rgba(32,40,15,.35)}
 .medal.on{color:#20280f;border-color:#20280f;background:rgba(32,40,15,.06)}
-.medal.new{color:#1c2208;background:#c9a43a;border-color:#c9a43a}
+.medal.new{color:#1c2208;background:#c9a43a;border-color:#c9a43a;animation:medalIn .55s cubic-bezier(.2,1.6,.4,1) both}
+@keyframes medalIn{0%{transform:scale(2.4) rotate(-8deg);opacity:0}60%{opacity:1}100%{transform:none;opacity:1}}
+@keyframes stampIn{0%{transform:rotate(-13deg) scale(3);opacity:0}70%{opacity:1}100%{transform:rotate(-13deg) scale(1);opacity:1}}
+.stamp.slam{animation:stampIn .35s cubic-bezier(.3,1.4,.5,1) both}
+.crewman.up{animation:promo 1.2s ease-out .6s both}
+@keyframes promo{0%{box-shadow:0 0 0 0 rgba(201,164,58,.9)}100%{box-shadow:0 0 0 14px rgba(201,164,58,0)}}
+.crewman .tr{font-size:8.5px;color:#8a7a3a;letter-spacing:.8px;text-transform:uppercase}
+.memo .iron{display:inline-block;margin-left:8px;padding:1px 6px;border:1px solid #8c2a22;color:#8c2a22;font-size:9.5px;letter-spacing:1.5px}
 .medal.m1.on,.medal.m1.new{box-shadow:inset 3px 0 0 #a8743a}.medal.m2.on,.medal.m2.new{box-shadow:inset 3px 0 0 #b8bcc0}.medal.m3.on,.medal.m3.new{box-shadow:inset 3px 0 0 #e0c050}
 #ops .md{margin-top:3px;font-size:10px;letter-spacing:1px;color:#6d6a45}#ops .md b{font-weight:normal;margin-right:5px}#ops .md b.on1{color:#c08a4a}#ops .md b.on2{color:#d8dce0}#ops .md b.on3{color:#f0d060}
 .obit{font-size:11.5px;line-height:1.7}
@@ -325,6 +335,9 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
   <button id="bx" data-w="charge" style="display:none">🧨<span id="xc">0</span><span id="xt" style="display:none"></span></button>
   <button id="bk" data-w="knife" title="Knife (K): tap a sentry">🗡️</button>
   <button id="bc" title="Crawl (Q)">CRAWL</button>
+  <button id="bsn" data-w="snipe" title="Sniper (S): tap a sentry to mark him, the ground to move" style="display:none">🎯</button>
+  <button id="bs" title="Split the squad (V)">SPLIT</button>
+  <button id="bt" title="Switch team (Tab)" style="display:none">TEAM<br>B</button>
 </div>
 <div id="roster"></div>
 <div id="barks"></div>
@@ -337,11 +350,13 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
   <div class="menu">
     <button id="tcont" class="pri">CONTINUE <small id="tcontsub"></small></button>
     <button id="tnew">NEW CAMPAIGN <small>from the top</small></button>
+    <button id="tdaily">DAILY OP <small id="tdailysub">the same op for everyone today</small></button>
+    <button id="tiron">IRONMAN <small>one life · no repeats · no revives</small></button>
     <button id="tops">OPERATIONS <small id="topssub">mission select</small></button>
     <button id="tset">SETTINGS <small>sound · music · graphics</small></button>
   </div>
   <div class="foot">© GAMELAB · NO GRUNTS WERE CONSULTED</div>
-  <div id="tver">v30</div>
+  <div id="tver">v33</div>
 </div>
 
 <div id="ops" class="screen">
@@ -454,6 +469,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
       <div class="row"><div class="k">Casualties</div><div class="v"><ul class="obit" id="dobit"></ul></div></div></div>
       <button class="btn rw" id="drev" style="display:none">REVIVE</button>
       <button class="btn rw" id="ddbl" style="display:none">DOUBLE REQUISITION</button>
+      <button class="btn rw" id="dshare" style="display:none">SHARE TODAY'S RESULT</button>
       <button class="btn" id="dgo">CONTINUE</button>
       <button class="btn ghost" id="dretry">REPEAT OPERATION</button>
       <div class="stamp" id="dstamp">FAILED</div>
@@ -668,6 +684,7 @@ let camShake = 0, camKick = new THREE.Vector3();
 const SUN_I = 1.15;
 const sun = new THREE.DirectionalLight(0xffffff, SUN_I); sun.color = SC(0xfff0d4);
 sun.position.set(38, 54, 26);
+const SUN_OFF = new THREE.Vector3(38, 54, 26);   // v31: set per op by the lighting preset
 sun.castShadow = true;
 sun.shadow.mapSize.set(MOBILE ? 1024 : 2048, MOBILE ? 1024 : 2048);
 sun.shadow.bias = -0.0009;
@@ -703,6 +720,22 @@ const LOOK_HN = 128, LOOK_H = new Uint8Array(LOOK_HN * LOOK_HN * 4);
 LOOK.hgt.value = new THREE.DataTexture(LOOK_H, LOOK_HN, LOOK_HN, THREE.RGBAFormat);
 LOOK.hgt.value.magFilter = LOOK.hgt.value.minFilter = THREE.LinearFilter;
 const LOOK_ZERO = { value: 0 };
+/* v31 atmosphere: shared uniforms. Cloud shadows (a tileable noise texture drifting with the wind darkens the
+   sun's direct light on every Phong surface), and wind sway for foliage (materials flagged userData.sway). */
+const ATMO = { t: { value: 0 }, cloud: { value: 0 }, off: { value: new THREE.Vector2() }, wind: { value: new THREE.Vector2(0.6, 0.4) }, sway: { value: 1 }, tex: { value: null } };
+ATMO.tex.value = (() => {
+  const N = 128, a = new Uint8Array(N * N * 4);
+  const lat = (P, sd) => { const g = []; for (let i = 0; i < P * P; i++) g.push(hash2(i * 1.37 + sd, sd * 3.1 + i * 0.71));
+    const at = (i, j) => g[((j % P + P) % P) * P + ((i % P + P) % P)], sm = t => t * t * (3 - 2 * t);
+    return (x, y) => { const xi = Math.floor(x), yi = Math.floor(y), u = sm(x - xi), v = sm(y - yi);
+      return (at(xi, yi) * (1 - u) + at(xi + 1, yi) * u) * (1 - v) + (at(xi, yi + 1) * (1 - u) + at(xi + 1, yi + 1) * u) * v; }; };
+  const o1 = lat(4, 1), o2 = lat(8, 2), o3 = lat(16, 3);
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const x = i / N, y = j / N, v = o1(x * 4, y * 4) * 0.56 + o2(x * 8, y * 8) * 0.29 + o3(x * 16, y * 16) * 0.15, k = (j * N + i) * 4;
+    a[k] = a[k + 1] = a[k + 2] = Math.round(v * 255); a[k + 3] = 255;
+  }
+  const t = new THREE.DataTexture(a, N, N, THREE.RGBAFormat); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.magFilter = t.minFilter = THREE.LinearFilter; t.needsUpdate = true; return t;
+})();
 function lookInject(sh, m) {
   const ud = m.userData || {};
   sh.uniforms.uLkAer = LOOK.aer; sh.uniforms.uLkAerA = LOOK.aerA; sh.uniforms.uLkGrade = LOOK.grade;
@@ -760,6 +793,44 @@ function lookInject(sh, m) {
   }`);
     fs = fs.replace('#include <common>', '#include <common>\nvarying float vLkAO;')
       .replace('#include <color_fragment>', '#include <color_fragment>\n  diffuseColor.rgb *= vLkAO;');
+  }
+  // v31: cloud shadows on the sun's direct light
+  if (phong && ud.lookCloud !== false) {
+    sh.uniforms.uAtCloud = ATMO.cloud; sh.uniforms.uAtCloudT = ATMO.tex; sh.uniforms.uAtOff = ATMO.off;
+    vs = vs.replace('#include <common>', '#include <common>\nvarying vec2 vAtW;')
+      .replace('#include <fog_vertex>', `#include <fog_vertex>
+  {
+    vec4 atW = vec4(transformed, 1.0);
+#ifdef USE_INSTANCING
+    atW = instanceMatrix * atW;
+#endif
+    vAtW = (modelMatrix * atW).xz;
+  }`);
+    fs = fs.replace('#include <common>', '#include <common>\nvarying vec2 vAtW; uniform sampler2D uAtCloudT; uniform float uAtCloud; uniform vec2 uAtOff;')
+      .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
+  {
+    float atC = 1.0 - uAtCloud * smoothstep(0.47, 0.68, texture2D(uAtCloudT, vAtW * 0.0125 + uAtOff).r);
+    reflectedLight.directDiffuse *= atC; reflectedLight.directSpecular *= atC;
+  }`);
+  }
+  // v31: foliage sways in the wind, more toward the top (in each instance's own frame, so the wind is one way)
+  if (ud.sway) {
+    sh.uniforms.uAtT = ATMO.t; sh.uniforms.uAtWind = ATMO.wind; sh.uniforms.uAtSway = ATMO.sway;
+    vs = vs.replace('#include <common>', '#include <common>\nuniform float uAtT, uAtSway; uniform vec2 uAtWind;')
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+  {
+#ifdef USE_INSTANCING
+    mat4 swM = instanceMatrix;
+#else
+    mat4 swM = mat4(1.0);
+#endif
+    vec2 swP = (modelMatrix * swM[3]).xz;
+    float swS = max(1e-3, dot(swM[0].xyz, swM[0].xyz));
+    vec2 swL = vec2(dot(uAtWind, swM[0].xz), dot(uAtWind, swM[2].xz)) / swS;
+    float swH = max(0.0, position.y);
+    float swG = sin(uAtT * 1.6 + swP.x * 0.37 + swP.y * 0.23) * 0.6 + sin(uAtT * 2.7 + swP.x * 0.13 - swP.y * 0.29) * 0.4 + 0.35;
+    transformed.xz += swL * swG * 0.014 * swH * swH * uAtSway;
+  }`);
   }
   sh.fragmentShader = fs; sh.vertexShader = vs;
 }
@@ -1088,6 +1159,15 @@ scene.add(gnd);
    lead your eye from the spawn to the objective. */
 let roads = [];
 function setRoads(list) { roads = list || []; }
+function segDist(pts, x, z) {
+  let best = 1e9;
+  for (let i = 0; i + 1 < pts.length; i++) {
+    const [ax, az] = pts[i], [bx, bz] = pts[i + 1], dx = bx - ax, dz = bz - az, l2 = dx * dx + dz * dz;
+    const t = l2 > 0 ? Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2)) : 0;
+    best = Math.min(best, Math.hypot(ax + dx * t - x, az + dz * t - z));
+  }
+  return best;
+}
 function roadDist(x, z, vis) {
   let best = null, tn;
   for (const r of roads) {
@@ -1134,6 +1214,8 @@ function buildRoadStrips() {
       const [x, z] = P[i];
       // v28: the strip stops at a bridge's ends (the deck carries the road across) and at water
       const tn = r.tun ? tunAt(x, z) : null;
+      // v31: a track stops at the edge of a road it crosses (the two strips fought where they overlapped)
+      if (r.kind !== 'road' && roads.some(o => o !== r && o.kind === 'road' && segDist(o.pts, x, z) < o.w / 2 + 0.35)) { rows.push(null); continue; }
       if ((tn && tn.side < tn.T.hw + 0.4) || waterFactor(x, z) > 0.04 || onBridge(x, z, 0.3) || x < -60 || x > MW + 60 || z < -60 || z > MH + 60) { rows.push(null); continue; }
       rows.push(cols.map(([off, kind], j) => {
         const fr = kind === 'fray' ? (hash2(x * 1.7 + j, z * 1.3) - 0.3) * 0.5 : 0, o = off + Math.sign(off) * fr;
@@ -1527,8 +1609,8 @@ function muffleMusic(v) {   // 0 = clear, 1 = through a wall
 
 /* ambient bed: wind, birds, river, fog drone. Everything is a gain the game leans on. */
 const AMB = (() => {
-  let on = false, wind = null, river = null, drone = null, birdT = 2, hushT = 0;
-  const tgt = { wind: 0.5, river: 0, fog: 0, birds: 1 }, cur = { wind: 0, river: 0, fog: 0, birds: 0 };
+  let on = false, wind = null, river = null, drone = null, rain = null, rainLo = null, birdT = 2, hushT = 0;
+  const tgt = { wind: 0.5, river: 0, fog: 0, birds: 1, rain: 0 }, cur = { wind: 0, river: 0, fog: 0, birds: 0, rain: 0 };
   function bed(f, q, type) {
     const s = noise();
     const flt = AC.createBiquadFilter(); flt.type = type || 'bandpass'; flt.frequency.value = f; flt.Q.value = q;
@@ -1544,6 +1626,7 @@ const AMB = (() => {
       const lfo = AC.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 0.07;
       const lg = AC.createGain(); lg.gain.value = 140; lfo.connect(lg); lg.connect(wind.flt.frequency); lfo.start();
       river = bed(1400, 0.6, 'bandpass');
+      rain = bed(3200, 0.4, 'bandpass'); rainLo = bed(700, 0.5, 'lowpass');   // v31: hiss and patter
       const dr = AC.createOscillator(); dr.type = 'sine'; dr.frequency.value = 52;
       const dg = AC.createGain(); dg.gain.value = 0; dr.connect(dg); dg.connect(mixAmb); dr.start();
       drone = { g: dg };
@@ -1559,6 +1642,7 @@ const AMB = (() => {
       wind.g.gain.setTargetAtTime(cur.wind * 0.16, t, 0.3);
       river.g.gain.setTargetAtTime(cur.river * 0.11, t, 0.3);
       drone.g.gain.setTargetAtTime(cur.fog * 0.06, t, 0.5);
+      rain.g.gain.setTargetAtTime(cur.rain * 0.12, t, 0.4); rainLo.g.gain.setTargetAtTime(cur.rain * 0.09, t, 0.4);
       // birdsong: sparse chirps, silenced by gunfire
       birdT -= dt;
       if (birdT <= 0) {
@@ -1981,6 +2065,196 @@ function clearFx() {
   decals.length = 0;
 }
 
+/*───────────────────── v31 atmosphere: light, smoke, mist, rain, wind ─────────────────────
+   · LIGHT presets per op (from M.light, or read off the briefing's time of day): sun colour, angle and
+     strength, sky and fog colour, the bounce light, exposure, how much cloud, how hard the wind blows.
+   · Smoke: soft billboard puffs from emitters. Explosions leave a column for ten seconds, wrecks burn
+     for most of a minute, burnt-out hulks smoulder for good. It drifts and leans with the wind.
+   · Mist: on mist ops, soft drifting patches settle in the lowest ground. A man inside one is harder to
+     see (inMist); the patch thins as men wade through it.
+   · Rain: streaks round the camera, slanted by the wind, a hiss in the ambience, wet ground. It shortens
+     how far quiet noises carry and takes a little off how far you are seen. */
+const LIGHT = {
+  dawn:      { sky: 0xc6b8b0, sun: 0xffc89e, si: 1.0, off: [56, 32, -6], hs: 0x9eaccc, hg: 0x404a2a, hi: 0.56, ex: 0.9, cloud: 0.22, wind: 0.5, smoke: 0xffe8dc },
+  morning:   { sky: 0xa9c5da, sun: 0xfff0dc, si: 1.08, off: [46, 44, 20], hs: 0x8fb6d8, hg: 0x3d5020, hi: 0.46, ex: 0.83, cloud: 0.32, wind: 0.7, smoke: 0xffffff },
+  noon:      { sky: 0x9fc0d8, sun: 0xfff0d4, si: 1.15, off: [38, 54, 26], hs: 0x8fb6d8, hg: 0x3d5020, hi: 0.45, ex: 0.82, cloud: 0.38, wind: 0.6, smoke: 0xffffff },
+  afternoon: { sky: 0xa8bccc, sun: 0xffe2b6, si: 1.1, off: [-34, 46, 28], hs: 0x8eaed0, hg: 0x40501f, hi: 0.45, ex: 0.83, cloud: 0.34, wind: 0.85, smoke: 0xfff4e6 },
+  dusk:      { sky: 0xc89c86, sun: 0xffa466, si: 1.15, off: [-48, 36, 16], hs: 0x929cc4, hg: 0x48482e, hi: 0.66, ex: 1.02, cloud: 0.18, wind: 0.6, smoke: 0xffd6c0 },
+  overcast:  { sky: 0x8e989f, sun: 0xdde2e8, si: 0.5, off: [30, 60, 20], hs: 0x9aa4ae, hg: 0x3a4430, hi: 0.74, ex: 0.92, cloud: 0, wind: 1.15, smoke: 0xe8ecf0 },
+};
+function lightOf(M) {
+  if (M.light) return M.light;
+  if (M.weather === 'rain') return 'overcast';
+  const t = M.sub || '';
+  return /Dawn|Pre-dawn/.test(t) ? 'dawn' : /Dusk|Evening/.test(t) ? 'dusk' : /Afternoon/.test(t) ? 'afternoon' : /Morning/.test(t) ? 'morning' : 'noon';
+}
+let windAng = 0.6, windMag = 0.6, weatherRain = false, lightName = 'noon';
+const smokeTint = new THREE.Color(1, 1, 1);
+function applyLight(name) {
+  const L = LIGHT[name] || LIGHT.noon; lightName = name;
+  scene.background.copy(SC(L.sky)); scene.fog.color.copy(SC(L.sky));
+  sun.color = SC(L.sun); sun.intensity = L.si; SUN_OFF.set(...L.off);
+  hemi.color = SC(L.hs); hemi.groundColor = SC(L.hg); hemi.intensity = L.hi;
+  R.toneMappingExposure = L.ex; ATMO.cloud.value = L.cloud; windMag = L.wind; smokeTint.copy(SC(L.smoke));
+}
+
+// ---- smoke ----
+const SMOKE_MAX = MOBILE ? 140 : 230;
+const smokeGeo = new THREE.PlaneGeometry(1, 1);
+smokeGeo.setAttribute('aCol', new THREE.InstancedBufferAttribute(new Float32Array(SMOKE_MAX * 4), 4));
+const smokeMat = new THREE.ShaderMaterial({
+  uniforms: { uFogC: { value: new THREE.Color() }, uFogN: { value: 78 }, uFogF: { value: 168 }, uTint: { value: smokeTint } },
+  vertexShader: `attribute vec4 aCol; varying vec4 vCol; varying vec2 vUv; varying float vFd;
+void main() {
+  vUv = uv; vCol = aCol;
+  vec4 c = modelViewMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+  c.xy += position.xy * length(instanceMatrix[0].xyz);
+  vFd = -c.z; gl_Position = projectionMatrix * c;
+}`,
+  fragmentShader: `uniform vec3 uFogC, uTint; uniform float uFogN, uFogF; varying vec4 vCol; varying vec2 vUv; varying float vFd;
+void main() {
+  vec2 q = vUv - 0.5; float d = length(q) * 2.0;
+  float a = (1.0 - smoothstep(0.25, 1.0, d)) * min(1.0, vCol.a * 1.35);
+  if (a < 0.004) discard;
+  vec3 c = vCol.rgb * uTint * (0.86 + 0.3 * q.y);
+  c = mix(c, uFogC, smoothstep(uFogN, uFogF, vFd));
+  gl_FragColor = vec4(c, a);
+#include <tonemapping_fragment>
+#include <encodings_fragment>
+}`,
+  transparent: true, depthWrite: false,
+});
+smokeMat.onBeforeCompile = () => { };   // not the look pass: it would ask for uniforms this shader doesn't declare
+const smokeMesh = new THREE.InstancedMesh(smokeGeo, smokeMat, SMOKE_MAX);
+smokeMesh.frustumCulled = false; smokeMesh.count = 0; smokeMesh.renderOrder = 3.3; scene.add(smokeMesh);
+let smoke = [], smokers = [];
+// o: life (s, Infinity for good), rate (puffs/s), size (m), col, a (opacity), rise (m/s), y
+function addSmoker(x, z, o) {
+  o = o || {};
+  const S = { x, z, y: o.y !== undefined ? o.y : groundY(x, z), life: o.life || 12, rate: o.rate || 4, acc: 0, col: SC(o.col || 0x4a4844),
+              size: o.size || 1.6, a: o.a || 0.5, rise: o.rise || 1.5 };
+  smokers.push(S);
+  for (let i = 0; i < (o.burst || 0); i++) puff(S, 1.6);
+  return S;
+}
+function puff(S, big) {
+  if (smoke.length >= SMOKE_MAX) smoke.shift();
+  const k = big || 1;
+  smoke.push({ x: S.x + (Math.random() - 0.5) * k, y: S.y + 0.5 + Math.random() * 0.6 * k, z: S.z + (Math.random() - 0.5) * k,
+               vy: S.rise * (0.7 + Math.random() * 0.6), s: S.size * (0.8 + Math.random() * 0.6) * k, g: S.size * (0.55 + Math.random() * 0.4),
+               life: 0, max: 5 + Math.random() * 4, c: S.col, a: S.a });
+}
+const _sm = new THREE.Matrix4(), _sq = new THREE.Quaternion(), _sv = new THREE.Vector3(), _ss = new THREE.Vector3();
+function stepSmoke(dt) {
+  for (let i = smokers.length - 1; i >= 0; i--) {
+    const S = smokers[i];
+    S.life -= dt; if (S.life <= 0) { smokers.splice(i, 1); continue; }
+    S.acc += S.rate * Math.min(1, S.life / 6) * dt;
+    while (S.acc >= 1) { S.acc -= 1; puff(S); }
+  }
+  const wx = Math.cos(windAng) * windMag * 2.2, wz = Math.sin(windAng) * windMag * 2.2, col = smokeGeo.attributes.aCol;
+  let n = 0;
+  for (let i = smoke.length - 1; i >= 0; i--) {
+    const P = smoke[i];
+    P.life += dt; if (P.life >= P.max) { smoke.splice(i, 1); continue; }
+    const f = P.life / P.max;
+    P.x += wx * dt * (0.3 + f); P.z += wz * dt * (0.3 + f); P.y += P.vy * dt; P.vy *= 1 - 0.3 * dt; P.s += P.g * dt;
+  }
+  for (const P of smoke) {
+    if (n >= SMOKE_MAX) break;
+    const f = P.life / P.max, al = P.a * Math.min(1, P.life / 0.5) * Math.pow(1 - f, 1.4);
+    _sm.compose(_sv.set(P.x, P.y, P.z), _sq, _ss.set(P.s, P.s, P.s)); smokeMesh.setMatrixAt(n, _sm);
+    col.setXYZW(n, P.c.r, P.c.g, P.c.b, al); n++;
+  }
+  smokeMesh.count = n; smokeMesh.instanceMatrix.needsUpdate = true; col.needsUpdate = true;
+  smokeMat.uniforms.uFogC.value.copy(scene.fog.color); smokeMat.uniforms.uFogN.value = scene.fog.near; smokeMat.uniforms.uFogF.value = scene.fog.far;
+}
+
+// ---- mist ----
+const mistTex = (() => {
+  const N = 128, cv = document.createElement('canvas'); cv.width = cv.height = N;
+  const x = cv.getContext('2d'), img = x.createImageData(N, N);
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const dx = (i + 0.5) / N * 2 - 1, dy = (j + 0.5) / N * 2 - 1, r = Math.hypot(dx, dy), nz = fbm(i * 0.055 + 3, j * 0.055 + 7);
+    const a = Math.pow(Math.max(0, Math.min(1, 1 - r * (0.95 + (nz - 0.5) * 0.9))), 1.5) * (0.55 + 0.45 * nz), k = (j * N + i) * 4;
+    img.data[k] = img.data[k + 1] = img.data[k + 2] = 255; img.data[k + 3] = Math.round(a * 255);
+  }
+  x.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(cv); return t;
+})();
+let mists = [];
+const mistGeo = new THREE.PlaneGeometry(1, 1); mistGeo.rotateX(-Math.PI / 2);
+function buildMist(M) {
+  for (const P of mists) for (const m of P.m) { scene.remove(m); m.material.dispose(); }
+  mists = [];
+  if (!M.mist || M.night || M.weather) return;
+  const cand = [];
+  for (let z = 8; z <= MH - 6; z += 4) for (let x = 6; x <= MW - 6; x += 4) cand.push([x, z, groundY(x, z) - (waterZones.length && waterFactor(x, z) > 0 ? 1.2 : 0) + hash2(x, z) * 0.7]);
+  cand.sort((a, b) => a[2] - b[2]);
+  const N = MOBILE ? 6 : 9;
+  for (const [x, z] of cand) {
+    if (mists.length >= N) break;
+    if (mists.some(P => Math.hypot(P.ax - x, P.az - z) < 17)) continue;
+    const r = 15 + hash2(x * 1.3, z) * 8, gy = groundY(x, z), P = { ax: x, az: z, x, z, r, ph: hash2(z, x) * 6.3, op: 1, m: [] };
+    for (const [h, sc, o] of [[0.35, 1, 0.5], [1.05, 0.78, 0.38]]) {
+      const m = new THREE.Mesh(mistGeo, new THREE.MeshBasicMaterial({ map: mistTex, color: SC(0xe8ecec), transparent: true, opacity: o, depthWrite: false }));
+      m.scale.set(r * sc, 1, r * sc); m.position.set(x, gy + h, z); m.rotation.y = P.ph; m.renderOrder = 3.2; m.userData.o = o; m.userData.h = h;
+      scene.add(m); P.m.push(m);
+    }
+    mists.push(P);
+  }
+}
+function inMist(x, z) { for (const P of mists) if (Math.hypot(x - P.x, z - P.z) < P.r * 0.36) return true; return false; }
+function stepMist(dt) {
+  for (const P of mists) {
+    const t = ATMO.t.value * 0.05 + P.ph;
+    P.x = P.ax + Math.cos(windAng) * Math.sin(t) * 3.5; P.z = P.az + Math.sin(windAng) * Math.sin(t) * 3.5;
+    let wade = 0; for (const s of sol) if (!s.dead && Math.hypot(s.x - P.x, s.z - P.z) < P.r * 0.38) wade++;
+    P.op += ((wade ? 0.6 : 1) - P.op) * Math.min(1, dt * 1.5);
+    P.m.forEach((m, i) => { m.position.x = P.x + (i ? Math.sin(t * 1.7) * 1.5 : 0); m.position.z = P.z; m.rotation.y = P.ph + t * (i ? -0.08 : 0.05); m.material.opacity = m.userData.o * P.op; });
+  }
+}
+
+// ---- rain ----
+const RAIN_N = MOBILE ? 380 : 720;
+const rainPos = new Float32Array(RAIN_N * 6), rainD = new Float32Array(RAIN_N * 3);
+const rainGeo = new THREE.BufferGeometry(); rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
+const rainMesh = new THREE.LineSegments(rainGeo, new THREE.LineBasicMaterial({ color: SC(0xc0ccd8), transparent: true, opacity: 0.34, depthWrite: false }));
+rainMesh.frustumCulled = false; rainMesh.renderOrder = 4.5; rainMesh.visible = false; scene.add(rainMesh);
+function rainDrop(i, top) {
+  rainD[i * 3] = camTgt.x + (Math.random() - 0.5) * 56; rainD[i * 3 + 2] = camTgt.z + (Math.random() - 0.62) * 50;
+  rainD[i * 3 + 1] = (top ? 16 + Math.random() * 4 : Math.random() * 20) + groundY(rainD[i * 3], rainD[i * 3 + 2]);
+}
+function stepRain(dt) {
+  if (!rainMesh.visible) return;
+  const wx = Math.cos(windAng) * windMag * 4, wz = Math.sin(windAng) * windMag * 4;
+  for (let i = 0; i < RAIN_N; i++) {
+    let x = rainD[i * 3], y = rainD[i * 3 + 1], z = rainD[i * 3 + 2];
+    y -= 24 * dt; x += wx * dt; z += wz * dt;
+    if (y < groundY(x, z) || Math.abs(x - camTgt.x) > 30 || z - camTgt.z > 20 || z - camTgt.z < -34) { rainDrop(i, true); x = rainD[i * 3]; y = rainD[i * 3 + 1]; z = rainD[i * 3 + 2]; }
+    rainD[i * 3] = x; rainD[i * 3 + 1] = y; rainD[i * 3 + 2] = z;
+    const o = i * 6; rainPos[o] = x; rainPos[o + 1] = y; rainPos[o + 2] = z; rainPos[o + 3] = x - wx * 0.04; rainPos[o + 4] = y + 0.95; rainPos[o + 5] = z - wz * 0.04;
+  }
+  rainGeo.attributes.position.needsUpdate = true;
+}
+
+// ---- per mission, per frame ----
+function setupAtmo(M) {
+  smoke = []; smokers = []; smokeMesh.count = 0;
+  weatherRain = M.weather === 'rain';
+  rainMesh.visible = weatherRain;
+  if (weatherRain) for (let i = 0; i < RAIN_N; i++) rainDrop(i, false);
+  gndMat.shininess = weatherRain ? 26 : 4; gndMat.specular = SC(weatherRain ? 0x30363a : 0x101010);
+  windAng = hash2(missionIdx * 3.3, 1.7) * 6.283;
+  buildMist(M);
+}
+function stepAtmo(dt) {
+  windAng += Math.sin(ATMO.t.value * 0.05) * 0.02 * dt;
+  ATMO.wind.value.set(Math.cos(windAng) * windMag, Math.sin(windAng) * windMag);
+  ATMO.off.value.x -= Math.cos(windAng) * windMag * 3.2 * 0.0125 * dt; ATMO.off.value.y -= Math.sin(windAng) * windMag * 3.2 * 0.0125 * dt;
+  stepSmoke(dt); stepMist(dt); stepRain(dt);
+}
+
 // one shared flash light for all muzzle fire
 const muzzleLight = new THREE.PointLight(0xffffff, 0, 12, 2); muzzleLight.color = SC(0xffd48a); scene.add(muzzleLight);
 let muzzleT = 0;
@@ -2183,11 +2457,13 @@ const propRoot = new THREE.Group(); scene.add(propRoot);
 const INST_MAX = 190;
 const propMat = new THREE.MeshPhongMaterial({ vertexColors: true, flatShading: true, shininess: 6, specular: SC(0x14140f) });
 const metalMat = new THREE.MeshPhongMaterial({ vertexColors: true, flatShading: true, shininess: 40, specular: SC(0x55554a) });
+// v31: foliage gets its own program, with wind sway (see lookInject)
+const swayMat = propMat.clone(); swayMat.userData = { sway: true }; swayMat.customProgramCacheKey = () => 'sway';
 const INST = {};
 for (const [key, maker, count] of [['tree', k => treeGeo(TREE_KINDS[k]), TREE_KINDS.length], ['rock', v => rockGeo((v + 0.5) / 3), 3], ['bush', v => bushGeo((v + 0.5) / 3), 3]]) {
   INST[key] = [];
   for (let v = 0; v < count; v++) {
-    const im = new THREE.InstancedMesh(maker(v), propMat, INST_MAX);
+    const im = new THREE.InstancedMesh(maker(v), key === 'rock' ? propMat : swayMat, INST_MAX);
     im.castShadow = true; im.receiveShadow = true; im.count = 0;
     im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     im.frustumCulled = false;
@@ -3011,7 +3287,7 @@ function rigGeo(C) {
 }
 const rifleGeoCache = {};
 function rifleGeo(kind) {
-  const k = kind === 'mg' ? 'mg' : 'rifle';
+  const k = kind === 'mg' ? 'mg' : kind === 'scope' ? 'scope' : 'rifle';
   if (rifleGeoCache[k]) return rifleGeoCache[k];
   const wood = 0x6a4a2c, woodD = 0x553a22, metal = 0x26282a;
   const parts = [
@@ -3019,6 +3295,8 @@ function rifleGeo(kind) {
     RP_(RG.box, RM4(0, 0.025, 0.05, 0.045, 0.055, 0.18), metal), RP_(RG.box, RM4(0, 0.003, 0.27, 0.05, 0.05, 0.30), wood),
     RP_(RG.box, RM4(0, 0.02, 0.43, 0.024, 0.024, 0.42), metal),
   ];
+  if (k === 'scope') parts.push(RP_(RG.cyl, RM4(0, 0.085, 0.07, 0.04, 0.3, 0.04, Math.PI / 2), 0x1c1e20), RP_(RG.cyl, RM4(0, 0.085, 0.235, 0.055, 0.05, 0.055, Math.PI / 2), 0x1c1e20),
+    RP_(RG.box, RM4(0, 0.055, 0.07, 0.02, 0.04, 0.03), metal), RP_(RG.box, RM4(0, 0.02, 0.62, 0.03, 0.03, 0.12), 0x6a6a5c));
   if (k === 'mg') parts.push(
     RP_(RG.box, RM4(0, 0.02, 0.40, 0.075, 0.075, 0.50), metal), RP_(RG.box, RM4(0.05, -0.04, 0.06, 0.06, 0.12, 0.14), 0x3a3a30),
     RP_(RG.box, RM4(0.05, -0.10, 0.55, 0.02, 0.18, 0.02, 0.4), metal), RP_(RG.box, RM4(-0.05, -0.10, 0.55, 0.02, 0.18, 0.02, 0.4), metal));
@@ -3807,7 +4085,7 @@ const MISSIONS = [
     brief: 'A forward post, a scout on the treeline and a pair working the flanks, all between you and a lorry ' +
            'waiting on the far side of the wood. Nobody here needs to die. Crawl through the scrub, keep out of the ' +
            'cones, and get to the green flare — the moment one of them shouts, the whole wood knows.',
-    weather: null, scatter: 62,
+    weather: null, scatter: 62, mist: true,
     enemies: [
       { x: .5, z: .22, a: Math.PI * .55, range: 21, arc: Math.PI * .72, hp: 3 },
       { x: .6, z: .26, a: Math.PI * .65, range: 20, arc: Math.PI * .68, hp: 3 },
@@ -3854,11 +4132,11 @@ const MISSIONS = [
     name: 'The Hut',
     roads: [{ k: 'track', pts: [[.5, 1.0], [.5, .7], [.49, .38]] }],
     obj: 'Take the documents and get out',
-    sub: 'Sector 2 · Afternoon · A hut and its guards',
+    sub: 'Sector 2 · Afternoon · Rain · A hut and its guards',
     brief: 'A timber hut with a map table in the back room and a satchel of orders on it. One man at the door, one inside, one walking ' +
            'the walls and a pair covering the yard. Get a man to the table and bring the papers back to our lines — the whole point is ' +
            'that they never know the papers have gone. The roof lifts when you are through the door.',
-    weather: null, scatter: 46, diff: 0.1, noExtras: true,
+    weather: 'rain', scatter: 46, diff: 0.1, noExtras: true,
     buildings: [
       { x: .38, z: .2, w: .24, d: .16, doorX: .47, doorZ: .35, doorW: .05, doorD: .02,
         wall: 0x7a6a44, roof: 0x4f5a4e, floor: 0x5a5244, walls: [{ x: 0, z: .45, w: .6, d: .05 }] },
@@ -3883,11 +4161,11 @@ const MISSIONS = [
     name: 'The Bridge',
     roads: [{ k: 'road', w: 3.6, pts: [[.5, 0.0], [.5, .3], [.5, .7], [.5, 1.0]] }],
     obj: 'Blow the bridge',
-    sub: 'Sector 9 · Morning · River in spate',
+    sub: 'Sector 9 · Morning · Rain · River in spate',
     brief: 'One bridge, and their armour needs it tomorrow. Two men guard our end, a gun watches it from the far bank, and a patrol walks ' +
            'this side of the water. Get a charge onto the planks or right at the foot of them, then get clear: thirty seconds, and the river ' +
            'takes anyone still standing on it. Then back to our lines.',
-    weather: null, scatter: 46, diff: 0.2, noExtras: true, charges: 2,
+    weather: 'rain', scatter: 46, diff: 0.2, noExtras: true, charges: 2,
     water: [{ x1: 0, z1: .42, x2: 1, z2: .5 }],
     bridge: [{ x1: .465, z1: .415, x2: .535, z2: .505 }],
     targets: [{ t: 'bridge', b: 0 }],
@@ -3908,7 +4186,7 @@ const MISSIONS = [
     spawnZ: .9, grenades: 6, reinf: 4, alertThreshold: .6,
   },
   {
-    name: 'Bridgehead',
+    name: 'Bridgehead', sniper: true,
     roads: [{ k: 'track', pts: [[.5, 1.0], [.4, .7], [.34, .56], [.34, .4], [.5, .25], [.5, 0.0]] }],
     obj: 'Cross, wreck the radio, get out',
     sub: 'Sector 11 · Midday · A pillbox on the far bank',
@@ -3941,7 +4219,7 @@ const MISSIONS = [
     brief: 'A forest so thick the only ways through are the rides cut between the stands. A four-man patrol walks a circuit of them, ' +
            'and they are the job: all four. Pick your ride, lie up where the path pinches, and let them walk into you — in here a man sees ' +
            'three metres of path and nothing else. They have a dog: lie up close and it will smell you. Two more watch the crossings. Then out through the narrow gap at the top.',
-    weather: null, scatter: 14, diff: 0.35, noExtras: true,
+    weather: null, scatter: 14, diff: 0.35, noExtras: true, mist: true,
     objectives: [{ t: 'killTag', tag: 'patrol' }, { t: 'extract', label: 'Out through the narrow gap at the top' }], extract: { x: .57, z: .06, r: 4.5 },
     enemies: [
       ...[0, 1, 2, 3].map(i => ({ x: .41 + i * .035, z: .525, a: Math.PI * .5, range: 15, arc: Math.PI * .6, hp: 3, tag: 'patrol', rapidFire: i === 1,
@@ -3963,7 +4241,7 @@ const MISSIONS = [
     name: 'The Convoy',
     roads: [{ k: 'road', w: 4.0, pts: [[0.0, .3], [.35, .3], [.65, .3], [1.0, .3]] }, { k: 'track', pts: [[.49, 1.0], [.49, .7], [.49, .3]] }],
     obj: 'Burn the fuel lorry, then get out',
-    sub: 'Sector 6 · Afternoon · Traffic on the road',
+    sub: 'Sector 6 · Dusk · Traffic on the road',
     brief: 'Their armour runs on what is in one fuel lorry, parked in a wired depot across the main road. Traffic comes and goes on that road ' +
            'and the crews look about them. A pillbox covers the road where the ride comes out of the trees; a pair walks the verge. Get a blast ' +
            'near the lorry — it does the rest, and it does not care whose men are standing beside it. Then back through the trees.',
@@ -3990,7 +4268,7 @@ const MISSIONS = [
     spawnZ: .92, grenades: 6, reinf: 5, alertThreshold: .55,
   },
   {
-    name: 'The Canyon',
+    name: 'The Canyon', sniper: true,
     obj: 'Get through the canyon',
     sub: 'Sector 14 · Noon · Rock walls, men on top',
     brief: 'The only way north is a dry canyon that doglegs twice. Men sit on the rims looking down; from up there they will make out a man ' +
@@ -4051,7 +4329,7 @@ const MISSIONS = [
     objectives: [{ t: 'rescue', label: 'Find the downed pilot' }, { t: 'extract', label: 'Get him back to our lines' }], extract: { x: .5, z: .95, r: 7 },
   },
   {
-    name: 'HQ Assault',
+    name: 'HQ Assault', sniper: true,
     roads: [{ k: 'road', w: 3.8, pts: [[.5, 1.0], [.52, .62], [.5, .30]] }],
     obj: 'Eliminate the commander',
     sub: 'Sector 3 · Dawn · Fog',
@@ -4098,14 +4376,14 @@ const MISSIONS = [
     spawnZ: .9, grenades: 8, reinf: 5, alertThreshold: .4,
   },
   {
-    name: 'The Cliff Path',
+    name: 'The Cliff Path', sniper: true,
     obj: 'Silence the battery',
     sub: 'Sector 15 · Morning · One way up',
     brief: 'Three field guns on the plateau are shelling the low ground every eighteen seconds, and you are standing in it. There is one ' +
            'way up: a track cut into the cliff on the west. A pillbox sits near the top of it, facing out over the field — its back is to ' +
            'the path, and you will come up beside it. Wreck the guns with a grenade or spike them quietly, three seconds a gun. Once they ' +
            'stop, the pickup is at the far end of the plateau.',
-    weather: null, scatter: 36, diff: 0.6, noExtras: true, charges: 2, artillery: true,
+    weather: null, scatter: 36, diff: 0.6, noExtras: true, charges: 2, artillery: true, mist: true,
     mesas: [{ x: 0, z: 0, w: 1, d: .44, h: 6, ramps: [{ fx: .14, fz: .68, tx: .14, tz: .4, w: 3.6 }] }],
     targets: [{ t: 'pillbox', x: .25, z: .36, a: 0 }, { t: 'gun', x: .5, z: .2, a: 0 }, { t: 'gun', x: .66, z: .14, a: 0 }, { t: 'gun', x: .82, z: .22, a: 0 }],
     objectives: [{ t: 'destroy', what: 'gun', label: 'Silence the guns' }, { t: 'extract', label: 'The pickup at the far end of the plateau' }], extract: { x: .93, z: .06, r: 5 },
@@ -4178,7 +4456,7 @@ const MISSIONS = [
     spawnZ: .95, grenades: 6, reinf: 0, alertThreshold: .6, noExtras: true,
   },
   {
-    name: 'Final Push',
+    name: 'Final Push', sniper: true,
     roads: [{ k: 'road', w: 3.8, pts: [[.5, 1.0], [.5, .60], [.5, .30]] }],
     obj: 'Kill the General',
     sub: 'Sector 0 · Fog · Everything at once',
@@ -4343,9 +4621,56 @@ function missionEnemies(M) {
 /*───────────────────── campaign state ─────────────────────*/
 const RESERVE_NAMES = ['Max', 'Rik', 'Tom', 'Sam', 'Lee', 'Jay', 'Ned', 'Gus', 'Wilf', 'Alf', 'Herb', 'Cyril', 'Norm', 'Reg', 'Sid', 'Vern', 'Ollie', 'Bert'];
 let reservePool = RESERVE_NAMES.slice();
+let ironman = false, inOpRec = null, daily = null;
 let roster = [], fallen = [], missionIdx = 0, campaignKills = 0;
 
 let stats = { kills: 0, lost: 0, time: 0, nades: 0, ops: 0 };
+/* v33: every man has one trait, fixed by his name (the four originals by hand). Shown on his card. */
+const TRAITS = {
+  eye:   { n: 'Crack shot', d: 'shoots a quarter straighter and a little further' },
+  quiet: { n: 'Quiet', d: 'hard to make out when he is down in the grass' },
+  arm:   { n: 'Grenadier', d: 'carries one more grenade for the squad' },
+  tough: { n: 'Tough', d: 'takes one more round' },
+  quick: { n: 'Quick', d: 'moves a tenth faster' },
+  keen:  { n: 'Keen eyes', d: 'sees further, in the dark and the fog too' },
+};
+const TRAIT_OF = { Sarge: 'tough', Stan: 'eye', Cal: 'quiet', Bob: 'arm', Chalky: 'eye' };
+function traitOf(g) {
+  const n = g && g.name; if (!n) return null;
+  if (TRAIT_OF[n]) return TRAIT_OF[n];
+  let h = 11; for (const ch of n) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return Object.keys(TRAITS)[h % 6];
+}
+SQUAD_LOOK.Chalky = { build: 'tall', hair: 'fair', skin: 0xe6b894, mo: 1, stub: 0 };
+function addSniper(M) {
+  const ref = { ...newGrunt('Chalky', sniperRec.kills), sniper: true };
+  const u = mkUnit({ name: 'Chalky', colour: P.friendly[4 % P.friendly.length], hp: 4, ref }, false);
+  const K = KIT.sniper; u.sniper = true; u.K = K; u.kit = 'sniper';
+  u.acc = K.acc; u.cool *= K.cool; u.range *= K.range; u.team = 2;
+  if (u.F.rig) u.F.rifle.geometry = rifleGeo('scope');
+  applyTrait(u, 'eye'); u.acc = K.acc;
+  u.x = MW * 0.5 + 3.5; u.z = MH * M.spawnZ + 2.4; u.tx = u.x; u.tz = u.z; u.angle = u.aim = Math.PI; u.barOff = 0.5;
+  ref.rankAtStart = rankFor(ref.kills);
+  sol.push(u); sniperMark = null;
+}
+let sniperMark = null;
+function sniperOf() { return sol.find(q => q.sniper && !q.dead); }
+function sniperKill(sn, e) {
+  sniperShots++;
+  slowT = Math.max(slowT, 0.32);
+  if (sniperShots <= 2) showToast('ONE SHOT', sniperShots === 1 ? 'Chalky does not miss much' : 'and another');
+  if (!spotted) noiseEvent(e.x, e.z, 10, 0.32);   // the men next to him see him go down
+  say(sn, 'kill');
+}
+let sniperShots = 0;
+function applyTrait(u, t) {
+  u.trait = t;
+  if (t === 'eye') { u.acc *= 0.75; u.range *= 1.1; }
+  else if (t === 'tough') { u.hp++; u.maxHp++; }
+  else if (t === 'quick') u.speed *= 1.1;
+  else if (t === 'keen') u.keen = true;
+  else if (t === 'quiet') u.quiet = true;
+}
 function newGrunt(name, kills) { return { name, kills: kills || 0, dead: false, cause: null, promoted: false, kit: 'rifle' }; }
 
 /* ── the quartermaster. Requisition (REQ) is earned per operation and spent between them.
@@ -4368,6 +4693,10 @@ const KIT = {
   lmg:   { n: 'Bren gun',  tag: 'BREN',   d: 'Hoses a doorway. Heavy, so he walks slower, and the whole valley hears it.', cost: 45, cool: 0.42, range: 1.05, acc: 1.45, hold: 12.5, noise: [30, 0.55], alert: 0.18, speed: 0.88 },
 };
 const KIT_ORDER = ['rifle', 'smg', 'dmr', 'sil', 'lmg'];
+// v33: the attached sniper's rifle (not on the quartermaster's list). Never fires on his own while you are unseen:
+// mark a man with 🎯 and he takes the shot. A dropped sentry is seen falling by anyone close to him.
+KIT.sniper = { n: 'Sniper rifle', tag: 'SNIPER', d: 'One shot, one man, from a long way off.', cost: 0, cool: 3.0, range: 1.85, acc: 0.12, hold: 0, noise: [15, 0.3], alert: 0.05, dmg: 4 };
+let sniperRec = { kills: 14, dead: false };
 let req = 0, upg = {}, arms = ['rifle'], lastPay = 0;
 const upgLvl = id => upg[id] | 0;
 const kitOf = g => KIT[g && g.kit] && arms.includes(g.kit) ? KIT[g.kit] : KIT.rifle;
@@ -4378,6 +4707,7 @@ function resetCampaign() {
   fallen = []; missionIdx = 0; campaignKills = 0;
   stats = { kills: 0, lost: 0, time: 0, nades: 0, ops: 0 };
   req = 0; upg = {}; arms = ['rifle'];
+  sniperRec = { kills: 14, dead: false }; ironman = false;
 }
 /* persistence: one campaign slot plus a high-water mark for the operations screen */
 const SAVE_KEY = 'gs3d_campaign', UNLOCK_KEY = 'gs3d_unlocked', MEDAL_KEY = 'gs3d_medals';
@@ -4412,7 +4742,8 @@ try {
 } catch (e) { }
 function saveCampaign() {
   try {
-    PF.set(SAVE_KEY, JSON.stringify({ v: 1, missionIdx, op: MISSIONS[missionIdx].name, side: sideReturn, roster, fallen, reservePool, campaignKills, stats, req, upg, arms, at: Date.now() }));
+    if (daily) return;   // v33: a daily op never touches the campaign
+    PF.set(SAVE_KEY, JSON.stringify({ v: 1, missionIdx, op: MISSIONS[missionIdx].name, side: sideReturn, roster, fallen, reservePool, campaignKills, stats, req, upg, arms, sniper: sniperRec, ironman, inOp: inOpRec, at: Date.now() }));
   } catch (e) { }
 }
 function loadCampaign() {
@@ -4434,6 +4765,17 @@ function applySave(s) {
   missionIdx = s.op ? opIndex(s.op) : opIndex(V17_ORDER[clamp(s.missionIdx | 0, 0, V17_ORDER.length - 1)]);
   campaignKills = s.campaignKills | 0;
   stats = Object.assign({ kills: 0, lost: 0, time: 0, nades: 0, ops: 0 }, s.stats || {});
+  sniperRec = s.sniper && typeof s.sniper === 'object' ? { kills: s.sniper.kills | 0, dead: !!s.sniper.dead } : { kills: 14, dead: false };
+  ironman = !!s.ironman; inOpRec = null;
+  // v33 Ironman: a save made mid-operation means the operation was walked out of. The men who went are posted missing.
+  if (ironman && s.inOp && Array.isArray(s.inOp.men)) {
+    for (const n of s.inOp.men) {
+      const g = roster.find(q => q.name === n && !q.dead); if (!g) continue;
+      g.dead = true; g.cause = 'posted missing — the operation was abandoned';
+      fallen.push({ name: g.name, rank: rankFor(g.kills), kills: g.kills, cause: g.cause, mission: s.inOp.op });
+    }
+    topUpRoster();
+  }
 }
 function clearSave() { try { PF.remove(SAVE_KEY); } catch (e) { } }
 function markUnlocked(i) {
@@ -4496,6 +4838,68 @@ let globalAlert = 0, missionTime = 0, grenCount = 8, startGren = 8, everSpotted 
 let wavering = false;   // v20: the officer is dead and there is a way home — his men hold, they do not hunt
 let reinfSent = false, hitStop = 0, outcome = null, weatherFog = false;
 let bloodTimer = 0, squadProne = false, noiseTimer = 0, spotted = false;
+/* v32 squad split: two fireteams. Off, the squad is one snake as before. Split, team A (the first half of the
+   line) and team B each have their own leader, trail, stance and suppression; orders go to the selected team,
+   and the other holds where it is and fights. Hold on the ground with a team selected and it PINS that spot
+   for ten seconds after you let go, so you can switch and walk the other team round the flank. Enemies under
+   fire keep their heads down (supT): they lie flat, shoot less and wildly, and stop moving. */
+let pinShown = false, split = false, selTeam = 0, teamProne = [false, false, false], teamSup = [null, null, null], posH2 = [];
+const PIN_T = 10;
+const tmOf = s => s.sniper ? 2 : split ? (s.team || 0) : 0;
+function teamLeader(k) { return sol.find(s => !s.dead && tmOf(s) === k); }
+function selLeader() { return teamLeader(split ? selTeam : 0) || sol.find(s => !s.dead); }
+const teamMat = [0xffd25a, 0x6fd8ff].map(c => new THREE.MeshBasicMaterial({ color: SC(c), transparent: true, opacity: 0.6, depthWrite: false }));
+function teamUI() {
+  const bs = $('bs'), bt = $('bt');
+  bs.textContent = split ? 'JOIN' : 'SPLIT'; bs.className = split ? 'on2' : '';
+  bt.style.display = split ? '' : 'none';
+  bt.innerHTML = 'TEAM<br>' + (selTeam ? 'B' : 'A'); bt.className = selTeam ? 'tB' : 'tA';
+  for (const s of sol) {
+    if (!s.F || !s.F.base) continue;
+    if (!s.baseMat0) s.baseMat0 = s.F.base.material;
+    s.F.base.material = split ? teamMat[s.team || 0] : s.baseMat0;
+  }
+  if (phase === 'play') updateHUD();
+  teamMat[0].opacity = split && selTeam === 0 ? 0.85 : 0.45; teamMat[1].opacity = split && selTeam === 1 ? 0.85 : 0.45;
+}
+function stanceUI(v) {
+  const btn = $('bc');
+  btn.className = v ? 'on2' : '';
+  btn.textContent = v ? 'STAND' : 'CRAWL';
+  $('hst').textContent = v ? 'PRONE · UNSEEN' : 'UPRIGHT · ARMED';
+  $('hst').style.color = v ? '#ffc23d' : '';
+  $('bg').classList.toggle('slung', v);
+  $('bn').classList.toggle('slung', v);
+}
+function setSplit(v) {
+  if (v === split) return;
+  const live = sol.filter(q => !q.dead && !q.sniper);
+  if (v && live.length < 2) { showToast('ONE MAN LEFT', 'he is the whole squad now'); return; }
+  if (knife) endKnife();
+  if (v) {
+    const n = Math.ceil(live.length / 2); live.forEach((q, i) => q.team = i < n ? 0 : 1);
+    split = true; selTeam = 1; teamProne = [squadProne, squadProne]; teamSup = [null, null]; posH2 = [];
+    const B = teamLeader(1); B.tx = B.x; B.tz = B.z; B.path = null;
+    const A = teamLeader(0); A.tx = A.x; A.tz = A.z; A.path = null;
+    const nm = k => sol.filter(q => !q.dead && q.team === k).map(q => q.name).join(' & ');
+    showToast('SQUAD SPLIT', `A: ${nm(0)} hold — B: ${nm(1)} with you`);
+  } else {
+    split = false; selTeam = 0; teamSup = [null, null];
+    const p = teamProne[0]; squadProne = p; teamProne = [p, p];
+    for (const q of live) { q.prone = p; q.fpath = null; q.stuckT = 0; q.bestD = undefined; }
+    showToast('SQUAD TOGETHER', 'back on one line');
+  }
+  stanceUI(squadProne); teamUI(); SFX.ui();
+}
+function selectTeam(k) {
+  if (!split || !teamLeader(k)) return;
+  selTeam = k; squadProne = teamProne[k]; stanceUI(squadProne); teamUI(); SFX.ui();
+  const L = teamLeader(k); if (L) say(L, 'start');
+}
+// a team wiped out leaves one squad
+function checkTeams() {
+  if (split && (!teamLeader(0) || !teamLeader(1))) { const k = teamLeader(0) ? 0 : 1; teamProne[0] = teamProne[k]; setSplit(false); }
+}
 let artyT = 0, shells = [], hostage = null, objective = 'all', objDone = false, prisoners = [], night = false;
 let truck = null, truckT = -1, truckTotal = 0;
 let rallyX = null, rallyZ = null;
@@ -4530,7 +4934,7 @@ function startKnife(e) {
   if (e.dead || e.tower || e.elev || e.inBox || e.dog) { showToast('NOT WITH A KNIFE', e.dog ? 'the dog would have your hand off' : 'you cannot get at him'); return; }
   if (e.state === 'engage') { showToast('NO KNIFE', 'he is already fighting — rifles'); return; }
   let best = null, bd = KNIFE_REACH;
-  for (const s of sol) { if (s.dead) continue; const d = dst(s, e); if (d < bd) { bd = d; best = s; } }
+  for (const s of sol) { if (s.dead || s.sniper || (split && tmOf(s) !== selTeam)) continue; const d = dst(s, e); if (d < bd) { bd = d; best = s; } }
   if (!best) { showToast('TOO FAR', `get within ${KNIFE_REACH} metres first`); return; }
   if (knife) endKnife();
   knife = { s: best, e, t: 0, rush: false, rp: 0, path: null };
@@ -4540,11 +4944,11 @@ function startKnife(e) {
 function endKnife(title, sub) {
   if (!knife) return;
   const s = knife.s; knife = null;
-  if (!s.dead) { s.prone = squadProne; s.tx = s.x; s.tz = s.z; s.path = null; s.fpath = null; }
+  if (!s.dead) { s.prone = teamProne[tmOf(s)]; s.tx = s.x; s.tz = s.z; s.path = null; s.fpath = null; }
   if (title) showToast(title, sub || '');
 }
 function stab(s, e) {
-  knife = null; s.knifeVis = 0.7; quietT = KNIFE_QUIET; s.prone = squadProne; s.tx = s.x; s.tz = s.z; s.path = null;
+  knife = null; s.knifeVis = 0.7; quietT = KNIFE_QUIET; s.prone = teamProne[tmOf(s)]; s.tx = s.x; s.tz = s.z; s.path = null;
   s.angle = s.aim = Math.atan2(e.x - s.x, e.z - s.z);
   e.toppleDir = 1; killUnit(e, 'knife');
   SFX.stab(e.x, e.z);
@@ -4831,6 +5235,7 @@ function stepMarks(dt) {
 /*───────────────────── noise ─────────────────────*/
 // the single most important tactical channel: everything loud pulls the camp toward you
 function noiseEvent(x, z, radius, level) {
+  if (weatherRain) radius *= level < 0.5 ? 0.6 : 0.85;   // v31: the rain covers the small sounds
   if (level >= 0.3) { scareBirds(x, z, radius * 1.4); panicFauna(x, z, radius * 1.6, false); AMB.hush(6 + level * 8); }
   for (const e of ens) {
     if (e.dead) continue;
@@ -4932,6 +5337,7 @@ function drown(u) {
   }
 }
 
+let killCredit = null;
 function killUnit(u, kind, byFriendly) {
   u.dead = true; u.dying = 0; u.toppleDir = Math.random() < 0.5 ? 1 : -1;
   if (u.cmd && u.foe && !ens.some(e => !e.dead && e.cmd) && objSteps.some(q => q.t === 'extract')) {
@@ -4949,8 +5355,8 @@ function killUnit(u, kind, byFriendly) {
   corpses.push(u);
   if (u.foe) {
     kills++; stats.kills++;
-    let best = null, bd = 1e9;
-    for (const s of sol) { if (s.dead) continue; const d = dst(s, u); if (d < bd) { bd = d; best = s; } }
+    let best = killCredit && !killCredit.dead ? killCredit : null, bd = 1e9;
+    if (!best) for (const s of sol) { if (s.dead) continue; const d = dst(s, u); if (d < bd) { bd = d; best = s; } }
     if (best && best.ref) { best.ref.kills++; campaignKills++; }
     if (best && kind !== 'knife') setTimeout(() => say(best, 'kill'), 260);
     // v26: a knife kill is silent — no alarm, no sound carrying. A body hitting the ground otherwise is worth a look
@@ -4988,7 +5394,8 @@ function foeGrenade(e, tx, tz) {
 function throwGrenade(tx, tz) {
   if (grenCount <= 0) return;
   if (squadProne) { showToast('WEAPONS SLUNG', 'stand up to throw'); return; }
-  const live = sol.filter(s => !s.dead);
+  let live = sol.filter(s => !s.dead && !s.sniper && (!split || tmOf(s) === selTeam));   // v32: the selected team throws
+  if (!live.length) live = sol.filter(s => !s.dead);
   if (!live.length) return;
   let thr = live[0], bd = 1e9;
   for (const s of live) { const d = dst(s, { x: tx, z: tz }); if (d < bd) { bd = d; thr = s; } }
@@ -5024,6 +5431,8 @@ function explode(gx, gz, fromX, fromZ, inside) {
   spawnParts(gx, gy + 0.6, gz, 12, 0x6a6a62, 5, 0.34, 1.1, 3);
   spawnParts(gx, gy + 0.2, gz, 10, 0x5c4a2c, 7, 0.14, 0.8, 18);
   decal(gx, gz, 2.6, 0x241a10, 0.5);
+  if (!inside) { decal(gx, gz, 1.1, 0x150f0a, 0.7); addSmoker(gx, gz, { life: 10, rate: 5, size: 2.0, col: 0x8a857c, a: 0.62, burst: 8 }); }   // v31: a crater and a column of smoke
+  else addSmoker(gx, gz, { life: 14, rate: 3, size: 1.2, col: 0x3a3836, a: 0.55, y: gy + 1.2 });
   SFX.boom(gx, gz);
   camShake = Math.min(camShake + 0.65, 1.2);
   hitStop = Math.max(hitStop, 0.07);
@@ -5130,10 +5539,12 @@ function detectRate(e, s) {
   // sight you are not there at all; crawl across his boots and he makes you out — slowly if you lie still
   if (s.prone) {
     const close = e.visionRange * (e.elev ? 0.55 : 0.32);
-    if (!inCone || d > close || inCover(s.x, s.z)) return 0;
-    return (1.4 * (1 - d / close) + 0.15) * (s.moving ? 1 : 0.4) * (1 + 0.35 * diffD);
+    if (!inCone || d > close || inCover(s.x, s.z) || (mists.length && d > close * 0.5 && inMist(s.x, s.z))) return 0;
+    return (1.4 * (1 - d / close) + 0.15) * (s.moving ? 1 : 0.4) * (1 + 0.35 * diffD) * (s.quiet ? 0.6 : 1);
   }
   if (inCover(s.x, s.z) && !e.tower) r *= 0.38;   // a man six metres up looks down into the scrub
+  if (mists.length && inMist(s.x, s.z)) r *= 0.5;   // v31: in the mist
+  if (weatherRain) r *= 0.85;
   r *= s.moving ? 1.25 : 0.65;
   if (weatherFog) r *= 0.8;
   if (e.state === 'engage' || e.state === 'search') r *= 1.6; // already looking for you
@@ -5371,7 +5782,7 @@ function buildBoundary() {
   const d = new THREE.Object3D(), col = new THREE.Color();
   for (const k in spots) {
     const L = spots[k]; if (!L.length) continue;
-    const im = new THREE.InstancedMesh(k.startsWith('pine') ? EG.pine : EG.leaf, propMatI, L.length);
+    const im = new THREE.InstancedMesh(k.startsWith('pine') ? EG.pine : EG.leaf, swayMatI, L.length);
     L.forEach(([x, z, s, r], i) => {
       d.position.set(x, groundY(x, z) - 0.2, z); d.rotation.set(0, r, 0); d.scale.set(s, s * (0.9 + hash2(x, z) * 0.25), s); d.updateMatrix();
       im.setMatrixAt(i, d.matrix); const v = 0.84 + hash2(z * 3.1, x) * 0.26; im.setColorAt(i, col.setRGB(v, v, v));
@@ -5421,7 +5832,7 @@ function flushThickets() {
   const d = new THREE.Object3D(), col = new THREE.Color();
   for (const pine of [true, false]) {
     const L = thicketSpots.filter(q => q[4] === pine); if (!L.length) continue;
-    const im = new THREE.InstancedMesh(pine ? EG.pine : EG.leaf, propMatI, L.length);
+    const im = new THREE.InstancedMesh(pine ? EG.pine : EG.leaf, swayMatI, L.length);
     L.forEach(([x, z, sc, r], i) => { d.position.set(x, groundY(x, z) - 0.2, z); d.rotation.set(0, r, 0); d.scale.set(sc, sc * (0.9 + hash2(x, z) * 0.25), sc); d.updateMatrix(); im.setMatrixAt(i, d.matrix); const v = 0.8 + hash2(z * 3.1, x) * 0.28; im.setColorAt(i, col.setRGB(v, v, v)); });
     im.castShadow = true; im.receiveShadow = true; im.frustumCulled = false; edgeRoot.add(im);
     L.forEach((q, i) => regFade(im, i, q[0], q[1]));
@@ -5747,7 +6158,8 @@ const OBJ_LABEL = {
   destroy: s => { const L = targets.filter(t => !s.what || t.kind === s.what), n = L.filter(t => t.dead).length, nm = { pillbox: 'pillbox', radio: 'radio', bridge: 'bridge', lorry: 'fuel lorry', gun: 'gun' }[s.what] || 'target';
     return L.length > 1 ? `Destroy the ${nm}s (${n}/${L.length})` : `Destroy the ${nm}`; },
 };
-const propMatI = propMat.clone();   // instanced + per-instance tint: r128 shares one program per material, so tinted instancing needs its own
+const propMatI = propMat.clone();
+const swayMatI = propMat.clone(); swayMatI.userData = { sway: true }; swayMatI.customProgramCacheKey = () => 'swayI';   // instanced + per-instance tint: r128 shares one program per material, so tinted instancing needs its own
 const pbMat = propMat, pbScorch = new THREE.MeshPhongMaterial({ vertexColors: true, flatShading: true, shininess: 2, color: SC(0x4a4640) });
 function mkPillbox(T) {
   // facing: 0 south (+z), π north, ±π/2 east/west — kept to the four quarters so the obstacle stays a rectangle
@@ -5880,12 +6292,17 @@ function crewTargets() {
     });
   }
 }
+// v33: the big ones — slow the clock, pull the camera back, shake it
+let camPull = 0;
+function bigMoment(k) { slowT = Math.max(slowT, 0.75 * (k || 1)); camPull = Math.min(1.4, camPull + (k || 1)); camShake = Math.min(1.4, camShake + 0.5); }
 function destroyTarget(T, how) {
   if (T.dead) return;
   T.dead = true;
+  if (how !== 'quiet' && T.kind !== 'radio') bigMoment(T.kind === 'bridge' || T.kind === 'lorry' ? 1.2 : 0.8);
   if (T.kind === 'pillbox') {
     for (const u of T.crew) if (!u.dead) { u.inBox = null; u.boxed = true; killUnit(u, 'blast'); u.mesh.visible = false; if (u.F.rifle) u.F.rifle.visible = false; }
     T.mesh.material = pbScorch; T.smokeT = 30;
+    addSmoker(T.sx, T.sz, { life: 35, rate: 2.5, size: 1.2, col: 0x34322f, a: 0.55, y: groundY(T.sx, T.sz) + 1.0 });   // v31
     spawnParts(T.sx, groundY(T.sx, T.sz) + 1.2, T.sz, 30, 0xffb060, 9, 0.2, 0.6, 6);
     showToast('PILLBOX SILENCED', how === 'slit' ? 'posted through the letterbox' : 'the walls held; the men inside did not');
   } else if (T.kind === 'radio') {
@@ -5893,10 +6310,10 @@ function destroyTarget(T, how) {
     spawnParts(T.x, groundY(T.x, T.z) + 0.8, T.z, 14, 0xfff0a0, 6, 0.06, 0.5, 8);
     showToast('RADIO OUT', how === 'quiet' ? 'smashed, quietly' : 'nobody is calling anybody');
   } else if (T.kind === 'lorry') {
-    lorryFireball(T);
+    lorryFireball(T); addSmoker(T.x, T.z, { life: 70, rate: 5, size: 2.2, col: 0x1e1d1c, a: 0.65, rise: 2.6, burst: 8 });   // v31
     showToast('FUEL LORRY GONE', 'they will be walking tomorrow');
   } else if (T.kind === 'gun') {
-    T.mesh.rotation.z = how === 'quiet' ? 0 : 0.3; if (how !== 'quiet') T.mesh.material = pbScorch; T.ring.visible = false;
+    T.mesh.rotation.z = how === 'quiet' ? 0 : 0.3; if (how !== 'quiet') { T.mesh.material = pbScorch; addSmoker(T.x, T.z, { life: 30, rate: 2.5, size: 1.3, col: 0x363431, a: 0.55 }); } T.ring.visible = false;
     spawnParts(T.x, groundY(T.x, T.z) + 1, T.z, how === 'quiet' ? 6 : 24, how === 'quiet' ? 0xd8d0b0 : 0xffa040, 6, 0.12, 0.6, 8);
     const left = targets.filter(t => t.kind === 'gun' && !t.dead).length;
     showToast(how === 'quiet' ? 'GUN SPIKED' : 'GUN WRECKED', left ? `${left} still firing` : 'the battery is silent');
@@ -5905,6 +6322,7 @@ function destroyTarget(T, how) {
     T.mesh.rotation.z = 0.35; T.mesh.position.y -= 1.6;
     rebuildTerrain(); buildRoadStrips(); buildWater(); buildGrid(); buildPathGrid(); bakeLookHeights();   // v28: the road goes with the bridge
     spawnParts(T.x, groundY(T.x, T.z) + 1, T.z, 40, 0x8a6a3c, 10, 0.22, 1.2, 12);
+    addSmoker(T.x, T.z, { life: 8, rate: 6, size: 2.4, col: 0x9a8c74, a: 0.45, burst: 10 });   // v31: dust off the timbers
     showToast('BRIDGE DOWN', 'nothing crosses here now');
   }
   updObjBar();
@@ -6000,6 +6418,8 @@ function initMission(idx) {
   kills = 0; globalAlert = 0; missionTime = 0; reinfSent = false; wavering = false; outcome = null;
   grenCount = startGren = M.grenades + upgLvl('webb'); everSpotted = false; weapon = 'gun'; setWeapon('gun');
   hitStop = 0; bloodTimer = 0; camShake = 0; squadProne = false; noiseTimer = 0; spotted = false;
+  split = false; selTeam = 0; teamProne = [false, false, false]; teamSup = [null, null, null]; posH2 = []; pinShown = false;   // v32
+  sniperMark = null; sniperShots = 0;
   artyT = M.artillery ? 25 : 1e9;   // v15: was 12 s — the first shell alerts the whole camp, so a stealth approach needs the time artFired = 0; foeNadesThrown = 0;
   objective = M.win || 'all'; objDone = false;
   if (truck) { propRoot.remove(truck.mesh); truck = null; } truckT = -1; truckTotal = M.truck || 0; $('truck').style.display = 'none';
@@ -6011,14 +6431,15 @@ function initMission(idx) {
   setNightLighting(night);
 
   if (!night) {
-    scene.fog.near = weatherFog ? 14 : 78;
-    scene.fog.far = weatherFog ? 52 : 168;
+    scene.fog.near = weatherFog ? 14 : M.weather === 'rain' ? 46 : 78;
+    scene.fog.far = weatherFog ? 52 : M.weather === 'rain' ? 128 : 168;
     lookFog = weatherFog; setLook(LOOK.on);
-    scene.fog.color.copy(SC(weatherFog ? 0x8d9a92 : 0x9fc0d8));
-    scene.background.copy(SC(weatherFog ? 0x8d9a92 : 0x9fc0d8));
-    sun.intensity = weatherFog ? SUN_I * 0.55 : SUN_I;
-    R.toneMappingExposure = weatherFog ? 0.78 : 0.82;
-  }
+    if (weatherFog) {
+      applyLight('noon');
+      scene.fog.color.copy(SC(0x8d9a92)); scene.background.copy(SC(0x8d9a92));
+      sun.intensity = SUN_I * 0.55; R.toneMappingExposure = 0.78; ATMO.cloud.value = 0; windMag = 0.3; smokeTint.setRGB(1, 1, 1);
+    } else applyLight(lightOf(M));   // v31
+  } else { SUN_OFF.set(38, 54, 26); ATMO.cloud.value = 0; windMag = 0.4; smokeTint.setRGB(0.6, 0.65, 0.8); }
 
   waterZones = (M.water || []).map(r => ({ x0: r.x1 * MW, z0: r.z1 * MH, x1: r.x2 * MW, z1: r.z2 * MH }));
   bridgeZones = (M.bridge || []).map(r => ({ x0: r.x1 * MW, z0: r.z1 * MH, x1: r.x2 * MW, z1: r.z2 * MH }));
@@ -6061,6 +6482,7 @@ function initMission(idx) {
   buildWater();
   for (const r of bridgeZones) bridges.push(mkBridge(r));
   buildBoundary();
+  setupAtmo(M);   // v31: before the obstacles, so burnt hulks can light their smoke
 
   let seed = 1;
   for (const o of M.obstacles) {
@@ -6105,9 +6527,15 @@ function initMission(idx) {
     u.x = MW * 0.5 + (i - (crew.length - 1) / 2) * 2.2;
     u.z = MH * M.spawnZ;
     u.tx = u.x; u.tz = u.z; u.angle = u.aim = Math.PI;
-    u.barOff = i * 0.17;
+    u.barOff = i * 0.17; u.team = 0;
+    applyTrait(u, traitOf(g));
     sol.push(u);
   });
+  if (sol.some(q => q.trait === 'arm')) { grenCount++; startGren++; }
+  // v33: the attached sniper, on the operations that call for him
+  if (M.sniper && !sniperRec.dead) addSniper(M);
+  teamUI(); stanceUI(false);
+  $('bsn').style.display = sol.some(q => q.sniper) ? '' : 'none';
   diffD = M.diff || 0;
   for (const e of missionEnemies(M)) {
     const u = mkUnit({ name: e.isCommander ? 'Commander' : e.dog ? 'Dog' : 'Sentry', hp: e.hp, range: e.range, visionArc: e.arc,
@@ -6139,9 +6567,9 @@ function initMission(idx) {
   resetBirds();
   placeFauna(M);
   updObjBar();
-  AMB.set({ wind: weatherFog ? 0.35 : 0.6, fog: weatherFog ? 1 : 0, birds: weatherFog ? 0.4 : 1, river: 0 });
+  AMB.set({ wind: weatherFog ? 0.35 : Math.min(1.2, 0.3 + windMag * 0.5), fog: weatherFog ? 1 : 0, birds: weatherFog ? 0.4 : M.weather === 'rain' ? 0.1 : 1, river: 0, rain: M.weather === 'rain' ? 1 : 0 });
   for (const m of marks) m.el.remove(); marks.length = 0;
-  camFocus = 0; camDyn = 1; lastMan = false; slowT = 0; timeScale = 1; muffleMusic(0);
+  camFocus = 0; camDyn = 1; lastMan = false; slowT = 0; timeScale = 1; muffleMusic(0); camPull = 0;
   tutStep = (idx === 0 && !tutDone) ? 0 : -1; tutT = 0; hideHint();
 
   const L = sol[0];
@@ -6730,6 +7158,7 @@ function mkHulk(x, z, kind, a, burnt) {
   if (burnt) decal(x, z, 4.2, 0x1a1410, 0.55);
   const L = kind === 'stug' ? 5.6 : 6.0, W = 2.95, along = q % 2 === 1;
   const hw = (along ? L : W) / 2, hd = (along ? W : L) / 2;
+  if (burnt) addSmoker(x, z, { life: Infinity, rate: 1.4, size: 1.3, col: 0x3a3836, a: 0.42, y: groundY(x, z) + 1.6 });   // v31: still smouldering
   return { type: 'hulk', x: x - hw, z: z - hd, w: hw * 2, d: hd * 2, tall: true, cover: true, cx: x, cz: z, h: 2.4, mesh: m, burnt: !!burnt, smokeT: 0 };
 }
 function vehGeo(kind, empty) {
@@ -6855,6 +7284,7 @@ function wreckVehicle(v) {
   if (v.dead) return;
   if (v.crew > 0) { kills += v.crew; stats.kills += v.crew; const s = sol.find(q => !q.dead); if (s && s.ref) { s.ref.kills += v.crew; campaignKills += v.crew; } }
   v.crew = 0; v.dead = true; v.burnT = 30;
+  addSmoker(v.x, v.z, { life: 50, rate: 3.5, size: 1.5, col: 0x2e2c2a, a: 0.6, rise: 2.2, burst: 4 });   // v31
   v.mesh.material = wreckMat; for (const b of v.beams) b.visible = false;
   const gy = groundY(v.x, v.z);
   spawnParts(v.x, gy + 1, v.z, 30, 0xffb347, 10, 0.28, 0.8, 8); spawnParts(v.x, gy + 1.2, v.z, 20, 0x3a3834, 4, 0.4, 1.8, -1);
@@ -6969,11 +7399,12 @@ function muteEngines() {
 function setProne(v) {
   if (squadProne === v) return;
   squadProne = v;
-  for (const s of sol) if (!s.dead) s.prone = v;
+  const tk = split ? selTeam : 0; teamProne[tk] = v; if (!split) teamProne[1] = v;   // v32: the selected team only
+  for (const s of sol) if (!s.dead && tmOf(s) === tk) s.prone = v;
   if (v) proneSince = missionTime;
   else if (missionTime - proneSince >= AMBUSH_MIN_PRONE && !knife) {
     // came up out of concealment: the squad gets the drop, briefly
-    for (const s of sol) if (!s.dead) { s.ambushT = AMBUSH_T; s.fireT = 0; }
+    for (const s of sol) if (!s.dead && tmOf(s) === tk) { s.ambushT = AMBUSH_T; s.fireT = 0; }
     // only the sentries you actually surprised are caught out; anyone already in a
     // firefight with you is not going to be startled by you standing up
     for (const e of ens) if (!e.dead && e.state !== 'engage') e.offGuard = AMBUSH_T;
@@ -6982,13 +7413,7 @@ function setProne(v) {
     const w = sol.find(s => !s.dead);
     if (w) { w.barkT = 0; say(w, 'ambush'); }
   }
-  const btn = $('bc');
-  btn.className = v ? 'on2' : '';
-  btn.textContent = v ? 'STAND' : 'CRAWL';
-  $('hst').textContent = v ? 'PRONE · UNSEEN' : 'UPRIGHT · ARMED';
-  $('hst').style.color = v ? '#ffc23d' : '';
-  $('bg').classList.toggle('slung', v);
-  $('bn').classList.toggle('slung', v);
+  stanceUI(v);
   ambushShown = -1;
   muffleMusic(v ? 0.65 : (lastMan ? 0.8 : 0));   // down in the grass the band is a field away
   if (v) setWeapon('gun');
@@ -7008,17 +7433,19 @@ function update(dt) {
   const M = MISSIONS[missionIdx];
   rallyX = rallyZ = null;
   for (const e of ens) if (!e.dead && e.cmd) { rallyX = e.x; rallyZ = e.z; break; }
-  const sightR = (weatherFog ? SIGHT * 0.56 : SIGHT) * (squadProne ? 0.82 : 1);
+  const sightR0 = weatherFog ? SIGHT * 0.56 : SIGHT;
   liveMap.fill(0);
 
-  // ── squad
-  const leader = sol.find(s => !s.dead);
+  // ── squad (v32: one leader and trail per team)
+  checkTeams();
+  const leaders = [teamLeader(0), teamLeader(1), teamLeader(2)], leader = selLeader();
   const moveSpeedMul = squadProne ? 0.36 : 1;
   sol.forEach(s => {
     if (s.dead) { stepDeath(s, dt); return; }
     s.moving = false;
     let tx, tz;
-    if (s === leader) {
+    const myL = leaders[tmOf(s)], sightR = sightR0 * (s.sniper ? (s.prone ? 2.1 : 1) : s.prone ? 0.82 : 1) * (s.keen ? 1.2 : 1);   // v33: the scope
+    if (s === myL) {
       if (s.path && s.path.length) {
         const w = s.path[0];
         if (Math.hypot(w.x - s.x, w.z - s.z) < 1.3) { s.path.shift(); }
@@ -7038,8 +7465,9 @@ function update(dt) {
       }
     }
     else {
-      const hi = Math.min(Math.round(sol.filter(q => !q.dead).indexOf(s) * SNAKE / TRAIL_STEP), posH.length - 1);
-      if (hi >= 0 && posH[hi]) { tx = posH[hi].x; tz = posH[hi].z; } else { tx = s.x; tz = s.z; }
+      const trail = tmOf(s) ? posH2 : posH;
+      const hi = Math.min(Math.round(sol.filter(q => !q.dead && tmOf(q) === tmOf(s)).indexOf(s) * SNAKE / TRAIL_STEP), trail.length - 1);
+      if (hi >= 0 && trail[hi]) { tx = trail[hi].x; tz = trail[hi].z; } else { tx = s.x; tz = s.z; }
       // v20: a follower who has lost the trail (cut a corner into a hut wall, say) routes himself back to it
       if (s.fpath && s.fpath.length) {
         if (Math.hypot(s.fpath[0].x - s.x, s.fpath[0].z - s.z) < 1.3) s.fpath.shift();
@@ -7059,7 +7487,7 @@ function update(dt) {
         if (!kn.rush && de < KNIFE_RUSH && hasLOS(s.x, s.z, e.x, e.z)) kn.rush = true;
         if (kn.rush) { s.prone = false; tx = e.x; tz = e.z; if (de < 1.05) stab(s, e); }
         else {
-          s.prone = squadProne;
+          s.prone = teamProne[tmOf(s)];
           kn.rp -= dt;
           if ((kn.rp <= 0 || !kn.path) && pathBudget > 0) { pathBudget--; kn.rp = 1.0; kn.path = de > 3 ? findPath(s.x, s.z, e.x, e.z) : null; }
           if (kn.path && kn.path.length && Math.hypot(kn.path[0].x - s.x, kn.path[0].z - s.z) < 1.0) kn.path.shift();
@@ -7068,15 +7496,17 @@ function update(dt) {
         }
       }
     }
+    // v33: the sniper walks to his post upright, then lies down on it
+    if (s.sniper) { const at = !(s.path && s.path.length) && Math.hypot(s.tx - s.x, s.tz - s.z) < 0.8; if (s.prone !== at) s.prone = at; }
     if (s.F.blade) { s.knifeVis = Math.max(0, (s.knifeVis || 0) - dt); s.F.blade.visible = !!(knife && knife.s === s) || s.knifeVis > 0; }
     let d = Math.hypot(tx - s.x, tz - s.z);
     // a follower who is shooting holds his ground until the leader gets well ahead,
     // instead of being towed through the firefight by the snake
-    if (s !== leader && s.lastTarget && !s.lastTarget.dead && leader && dst(s, leader) < 7.5 && !s.prone) d = 0;
+    if (s !== myL && s.lastTarget && !s.lastTarget.dead && myL && dst(s, myL) < 7.5 && !s.prone) d = 0;
     if (d > 0.35) {
       const limp = s.hp <= 1 ? 0.8 : 1;          // one round left in him and it shows
       steerMove(s, tx, tz, s.speed * (s.prone ? 0.36 : 1) * limp * (knife && knife.s === s && knife.rush ? KNIFE_SPRINT : 1), dt);
-      if (s !== leader) {
+      if (s !== myL) {
         // progress test, not motion: a man sliding up and down a wall is moving and getting nowhere
         const nd2 = Math.hypot(tx - s.x, tz - s.z);
         if (d < 2.5 || s.bestD === undefined || nd2 < s.bestD - 0.25) { s.bestD = nd2; s.stuckT = 0; } else s.stuckT = (s.stuckT || 0) + dt;
@@ -7099,13 +7529,13 @@ function update(dt) {
     s.ambushT = Math.max(0, (s.ambushT || 0) - dt);
     const amb = s.ambushT > 0;
     // during the ambush window they come up shooting rather than waiting to be fully upright
-    const armed = !s.prone && s.proneB < (amb ? 0.62 : 0.30) && !((knife || quietT > 0) && !spotted);   // v26: everyone holds fire while the knife goes in, and for a moment after
+    const armed = (s.sniper ? s.prone || !s.moving : !s.prone && s.proneB < (amb ? 0.62 : 0.30)) && !((knife || quietT > 0) && !spotted);   // v26: everyone holds fire while the knife goes in, and for a moment after
     // while the camp is unaware, hold until the target is close enough that four
     // rifles win the exchange outright. Once spotted, engage at full range.
     const eRange = spotted ? s.range : Math.min(s.range, s.K ? s.K.hold : 12.5);
     let target = null, nd = 1e9;
     if (armed) {
-      const F = focus && !focus.dead ? focus : null;
+      const F = s.sniper ? (sniperMark && !sniperMark.dead ? sniperMark : focus && !focus.dead ? focus : null) : focus && !focus.dead ? focus : null;
       if (F && dst(s, F) < s.range * 1.15 && hasLOS(s.x, s.z, F.x, F.z, F.elev)) target = F;
       else for (const e of ens) {
         if (e.dead || e.inBox) continue;              // rounds do nothing to a pillbox: hold fire, keep quiet
@@ -7113,7 +7543,8 @@ function update(dt) {
         if (d2 < eRange && d2 < nd && hasLOS(s.x, s.z, e.x, e.z, e.elev)) { nd = d2; target = e; }
       }
       // suppressive fire at a point the player is holding on
-      if (!target && suppress && suppress.t > 0 && dst(s, suppress) < s.range * 1.1) target = { x: suppress.x, z: suppress.z, elev: 0, point: true };
+      const sup = split ? teamSup[tmOf(s)] : suppress;   // v32: each team keeps its own pin
+      if (!target && sup && sup.t > 0 && dst(s, sup) < s.range * 1.1) target = { x: sup.x, z: sup.z, elev: 0, point: true };
     }
     // WEAPONS TIGHT while prone: crawling is a stealth stance, so grunts hold fire
     // unless something is right on top of them or has already seen them.
@@ -7131,16 +7562,16 @@ function update(dt) {
       }
     } else { s.aim = s.angle; s.aimB = Math.max(0, s.aimB - dt * 4); }
   });
+  for (let k = 0; k < 2; k++) {
+    const L = leaders[k], trail = k ? posH2 : posH; if (!L || (k && !split)) continue;
+    const h0 = trail[0];
+    if (!h0 || Math.hypot(L.x - h0.x, L.z - h0.z) >= TRAIL_STEP) { trail.unshift({ x: L.x, z: L.z }); if (trail.length > 200) trail.pop(); }
+  }
   if (leader) {
-    const h0 = posH[0];
-    if (!h0 || Math.hypot(leader.x - h0.x, leader.z - h0.z) >= TRAIL_STEP) {
-      posH.unshift({ x: leader.x, z: leader.z });
-      if (posH.length > 200) posH.pop();
-    }
-    // footfalls carry. Crawling does not.
+    // footfalls carry. Crawling does not. (v32: each team that is up and moving)
     noiseTimer -= dt;
-    if (noiseTimer <= 0 && !squadProne && !knife && sol.some(s => !s.dead && s.moving)) {
-      noiseEvent(leader.x, leader.z, 9.5, 0.16);
+    if (noiseTimer <= 0 && !knife) {
+      for (let k = 0; k < (split ? 2 : 1); k++) if (leaders[k] && !teamProne[k] && sol.some(s => !s.dead && tmOf(s) === k && s.moving)) noiseEvent(leaders[k].x, leaders[k].z, 9.5, 0.16);
       noiseTimer = 0.5;
     }
     // the leader's boots, one per stride, or a scuff through the grass when prone
@@ -7175,6 +7606,7 @@ function update(dt) {
     e.barkT -= dt; e.stateT += dt; e.coverT -= dt; e.react = Math.max(0, e.react - dt);
     e.offGuard = Math.max(0, (e.offGuard || 0) - dt);
     e.moving = false;
+    if (e.pinned && e.state !== 'engage') { e.pinned = false; e.prone = false; e.supT = 0; }   // v32
     const live = sol.filter(s => !s.dead);
 
     // ---- perception
@@ -7260,7 +7692,15 @@ function update(dt) {
             e.coverPt = { x: clamp(t.x + Math.sin(a) * 11, 2, MW - 2), z: clamp(t.z + Math.cos(a) * 11, 2, MH - 2) };
           } else e.coverPt = coverSpot(e, t.x, t.z) || (dT > e.range * 0.8 ? { x: t.x, z: t.z } : null);
         }
-        if (wavering && dT > 9) { /* leaderless: hold where he is and shoot what he can see */ }
+        // v32: pinned — flat on his face, not going anywhere, firing less and wildly
+        e.supT = Math.max(0, (e.supT || 0) - dt);
+        const pinned = e.supT > 0.35 && !e.elev;
+        if (pinned !== !!e.pinned) {
+          e.pinned = pinned; e.prone = pinned;
+          if (pinned && !pinShown && split) { pinShown = true; showToast('PINNED', 'they have their heads down — now flank them'); }
+        }
+        if (pinned) { /* stays put */ }
+        else if (wavering && dT > 9) { /* leaderless: hold where he is and shoot what he can see */ }
         else if (e.coverPt && Math.hypot(e.coverPt.x - e.x, e.coverPt.z - e.z) > 1.4) {
           moveAlong(e, e.coverPt.x, e.coverPt.z, e.speed, dt);
           e.walk += dt * 9;
@@ -7282,8 +7722,9 @@ function update(dt) {
             if (t.prone) spread *= 1.7;
             if (inCover(t.x, t.z)) spread *= 1.35;
             spread *= 1 - 0.2 * diffD;
+            if (e.pinned) spread *= 2.4;
             shoot(e, t.x + (t.moving ? Math.sin(t.angle) * t.speed * 0.14 : 0), t.z + (t.moving ? Math.cos(t.angle) * t.speed * 0.14 : 0), spread);
-            e.fireT = e.cool;
+            e.fireT = e.cool * (e.pinned ? 2.4 : 1);
             if (++e.burst >= (e.rapid ? 5 : 3) + (Math.random() * 2 | 0)) { e.burst = 0; e.burstRest = 0.7 + Math.random() * 0.8; }
           }
         } else e.onTarget = Math.max(0, e.onTarget - dt * 2);
@@ -7389,6 +7830,7 @@ function update(dt) {
     const heightOK = (t, h) => { const uy = surfY(t.x, t.z) + (t.elev || 0), by = by0 + (by1 - by0) * h; return Math.abs(by - uy - (t.prone ? 0.3 : 0.9)) < (t.elev ? 1.6 : 2.2); };
     for (const t of ens) {
       if (t.dead || t.inBox) continue;                         // behind concrete: the round hits the pillbox
+      if (!b.foe && !t.dog && !t.tower && sweep(t.x, t.z, 2.4) >= 0) t.supT = Math.min(3.2, (t.supT || 0) + 0.45);   // v32: rounds cracking past keep heads down
       const h = sweep(t.x, t.z, t.prone ? 0.42 : 0.60);
       if (h >= 0 && h < bestT && heightOK(t, h)) { bestT = h; hitUnit = t; friendlyFire = false; }
     }
@@ -7419,8 +7861,11 @@ function update(dt) {
     let gone = false;
     if (hitUnit) {
       const wasFoe = hitUnit.foe && !b.foe;
+      killCredit = !b.foe ? b.owner : null;   // v33: the man who fired gets the kill
       damage(hitUnit, b.dmg || 1, 'shot', friendlyFire); gone = true;
+      killCredit = null;
       if (wasFoe) hitMark(hitUnit, hitUnit.dead);
+      if (wasFoe && hitUnit.dead && b.owner && b.owner.sniper) sniperKill(b.owner, hitUnit);
     }
     else if (hitWall) { spawnParts(b.x, b.y, b.z, 3, 0xd8cfa8, 4, 0.07, 0.3); SFX.ric(b.x, b.z); gone = true; }
     if (gone || b.life <= 0 || b.x < -6 || b.x > MW + 6 || b.z < -10 || b.z > MH + 6) {
@@ -7537,7 +7982,7 @@ function update(dt) {
   }
 
   stepCharges(dt);
-  stepParts(dt);
+  stepParts(dt); stepAtmo(dt);
   stepBarks(dt);
   stepMarks(dt);
   stepBirds(dt); stepTreeFade(dt);
@@ -7755,7 +8200,7 @@ function updateBars() {
 
 /*───────────────────── camera ─────────────────────*/
 function updateCamera(dt) {
-  const L = sol.find(s => !s.dead);
+  const L = selLeader();
   if (!L) return;
   // in a firefight the camera leans toward the nearest engaged enemy and tightens a
   // touch; on a quiet approach it sits back and looks ahead of the leader
@@ -7768,7 +8213,8 @@ function updateCamera(dt) {
   camFocus += (fight - camFocus) * Math.min(1, dt * 1.6);
   camFocusX += (fx - camFocusX) * Math.min(1, dt * 1.8);
   camFocusZ += (fz - camFocusZ) * Math.min(1, dt * 1.8);
-  camDyn += ((fight ? 0.90 : (squadProne ? 0.95 : 1)) - camDyn) * Math.min(1, dt * 0.9);
+  camPull = Math.max(0, camPull - dt * 0.55);
+  camDyn += ((fight ? 0.90 : (squadProne ? 0.95 : 1)) * (1 + 0.32 * Math.min(1, camPull)) - camDyn) * Math.min(1, dt * (camPull > 0 ? 2.5 : 0.9));
   const lead = Math.sin(L.angle) * 2.4 * (1 - camFocus);
   camTgt.lerp(_v.set(L.x + lead + camFocusX, 0, L.z + Math.cos(L.angle) * 2.4 * (1 - camFocus) + camFocusZ), 1 - Math.pow(0.001, dt));
   camPos.lerp(_v.set(camTgt.x, CAM_H * camZoom * camDyn, camTgt.z + CAM_Z * camZoom * camDyn), 1 - Math.pow(0.006, dt));
@@ -7779,7 +8225,7 @@ function updateCamera(dt) {
     camPos.y + (Math.random() - 0.5) * s * 1.1,
     camPos.z + (Math.random() - 0.5) * s * 1.7);
   camera.lookAt(camTgt.x, 0, camTgt.z - 5.5);
-  sun.position.set(camTgt.x + 38, 54, camTgt.z + 26);
+  sun.position.set(camTgt.x + SUN_OFF.x, SUN_OFF.y, camTgt.z + SUN_OFF.z);
   sun.target.position.set(camTgt.x, 0, camTgt.z);
   sun.target.updateMatrixWorld();
   leadRing.position.set(L.x, groundY(L.x, L.z) + 0.06, L.z);
@@ -7867,7 +8313,7 @@ function drawMinimap() {
   const ldr = sol.find(q => !q.dead);
   for (const s of sol) {
     if (s.dead) continue;
-    mmX.fillStyle = s === ldr ? '#d9ffb0' : '#9ede5a';
+    mmX.fillStyle = split ? (s.team ? (s === teamLeader(1) ? '#c8f0ff' : '#6fd8ff') : (s === teamLeader(0) ? '#fff0b0' : '#ffd25a')) : s === ldr ? '#d9ffb0' : '#9ede5a';
     mmX.fillRect((s.x / MW) * MM - 1.8, (s.z / MH) * MM - 1.8, 3.6, 3.6);
   }
   mmX.strokeStyle = 'rgba(217,210,173,.45)'; mmX.lineWidth = 1;
@@ -7887,6 +8333,7 @@ function updateHUD() {
     let pips = '';
     for (let i = 0; i < s.maxHp; i++) pips += `<div class="pip${i < s.hp ? '' : ' lost'}"></div>`;
     t.innerHTML = `<span class="rk">${rank}</span><span>${s.name}</span><div class="pips">${s.dead ? '' : pips}</div>`;
+    if (split && !s.dead) t.style.boxShadow = `inset 3px 0 0 ${s.team ? '#6fd8ff' : '#ffd25a'}`;   // v32: which team
     r.appendChild(t);
   });
 }
@@ -7919,6 +8366,7 @@ function setWeapon(w) {
   $('bn').className = w === 'grenade' ? 'on2' : '';
   $('bx').className = w === 'charge' ? 'on3' : '';
   $('bk').className = w === 'knife' ? 'on4' : '';
+  $('bsn').className = w === 'snipe' ? 'on4' : '';
   aimLine.visible = false;
   if (w !== 'charge') plantOrder = null;
 }
@@ -8141,19 +8589,106 @@ function crewCard(g, opts) {
   const o = opts || {};
   const d = document.createElement('div');
   d.className = 'crewman' + (g.dead ? ' gone' : '') + (o.promoted ? ' up' : '');
-  d.innerHTML = `<img class="av" src="${drawFace(g.name)}"><div><div class="nm">${g.name}</div>` +
-    `<div class="rk">${rankFor(g.kills)}${o.promoted ? ' \u2191 promoted' : ''}</div></div>` +
+  const tr = TRAITS[traitOf(g)];
+  d.innerHTML = `<img class="av" src="${drawFace(g.name)}"><div><div class="nm">${g.name}${g.sniper ? ' · sniper' : ''}</div>` +
+    `<div class="rk">${rankFor(g.kills)}${o.promoted ? ' \u2191 promoted' : ''}</div>${tr ? `<div class="tr" title="${tr.d}">${tr.n}</div>` : ''}</div>` +
     `<div class="kc">${g.kills}</div>`;
   return d;
 }
+
+/*───────────────────── v33 daily op ─────────────────────
+   One operation a day, the same for everyone: a campaign op picked by the date, with its own light, weather,
+   mist, extra sentries and sometimes Chalky. Played with the original four on stock kit; nothing carries
+   back into the campaign, the dead get up tomorrow. Best score of the day is kept, and the result shares as a
+   card (Web Share with the image where the phone allows, Telegram's share link in the Mini App, else copy). */
+function dailyKey(d) { d = d || new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function dailyLabel(key) { const [y, m, d] = key.split('-').map(Number); return d + ' ' + ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][m - 1] + ' ' + y; }
+function buildDaily(key) {
+  let h = 2166136261; for (const ch of 'gs-daily-' + key) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
+  const rnd = () => { h = (Math.imul(h, 1664525) + 1013904223) >>> 0; return h / 4294967296; };
+  const pool = []; for (let i = 1; i < CAMPAIGN_END; i++) pool.push(i);
+  const base = MISSIONS[pool[Math.floor(rnd() * pool.length)]];
+  const night = !!base.night, fog = base.weather === 'fog';
+  const light = night || fog ? null : ['dawn', 'morning', 'noon', 'afternoon', 'dusk'][Math.floor(rnd() * 5)];
+  const weather = fog ? 'fog' : night ? null : rnd() < 0.25 ? 'rain' : null;
+  const mist = !night && !weather && (light === 'dawn' || light === 'morning') && rnd() < 0.6;
+  const sniper = rnd() < 0.4;
+  const when = night ? 'Night' : fog ? 'Fog' : { dawn: 'Dawn', morning: 'Morning', noon: 'Noon', afternoon: 'Afternoon', dusk: 'Dusk' }[light];
+  const sub = [`Daily · ${dailyLabel(key)}`, when, weather === 'rain' ? 'Rain' : null, mist ? 'Mist' : null, sniper ? 'Sniper attached' : null].filter(Boolean).join(' · ');
+  return Object.assign({}, base, { daily: key, light, weather, mist, sniper, sub,
+    diff: Math.min(0.9, (base.diff || 0) + 0.15), noExtras: false, side: false, when });
+}
+const DAILY_KEY = 'gs3d_daily';
+function dailyRec(key) { let r = null; try { r = JSON.parse(PF.get(DAILY_KEY) || 'null'); } catch (e) { } return r && r.key === key ? r : { key, best: 0, tries: 0, bestRes: null }; }
+function startDaily() {
+  const key = dailyKey(), M = buildDaily(key);
+  daily = { key, M, res: null, backup: { roster, fallen, reservePool, req, upg, arms, missionIdx, sideReturn, campaignKills, stats: { ...stats }, sniperRec: { ...sniperRec }, ironman } };
+  roster = [newGrunt('Sarge', 20), newGrunt('Stan', 6), newGrunt('Cal', 2), newGrunt('Bob', 0)]; fallen = []; reservePool = RESERVE_NAMES.slice();
+  req = 0; upg = {}; arms = ['rifle']; sniperRec = { kills: 14, dead: false }; ironman = false; sideReturn = null;
+  MISSIONS.push(M); missionIdx = MISSIONS.length - 1;
+  fadeTo(showBrief);
+}
+function endDaily() {
+  if (!daily) return;
+  const b = daily.backup;
+  ({ roster, fallen, reservePool, req, upg, arms, missionIdx, sideReturn, campaignKills, sniperRec, ironman } = b); stats = b.stats;
+  const i = MISSIONS.indexOf(daily.M); if (i >= 0) MISSIONS.splice(i, 1);
+  daily = null;
+}
+function dailyScore(won, kills, home, total, ghost, time) {
+  return won ? 1000 + kills * 25 + home * 150 + (ghost ? 400 : 0) + Math.max(0, Math.round(900 - time)) : kills * 25;
+}
+function dailyText(r) {
+  const sq = r.men.map(a => a ? '🟩' : '🟥').join('');
+  return `GRUNT SQUAD · Daily Op ${dailyLabel(r.key)}\n${r.op} · ${r.when}${r.rain ? ' · rain' : ''}${r.mist ? ' · mist' : ''}\n` +
+    `${r.won ? 'CLEARED' : 'FAILED'} ${sq} ${Math.floor(r.time / 60)}:${String(Math.round(r.time % 60)).padStart(2, '0')}${r.ghost ? ' · 👻 never seen' : ''}\n${r.score} pts`;
+}
+function dailyCard(r) {
+  const W = 1080, cv = document.createElement('canvas'); cv.width = cv.height = W;
+  const x = cv.getContext('2d');
+  x.fillStyle = '#1b2410'; x.fillRect(0, 0, W, W);
+  x.fillStyle = '#d9d2ad'; x.font = 'bold 92px Courier New, monospace'; x.fillText('GRUNT', 70, 150);
+  x.fillStyle = '#9ede5a'; x.fillText('SQUAD', 430, 150);
+  x.fillStyle = '#a49c74'; x.font = 'bold 38px Courier New, monospace'; x.fillText('DAILY OP · ' + dailyLabel(r.key).toUpperCase(), 70, 215);
+  const pv = document.createElement('canvas'); pv.width = pv.height = 420; drawOpPreview(pv, daily ? daily.M : MISSIONS[missionIdx]);
+  x.save(); x.translate(70, 260); x.drawImage(pv, 0, 0, 420, 420); x.strokeStyle = '#d9d2ad'; x.lineWidth = 4; x.strokeRect(0, 0, 420, 420); x.restore();
+  x.fillStyle = '#d9d2ad'; x.font = 'bold 54px Courier New, monospace'; x.fillText(r.op.toUpperCase(), 530, 320);
+  x.font = '34px Courier New, monospace'; x.fillStyle = '#a49c74';
+  x.fillText([r.when, r.rain ? 'rain' : null, r.mist ? 'mist' : null].filter(Boolean).join(' · '), 530, 372);
+  x.fillStyle = r.won ? '#9ede5a' : '#e0584a'; x.font = 'bold 64px Courier New, monospace'; x.fillText(r.won ? 'CLEARED' : 'FAILED', 530, 470);
+  r.men.forEach((a, i) => { x.fillStyle = a ? '#7fc24a' : '#c0463a'; x.fillRect(530 + i * 86, 505, 70, 70); });
+  x.fillStyle = '#d9d2ad'; x.font = '36px Courier New, monospace';
+  x.fillText(`${Math.floor(r.time / 60)}:${String(Math.round(r.time % 60)).padStart(2, '0')} · ${r.kills} down`, 530, 640);
+  if (r.ghost) { x.fillStyle = '#9ede5a'; x.fillText('never seen', 530, 684); }
+  x.fillStyle = '#ffd25a'; x.font = 'bold 150px Courier New, monospace'; x.fillText(String(r.score), 70, 860);
+  const sw = x.measureText(String(r.score)).width;
+  x.fillStyle = '#a49c74'; x.font = 'bold 44px Courier New, monospace'; x.fillText('POINTS', 70 + sw + 30, 860);
+  x.fillStyle = '#6d6a45'; x.font = '34px Courier New, monospace'; x.fillText('khalifa.games/grunt-squad · beat it', 70, 1000);
+  return cv;
+}
+async function shareDaily() {
+  const r = daily && daily.res; if (!r) return;
+  const text = dailyText(r), url = 'https://khalifa.games/grunt-squad/';
+  const cv = dailyCard(r);
+  try {
+    const blob = await new Promise(res => cv.toBlob(res, 'image/png'));
+    const file = new File([blob], `grunt-squad-daily-${r.key}.png`, { type: 'image/png' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], text: text + '\n' + url }); return; }
+  } catch (e) { if (e && e.name === 'AbortError') return; }
+  try { if (PLATFORM_ID === 'telegram' && window.Telegram && Telegram.WebApp && Telegram.WebApp.openTelegramLink) { Telegram.WebApp.openTelegramLink('https://t.me/share/url?url=' + encodeURIComponent(url) + '&text=' + encodeURIComponent(text)); return; } } catch (e) { }
+  if (navigator.share) { try { await navigator.share({ text, url }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
+  try { await navigator.clipboard.writeText(text + '\n' + url); showToast('COPIED', 'the result is on your clipboard'); } catch (e) { }
+  try { const a = document.createElement('a'); a.href = cv.toDataURL('image/png'); a.download = `grunt-squad-daily-${r.key}.png`; a.click(); } catch (e) { }
+}
+window.__dailyCard = () => daily && daily.res ? dailyCard(daily.res).toDataURL('image/png') : null;
 
 function showBrief() {
   phase = 'brief';
   MUS.play('march');
   const M = MISSIONS[missionIdx];
   topUpRoster();
-  $('bno').textContent = M.side ? 'SIDE ' + (missionIdx - CAMPAIGN_END + 1) : String(missionIdx + 1).padStart(3, '0');
-  $('bname').textContent = M.name;
+  $('bno').textContent = daily ? 'DAILY' : M.side ? 'SIDE ' + (missionIdx - CAMPAIGN_END + 1) : String(missionIdx + 1).padStart(3, '0');
+  $('bname').innerHTML = (daily ? 'Daily Op — ' : '') + M.name + (ironman ? '<span class="iron">IRONMAN</span>' : '');
   $('bsub').textContent = M.sub;
   $('bobj').textContent = M.obj;
   $('btxt').textContent = M.brief;
@@ -8163,7 +8698,8 @@ function showBrief() {
   crew.forEach(g => { const d = crewCard(g); if (kitOf(g) !== KIT.rifle) d.querySelector('.rk').textContent += ' · ' + kitOf(g).tag; c.appendChild(d); });
   const qm = $('bqm'), afford = canAfford();
   qm.textContent = `QUARTERMASTER · ${req} REQ`; qm.classList.toggle('has', afford);
-  qm.style.display = req > 0 || upgLvl('webb') || arms.length > 1 || Object.keys(upg).some(k => upg[k]) ? 'block' : 'none';
+  qm.style.display = !daily && (req > 0 || upgLvl('webb') || arms.length > 1 || Object.keys(upg).some(k => upg[k])) ? 'block' : 'none';
+  if (M.sniper && !sniperRec.dead) { const d = crewCard({ ...newGrunt('Chalky', sniperRec.kills), sniper: true }); d.querySelector('.rk').textContent += ' · attached'; c.appendChild(d); }
   const fresh = crew.filter(g => g.kills === 0 && !['Sarge', 'Stan', 'Cal', 'Bob'].includes(g.name));
   $('bopp').textContent += fresh.length
     ? ` Replacement${fresh.length > 1 ? 's' : ''} assigned: ${fresh.map(g => 'Pte. ' + g.name).join(', ')}. Keen.`
@@ -8174,6 +8710,7 @@ function showBrief() {
 
 function startMission() {
   paused = false;
+  if (ironman && !daily) { inOpRec = { op: MISSIONS[missionIdx].name, men: activeRoster().map(g => g.name) }; saveCampaign(); }
   fadeTo(() => {
     initMission(missionIdx);
     $('bc').className = ''; $('bc').textContent = 'CRAWL';
@@ -8225,11 +8762,11 @@ function stepIntro(dt) {
   camera.position.lerpVectors(introA, introB, e);
   _v.lerpVectors(introLA, introLB, e);
   camera.lookAt(_v);
-  sun.position.set(camera.position.x + 38, 54, camera.position.z + 26);
+  sun.position.set(_v.x + SUN_OFF.x, SUN_OFF.y, _v.z + SUN_OFF.z);
   sun.target.position.set(_v.x, 0, _v.z); sun.target.updateMatrixWorld();
   rigBeginFrame();
   for (const u of [...sol, ...ens]) if (!u.dead) animateUnit(u, dt);
-  updateBars(); stepBirds(dt); stepFauna(dt); stepParts(dt);
+  updateBars(); stepBirds(dt); stepFauna(dt); stepParts(dt); stepAtmo(dt);
   if (p >= 1) endIntro(false);
 }
 function endIntro(skipped) {
@@ -8273,7 +8810,18 @@ function showDebrief(won) {
   stats.time += missionTime;
   // requisition: a win, each kill, each man home, and a bonus for never being seen. Replays of an
   // operation already cleared pay half, so farming the first map is possible but slow.
-  {
+  inOpRec = null;
+  if (daily) {
+    const men = sol.filter(q => !q.sniper), home = men.filter(q => !q.dead).length;
+    const score = dailyScore(won, kills, home, men.length, !everSpotted, missionTime), rec = dailyRec(daily.key);
+    rec.tries++; const best = score > rec.best;
+    const res = { key: daily.key, op: M.name, when: M.when, rain: M.weather === 'rain', mist: !!M.mist, won, men: men.map(q => !q.dead), time: missionTime, kills, ghost: won && !everSpotted, score };
+    if (best) { rec.best = score; rec.bestRes = res; }
+    try { PF.set(DAILY_KEY, JSON.stringify(rec)); } catch (e) { }
+    daily.res = rec.bestRes || res;
+    $('dreq').innerHTML = `<b>${score} pts</b> <span style="color:#6d6a45">${best ? (rec.tries > 1 ? '· a new best today' : '· first go') : `· today's best ${rec.best}`} · attempt ${rec.tries}</span>`;
+    $('dmed').innerHTML = [['CLEARED', won], ['NO LOSSES', won && home === men.length], ['GHOST', won && !everSpotted]].map(([l, on], i) => `<span class="medal m${i + 1}${on ? ' new' : ''}">${l}</span>`).join('');
+  } else {
     const home = sol.filter(s => !s.dead).length, replay = won && missionIdx < unlocked;
     const parts = won
       ? [['win', 10], [`${kills} kill${kills === 1 ? '' : 's'}`, kills * 2], [`${home} home`, home * 3]].concat(everSpotted ? [] : [['unseen', 8]])
@@ -8283,14 +8831,16 @@ function showDebrief(won) {
     lastPay = pay; req += pay;
     $('dreq').innerHTML = `<b>+${pay} REQ</b> <span style="color:#6d6a45">(${parts.map(q => q[0] + ' ' + q[1]).join(' · ')}${replay ? ' · halved: already cleared' : ''})</span> · ${req} to spend`;
   }
-  {
+  if (!daily) {
     const A = awardMedals(M.name, won, lost.length > 0, !everSpotted, missionTime);
     $('dmed').innerHTML = MEDALS.map(([k, label], i) => `<span class="medal m${i + 1}${A.fresh.includes(k) ? ' new' : A.m[k] ? ' on' : ''}">${label}${A.fresh.includes(k) ? ' · NEW' : ''}</span>`).join('') +
       (won && A.m.t ? `<span style="font-size:10.5px;color:#6d6a45"> best ${Math.floor(A.m.t / 60)}:${String(A.m.t % 60).padStart(2, '0')}${A.best ? ' · new record' : ''}</span>` : '');
     if (A.fresh.length) setTimeout(() => SFX.promote(), 400);
   }
-  if (won) { stats.ops++; markUnlocked(missionIdx + 1); }
-  $('dno').textContent = String(missionIdx + 1).padStart(3, '0');
+  if (won && !daily) { stats.ops++; markUnlocked(missionIdx + 1); }
+  { const sn = sol.find(q => q.sniper); if (sn && !daily) { sniperRec.kills = sn.ref.kills; if (sn.dead) sniperRec.dead = true; } }
+  $('dno').textContent = daily ? 'DAILY' : String(missionIdx + 1).padStart(3, '0');
+  $('dreq').previousElementSibling.textContent = daily ? 'Score' : 'Requisition';
   $('dname').textContent = M.name;
   $('dsub').textContent = `${Math.floor(missionTime / 60)}m ${String(Math.floor(missionTime % 60)).padStart(2, '0')}s in the field`;
   $('dres').textContent = won
@@ -8302,6 +8852,8 @@ function showDebrief(won) {
   $('dloss').textContent = lost.length ? `${lost.length} of ${sol.length}` : 'None, remarkably';
   $('dstamp').textContent = won ? 'CLEARED' : 'FAILED';
   $('dstamp').className = 'stamp' + (won ? ' ok' : '');
+  void $('dstamp').offsetWidth; $('dstamp').className += ' slam';   // v33: the stamp comes down
+  [...$('dmed').querySelectorAll('.medal.new')].forEach((m, i) => { m.style.animationDelay = (0.5 + i * 0.35) + 's'; setTimeout(() => SFX.promote(), 500 + i * 350); });
 
   const c = $('dcrew'); c.innerHTML = '';
   let promotions = 0;
@@ -8327,20 +8879,30 @@ function showDebrief(won) {
     }
   });
 
-  $('dgo').textContent = won ? (missionIdx + 1 < MISSIONS.length ? 'NEXT OPERATION' : 'END OF CAMPAIGN') : 'REPLACEMENTS';
+  $('dgo').textContent = daily ? 'BACK TO HQ' : won ? (missionIdx + 1 < MISSIONS.length ? 'NEXT OPERATION' : 'END OF CAMPAIGN') : ironman ? 'THE END OF IT' : 'REPLACEMENTS';
+  $('dshare').style.display = daily ? 'block' : 'none';
   // one fallen grunt can be brought back per debrief, for watching an ad: the most senior of today's dead
   const rv = $('drev'), cand = lost.filter(s => s.ref).sort((a, b) => b.ref.kills - a.ref.kills)[0];
   rv.disabled = false;
-  if (cand && PF.hasRewarded()) { rv.style.display = 'block'; rv.innerHTML = `REVIVE ${rankFor(cand.ref.kills).toUpperCase()} ${cand.ref.name.toUpperCase()} <small>watch an ad · he walks it off</small>`; rv.dataset.name = cand.ref.name; }
+  if (cand && PF.hasRewarded() && !ironman && !daily) { rv.style.display = 'block'; rv.innerHTML = `REVIVE ${rankFor(cand.ref.kills).toUpperCase()} ${cand.ref.name.toUpperCase()} <small>watch an ad · he walks it off</small>`; rv.dataset.name = cand.ref.name; }
   else rv.style.display = 'none';
   const db = $('ddbl'); db.disabled = false;
-  if (won && lastPay > 0 && PF.hasRewarded()) { db.style.display = 'block'; db.innerHTML = `DOUBLE REQUISITION <small>watch an ad · +${lastPay} REQ</small>`; }
+  if (won && lastPay > 0 && PF.hasRewarded() && !daily) { db.style.display = 'block'; db.innerHTML = `DOUBLE REQUISITION <small>watch an ad · +${lastPay} REQ</small>`; }
   else db.style.display = 'none';
-  $('dretry').style.display = won ? 'none' : 'block';
+  $('dretry').style.display = daily ? 'block' : won || ironman ? 'none' : 'block';
+  $('dretry').textContent = daily ? 'TRY AGAIN' : 'REPEAT OPERATION';
   showScreen('debrief');
 }
 
+let ironOver = false;
 function afterDebrief(retry) {
+  if (daily) {
+    if (retry) { roster = [newGrunt('Sarge', 20), newGrunt('Stan', 6), newGrunt('Cal', 2), newGrunt('Bob', 0)]; fallen = []; sniperRec = { kills: 14, dead: false }; fadeTo(showBrief); }
+    else { endDaily(); fadeTo(goTitle); }
+    return;
+  }
+  // v33 Ironman: the squad is gone, so is the campaign
+  if (outcome !== 'won' && ironman) { ironOver = true; clearSave(); fadeTo(() => { phase = 'hill'; buildHill(); renderHillNames(); showScreen('hill'); showToast('IRONMAN', 'the campaign ends here'); }); return; }
   const anyFallen = fallen.length > 0;
   if (retry) {
     // the fallen stay fallen; replacements are found
@@ -8508,6 +9070,8 @@ function showOps() {
     drawOpPreview(cv, M);
     const extras = [];
     if (M.weather === 'fog') extras.push('fog');
+    if (M.weather === 'rain') extras.push('rain');
+    if (M.mist) extras.push('mist');
     if (M.artillery) extras.push('artillery');
     if (M.water && M.water.length) extras.push('river');
     if (M.buildings && M.buildings.length) extras.push('interiors');
@@ -8567,8 +9131,22 @@ function order(cx, cy) {
     return;
   }
   if (weapon === 'charge') {
-    if (chargeCount > 0) { plantOrder = { x: tx, z: tz }; const L0 = sol.find(s => !s.dead); if (L0) { L0.tx = tx; L0.tz = tz; L0.path = findPath(L0.x, L0.z, tx, tz); } moveRing.material.color.copy(SC(0xff8a5a)); moveRing.position.set(tx, surfY(tx, tz) + 0.07, tz); moveRingT = 0.9; SFX.ui(); }
+    if (chargeCount > 0) { plantOrder = { x: tx, z: tz }; const L0 = selLeader(); if (L0) { L0.tx = tx; L0.tz = tz; L0.path = findPath(L0.x, L0.z, tx, tz); } moveRing.material.color.copy(SC(0xff8a5a)); moveRing.position.set(tx, surfY(tx, tz) + 0.07, tz); moveRingT = 0.9; SFX.ui(); }
     return;
+  }
+  // v33: the sniper — tap a sentry to mark him for Chalky, tap the ground to send Chalky there
+  if (weapon === 'snipe') {
+    const sn = sniperOf(); if (!sn) { setWeapon('gun'); return; }
+    const k = enemyAt(cx, cy);
+    if (k) {
+      sniperMark = k; const ok = dst(sn, k) < sn.range * 1.15 && hasLOS(sn.x, sn.z, k.x, k.z, k.elev);
+      showToast('MARKED', ok ? 'Chalky has him' : 'no shot from there — move Chalky');
+      SFX.ui(); setWeapon('gun'); return;
+    }
+    sn.tx = tx; sn.tz = tz; sn.path = findPath(sn.x, sn.z, tx, tz); sn.prone = false;
+    if (sn.path && sn.path.partial) { const e = sn.path[sn.path.length - 1]; sn.tx = e.x; sn.tz = e.z; }
+    moveRing.material.color.copy(SC(0x9fd0ff)); moveRing.position.set(tx, surfY(tx, tz) + 0.07, tz); moveRingT = 0.8;
+    showToast('CHALKY', 'moving to a new post'); SFX.ui(); setWeapon('gun'); return;
   }
   // v27: the knife — tap a sentry and the nearest man goes in on his own
   if (weapon === 'knife') {
@@ -8576,12 +9154,14 @@ function order(cx, cy) {
     if (k) startKnife(k); else showToast('KNIFE', 'tap a sentry to send a man in');
     return;
   }
+  // v32: split, tapping one of your own men selects his team
+  if (split) { let mine = null, md = 1.3; for (const q of sol) { if (q.dead) continue; const d = Math.hypot(q.x - p.x, q.z - p.z); if (d < md) { md = d; mine = q; } } if (mine) { selectTeam(tmOf(mine)); return; } }
   // tap an enemy: focus him. Tap the focused one again: release.
   const e = enemyAt(cx, cy);
   if (e) { setFocus(e === focus ? null : e); return; }
   if (focus) setFocus(null);
   if (knife) endKnife('KNIFE CALLED OFF', 'he comes back to the squad');
-  const L = sol.find(s => !s.dead);
+  const L = selLeader();
   if (!L) return;
   L.tx = tx; L.tz = tz;
   L.path = findPath(L.x, L.z, tx, tz);
@@ -8600,7 +9180,11 @@ cvs.addEventListener('pointerdown', e => {
   holdT = 0; holdFired = false; holdPt = { cx: e.clientX, cy: e.clientY };
   order(e.clientX, e.clientY);
 });
-cvs.addEventListener('pointerup', () => { holdPt = null; if (suppress) suppress.t = Math.min(suppress.t, 0.4); });
+cvs.addEventListener('pointerup', () => {
+  holdPt = null; if (suppress) suppress.t = Math.min(suppress.t, 0.4);
+  // v32: split, a team told to suppress keeps it up — it pins the spot while you move the other team
+  if (split && holdFired && teamSup[selTeam]) { teamSup[selTeam].t = PIN_T; showToast(`TEAM ${selTeam ? 'B' : 'A'} PINNING`, 'ten seconds of heads down — switch team and flank'); }
+});
 cvs.addEventListener('pointercancel', () => { holdPt = null; });
 cvs.addEventListener('pointerleave', () => { aimLine.visible = false; });
 cvs.addEventListener('pointermove', e => {
@@ -8635,6 +9219,8 @@ $('wbar').addEventListener('click', e => {
   if (!b) return;
   initAudio();
   if (b.id === 'bc') { setProne(!squadProne); return; }
+  if (b.id === 'bs') { setSplit(!split); return; }
+  if (b.id === 'bt') { selectTeam(1 - selTeam); return; }
   SFX.ui();
   setWeapon(b.dataset.w);
 });
@@ -8642,12 +9228,15 @@ addEventListener('keydown', e => {
   if (phase === 'intro' && (e.code === 'Space' || e.code === 'Enter' || e.code === 'Escape')) { endIntro(true); return; }
   if (phase !== 'play') return;
   if (e.code === 'KeyQ' && !paused) { initAudio(); setProne(!squadProne); }
+  if (e.code === 'KeyV' && !paused) { initAudio(); setSplit(!split); }
+  if ((e.code === 'Tab' || e.code === 'Digit1' || e.code === 'Digit2') && !paused && split) { e.preventDefault(); selectTeam(e.code === 'Digit1' ? 0 : e.code === 'Digit2' ? 1 : 1 - selTeam); }
   if (e.code === 'KeyG' && !paused) setWeapon(weapon === 'gun' ? 'grenade' : 'gun');
   if (e.code === 'KeyC' && !paused && chargeCount > 0) setWeapon(weapon === 'charge' ? 'gun' : 'charge');
   if (e.code === 'KeyK' && !paused) setWeapon(weapon === 'knife' ? 'gun' : 'knife');
+  if (e.code === 'KeyS' && !paused && sniperOf()) setWeapon(weapon === 'snipe' ? 'gun' : 'snipe');
   if (e.code === 'KeyX' && !paused) setFocus(null);
   if (e.code === 'Space' || e.code === 'Escape') { e.preventDefault(); togglePause(); }
-  if (e.code === 'KeyR' && paused) { SFX.ui(); restartOp(); }
+  if (e.code === 'KeyR' && paused && !ironman) { SFX.ui(); restartOp(); }
 });
 function togglePause() {
   if (phase !== 'play' || outcome) return;
@@ -8655,13 +9244,14 @@ function togglePause() {
   if (paused) PF.gameplayStop(); else PF.gameplayStart();
   $('pausebtn').textContent = paused ? '▶' : '⏸';
   $('pause').classList.toggle('on', paused);
+  $('prest').style.display = ironman ? 'none' : '';   // v33
   if (paused) { $('toast').style.display = 'none'; toastT = 0; muffleMusic(1); }
   else muffleMusic(squadProne ? 0.65 : (lastMan ? 0.8 : 0));
   SFX.ui();
 }
 $('pausebtn').addEventListener('click', () => { initAudio(); togglePause(); });
 $('pres').addEventListener('click', () => togglePause());
-$('prest').addEventListener('click', () => { SFX.ui(); restartOp(); });
+$('prest').addEventListener('click', () => { if (ironman) return; SFX.ui(); restartOp(); });
 function restartOp() { paused = false; $('pause').classList.remove('on'); PF.adBreak().then(startMission); }
 $('pset').addEventListener('click', () => { SFX.ui(); openSettings(); });
 $('pabd').addEventListener('click', () => {
@@ -8673,12 +9263,15 @@ $('pabd').addEventListener('click', () => {
 /* title */
 function refreshTitle() {
   const s = loadCampaign();
-  const resumable = s && (s.missionIdx > 0 || (s.fallen && s.fallen.length) || (s.stats && s.stats.ops > 0));
+  const resumable = s && (s.missionIdx > 0 || (s.fallen && s.fallen.length) || (s.stats && s.stats.ops > 0) || s.ironman);
   $('tcont').style.display = resumable ? 'flex' : 'none';
   if (resumable) $('tcontsub').textContent = `op ${String(s.missionIdx + 1).padStart(2, '0')} · ${MISSIONS[Math.min(s.missionIdx, MISSIONS.length - 1)].name.toLowerCase()}`;
-  $('topssub').textContent = `${MISSIONS.length} operations`;
+  $('topssub').textContent = `${MISSIONS.filter(m => !m.daily).length} operations`;
+  if (resumable && s.ironman) $('tcontsub').textContent += ' · ironman';
+  { const key = dailyKey(), D = buildDaily(key), r = dailyRec(key); $('tdailysub').textContent = `${D.name.toLowerCase()} · ${D.when.toLowerCase()}${D.weather === 'rain' ? ' · rain' : ''}${r.best ? ' · your best ' + r.best : ''}`; }
 }
 function goTitle() {
+  if (daily) endDaily();
   phase = 'title';
   MUS.play('march');
   initMission(0);
@@ -8695,6 +9288,13 @@ $('tnew').addEventListener('click', () => {
   initAudio(); SFX.ui();
   resetCampaign(); clearSave();
   missionIdx = 0;
+  fadeTo(showBrief);
+});
+$('tdaily').addEventListener('click', () => { initAudio(); SFX.ui(); startDaily(); });
+$('tiron').addEventListener('click', () => {
+  initAudio(); SFX.ui();
+  resetCampaign(); clearSave(); ironman = true; missionIdx = 0;
+  showToast('IRONMAN', 'one life each, no repeats, no revives — and no walking out of an op');
   fadeTo(showBrief);
 });
 $('tops').addEventListener('click', () => { initAudio(); SFX.ui(); fadeTo(showOps, true); });
@@ -8741,7 +9341,8 @@ $('drev').addEventListener('click', () => {
   });
 });
 $('dretry').addEventListener('click', () => { SFX.ui(); afterDebrief(true); });
-$('hgo').addEventListener('click', () => { SFX.ui(); fadeTo(toStores); });
+$('hgo').addEventListener('click', () => { SFX.ui(); if (ironOver) { ironOver = false; resetCampaign(); fadeTo(goTitle); return; } fadeTo(toStores); });
+$('dshare').addEventListener('click', () => { SFX.ui(); shareDaily(); });
 $('qgo').addEventListener('click', () => { SFX.ui(); fadeTo(showBrief); });
 $('bqm').addEventListener('click', () => { SFX.ui(); fadeTo(showStores); });
 $('ddbl').addEventListener('click', () => {
@@ -8782,6 +9383,7 @@ function frame(t) {
   last = t;
   if (!isFinite(dt) || dt <= 0) dt = 1 / 60;
   const raw = dt;
+  ATMO.t.value += raw;   // v31: sway and drift run on the clock, paused or not
 
   if (dt > 0) fpsSamples.push(1 / dt);
   if (fpsSamples.length > 200) fpsSamples.shift();
@@ -8792,16 +9394,19 @@ function frame(t) {
     if (holdT > 0.38 && !holdFired) {
       const p = worldAt(holdPt.cx, holdPt.cy);
       if (p && !enemyAt(holdPt.cx, holdPt.cy)) {
-        holdFired = true; suppress = { x: p.x, z: p.z, t: 9 };
-        const L0 = sol.find(s => !s.dead); if (L0) { L0.tx = L0.x; L0.tz = L0.z; L0.path = null; }   // hold means stand and fire, not walk
+        holdFired = true;
+        if (split) teamSup[selTeam] = { x: p.x, z: p.z, t: 9 }; else suppress = { x: p.x, z: p.z, t: 9 };
+        const L0 = selLeader(); if (L0) { L0.tx = L0.x; L0.tz = L0.z; L0.path = null; }   // hold means stand and fire, not walk
         if (squadProne) setProne(false);
         showToast('SUPPRESS', 'hold to keep it up'); SFX.ui();
         moveRing.material.color.copy(SC(0xff5a45)); moveRing.position.set(p.x, surfY(p.x, p.z) + 0.07, p.z); moveRingT = 0.6;
       }
     }
-    if (holdFired && suppress) { const p = worldAt(holdPt.cx, holdPt.cy); if (p) { suppress.x = p.x; suppress.z = p.z; suppress.t = 0.6; } }
+    const hs = split ? teamSup[selTeam] : suppress;
+    if (holdFired && hs) { const p = worldAt(holdPt.cx, holdPt.cy); if (p) { hs.x = p.x; hs.z = p.z; hs.t = Math.max(hs.t, 0.6); } }
   }
   if (suppress) { suppress.t -= dt; if (suppress.t <= 0) suppress = null; }
+  if (phase === 'play' && !paused) for (let k = 0; k < 2; k++) if (teamSup[k]) { teamSup[k].t -= dt; if (teamSup[k].t <= 0) teamSup[k] = null; }
   if (AC) AMB.tick(raw, phase === 'play' || phase === 'intro');
 
   if (phase === 'hill') {
@@ -8830,7 +9435,7 @@ function frame(t) {
     const r = 30, cx = MW / 2 + Math.cos(titleT * 0.31) * 16, cz = MH * 0.45 + Math.sin(titleT * 0.23) * 14;
     camera.position.set(cx + Math.cos(titleT) * r, 17 + Math.sin(titleT * 1.7) * 2.5, cz + Math.sin(titleT) * r);
     camera.lookAt(cx, 1.6, cz);
-    sun.position.set(cx + 38, 54, cz + 26);
+    sun.position.set(cx + SUN_OFF.x, SUN_OFF.y, cz + SUN_OFF.z);
     sun.target.position.set(cx, 0, cz);
     sun.target.updateMatrixWorld();
     stepParts(dt); stepBirds(dt);
@@ -9034,6 +9639,11 @@ window.GS = { MISSIONS, get roster() { return roster; }, get fallen() { return f
              posH.length = 0; camTgt.set(x, 0, z); camPos.set(x, CAM_H * camZoom, z + CAM_Z * camZoom); },
   trees() { return obs.filter(o => o.type === 'tree').map(o => [+o.x.toFixed(1), +o.z.toFixed(1)]); },
   portals() { return portals.map(q => [+q.x.toFixed(1), +q.z.toFixed(1), q.nx, q.nz]); },
+  atmo() { return { light: lightName, cloud: ATMO.cloud.value, wind: [+windAng.toFixed(2), windMag], rain: weatherRain, mists: mists.map(P => [+P.x.toFixed(1), +P.z.toFixed(1), +P.r.toFixed(1)]), smoke: smoke.length, smokers: smokers.length }; },
+  smoke(x, z) { return addSmoker(x, z, { life: 12, rate: 5, size: 2.0, col: 0x8a857c, a: 0.62, burst: 8 }) && smokers.length; },
+  split(v) { setSplit(v === undefined ? !split : !!v); return split; },
+  pin(k, x, z) { teamSup[k] = { x, z, t: PIN_T }; return true; },
+  team() { return { sup: suppress, holdPt, holdT: +holdT.toFixed(2), holdFired, split, selTeam, teamProne, teamSup, squadProne, bt: document.getElementById('bt').innerText, bs: document.getElementById('bs').innerText, pinned: ens.filter(e => e.pinned).length }; },
   roads() { return roads.map(r => ({ kind: r.kind, w: r.w, pts: r.pts.map(q => q.map(v => +v.toFixed(1))) })); },
   glass(all) { const L = fadeTrees.filter(t => t.ghost); return all ? L.map(t => ({ x: +((t.x0 + t.x1) / 2).toFixed(1), z: +((t.z0 + t.z1) / 2).toFixed(1), f: +t.f.toFixed(2), hit: t.hit, y: [t.y0, t.y1].map(v => +v.toFixed(1)) })) : L.length; },
   // stage a clean n-v-4 in the open at `range` metres, both sides aware. Balance rig.
@@ -9066,6 +9676,8 @@ window.GS = { MISSIONS, get roster() { return roster; }, get fallen() { return f
     return pick.length;
   },
   goto(x, z) { const L = sol.find(s => !s.dead); if (L) { L.tx = x; L.tz = z; L.path = findPath(L.x, L.z, x, z); if (L.path && L.path.partial) { const e = L.path[L.path.length - 1]; L.tx = e.x; L.tz = e.z; } } },
+  snipe() { const sn = sniperOf(); return { los: sn && sniperMark ? hasLOS(sn.x, sn.z, sniperMark.x, sniperMark.z, sniperMark.elev) : null, d: sn && sniperMark ? +dst(sn, sniperMark).toFixed(1) : null, range: sn ? +sn.range.toFixed(1) : null, fireT: sn ? sn.fireT : null, prone: sn ? [sn.prone, sn.proneB, sn.moving] : null, spotted, quietT, mark: sniperMark ? [+sniperMark.x.toFixed(1), +sniperMark.z.toFixed(1), sniperMark.dead] : null, sn: sn ? [+sn.x.toFixed(1), +sn.z.toFixed(1), sn.prone, sn.ref.kills] : null, shots: sniperShots }; },
+  end(won) { endMission(!!won); return outcome; },
   win() { reinfSent = true; ens.forEach(e => { if (!e.dead) killUnit(e, 'shot'); }); },
   wipe() { sol.forEach(s => { if (!s.dead) killUnit(s, 'shot'); }); },
   hurt(n) { sol.filter(s => !s.dead).slice(-n).forEach(s => killUnit(s, 'shot')); } };
