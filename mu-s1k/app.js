@@ -22,10 +22,10 @@ drums:{kick:'x...x...x...x...',clap:'....x.......x...',hat:'..x...x...x...x.',op
 acid:{steps:[[0,0,1,0],[1,0,0,0],[2,7,0,1],[3,7,0,0],[4,3,0,0],[6,0,1,0],[7,-2,0,1],[8,0,0,0],[10,9,1,0],[11,7,0,1],[12,4,0,0],[13,0,0,0],[14,2,1,0],[15,0,0,1]],cutoff:.34,res:.8,env:.6,decay:.35,dist:.45,vol:.7,wave:'saw',follow:false},
 chords:{mode:'off',prog:[0,0,5,6],stab:'',cutoff:.5,vol:.6,ext:false},
 fx:{rev:.25,dly:.35,pump:.3}},
-house:{name:'Deep house',bpm:122,swing:.2,root:2,scale:'dorian',
+house:{name:'Deep house',bpm:122,swing:.2,root:2,scale:'dorian',kit:'studio',
 drums:{kick:'x...x...x...x...',clap:'....x.......x...',hat:'.x.x.x.x.x.x.x.x',open:'..x...x...x...x.',perc:'...x......x.....'},
 acid:{steps:[[0,0,0,0],[3,0,0,0],[6,0,1,0],[10,7,0,0],[11,0,0,0]],cutoff:.18,res:.12,env:.2,decay:.4,dist:.05,vol:.6,wave:'square',follow:true},
-chords:{mode:'stab',prog:[0,3,1,4],stab:'..x..x...x..x...',cutoff:.5,vol:.75,ext:true},
+chords:{mode:'stab',prog:[0,3,1,4],stab:'..x..x...x..x...',cutoff:.62,vol:.8,ext:true,inst:'fmpiano'},
 fx:{rev:.35,dly:.25,pump:.35}},
 techno:{name:'Warehouse techno',bpm:133,swing:0,root:4,scale:'phrygian',
 drums:{kick:'x...x...x...x...',clap:'',hat:'.x.x.x.x.x.x.x.x',open:'..x...x...x...x.',perc:'.x....x...x..x..'},
@@ -71,9 +71,9 @@ if(!SCALES[o.scale])o.scale='minor';o.root=(o.root|0)%12;o.bpm=Math.max(90,Math.
 o.layers=o.layers.filter(L=>L&&TCOL[L.type]&&Array.isArray(L.pats)&&L.pats.length).slice(0,MAXL);
 o.layers.forEach(L=>{
 if(L.pats.length<2)L.pats.push(clone(L.pats[0]));L.ev=L.ev?1:0;if(L.vol==null)L.vol=.8;L.col=L.col||TCOL[L.type];
-if(L.type==='drums'){if(L.kit!=='808')L.kit='mu';if(L.boom==null)L.boom=.5;L.dmute=L.dmute||{};L.dvol=L.dvol||{kick:.9,clap:.6,hat:.4,open:.35,perc:.5};L.dtune=L.dtune||{kick:0,clap:0,hat:0,open:0,perc:0}}
+if(L.type==='drums'){if(L.kit!=='808'&&L.kit!=='studio')L.kit='mu';if(L.boom==null)L.boom=.5;L.dmute=L.dmute||{};L.dvol=L.dvol||{kick:.9,clap:.6,hat:.4,open:.35,perc:.5};L.dtune=L.dtune||{kick:0,clap:0,hat:0,open:0,perc:0}}
 if(L.type==='acid')for(const k in ACID_DEF)if(L[k]==null)L[k]=ACID_DEF[k];
-if(L.type==='chords'){if(L.cutoff==null)L.cutoff=.55;if(L.ext==null)L.ext=true}
+if(L.type==='chords'){if(L.cutoff==null)L.cutoff=.55;if(L.ext==null)L.ext=true;if(!['piano','fmpiano','vibes'].includes(L.inst))L.inst='synth'}
 if(L.type==='pads'&&(!Array.isArray(L.pads)||L.pads.length!==16))L.pads=defPads();
 });
 if(!o.layers.length){const d=mkLayer('drums',{name:'drums',vol:.9});d.pats[0].kick=P('x...x...x...x...');o.layers.push(d)}
@@ -120,7 +120,7 @@ const full=Object.fromEntries(DR.map(d=>[d.id,P(p.drums[d.id]||'')])),bl=clone(f
 const dr=mkLayer('drums',{name:'drums',pats:[full,bl],vol:.9});if(p.kit){dr.kit=p.kit;dr.boom=.6;dr.dvol={kick:.95,clap:.6,hat:.32,open:.3,perc:.35}}
 const ac=mkLayer('acid',{name:'acid',vol:p.acid.vol,pats:[acidFrom(p.acid.steps),blankAcid()],p:{cutoff:p.acid.cutoff,res:p.acid.res,env:p.acid.env,decay:p.acid.decay,dist:p.acid.dist,wave:p.acid.wave,follow:p.acid.follow}});
 const Ls=[dr,ac];let ch=null;
-if(p.chords.mode!=='off'){ch=mkLayer('chords',{name:p.chords.mode==='arp'?'arp':p.chords.mode==='stab'?'stabs':'chord pad',vol:p.chords.vol*.9,pats:[{mode:p.chords.mode,prog:[...p.chords.prog],stab:P(p.chords.stab||'')},{mode:'pad',prog:[...p.chords.prog],stab:Z()}],p:{cutoff:p.chords.cutoff,ext:p.chords.ext}});Ls.push(ch)}
+if(p.chords.mode!=='off'){ch=mkLayer('chords',{name:p.chords.mode==='arp'?'arp':p.chords.mode==='stab'?'stabs':'chord pad',vol:p.chords.vol*.9,pats:[{mode:p.chords.mode,prog:[...p.chords.prog],stab:P(p.chords.stab||'')},{mode:'pad',prog:[...p.chords.prog],stab:Z()}],p:{cutoff:p.chords.cutoff,ext:p.chords.ext}});if(p.chords.inst)ch.inst=p.chords.inst;Ls.push(ch)}
 const ph=(...m)=>{const a=blankPh();m.forEach(x=>x&&Object.entries(x).forEach(([s,v])=>v.forEach(i=>{if(!a[+s].includes(i))a[+s].push(i)})));return a};
 const vx=mkLayer('pads',{name:'vocals',vol:.9,pats:[ph(pd.C),ph(pd.B,pd.D)]});Ls.push(vx);
 const on=(d,a,c,v)=>{const o={[dr.id]:d,[ac.id]:a,[vx.id]:v};if(ch)o[ch.id]=c;return o};
@@ -139,6 +139,7 @@ const plucks=mkLayer('chords',{name:'plucks',col:'var(--acid)',vol:.5,pats:[{mod
 const vph=m=>{const a=blankPh();Object.entries(m).forEach(([s,v])=>a[+s]=[...v]);return a};
 const vox=mkLayer('pads',{name:'vocals',vol:.85,pats:[vph({0:[2],6:[0],11:[1]}),vph({0:[7,14]})]});
 vox.pads[2].pitch=0;vox.pads[0].pitch=3;vox.pads[1].pitch=-2;vox.pads[7].vol=.6;vox.pads[14].vol=.55;
+beat.kit='studio';hats.kit='studio';
 const Ls=[beat,hats,bass,pads,plucks,vox];
 const on=o=>Object.fromEntries(Ls.map(L=>[L.id,o[L.name]||0]));
 const secs=[
@@ -238,7 +239,7 @@ set(N.mfilt.frequency,120*Math.pow(2,F.filter*7.4));
 N.dly.delayTime.setTargetAtTime(3*stepDur(),t,.05);
 const ids=new Set(S.layers.map(L=>L.id));
 for(const id in N.L)if(!ids.has(id)){const n=N.L[id];try{n.out.disconnect();n.fr.disconnect();n.fd.disconnect();if(n.osc)n.osc.stop()}catch(e){}delete N.L[id]}
-S.layers.forEach(L=>{const n=N.L[L.id];if(n)applyLayer(L,n);else lnode(L)});
+S.layers.forEach(L=>{const n=N.L[L.id];if(n)applyLayer(L,n);else lnode(L);if(L.type==='drums'&&L.kit==='studio')loadKit();if(instOf(L))loadInst(L.inst)});
 }
 const stepDur=()=>60/S.bpm/4;
 function noise(){const s=ctx.createBufferSource();s.buffer=N.noise;return s}
@@ -281,8 +282,19 @@ open(t,v,p,n){n.openG=metal(t,.42,v*.9,p,n,6400,true)},
 perc(t,v,p,n){const g=gn(0),b=bq('bandpass',2640*p,1.1);[587,845].forEach(f=>{const o=ctx.createOscillator();o.type='square';o.frequency.value=f*p;o.connect(b);o.start(t);o.stop(t+.5)});
 g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(v*.5,t+.002);g.gain.setTargetAtTime(v*.18,t+.004,.012);g.gain.setTargetAtTime(0,t+.03,.09);b.connect(g);g.connect(n.out);g.connect(n.dDly)}
 };
-const kitV=L=>L.kit==='808'?V808:VOICE;
-const dname=(L,id)=>L.kit==='808'&&id==='perc'?'Cowbell':DR.find(x=>x.id===id).name;
+/* recorded kit: kick from Sonic Pi (CC0), claps, hats and tambourine from VCSL (CC0) */
+const KREC={kick:['kick'],clap:['clap1','clap2'],hat:['hat1','hat2'],open:['open'],perc:['tamb']},KB={};let kitP=null;
+function loadKit(){if(kitP)return kitP;const c=ctx;kitP=Promise.all(Object.values(KREC).flat().map(async n=>{const r=await fetch('/mu-s1k/snd/kit/'+n+'.mp3');if(!r.ok)throw 0;KB[n]=await c.decodeAudioData(await r.arrayBuffer())})).catch(()=>{kitP=null});return kitP}
+function kitHit(id,t,v,p,n,send){const a=KREC[id],b=KB[a[Math.floor(Math.random()*a.length)]];if(!b)return null;const s=ctx.createBufferSource(),g=gn(v);s.buffer=b;s.playbackRate.value=p;s.connect(g);g.connect(n.out);if(send)g.connect(n[send]);s.start(t);return g}
+const VREC={
+kick(t,v,p,n){if(!kitHit('kick',t,v*1.1,p,n)){VOICE.kick(t,v,p,n);return}const L=n.L||{};if(lg(L)>0||!n.L)pump(t)},
+clap(t,v,p,n){if(!kitHit('clap',t,v,p,n,'dRev'))VOICE.clap(t,v,p,n)},
+hat(t,v,p,n){if(!kitHit('hat',t,v*1.1,p,n))VOICE.hat(t,v,p,n);else if(n.openG){n.openG.gain.cancelScheduledValues(t);n.openG.gain.setTargetAtTime(0,t,.008)}},
+open(t,v,p,n){const g=kitHit('open',t,v*.9,p,n,'dRev');if(!g){VOICE.open(t,v,p,n);return}n.openG=g},
+perc(t,v,p,n){if(!kitHit('perc',t,v*.9,p,n))VOICE.perc(t,v,p,n)}
+};
+const kitV=L=>L.kit==='808'?V808:L.kit==='studio'?VREC:VOICE;
+const dname=(L,id)=>id==='perc'&&L.kit==='808'?'Cowbell':id==='perc'&&L.kit==='studio'?'Tambourine':DR.find(x=>x.id===id).name;
 /* acid sounds: one-tap settings for the 303-style synth */
 const ACID_SOUNDS=[['classic','the original squelch',{wave:'saw',cutoff:.3,res:.72,env:.55,decay:.4,dist:.3}],
 ['squelchy','wet and rubbery',{wave:'saw',cutoff:.2,res:.9,env:.78,decay:.32,dist:.38}],
@@ -313,12 +325,25 @@ g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(peak,t+att);g.gain.set
 fl.connect(g).connect(dest);
 [-8,8].forEach(dt=>{const o=ctx.createOscillator();o.type='sawtooth';o.frequency.value=hz(m);o.detune.value=dt;o.connect(fl);o.start(t);o.stop(t+dur+rel*2+.1)});
 }
+/* recorded instruments for chord layers (CC0, Versilian Community Sample Library); loaded on first use */
+const INOTES='C3 E3 G#3 C4 E4 G#4 C5 E5 G#5 C6'.split(' ');
+const INSTS={piano:{name:'piano',dir:'piano',notes:INOTES,off:0,rel:.45},fmpiano:{name:'house piano',dir:'fmpiano',notes:INOTES,off:0,rel:.3},vibes:{name:'vibes',dir:'vibes',notes:'A2 C3 E3 G3 B3 D4 F4 A4 C5 E5'.split(' '),off:12,rel:.6}};
+const INST={},INSTP={};
+const nmidi=n=>{const m=n.match(/^([A-G])(#?)(\d)$/);return 12*(+m[3]+1)+{C:0,D:2,E:4,F:5,G:7,A:9,B:11}[m[1]]+(m[2]?1:0)};
+function loadInst(k){if(!INSTS[k]||INST[k])return Promise.resolve(INST[k]);if(INSTP[k])return INSTP[k];const I=INSTS[k],c=ctx;
+INSTP[k]=Promise.all(I.notes.map(async n=>{const r=await fetch(`/mu-s1k/snd/${I.dir}/${n.replace('#','s')}.mp3`);if(!r.ok)throw 0;return{m:nmidi(n)+I.off,b:await c.decodeAudioData(await r.arrayBuffer())}}))
+.then(a=>{INST[k]=a.sort((x,y)=>x.m-y.m);return INST[k]}).catch(()=>{INSTP[k]=null});return INSTP[k]}
+function instVoice(k,m,t,dur,peak,cut,dest){const set=INST[k];if(!set)return false;let best=set[0];for(const x of set)if(Math.abs(x.m-m)<Math.abs(best.m-m))best=x;
+const src=ctx.createBufferSource(),g=gn(0),f=bq('lowpass',Math.min(19000,600*Math.pow(2,cut*5)),.5),rel=INSTS[k].rel;
+src.buffer=best.b;src.playbackRate.value=Math.pow(2,(m-best.m)/12);g.gain.setValueAtTime(peak,t);g.gain.setValueAtTime(peak,t+dur);g.gain.linearRampToValueAtTime(0,t+dur+rel);
+src.connect(f).connect(g).connect(dest);src.start(t);src.stop(t+dur+rel+.05);return true}
+const instOf=L=>L.inst&&INSTS[L.inst]?L.inst:null;
 function playChords(L,n,pp,s,cb,t,sd){
 if(pp.mode==='off')return;
-const notes=chordNotes(pp.prog[cb],L),cut=200*Math.pow(2,L.cutoff*6.5);
-if(pp.mode==='pad'){if(s===0)notes.forEach(m=>voice(m,t,16*sd-.05,.075,.35,1.3,cut,n.out))}
-else if(pp.mode==='stab'){if(pp.stab[s])notes.forEach(m=>voice(m,t,sd*1.5,.09,.004,.25,cut*1.4,n.out))}
-else{const seq=[...notes,notes[0]+12,notes[1]+12],ix=[0,2,1,3,2,4,3,5][s%8]%seq.length;voice(seq[ix]+12,t,sd*.8,.1,.003,.22,cut*1.5,n.out)}
+const notes=chordNotes(pp.prog[cb],L),cut=200*Math.pow(2,L.cutoff*6.5),I=instOf(L);if(I&&!INST[I])loadInst(I);const sv=I&&INST[I];
+if(pp.mode==='pad'){if(s===0)notes.forEach(m=>sv?instVoice(I,m,t,16*sd-.05,.2,L.cutoff,n.out):voice(m,t,16*sd-.05,.075,.35,1.3,cut,n.out))}
+else if(pp.mode==='stab'){if(pp.stab[s])notes.forEach(m=>sv?instVoice(I,m,t,sd*1.5,.24,L.cutoff,n.out):voice(m,t,sd*1.5,.09,.004,.25,cut*1.4,n.out))}
+else{const seq=[...notes,notes[0]+12,notes[1]+12],ix=[0,2,1,3,2,4,3,5][s%8]%seq.length;sv?instVoice(I,seq[ix]+12,t,sd*.9,.3,L.cutoff,n.out):voice(seq[ix]+12,t,sd*.8,.1,.003,.22,cut*1.5,n.out)}
 }
 function playLayer(L,v,s,cb,t,sd,sec){
 const n=lnode(L),p=L.pats[v];n.L=L;
@@ -479,7 +504,8 @@ async function exportWav(){
 if(exporting)return;exporting=true;
 const msg=t=>{const m=$('#expMsg');if(m)m.textContent=t};
 try{
-if(!ctx)initAudio();msg('Rendering. This takes a few seconds.');await BUILT;await new Promise(r=>setTimeout(r,30));
+if(!ctx)initAudio();msg('Rendering. This takes a few seconds.');await BUILT;
+if(S.layers.some(L=>L.type==='drums'&&L.kit==='studio'))await loadKit();await Promise.all(S.layers.filter(instOf).map(L=>loadInst(L.inst)));await new Promise(r=>setTimeout(r,30));
 const songMode=S.mode==='song',sr=44100,sd=stepDur(),plan=[];
 if(songMode)S.secs.forEach((e,si)=>{for(let b=0;b<e.bars;b++)plan.push({si,b})});else for(let b=0;b<4;b++)plan.push({si:-1,b});
 const off=new OfflineAudioContext(2,Math.ceil((plan.length*16*sd+3)*sr),sr);
@@ -694,7 +720,7 @@ const MOODS={happy:{scale:'major',prog:[0,4,5,3],ext:false,d:'bright and uplifti
 const MODEN={pad:'long',stab:'short',arp:'rolling',off:'off'};
 const EDIT={
 drums(L){const D=L.pats[L.ev],pat=D[selTrack],d={id:selTrack,name:dname(L,selTrack)};
-return `<div><div class="meta" style="margin-bottom:8px">kit</div><div class="seg">${[['mu','classic'],['808','808']].map(([k,n])=>`<button class="${L.kit===k?'on':''}" data-act="kit" data-k="${k}">${n}</button>`).join('')}</div></div>
+return `<div><div class="meta" style="margin-bottom:8px">kit</div><div class="seg">${[['studio','recorded'],['mu','classic'],['808','808']].map(([k,n])=>`<button class="${L.kit===k?'on':''}" data-act="kit" data-k="${k}">${n}</button>`).join('')}</div></div>
 <div class="ov">${DR.map(t=>`<button class="ovrow ${t.id===selTrack?'sel':''} ${L.dmute[t.id]?'muted':''}" data-track="${t.id}" style="--c:var(--${t.id})"><span>${dname(L,t.id)}</span><span class="dots">${D[t.id].map((v,i)=>`<i class="dot ${v?'on':''}" data-s="${i}"></i>`).join('')}</span></button>`).join('')}</div>
 <p class="meta simp" style="margin:0">Choose a drum above, then tap steps to switch it on or off.</p>
 <div class="grid8" style="--tc:var(--${selTrack})">${pat.map((v,i)=>`<button class="pad ${v?'on':''} ${i%4===0?'beat':''}" data-s="${i}" data-pad="${i}" aria-pressed="${!!v}" aria-label="${d.name} step ${i+1}">${i+1}</button>`).join('')}</div>
@@ -717,6 +743,7 @@ ${keysHTML(L)}
 <button class="btn ${L.oct?'on':''}" data-act="oct">octave up</button><button class="btn ${L.follow?'on':''}" data-act="follow">follow chords</button></div>`},
 chords(L){const pt=L.pats[L.ev],sm=simple();
 return `<div class="simp"><div class="meta" style="margin-bottom:8px">mood · this sets the key for the whole track</div><div class="choices two">${Object.entries(MOODS).map(([k,m])=>`<button class="choice cap ${L.mood===k?'on':''}" data-act="mood" data-m="${k}"><b>${k}</b><small>${m.d}</small></button>`).join('')}</div></div>
+<div><div class="meta" style="margin-bottom:8px">sound</div><div class="seg">${[['synth','synth'],['piano','piano'],['fmpiano','house piano'],['vibes','vibes']].map(([k,n])=>`<button class="${(L.inst||'synth')===k?'on':''}" data-act="inst" data-i="${k}">${n}</button>`).join('')}</div></div>
 <div><div class="meta simp" style="margin-bottom:8px">style</div><div class="seg">${['pad','stab','arp','off'].map(m=>`<button class="${pt.mode===m?'on':''}" data-mode="${m}">${sm?MODEN[m]:m}</button>`).join('')}</div></div>
 <div class="bars adv">${pt.prog.map((dg,i)=>`<div class="slot" data-bar="${i}"><label for="bar${i}">bar ${i+1}</label><select id="bar${i}" data-bsel="${i}">${[0,1,2,3,4,5,6].map(x=>{const ci=chordInfo(x,L);return`<option value="${x}" ${x===dg?'selected':''}>${ci.ro} · ${ci.name}</option>`}).join('')}</select></div>`).join('')}</div>
 ${pt.mode==='stab'?`<div><div class="meta" style="margin-bottom:8px">stab rhythm</div><div class="grid8">${pt.stab.map((v,i)=>`<button class="pad ${v?'on':''} ${i%4===0?'beat':''}" data-s="${i}" data-stab="${i}" aria-pressed="${!!v}" aria-label="Stab step ${i+1}">${i+1}</button>`).join('')}</div></div>`:''}
@@ -783,6 +810,7 @@ if(b.dataset.mode)pt.mode=b.dataset.mode;
 else if(b.dataset.stab){const i=+b.dataset.stab;pt.stab[i]=pt.stab[i]?0:1}
 else if(a==='mood'){const m=MOODS[b.dataset.m];S.scale=m.scale;pt.prog=[...m.prog];L.ext=m.ext;L.mood=b.dataset.m;paintKey();if(!playing)start()}
 else if(a==='ext')L.ext=!L.ext;
+else if(a==='inst'){L.inst=b.dataset.i;const go=()=>{if(!playing&&ctx){const n=lnode(L),tt=ctx.currentTime+.02;chordNotes(L.pats[L.ev].prog[0],L).forEach(m=>instOf(L)?instVoice(L.inst,m,tt,.6,.2,L.cutoff,n.out):voice(m,tt,.5,.08,.01,.55,200*Math.pow(2,L.cutoff*6.5),n.out))}};if(instOf(L)){if(!ctx)initAudio();loadInst(L.inst).then(go)}else go()}
 else return false},
 pads(L,b,a){const ph=L.pats[L.ev];
 if(b.dataset.ps){const st=+b.dataset.ps,arr=ph[st],ix=arr.indexOf(selPad);if(ix<0){arr.push(selPad);if(ctx&&!playing)playPad(L,selPad,ctx.currentTime+.01)}else arr.splice(ix,1)}
@@ -832,7 +860,7 @@ ${krec?`<p class="meta" style="margin:0">${playing?'Recording: each key you tap 
 function playKey(d,el){
 const L=CL();if(!L)return;if(!ctx)initAudio();if(ctx.state!=='running')ctx.resume();const now=ctx.currentTime;
 if(el){el.classList.add('hit');setTimeout(()=>el.classList.remove('hit'),150)}
-if(L.type==='chords'){const n=lnode(L),cut=200*Math.pow(2,L.cutoff*6.5);chordNotes(d,L).forEach(m=>voice(m,now+.01,.5,.08,.01,.55,cut,n.out));return}
+if(L.type==='chords'){const n=lnode(L),cut=200*Math.pow(2,L.cutoff*6.5),I=instOf(L);if(I&&!INST[I])loadInst(I);chordNotes(d,L).forEach(m=>I&&INST[I]?instVoice(I,m,now+.01,.6,.2,L.cutoff,n.out):voice(m,now+.01,.5,.08,.01,.55,cut,n.out));return}
 if(L.type!=='acid')return;const n=lnode(L);trigAcid(L,n,acidMidi(L,d),now+.005,0,false);gateOff(n,now+.24);
 if(!krec)return;const pt=L.pats[L.ev];
 if(playing){let best=null,bd=1e9;for(const h of hist){const x=Math.abs(h.t-now);if(x<bd){bd=x;best=h}}
@@ -1354,7 +1382,7 @@ if(ls.k==='hook')return S.layers.some(x=>x.id===S.learn.hook);
 return !!S.learn.arr;
 }
 function startLessons(){
-const dr=mkLayer('drums',{name:'drums',vol:.9});
+const dr=mkLayer('drums',{name:'drums',vol:.9});dr.kit='studio';
 const o=norm({v:3,preset:null,name:'My first track',bpm:124,swing:.08,root:9,scale:'minor',fx:{rev:.38,dly:.28,pump:.45,filter:1,master:.82},layers:[dr],secs:[{name:'loop',bars:4,on:{[dr.id]:1}}],mode:'loop',sel:dr.id,cs:0,lesson:true,learn:{drums:dr.id}});
 try{localStorage.setItem(KEY+'.prev',JSON.stringify(S))}catch(e){}
 if(playing)stop();
@@ -1394,7 +1422,8 @@ return`<div class="ov lov">${DR.slice(0,3).map(t=>`<div class="ovrow ${t.id===k?
 if(ls.k==='bass')return`<div class="choices">${BASSES.map(([n,d],j)=>`<button class="choice ${S.learn.bk===j&&lessonDone(i)?'on':''}" data-l="bass" data-i="${j}" style="--c:var(--perc)"><b>${n}</b><small>${d}</small></button>`).join('')}</div>`;
 if(ls.k==='chords'){const C=S.layers.find(x=>x.id===S.learn.chords);
 return`<div class="choices two">${Object.entries(MOODS).map(([k,m])=>`<button class="choice ${C&&C.mood===k?'on':''}" data-l="mood" data-m="${k}" style="--c:var(--chords)"><b>${k}</b><small>${m.d}</small></button>`).join('')}</div>
-${C?`<div><div class="meta" style="margin-bottom:8px">style · how the chords are played</div><div class="seg">${['pad','stab','arp'].map(m=>`<button class="${C.pats[0].mode===m?'on':''}" data-l="style" data-m="${m}">${MODEN[m]}</button>`).join('')}</div></div>`:''}`}
+${C?`<div><div class="meta" style="margin-bottom:8px">style · how the chords are played</div><div class="seg">${['pad','stab','arp'].map(m=>`<button class="${C.pats[0].mode===m?'on':''}" data-l="style" data-m="${m}">${MODEN[m]}</button>`).join('')}</div></div>
+<div><div class="meta" style="margin-bottom:8px">sound · what plays the chords</div><div class="seg">${[['synth','synth'],['piano','piano'],['fmpiano','house piano'],['vibes','vibes']].map(([k,n])=>`<button class="${(C.inst||'synth')===k?'on':''}" data-l="inst" data-i="${k}">${n}</button>`).join('')}</div></div>`:''}`}
 if(ls.k==='hook'){const H=S.layers.find(x=>x.id===S.learn.hook);
 if(!H)return`<button class="addsnd cap" data-l="hook"><b>+ add a sound</b><small>record your voice, use a video, or pick a ready-made vocal</small></button>`;
 const w=WHERE.find(x=>x[0]===H.where);
@@ -1415,7 +1444,7 @@ build(){const b=sDr({kick:'x...x...x...x...',clap:'....x.......x...',hat:'..x...
 const bass=mkLayer('acid',{name:'bass',vol:.7,pats:[acidFrom([[2,0,0,0],[6,0,0,0],[10,0,0,0],[14,0,0,0]]),blankAcid()],p:{wave:'square',cutoff:.15,res:.15,env:.22,decay:.3,dist:.08,follow:true}});bass.st=1;
 const riff=mkLayer('chords',{name:'riff',col:'var(--hat)',vol:.78,pats:[{mode:'stab',prog:[0,5,2,6],stab:P('x..x..x...x..x..')},{mode:'off',prog:[0,5,2,6],stab:Z()}],p:{cutoff:.74,ext:false}});riff.st=2;
 const pad=mkLayer('chords',{name:'pads',vol:.62,pats:[{mode:'pad',prog:[0,5,2,6],stab:Z()},{mode:'off',prog:[0,5,2,6],stab:Z()}],p:{cutoff:.45,ext:true}});pad.st=3;
-return mkStudy('trance',{name:'Trance-house study',bpm:128,swing:.04,root:9,scale:'minor',fx:{rev:.5,dly:.38,pump:.55}},[b,bass,riff,pad])},
+b.kit='studio';return mkStudy('trance',{name:'Trance-house study',bpm:128,swing:.04,root:9,scale:'minor',fx:{rev:.5,dly:.38,pump:.55}},[b,bass,riff,pad])},
 steps:[
 {t:'The beat',txt:'Plain four-to-the-floor at 128 bpm: a kick on every beat, a clap on 2 and 4, hats in between. Nothing clever. This era kept the drums simple so the riff could carry the track.',listen:'How steady it is. The beat is a platform, not the star.'},
 {t:'The off-beat bass',txt:'A short bass note in each gap between the kicks. It follows the chords, so it changes note every bar.',listen:'The bounce: boom (kick), dum (bass), boom, dum. The kick and bass never hit at the same time.'},
@@ -1444,7 +1473,7 @@ steps:[
 build(){const b=sDr({kick:'x...x...x...x...',clap:'....x.......x...',hat:'.xx..xx..xx..xx.',open:'..x...x...x...x.'});b.dvol={kick:.9,clap:.55,hat:.28,open:.3,perc:.4};b.st=0;
 const bass=mkLayer('acid',{name:'bass',vol:.7,pats:[acidFrom([[0,0,0,0],[3,0,0,0],[4,7,0,0],[7,5,0,1],[8,0,0,0],[10,3,0,0],[11,4,0,0],[14,0,0,0]]),blankAcid()],p:{wave:'square',cutoff:.2,res:.4,env:.4,decay:.24,dist:.12,follow:true}});bass.st=1;
 const st=mkLayer('chords',{name:'disco stabs',col:'var(--clap)',vol:.75,pats:[{mode:'stab',prog:[0,3,4,3],stab:P('x.x...x.x.x...x.')},{mode:'off',prog:[0,3,4,3],stab:Z()}],p:{cutoff:.8,ext:true}});st.st=2;
-return mkStudy('filter',{name:'Filter house study',bpm:124,swing:.18,root:2,scale:'dorian',fx:{rev:.3,dly:.25,pump:.6,filter:.55}},[b,bass,st])},
+b.kit='studio';return mkStudy('filter',{name:'Filter house study',bpm:124,swing:.18,root:2,scale:'dorian',fx:{rev:.3,dly:.25,pump:.6,filter:.55}},[b,bass,st])},
 steps:[
 {t:'The swing',txt:'Four-to-the-floor again, but with swing: every second step is pushed slightly late, like a drummer playing with feel. The whole track is already running through a filter that is half closed.',listen:'The lazy, shuffling hats. Swing turns a grid into a groove.'},
 {t:'The funky bass',txt:'A bouncing disco-style bassline that walks up and slides between notes.',listen:'The bass moving more than in the other styles. This one comes from disco.'},
@@ -1453,13 +1482,13 @@ steps:[
 build(){const b=sDr({kick:'x.........x.....',clap:'....x.......x...',hat:'x.xxx.x.x.xxx.x.',perc:'..x....x..x...x.'});b.dvol={kick:.92,clap:.6,hat:.3,open:.3,perc:.35};b.st=0;
 const bass=mkLayer('acid',{name:'sub bass',vol:.75,pats:[acidFrom([[0,0,0,0],[3,0,0,1],[6,7,0,0],[10,0,0,0],[13,5,0,0]]),blankAcid()],p:{wave:'square',cutoff:.08,res:.1,env:.1,decay:.6,dist:.05,follow:true}});bass.st=1;
 const vox=mkLayer('pads',{name:'vocal chops',vol:.85,pats:[sPh({3:[2],6:[4],11:[2],14:[5]}),blankPh()]});vox.st=2;
-const keys=mkLayer('chords',{name:'organ',col:'var(--chords)',vol:.6,pats:[{mode:'stab',prog:[0,5,3,4],stab:P('...x..x....x..x.')},{mode:'off',prog:[0,5,3,4],stab:Z()}],p:{cutoff:.5,ext:true}});keys.st=3;
-return mkStudy('garage',{name:'2-step study',bpm:132,swing:.3,root:7,scale:'minor',fx:{rev:.35,dly:.3,pump:.3}},[b,bass,vox,keys])},
+const keys=mkLayer('chords',{name:'keys',col:'var(--chords)',vol:.6,pats:[{mode:'stab',prog:[0,5,3,4],stab:P('...x..x....x..x.')},{mode:'off',prog:[0,5,3,4],stab:Z()}],p:{cutoff:.5,ext:true}});keys.st=3;keys.inst='fmpiano';
+b.kit='studio';return mkStudy('garage',{name:'2-step study',bpm:132,swing:.3,root:7,scale:'minor',fx:{rev:.35,dly:.3,pump:.3}},[b,bass,vox,keys])},
 steps:[
 {t:'The 2-step beat',txt:'No four-to-the-floor here. The kick lands on beat 1 and then skips, landing late in the bar, so the groove limps in a good way. Heavy swing on the hats.',listen:'The gaps where you expect a kick and none comes. That skip is the 2-step.'},
 {t:'The sub bass',txt:'A deep, round sub bass that you feel more than hear, with notes that slide.',listen:'On phone speakers you may barely hear it; on headphones it carries the track.'},
 {t:'The vocal chops',txt:'Short pieces of voice placed on off-beats. Garage producers cut up vocals and replayed them as rhythm. These are the real recorded vocal chops.',listen:'The chops answering the beat rather than sitting on it.'},
-{t:'The organ stabs',txt:'Soft chord stabs with 7ths, slightly off the beat, like a church organ played by a jazz musician.',listen:'Everything is a little off the grid: that slinky feel is UK garage.'}]}
+{t:'The keys',txt:'Soft electric-piano chord stabs with 7ths, slightly off the beat. Garage took its chords from soul and R&B, and that warm keys sound with it.',listen:'Everything is a little off the grid: that slinky feel is UK garage.'}]}
 ];
 function startStudy(id){
 const ST=STUDIES.find(x=>x.id===id);if(!ST)return;const o=ST.build();
@@ -1532,6 +1561,7 @@ if(pat[j]&&!playing)start();renderLearn();return}
 if(a==='bass'){lessonBass(+b.dataset.i);renderLearn();return}
 if(a==='mood'){lessonChords(b.dataset.m);renderLearn();return}
 if(a==='style'){const C=S.layers.find(x=>x.id===S.learn.chords);if(C){C.pats[0].mode=b.dataset.m;if(b.dataset.m==='stab'&&!C.pats[0].stab.some(Boolean))C.pats[0].stab=P('..x...x...x...x.');save()}renderLearn();return}
+if(a==='inst'){const C=S.layers.find(x=>x.id===S.learn.chords);if(C){C.inst=b.dataset.i;save();if(instOf(C)){if(!ctx)initAudio();loadInst(C.inst)}if(!playing)start()}renderLearn();return}
 if(a==='hook'){openSheet({lesson:true});return}
 if(a==='hookhear'){const H=S.layers.find(x=>x.id===S.learn.hook);if(H){if(!ctx)initAudio();if(ctx.state!=='running')ctx.resume();playPad(H,0,ctx.currentTime+.02)}return}
 if(a==='arr'){lessonArr();renderLearn();return}

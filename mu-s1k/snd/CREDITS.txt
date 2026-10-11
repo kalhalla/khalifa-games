@@ -10,3 +10,13 @@ etc/samples):
   Used for: choir.
 
 No attribution is required by CC0; it is given here as thanks.
+
+Recorded drum kit and chord instruments
+
+- kit/kick: Sonic Pi sample bd_haus (CC0, via freesound.org).
+- kit/clap1, clap2, hat1, hat2, open, tamb: Versilian Community Sample Library
+  (VCSL, github.com/sgossner/VCSL), CC0 - Claps, Hi-Hat Cymbal, Tambourine 1.
+- piano/: VCSL Grand Piano, Steinway B (no sustain, close mics), CC0.
+- fmpiano/: VCSL TX81Z FM Piano, CC0.
+- vibes/: VCSL Vibraphone, soft mallets, CC0.
+All trimmed, levelled and converted to MP3 for MU-S1K.
