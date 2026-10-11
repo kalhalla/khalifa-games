@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en-GB">
+<html lang="en-GB" class="off">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
@@ -31,26 +31,28 @@
 </div>
 <div class="marks">
 <div class="vsw" role="tablist" aria-label="View"><button class="cap" role="tab" data-v="home">player</button><button class="cap" role="tab" data-v="learn">learn</button><button class="cap" role="tab" data-v="compose">compose</button></div>
-<div class="pwr"><i class="led" id="pwrLed"></i>run</div>
+<button class="pwr pwrbtn" id="pwrBtn" aria-pressed="false" aria-label="Power"><i class="pkey" aria-hidden="true"><i class="led" id="pwrLed"></i></i>power</button>
 <i class="hex" aria-hidden="true"></i>
 </div>
 </header>
 <div id="homeView">
-<div class="glass"><div class="screen home-screen">
+<div class="bezel pocketed"><div class="screen home-screen">
 <div class="scr-top"><span id="hKey">F minor · 130 bpm</span><span id="hState">ready</span></div>
-<canvas id="scope2" aria-hidden="true"></canvas>
 <div class="h-title" id="hTitle">Euphoric break</div>
 <div class="h-sub" id="hSub"></div>
+<canvas id="scope2" aria-hidden="true"></canvas>
 <div class="h-prog" aria-hidden="true"><i id="hBar"></i></div>
 <div class="scr-top"><span id="hTime">0:00</span><span id="hTotal">0:00</span></div>
 <div class="h-list" id="hList" role="listbox" aria-label="Tracks"></div>
 </div></div>
-<div class="dialbox">
-<div class="dial" id="wheel2" role="slider" tabindex="0" aria-label="Choose a track. Turn the wheel."><div class="disc" id="drum2"><i class="gem g1"></i><i class="gem g2"></i><i class="gem g3"></i><i class="gem g4"></i></div></div>
-<button class="hk play-k dial-play" id="hPlay" aria-label="Play"><svg viewBox="0 0 24 24"><path id="hIcon" d="M7 4.5v15l13-7.5z"/></svg></button>
+<div>
+<div class="wheel pocketed" id="wheel2" role="slider" tabindex="0" aria-label="Choose a track"><div class="drum" id="drum2"></div></div>
+<div class="wheel-cap etch"><span>turn the wheel to choose a track</span><span>◂ ▸</span></div>
 </div>
-<div class="wheel-cap etch dialcap"><span>turn to choose a track</span><span>centre: play / stop</span></div>
-<div class="h-keys"><button class="hk learn-k" id="hLearn">learn</button><button class="hk comp-k" id="hCompose">compose</button></div>
+<div class="h-keys">
+<button class="hk play-k" id="hPlay" aria-label="Play"><svg viewBox="0 0 24 24"><path id="hIcon" d="M7 4.5v15l13-7.5z"/></svg></button>
+<button class="hk comp-k" id="hCompose">compose</button>
+</div>
 </div>
 <div id="learnView" hidden></div>
 <div id="composeView" hidden>
@@ -91,7 +93,7 @@
 <section class="panel" id="p-mix" hidden style="--tc:var(--mix)"></section>
 </div>
 </div>
-<p class="hint"><b>New to making music?</b> Tap learn: seven short steps build a whole track with you, from the kick drum to the drop. <b>Tap play to start.</b> Each part of your track is a layer. Tap + add a sound to record your voice, take a moment from a video or a screen recording, or pick a vocal; it is trimmed and tuned to your key. On the song page, arrange it for me builds an intro, build-ups and drops, and you can switch layers on and off section by section. Turn a knob by dragging up or down on it. Tap show advanced for the full controls. On iPhone, flip the silent switch off if you hear nothing. Your work saves on this device automatically.</p>
+<p class="hint"><b>Press power to switch it on.</b> <b>New to making music?</b> Tap learn: seven short steps build a whole track with you, from the kick drum to the drop. <b>Tap play to start.</b> Each part of your track is a layer. Tap + add a sound to record your voice, take a moment from a video or a screen recording, or pick a vocal; it is trimmed and tuned to your key. On the song page, arrange it for me builds an intro, build-ups and drops, and you can switch layers on and off section by section. Turn a knob by dragging up or down on it. Tap show advanced for the full controls. On iPhone, flip the silent switch off if you hear nothing. Your work saves on this device automatically.</p>
 </div>
 <div id="sheet" class="sheet" hidden role="dialog" aria-modal="true" aria-label="Add a sound"><div class="sheet-card panel" id="sheetCard"></div><input type="file" id="shFile" accept="audio/*" hidden><input type="file" id="shVidIn" accept="video/*" hidden></div>
 <script src="/mu-s1k/app.js"></script>
