@@ -501,7 +501,7 @@ playing=false;clearInterval(timer);const t=ctx.currentTime;if(N.swept){N.mfilt.f
 for(const id in N.L){const n=N.L[id];if(n.amp){n.amp.gain.cancelScheduledValues(t);n.amp.gain.setValueAtTime(n.amp.gain.value,t);n.amp.gain.linearRampToValueAtTime(0,t+.02);n.gate=false}}
 q=[];cur={s:-1,b:0,i:0};highlight();try{wl&&wl.release()}catch(e){}wl=null;paintPlay();
 }
-function paintPlay(){const lp=document.getElementById('lPlay');if(lp){lp.classList.toggle('on',playing);lp.setAttribute('aria-label',playing?'Stop':'Play');document.getElementById('lIcon').setAttribute('d',playing?'M6 6h12v12H6z':'M7 4.5v15l13-7.5z');const lt=document.getElementById('lPlayT');if(lt)lt.textContent=playing?'playing · tap to stop':'tap to hear your track'}const hp=document.getElementById('hPlay');if(hp){hp.classList.toggle('on',playing);hp.setAttribute('aria-label',playing?'Stop':'Play');document.getElementById('hIcon').setAttribute('d',playing?'M6 6h12v12H6z':'M7 4.5v15l13-7.5z');if(document.documentElement.dataset.view==='home')renderHome()}document.getElementById('pwrLed').classList.toggle('play',playing);$('#play').classList.toggle('on',playing);$('#play').setAttribute('aria-label',playing?'Stop':'Play');
+function paintPlay(){const lp=document.getElementById('lPlay');if(lp){lp.classList.toggle('on',playing);lp.setAttribute('aria-label',playing?'Stop':'Play');document.getElementById('lIcon').setAttribute('d',playing?'M6 6h12v12H6z':'M7 4.5v15l13-7.5z');const lt=document.getElementById('lPlayT');if(lt)lt.textContent=playing?'playing · tap to stop':'tap to hear your track'}const hp=document.getElementById('hPlay');if(hp){hp.classList.toggle('on',playing);hp.setAttribute('aria-label',playing?'Stop':'Play');document.getElementById('hIcon').setAttribute('d',playing?'M6 6h12v12H6z':'M7 4.5v15l13-7.5z');if(document.documentElement.dataset.view==='home')renderHome()}document.getElementById('pwrLed').classList.toggle('pulse',playing);$('#play').classList.toggle('on',playing);$('#play').setAttribute('aria-label',playing?'Stop':'Play');
 $('#playIcon').setAttribute('d',playing?'M6 6h12v12H6z':'M7 4.5v15l13-7.5z')}
 $('#play').addEventListener('click',()=>playing?stop():start());
 /* power: every screen is black glass until it is switched on */
@@ -525,16 +525,30 @@ if(sec){$('#posLbl').textContent=`${cur.i+1} · ${sec.name}`;$('#posBar').textCo
 else{$('#posLbl').textContent=`Loop · ${S.layers.length} layer${S.layers.length>1?'s':''}`;$('#posBar').textContent=`${cur.b%4+1}/4`}
 $('#posStep').textContent=`step ${String(cur.s+1).padStart(2,'0')}`;
 }
-const cvs=[$('#scope'),$('#scope2')].map(c=>({c,x:c.getContext('2d')}));let wave;
-function frame(){
+/* black screens: a colour waveform on compose, a slim colour spectrum on the player */
+const cvs=[$('#scope'),$('#scope2')].map(c=>({c,x:c.getContext('2d')}));let wave,fbin;
+const PALV=['--mix','--kick','--clap','--hat','--open','--perc','--acid','--chords'];let PALC=null,PALT=0;
+function pal(){const now=performance.now();if(!PALC||now-PALT>3000){const cs=getComputedStyle(document.documentElement);PALC=PALV.map(v=>{let h=(cs.getPropertyValue(v).trim()||'#888').replace('#','');if(h.length===3)h=[...h].map(c=>c+c).join('');const n=parseInt(h,16);return[n>>16&255,n>>8&255,n&255]});PALT=now}return PALC}
+function palAt(f){const P=pal(),x=Math.max(0,Math.min(.9999,f))*(P.length-1),i=Math.floor(x),t=x-i,a=P[i],b=P[i+1];return`rgb(${Math.round(a[0]+(b[0]-a[0])*t)},${Math.round(a[1]+(b[1]-a[1])*t)},${Math.round(a[2]+(b[2]-a[2])*t)})`}
+const NB=40,SM=new Float32Array(NB);
+function drawSpec(x,w,h,dpr,t){const live=ctx&&playing&&N.an;
+if(live){if(!fbin)fbin=new Uint8Array(N.an.frequencyBinCount);N.an.getByteFrequencyData(fbin)}
+const bins=fbin?fbin.length:512,nyq=(ctx?ctx.sampleRate:48000)/2,g=Math.max(2,2*dpr),bw=(w-g*(NB-1))/NB;
+for(let i=0;i<NB;i++){let v;
+if(live){const f0=45*Math.pow(12000/45,i/NB),f1=45*Math.pow(12000/45,(i+1)/NB),a=Math.max(1,Math.floor(f0/nyq*bins)),b=Math.max(a+1,Math.ceil(f1/nyq*bins));let m=0;for(let k=a;k<b&&k<bins;k++)m=Math.max(m,fbin[k]);v=Math.pow(m/255,1.6)*(1+i/NB*.6)}
+else v=0;
+SM[i]=Math.max(v,SM[i]*.86);const bh=Math.max(1.5*dpr,Math.min(1,SM[i])*h);
+x.fillStyle=palAt(i/(NB-1));x.fillRect(i*(bw+g),h-bh,bw,bh)}}
+function drawScope(x,w,h,dpr){const lg=x.createLinearGradient(0,0,w,0);PALV.forEach((v,i)=>lg.addColorStop(i/(PALV.length-1),palAt(i/(PALV.length-1))));
+x.strokeStyle=lg;x.lineWidth=1.6*dpr;x.lineJoin='round';x.beginPath();
+if(ctx&&playing&&wave){for(let i=0;i<wave.length;i+=4){const px=i/wave.length*w,py=wave[i]/255*h;i?x.lineTo(px,py):x.moveTo(px,py)}}else{x.moveTo(0,h/2);x.lineTo(w,h/2)}x.stroke()}
+function frame(t){
 if(playing&&ctx){let ch=false;while(q.length&&q[0].t<=ctx.currentTime){const e=q.shift();cur={s:e.s,b:e.b,i:e.i};ch=true}
 if(ch){highlight();if(document.documentElement.dataset.view==='home')homeProgress()}}
-const dpr=window.devicePixelRatio||1,col=getComputedStyle(document.documentElement).getPropertyValue('--lcd');
+const dpr=window.devicePixelRatio||1;
 if(ctx&&playing&&N.an){if(!wave)wave=new Uint8Array(N.an.fftSize);N.an.getByteTimeDomainData(wave)}
-cvs.forEach(({c,x})=>{if(!x||!c.offsetParent)return;const w=c.clientWidth*dpr,h=c.clientHeight*dpr;if(c.width!==w){c.width=w;c.height=h}
-x.clearRect(0,0,w,h);x.lineWidth=1.5*dpr;x.strokeStyle=col;x.beginPath();
-if(ctx&&playing&&wave){for(let i=0;i<wave.length;i+=4){const px=i/wave.length*w,py=wave[i]/255*h;i?x.lineTo(px,py):x.moveTo(px,py)}}
-else{x.moveTo(0,h/2);x.lineTo(w,h/2)}x.stroke()});
+cvs.forEach(({c,x},k)=>{if(!x||!c.offsetParent)return;const w=Math.round(c.clientWidth*dpr),h=Math.round(c.clientHeight*dpr);if(c.width!==w||c.height!==h){c.width=w;c.height=h}
+x.clearRect(0,0,w,h);try{k?drawSpec(x,w,h,dpr,t):drawScope(x,w,h,dpr)}catch(e){}});
 requestAnimationFrame(frame)}
 requestAnimationFrame(frame);
 /* ---------- UI ---------- */

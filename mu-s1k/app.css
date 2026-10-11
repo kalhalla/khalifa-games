@@ -364,7 +364,7 @@ html:not(.simple) .simp{display:none!important}
 .pwrbtn{border:0;background:none;padding:0;font:inherit;font-size:11px;color:var(--etch);cursor:pointer;display:flex;align-items:center;gap:7px}
 .pkey{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:radial-gradient(130% 90% at 30% 10%,#fff,rgba(255,255,255,0) 55%),linear-gradient(180deg,#f3f5f6,#d2d6d9);box-shadow:0 0 0 1px var(--edge),0 2px 0 var(--edge-dk),0 4px 6px -3px rgba(0,0,0,.4),inset 0 1px 0 #fff}
 .pwrbtn:active .pkey{transform:translateY(2px);box-shadow:0 0 0 1px var(--edge),0 0 0 var(--edge-dk),inset 0 1px 3px rgba(0,0,0,.2)}
-.led.on.play{animation:ledp 1s ease-in-out infinite}
+.led.on.pulse{animation:ledp 1s ease-in-out infinite}
 @keyframes ledp{50%{box-shadow:0 0 3px rgba(74,143,67,.4),0 1px 0 rgba(255,255,255,.8);filter:brightness(.8)}}
 .screen::before{content:"";position:absolute;inset:0;border-radius:inherit;z-index:3;pointer-events:none;opacity:0;transition:opacity .45s ease;
 background:radial-gradient(130% 100% at 25% 0%,#1b1c1f 0%,#08080a 55%,#030304 100%);box-shadow:inset 0 0 0 1px #000}
@@ -378,3 +378,17 @@ html.off .wl *{visibility:hidden}
 .logo{white-space:nowrap}
 .model{white-space:nowrap}
 @media (max-width:440px){.pwrbtn{font-size:0;gap:0}.marks .hex{display:none}}
+/* black screens with white type and colour graphics */
+:root{--lcd-bg:#060607;--lcd:#f2f2ee;--lcd-dim:#868b92}
+.screen{background:radial-gradient(130% 100% at 25% 0%,#141518 0%,#060607 55%,#030304 100%);box-shadow:inset 0 2px 6px rgba(0,0,0,.6),0 0 0 1px #000}
+.screen::after{background:linear-gradient(120deg,rgba(255,255,255,.09) 0 14%,rgba(255,255,255,0) 30%,rgba(255,255,255,.03) 60%,rgba(255,255,255,0) 70%)}
+.scr-top span:first-child{color:#ff6fb1}
+#posLbl{color:#ffd23f}
+.scr-pos b{color:#7fd8ff}
+.h-title{color:#fff}
+.h-prog{background:rgba(255,255,255,.12)}
+.h-prog i{background:linear-gradient(90deg,var(--mix),var(--clap),var(--hat),var(--open),var(--perc),var(--acid))}
+.h-list{border-top:1px solid rgba(255,255,255,.12)}
+.trk.tsel{background:#f2f2ee;color:#060607}
+.trk.tsel small{color:#55595f}
+.wl,.stepper b,.kv,.vpos b{box-shadow:0 0 0 1px #000,inset 0 1px 0 rgba(255,255,255,.07),0 1px 0 rgba(255,255,255,.8)}
