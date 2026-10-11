@@ -13,6 +13,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <link rel="apple-touch-icon" href="/grunt-squad/square.png">
+
 <style>
 :root{
   --olive:#6f7a3a; --olive-d:#3c4520; --khaki:#c9c08a; --khaki-d:#8d8659;
@@ -340,7 +341,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
     <button id="tset">SETTINGS <small>sound · music · graphics</small></button>
   </div>
   <div class="foot">© GAMELAB · NO GRUNTS WERE CONSULTED</div>
-  <div id="tver">v28</div>
+  <div id="tver">v29</div>
 </div>
 
 <div id="ops" class="screen">
@@ -650,7 +651,7 @@ const scene = new THREE.Scene();
 scene.background = SC(0x9fc0d8);
 scene.fog = new THREE.Fog(0x9fc0d8, 78, 168); scene.fog.color = SC(0x9fc0d8);
 
-const CAM_H = 19.5, CAM_Z = 23;    // tight enough that a grunt reads as a figure
+const CAM_H = 17.3, CAM_Z = 20.4;  // v29: ~11% closer than v28 (19.5/23), so the squad is bigger on screen
 // portrait phones are very narrow: pull back a little so you can still see either flank
 let camZoom = 1;
 function applyCamZoom() {
@@ -868,11 +869,57 @@ function mesaLift(x, z) {
       if (t < -0.08 || t > 1.08) continue;
       const tc = c01(t), px = r.fx + dx * tc - x, pz = r.fz + dz * tc - z, side = Math.hypot(px, pz);
       if (side > r.w / 2 + 1.4) continue;
-      best = Math.max(best, m.h * tc * sm(c01((r.w / 2 + 1.4 - side) / 1.4)));
+      let lift = m.h * tc * sm(c01((r.w / 2 + 1.4 - side) / 1.4));
+      // v29: over a road tunnel the ramp's sides stand sheer, so the stone abutments can face them
+      if (r.tun) {
+        const k = c01((r.tun.A - Math.abs(tc * r.tun.L - r.tun.u0)) / 0.8);
+        if (k > 0) { const S1 = r.w / 2 + 0.3, band = m.h * tc * (side <= S1 ? 1 : sm(c01((S1 + 0.3 - side) / 0.3))); lift += (band - lift) * k; }
+      }
+      best = Math.max(best, lift);
     }
   }
   return best;
 }
+
+/* v29: where the through road meets a ramp it goes under it, through a short stone-arched tunnel, instead
+   of climbing over the hump. The ramp keeps its height (men cross on top, between parapets); its sides go
+   sheer for the tunnel's width and two stone abutments face them, each with a dark arch on the road. The
+   road strip stops inside the abutments, and traffic runs at the old ground level underneath, out of sight. */
+let tunnels = [];
+const TUN = { half: 2.6, spring: 2.1, rise: 1.3, A: 3.9, minH: 3.9 };
+function planTunnels() {
+  tunnels = [];
+  for (const m of mesas) for (const r of m.ramps) r.tun = null;
+  for (const rd of roads) {
+    rd.tun = false;
+    if (rd.kind !== 'road') continue;
+    for (const m of mesas) for (const r of m.ramps) {
+      if (r.tun) continue;
+      const dx = r.tx - r.fx, dz = r.tz - r.fz, L = Math.hypot(dx, dz), ux = dx / L, uz = dz / L;
+      for (let i = 0; i + 1 < rd.pts.length; i++) {
+        const [ax, az] = rd.pts[i], [bx, bz] = rd.pts[i + 1], ex = bx - ax, ez = bz - az, den = ex * dz - ez * dx;
+        if (Math.abs(den) < 1e-6) continue;
+        const sR = ((r.fx - ax) * dz - (r.fz - az) * dx) / den, t = ((r.fx - ax) * ez - (r.fz - az) * ex) / den;
+        if (sR < 0 || sR > 1 || t < 0.05 || t > 0.97) continue;
+        if (Math.abs(ex * ux + ez * uz) / Math.hypot(ex, ez) > 0.5) continue;     // only a road that crosses near square on
+        if (m.h * t < TUN.minH) continue;                                          // too low for an arch: it goes over
+        const T = { fx: r.fx, fz: r.fz, ux, uz, vx: -uz, vz: ux, L, u0: t * L, A: TUN.A, hw: r.w / 2, SF: r.w / 2 + 1.4,
+                    cx: r.fx + ux * t * L, cz: r.fz + uz * t * L, H: m.h * t, road: rd };
+        r.tun = T; rd.tun = true; tunnels.push(T); break;
+      }
+    }
+  }
+}
+// inside a tunnel's footprint (between the abutment faces, along its width)?
+function tunAt(x, z) {
+  for (let i = 0; i < tunnels.length; i++) {
+    const T = tunnels[i], px = x - T.fx, pz = z - T.fz, du = Math.abs(px * T.ux + pz * T.uz - T.u0), side = Math.abs(px * T.vx + pz * T.vz);
+    if (du <= T.A && side <= T.SF) return { T, du, side };
+  }
+  return null;
+}
+// the road's level under a ramp, for the traffic
+function roadFloorY(x, z) { return tunnels.length && tunAt(x, z) ? groundY(x, z) - mesaLift(x, z) : groundY(x, z); }
 
 /*───────────────────── water zones ─────────────────────*/
 // Rivers carve the terrain; bridges are left as causeways at bank height, so
@@ -1028,9 +1075,10 @@ scene.add(gnd);
    lead your eye from the spawn to the objective. */
 let roads = [];
 function setRoads(list) { roads = list || []; }
-function roadDist(x, z) {
-  let best = null;
+function roadDist(x, z, vis) {
+  let best = null, tn;
   for (const r of roads) {
+    if (vis && r.tun && (tn === undefined ? (tn = tunAt(x, z)) : tn)) continue;   // v29: no road in the ground over a tunnel
     const hw = r.w / 2;
     for (let i = 0; i + 1 < r.pts.length; i++) {
       const [ax, az] = r.pts[i], [bx, bz] = r.pts[i + 1];
@@ -1072,7 +1120,8 @@ function buildRoadStrips() {
       const a = P[Math.max(0, i - 1)], b = P[Math.min(P.length - 1, i + 1)], dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz) || 1, nx = -dz / l, nz = dx / l;
       const [x, z] = P[i];
       // v28: the strip stops at a bridge's ends (the deck carries the road across) and at water
-      if (waterFactor(x, z) > 0.04 || onBridge(x, z, 0.3) || x < -60 || x > MW + 60 || z < -60 || z > MH + 60) { rows.push(null); continue; }
+      const tn = r.tun ? tunAt(x, z) : null;
+      if ((tn && tn.side < tn.T.hw + 0.4) || waterFactor(x, z) > 0.04 || onBridge(x, z, 0.3) || x < -60 || x > MW + 60 || z < -60 || z > MH + 60) { rows.push(null); continue; }
       rows.push(cols.map(([off, kind], j) => {
         const fr = kind === 'fray' ? (hash2(x * 1.7 + j, z * 1.3) - 0.3) * 0.5 : 0, o = off + Math.sign(off) * fr;
         const px = x + nx * o, pz = z + nz * o, h = hash2(px * 2.3, pz * 1.9), patch = vnoise(px * 0.32 + 11, pz * 0.32 - 5);
@@ -1124,7 +1173,7 @@ function ridgeLift(x, z) {
 function terrainVisY(x, z) {
   let y = groundY(x, z);
   if (ridgeLifts.length) y += ridgeLift(x, z);
-  if (roads.length) { const rd = roadDist(x, z); if (rd && rd.t < 1.06) y -= 0.14; }
+  if (roads.length) { const rd = roadDist(x, z, true); if (rd && rd.t < 1.06) y -= 0.14; }
   return y;
 }
 
@@ -2774,13 +2823,22 @@ const BSCALE = { pelvis: [WID, TORK, WID], spine: [WID, TORK, WID], chest: [WID,
    ears, a chin strap, and per man: hair colour, stubble, a moustache, Bob's red cheeks, Sarge's cigar.
    Theirs: field grey with a dark collar, four pocket flaps and buttons, black Y-straps and belt with
    three-cell ammo pouches, bread bag, canteen, spade, gas-mask tin, jackboots, the stahlhelm, a hard jaw. */
+// v29: Khal asked for the sizes to show: tall to small is now 1.12 : 0.86, about a head's difference
 const BUILDS = {
-  stocky: { h: 0.97, g: 1.12, limb: 1.08, belly: 0, jaw: 1.06 },
-  tall:   { h: 1.05, g: 0.88, limb: 0.9, belly: 0, jaw: 0.95 },
-  heavy:  { h: 1.0, g: 1.2, limb: 1.12, belly: 1, jaw: 1.12 },
-  small:  { h: 0.95, g: 0.96, limb: 0.97, belly: 0, jaw: 1.0 },
+  stocky: { h: 0.93, g: 1.14, limb: 1.1, belly: 0, jaw: 1.06 },
+  tall:   { h: 1.12, g: 0.86, limb: 0.88, belly: 0, jaw: 0.95 },
+  heavy:  { h: 1.03, g: 1.22, limb: 1.14, belly: 1, jaw: 1.12 },
+  small:  { h: 0.86, g: 0.98, limb: 0.98, belly: 0, jaw: 1.0 },
   std:    { h: 1.0, g: 1.0, limb: 1.0, belly: 0, jaw: 1.0 },
 };
+/* v29: the British go chibi — a bigger head and helmet, shorter legs, big hands and boots. The Germans keep
+   v25's proportions, so the two sides read apart at a glance. Leg length goes into the bone offsets, the
+   geometry, the IK lengths, the pelvis height and the stride, so the feet still plant. */
+const CHIBI = { head: 1.3, leg: 0.86, hand: 1.22, boot: 1.16, girth: 1.05 };
+function boneRest(C) {
+  const kL = C && C.chibi ? CHIBI.leg : 1;
+  return BONES.map(([n, p, o]) => n === 'pelvis' ? [o[0], o[1] * kL, o[2]] : /^(kn|an)/.test(n) ? [o[0], o[1] * kL, o[2]] : o);
+}
 const HAIR = { dark: 0x3a2a1e, brown: 0x5a3e26, ginger: 0xa4582a, grey: 0x8a8580, black: 0x1e1a18, fair: 0xb08a50 };
 // the named squad, after the sheet and the brief; replacements get a build and a face from their name
 const SQUAD_LOOK = {
@@ -2801,7 +2859,7 @@ function rigLook(isFoe, colour, kind, who) {
     // khaki battledress, a shade apart man to man
     const L = who || lookFor(''), k = 0.96 + ((colour >>> 3) % 9) * 0.01;
     const sh = hex => new THREE.Color(hex).multiplyScalar(k).getHex();
-    return { ours: true, kind, build: L.build || 'std', tunic: sh(0x7c704c), tunicD: sh(0x665c3e), trous: sh(0x766a48), helm: 0x5e5c40, web: 0xb5a77a, ank: 0xa89a70,
+    return { ours: true, chibi: 1, kind, build: L.build || 'std', tunic: sh(0x7c704c), tunicD: sh(0x665c3e), trous: sh(0x766a48), helm: 0x5e5c40, web: 0xb5a77a, ank: 0xa89a70,
              boot: 0x3a2c22, skin: L.skin || 0xd8a97e, hair: HAIR[L.hair] || HAIR.brown, mo: L.mo, stub: L.stub, cheeks: L.cheeks, cigar: L.cigar, pack: 0x9c8f64 };
   }
   // field grey, lifted: true feldgrau reads near-black from the game camera against the grass
@@ -2905,11 +2963,19 @@ const rigGeoCache = new Map();
 function rigGeo(C) {
   const key = JSON.stringify(C);
   if (rigGeoCache.has(key)) return rigGeoCache.get(key);
-  const parts = rigParts(C), rest = [];
-  BONES.forEach(([n, p, o], i) => { rest[i] = RV(...o); if (p >= 0) rest[i].add(rest[p]); });
-  const Bd = BUILDS[C.build] || BUILDS.std, TORSO = { pelvis: 1, spine: 1, chest: 1 };
+  const parts = rigParts(C), rest = [], off = boneRest(C);
+  BONES.forEach(([n, p], i) => { rest[i] = RV(...off[i]); if (p >= 0) rest[i].add(rest[p]); });
+  const Bd = BUILDS[C.build] || BUILDS.std, TORSO = { pelvis: 1, spine: 1, chest: 1 }, ch = C.chibi ? CHIBI : null;
   const geos = BONES.map(([n], i) => { const g = mergeGeos(parts[n]), s = BSCALE[n], k = TORSO[n] ? Bd.g : n === 'head' || n === 'neck' ? 1 : Bd.limb;
-    g.scale(s[0] * k, s[1], s[2] * k); g.translate(rest[i].x, rest[i].y, rest[i].z); return g; });
+    let ux = 1, uy = 1;
+    if (ch) {
+      if (n === 'head') ux = uy = ch.head;
+      else if (TORSO[n]) ux = ch.girth;
+      else if (/^(hp|kn)/.test(n)) uy = ch.leg;
+      else if (/^an/.test(n)) ux = uy = ch.boot;
+      else if (/^wr/.test(n)) ux = uy = ch.hand;
+    }
+    g.scale(s[0] * k * ux, s[1] * uy, s[2] * k * ux); g.translate(rest[i].x, rest[i].y, rest[i].z); return g; });
   let total = 0; for (const g of geos) total += g.attributes.position.count;
   const pos = new Float32Array(total * 3), nor = new Float32Array(total * 3), col = new Float32Array(total * 3), si = new Uint16Array(total * 4), sw = new Float32Array(total * 4);
   let o = 0;
@@ -2951,7 +3017,7 @@ function buildRig(isFoe, colour, kind, who) {
   const C = rigLook(isFoe, colour, kind, who);
   const root = new THREE.SkinnedMesh(rigGeo(C), rigSkinMat);
   root.castShadow = true;
-  const bones = BONES.map(([n, p, o]) => { const b = new THREE.Bone(); b.position.set(...o); b.rotation.order = 'YXZ'; return b; });
+  const off = boneRest(C), bones = BONES.map((_, i) => { const b = new THREE.Bone(); b.position.set(...off[i]); b.rotation.order = 'YXZ'; return b; });
   BONES.forEach(([n, p], i) => (p < 0 ? root : bones[p]).add(bones[i]));
   root.updateMatrixWorld(true);
   root.bind(new THREE.Skeleton(bones));
@@ -2968,7 +3034,7 @@ function buildRig(isFoe, colour, kind, who) {
   base.position.y = 0.03; base.renderOrder = 1; root.add(base);
   const b = n => bones[BI[n]];
   return {
-    rig: true, ours: !isFoe, root, base, rifle, flash, weapPivot: rifle, bones, blade, sc: RS * (BUILDS[C.build] || BUILDS.std).h,
+    rig: true, ours: !isFoe, root, base, rifle, flash, weapPivot: rifle, bones, blade, sc: RS * (BUILDS[C.build] || BUILDS.std).h, kL: C.chibi ? CHIBI.leg : 1,
     pelvis: b('pelvis'), spine: b('spine'), chest: b('chest'), neck: b('neck'), head: b('head'),
     armL: { sh: b('shL'), el: b('elL'), wr: b('wrL'), s: 1 }, armR: { sh: b('shR'), el: b('elR'), wr: b('wrR'), s: -1 },
     legL: { hp: b('hpL'), kn: b('knL'), an: b('anL'), s: 1 }, legR: { hp: b('hpR'), kn: b('knR'), an: b('anR'), s: -1 },
@@ -3039,8 +3105,8 @@ function rigPoseInto(Pz, F) {
     Pz.fL.set(0.12, FOOT_H, 0.03); Pz.fR.set(-0.12, FOOT_H, -0.03); Pz.rp.y += 0.006 * br;
   } else if (st === 'walk' || st === 'run') {
     const G = GAIT[st], run = st === 'run';
-    const a = gaitFoot(ph, G.sf, G.L, G.lift); Pz.fL.set(G.wx, FOOT_H + a[1], a[0]); Pz.fpL = a[2];
-    const b = gaitFoot(ph + 0.5, G.sf, G.L, G.lift); Pz.fR.set(-G.wx, FOOT_H + b[1], b[0]); Pz.fpR = b[2];
+    const kL = F.kL || 1, a = gaitFoot(ph, G.sf, G.L * kL, G.lift * kL); Pz.fL.set(G.wx, FOOT_H + a[1], a[0]); Pz.fpL = a[2];
+    const b = gaitFoot(ph + 0.5, G.sf, G.L * kL, G.lift * kL); Pz.fR.set(-G.wx, FOOT_H + b[1], b[0]); Pz.fpR = b[2];
     const c2 = Math.cos(2 * Math.PI * ph);
     if (!run) {
       Pz.ph = 0.792 + 0.016 * Math.cos(4 * Math.PI * (ph - 0.3));
@@ -3119,7 +3185,7 @@ function twoBone(a, b, target, pole, L1, L2) {
 /*──────── applying a pose ──────── */
 const _q1 = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _rq = new THREE.Quaternion(), _v1 = new THREE.Vector3(), _v2 = new THREE.Vector3(), _v3 = new THREE.Vector3(), _pole = new THREE.Vector3();
 function applyBody(F, Pz, fl, lat, rec) {
-  F.pelvis.position.y = phMap(Pz.ph);
+  const py_ = phMap(Pz.ph); F.pelvis.position.y = F.kL < 1 ? py_ * (1 - (1 - F.kL) * clamp((Pz.ph - 0.3) / 0.2, 0, 1)) : py_;
   F.pelvis.quaternion.copy(qAxisInto(_q1, YA, Pz.pyw)).multiply(qAxisInto(_q2, XA, Pz.pp)).multiply(qAxisInto(_q2, YA, Pz.pt)).multiply(qAxisInto(_q2, ZA, Pz.pr));
   F.spine.rotation.set(Pz.sp + fl * 0.12, Pz.sy, Pz.sr);
   F.chest.rotation.set(Pz.cp + fl * 0.32 - rec * 0.05, Pz.cy + lat * 0.3, Pz.cr);
@@ -3134,7 +3200,7 @@ function applyPose(F, Pz) {
   for (const [L, ft, fp] of [[F.legL, Pz.fL, Pz.fpL], [F.legR, Pz.fR, Pz.fpR]]) {
     root.localToWorld(_v1.copy(ft));
     _pole.set(Pz.kp.x * L.s, Pz.kp.y, Pz.kp.z).applyQuaternion(_rq);
-    twoBone(L.hp, L.kn, _v1, _pole, TH * (F.sc || RS), SH * (F.sc || RS));
+    twoBone(L.hp, L.kn, _v1, _pole, TH * (F.kL || 1) * (F.sc || RS), SH * (F.kL || 1) * (F.sc || RS));
     _q1.copy(_rq).multiply(qAxisInto(_q2, XA, fp));
     L.kn.getWorldQuaternion(_pq);
     _pq.invert().multiply(_q1);
@@ -3204,8 +3270,8 @@ function animateRig(u, dt) {
   u.mesh.position.set(u.x, gy, u.z);
   u.mesh.rotation.set(0, u.angle + F.yawOff, 0);
   // gait phase by distance (rig units), so the stance foot never skates
-  const md = moved / RS;
-  if (st === 'walk' || st === 'run') F.phase = (F.phase + md * GAIT[st].sf / GAIT[st].L) % 1;
+  const md = moved / (F.sc || RS);   // v29: each man's own scale (it was RS for all, so a tall man's feet skated)
+  if (st === 'walk' || st === 'run') F.phase = (F.phase + md * GAIT[st].sf / (GAIT[st].L * (F.kL || 1))) % 1;
   else if (st === 'crawl') F.phase = (F.phase + md / GAIT.crawl.D) % 1;
   F.t += dt;
   // recoil, flinch, muzzle flash, hit flash
@@ -3314,7 +3380,7 @@ function stepRigDeath(u, dt) {
   root.updateMatrixWorld(true);
   const legs = [F.legL.hp, F.legL.kn, F.legL.an, F.legR.hp, F.legR.kn, F.legR.an];
   if (t < 0.42 && !D.prone) {
-    for (const [L, ft] of [[F.legL, B.fL], [F.legR, B.fR]]) twoBone(L.hp, L.kn, root.localToWorld(_v1.copy(ft)), _pole.set(B.kp.x * L.s, 0, 1).applyQuaternion(D.yawQ), TH * (F.sc || RS), SH * (F.sc || RS));
+    for (const [L, ft] of [[F.legL, B.fL], [F.legR, B.fR]]) twoBone(L.hp, L.kn, root.localToWorld(_v1.copy(ft)), _pole.set(B.kp.x * L.s, 0, 1).applyQuaternion(D.yawQ), TH * (F.kL || 1) * (F.sc || RS), SH * (F.kL || 1) * (F.sc || RS));
   } else {
     if (!D.legQ) D.legQ = legs.map(b => b.quaternion.clone());
     const k = D.prone ? easeR(t / 0.6) : easeR((t - 0.42) / 0.5);
@@ -4954,7 +5020,7 @@ function explode(gx, gz, fromX, fromZ, inside) {
   blastTargets(gx, gz, 'grenade', fromX === undefined ? gx : fromX, fromZ === undefined ? gz : fromZ);
   for (const s of sol) { if (!s.dead && dst({ x: gx, z: gz }, s) < B * 0.62) damage(s, s.prone ? 1 : 2, 'ownblast'); }
   globalAlert = 2;
-  for (const v of vehs) if (!v.dead && Math.hypot(v.x - gx, v.z - gz) < 4.5) wreckVehicle(v);
+  for (const v of vehs) if (!v.dead && !v.inTun && Math.hypot(v.x - gx, v.z - gz) < 4.5) wreckVehicle(v);
   noiseEvent(gx, gz, 44, 0.9);
 }
 /*───────────────────── artillery ─────────────────────*/
@@ -5517,6 +5583,52 @@ function mesaObstacles() {
     }
   }
   if (rocks.length) { const g = new THREE.Mesh(mergeGeos(rocks), propMat); g.userData.own = true; g.castShadow = true; g.receiveShadow = true; edgeRoot.add(g); }
+  for (const T of tunnels) out.push(...mkUnderpass(T));
+  return out;
+}
+// v29: the two faces of a road tunnel under a ramp: coursed stone, a dark elliptical arch with its ring and
+// keystone, a flagged top flush with the ramp and a parapet along the drop. Each face is a movement obstacle,
+// so a man on the road goes round and up; a man on the ramp walks between the parapets.
+function mkUnderpass(T) {
+  const out = [], { half, spring, rise } = TUN, A = T.A, D = T.SF - (T.hw - 0.5);
+  const st = [0x9a968c, 0x8b877d, 0xa29e93, 0x938f85];
+  for (const s of [-1, 1]) {
+    const nx = s * T.vx, nz = s * T.vz, ox = T.cx + nx * T.SF, oz = T.cz + nz * T.SF, yaw = Math.atan2(nx, nz), ax = nz, az = -nx;
+    const y0 = groundY(ox + nx * 0.5, oz + nz * 0.5);
+    const topAt = X => { const px = ox + ax * X, pz = oz + az * X, u = (px - T.fx) * T.ux + (pz - T.fz) * T.uz; return groundY(T.fx + T.ux * u, T.fz + T.uz * u) - y0; };
+    const tA = topAt(-A), tB = topAt(A), tM = (tA + tB) / 2, sl = (tB - tA) / (2 * A), ang = Math.atan(sl), line = X => tM + 0.06 + X * sl;
+    const p = [], N = 8, cw = 2 * A / N;
+    for (let i = 0; i < N; i++) {                                                   // coursed stone, column by column
+      const X = -A + cw * (i + 0.5), top = line(X) - 0.22;
+      let y = -0.8, j = 0;
+      while (y < top - 0.05) {
+        const h = Math.min(0.62 + hash2(i * 3 + j, s) * 0.3, top - y), sh = (hash2(j, i + s * 7) - 0.5) * 0.04;
+        p.push({ g: GEO.box, m: M4(X + sh, y + h / 2, -D / 2 + 0.012 * ((i + j) % 2), cw - 0.02, h - 0.02, D), c: st[(i + j * 3 + (s > 0 ? 1 : 0)) % 4] });
+        y += h; j++;
+      }
+    }
+    p.push({ g: GEO.box, m: M4(0, tM + 0.06 - 0.16, -D / 2 + 0.06, 2 * A + 0.12, 0.32, D + 0.12, 0, ang), c: 0x85817a });   // the flags on top
+    p.push({ g: GEO.box, m: M4(0, tM + 0.06 + 0.24, -0.2, 2 * A + 0.1, 0.48, 0.34, 0, ang), c: 0x8e8a80 });              // the parapet
+    p.push({ g: GEO.box, m: M4(0, tM + 0.06 + 0.52, -0.2, 2 * A + 0.2, 0.1, 0.44, 0, ang), c: 0xa6a296 });               // its coping
+    for (const e of [-1, 1]) p.push({ g: GEO.box, m: M4(e * (A - 0.25), line(e * (A - 0.25)) + 0.38, -0.22, 0.55, 0.78, 0.55), c: 0xa29e93 });   // end piers
+    // the arch: a dark mouth, jambs, an elliptical ring with a keystone
+    p.push({ g: GEO.box, m: M4(0, (spring - 0.3) / 2, 0.05, 2 * half, spring + 0.3, 0.04), c: 0x070807 });
+    p.push({ g: new THREE.CircleGeometry(1, 16, 0, Math.PI), m: M4(0, spring - 0.005, 0.07, half, rise, 1), c: 0x070807 });
+    for (const e of [-1, 1]) for (let j = 0; j < 3; j++)
+      p.push({ g: GEO.box, m: M4(e * (half + 0.27), j * (spring / 3) + spring / 6 - 0.15, 0.08, 0.54 + (j % 2) * 0.08, spring / 3 - 0.04, 0.2), c: st[(j + 1) % 4] });
+    const K = 11;
+    for (let i = 0; i < K; i++) {
+      const a = Math.PI * (i + 0.5) / K, rx = half + 0.28, ry = rise + 0.28, key = i === (K >> 1);
+      const nxl = Math.cos(a) / rx, nyl = Math.sin(a) / ry;
+      p.push({ g: GEO.box, m: M4(Math.cos(a) * rx, spring + Math.sin(a) * ry, 0.09, key ? 0.62 : 0.5, key ? 0.72 : 0.56, 0.22, 0, Math.atan2(nyl, nxl) - Math.PI / 2), c: key ? 0xb0aca0 : st[i % 4] });
+    }
+    const m = new THREE.Mesh(mergeGeos(p), propMat); m.userData.own = true; m.castShadow = true; m.receiveShadow = true;
+    m.position.set(ox, y0, oz); m.rotation.y = yaw; edgeRoot.add(m);
+    // the face's footprint as a movement obstacle
+    const cs = [[-A, 0], [A, 0], [-A, -D], [A, -D]].map(([X, Z]) => [ox + ax * X + nx * Z, oz + az * X + nz * Z]);
+    const x0 = Math.min(...cs.map(c => c[0])), x1 = Math.max(...cs.map(c => c[0])), z0 = Math.min(...cs.map(c => c[1])), z1 = Math.max(...cs.map(c => c[1]));
+    out.push({ type: 'cliff', x: x0, z: z0, w: x1 - x0, d: z1 - z0, tall: false });
+  }
   return out;
 }
 
@@ -5830,13 +5942,21 @@ function initMission(idx) {
       ox /= M.enemies.length; oz /= M.enemies.length;
       const sx = 0.5, sz = M.spawnZ;
       const bend = (hash2(idx * 7.7, 2.2) - 0.5) * 0.28;
-      list.push({ kind: 'track', w: 2.6, pts: [[sx * MW, (sz + 0.12) * MH], [(sx + bend) * MW, ((sz + oz) / 2) * MH], [ox * MW, (oz + 0.02) * MH]] });
+      const p0 = [sx * MW, (sz + 0.12) * MH], end = [ox * MW, (oz + 0.02) * MH];
+      // v29: if the enemy is up on a plateau the track goes the way men do, by a ramp, not straight up the cliff
+      const up = mesas.find(m => end[0] > m.x0 && end[0] < m.x1 && end[1] > m.z0 && end[1] < m.z1);
+      if (up && up.ramps.length) {
+        const r = up.ramps.reduce((a, b) => Math.hypot(b.fx - p0[0], b.fz - p0[1]) < Math.hypot(a.fx - p0[0], a.fz - p0[1]) ? b : a);
+        const L = Math.hypot(r.tx - r.fx, r.tz - r.fz), ux = (r.tx - r.fx) / L, uz = (r.tz - r.fz) / L;
+        list.push({ kind: 'track', w: 2.6, pts: [p0, [(p0[0] + r.fx) / 2 + bend * MW * 0.5, (p0[1] + r.fz) / 2], [r.fx - ux * 4, r.fz - uz * 4], [r.fx, r.fz], [r.tx, r.tz], [r.tx + ux * 3, r.tz + uz * 3]] });
+      } else list.push({ kind: 'track', w: 2.6, pts: [p0, [(sx + bend) * MW, ((sz + oz) / 2) * MH], end] });
     }
     // the through road for the traffic: the mission's own if one crosses the map, else one laid where it fits
     const TR = planThroughRoad(M); roadPath = TR ? TR.pts : null;
     if (TR && TR.road) list.push(TR.road);
     extendRoadsPastEdge([...list.map(r => r.pts), ...(roadPath ? [roadPath] : [])]);
     setRoads(list);
+    planTunnels();
   }
   rebuildTerrain();
   buildRoadStrips();
@@ -6545,7 +6665,8 @@ function placeVehicle(v) {
   // keep to the right-hand side of the road
   v.x = a[0] + dx * t - dz / l * 1.0; v.z = a[1] + dz * t + dx / l * 1.0;
   const want = Math.atan2(dx, dz); v.yaw += angDiff(want, v.yaw) * (v.s < 1 ? 1 : 0.15);
-  v.mesh.position.set(v.x, groundY(v.x, v.z) + 0.02, v.z); v.mesh.rotation.y = v.yaw;
+  v.inTun = !!(tunnels.length && tunAt(v.x, v.z));                             // v29: under a ramp
+  v.mesh.position.set(v.x, roadFloorY(v.x, v.z) + 0.02, v.z); v.mesh.rotation.y = v.yaw;
   v.mesh.visible = beyondEdge(v.x, v.z) < 5.4;   // inside the tunnel
 }
 function stepTraffic(dt) {
@@ -6562,7 +6683,7 @@ function stepTraffic(dt) {
     }
     if (v.parked) { engineLevel(v, 0); continue; }
     // the crew spot an upright man in the open, ahead of them and in sight
-    if (!v.spotted && phase === 'play' && v.mesh.visible) {
+    if (!v.spotted && phase === 'play' && v.mesh.visible && !v.inTun) {
       const sight = (night ? 16 : 15) * (weatherFog ? 0.6 : 1);
       for (const s of sol) {
         if (s.dead) continue;
@@ -6581,7 +6702,7 @@ function stepTraffic(dt) {
     }
     // a man in the lane ahead: the driver brakes and has seen him (only someone who steps out right in front
     // of a moving vehicle is under the wheels)
-    if (!v.spotted && phase === 'play' && v.mesh.visible) {
+    if (!v.spotted && phase === 'play' && v.mesh.visible && !v.inTun) {
       const c = Math.cos(v.yaw), sn = Math.sin(v.yaw);
       for (const s of sol) {
         if (s.dead) continue;
@@ -6592,7 +6713,7 @@ function stepTraffic(dt) {
         }
       }
     }
-    const want = v.spotted ? 0 : v.K.speed;
+    const want = v.spotted && !v.inTun ? 0 : v.K.speed;   // v29: nobody stops under a ramp
     v.speed += clamp(want - v.speed, -9 * dt, 4 * dt);
     v.s += v.speed * dt;
     if (v.s >= v.total) { removeVehicle(v); vehs.splice(k, 1); continue; }
@@ -6603,7 +6724,7 @@ function stepTraffic(dt) {
       // under the wheels: anyone in the footprint who is not up a tower
       const c = Math.cos(v.yaw), sn = Math.sin(v.yaw);
       for (const u of [...sol, ...ens]) {
-        if (u.dead || u.elev) continue;
+        if (u.dead || u.elev || (tunnels.length && tunAt(u.x, u.z))) continue;   // v29: a man on the ramp over the tunnel is above it
         const rx = u.x - v.x, rz = u.z - v.z, lx = rx * c - rz * sn, lz = rx * sn + rz * c;
         if (Math.abs(lx) < v.K.w / 2 + 0.3 && Math.abs(lz) < v.K.len / 2 + 0.3) {
           spawnParts(u.x, groundY(u.x, u.z) + 0.6, u.z, 10, 0x8c2c22, 6, 0.12, 0.6);
@@ -7522,7 +7643,7 @@ function updateBars() {
     const show = u.friendly || u.visible !== false;
     B.g.visible = show;
     if (!show) continue;
-    B.g.position.set(u.x, groundY(u.x, u.z) + (u.elev || 0) + (u.prone ? 0.8 : 1.62) + (u.barOff || 0), u.z);
+    B.g.position.set(u.x, groundY(u.x, u.z) + (u.elev || 0) + (u.prone ? 0.8 : 1.62 * (u.F && u.F.sc ? u.F.sc / RS : 1) + (u.F && u.F.kL < 1 ? 0.06 : 0)) + (u.barOff || 0), u.z);   // v29: over each man's own head
     B.g.quaternion.copy(camera.quaternion);
     const f = clamp(u.hp / u.maxHp, 0, 1);
     B.fill.scale.x = Math.max(0.001, B.W * f);
@@ -8802,7 +8923,7 @@ window.GS = { MISSIONS, get roster() { return roster; }, get fallen() { return f
     return pick.length;
   },
   car(kind) { spawnVehicle(kind); const v = vehs[vehs.length - 1]; return v && [v.kind, +v.x.toFixed(1), +v.z.toFixed(1)]; },
-  cars() { return vehs.map(v => [v.kind, +v.x.toFixed(1), +v.z.toFixed(1), v.dead]); },
+  cars() { return vehs.map(v => [v.kind, +v.x.toFixed(1), +v.z.toFixed(1), v.dead, +v.mesh.position.y.toFixed(2), !!v.inTun, v.spotted]); },
   // v24 vehicle bench: every model in a row in front of the squad (static, for screenshots)
   vbench(kinds, gap) {
     const L = sol.find(s => !s.dead) || sol[0]; this.clearArea(24); const K = kinds || ['jeep', 'bike', 'truck', 'halftrack', 'pz4', 'stug'], g = gap || 4.2;
@@ -8816,6 +8937,7 @@ window.GS = { MISSIONS, get roster() { return roster; }, get fallen() { return f
   tp(x, z) { sol.forEach((s, i) => { s.x = s.tx = x; s.z = s.tz = z + i * 1.4; s.path = null; s.angle = Math.PI; });
              posH.length = 0; camTgt.set(x, 0, z); camPos.set(x, CAM_H * camZoom, z + CAM_Z * camZoom); },
   trees() { return obs.filter(o => o.type === 'tree').map(o => [+o.x.toFixed(1), +o.z.toFixed(1)]); },
+  roads() { return roads.map(r => ({ kind: r.kind, w: r.w, pts: r.pts.map(q => q.map(v => +v.toFixed(1))) })); },
   glass(all) { const L = fadeTrees.filter(t => t.ghost); return all ? L.map(t => ({ x: +((t.x0 + t.x1) / 2).toFixed(1), z: +((t.z0 + t.z1) / 2).toFixed(1), f: +t.f.toFixed(2), hit: t.hit, y: [t.y0, t.y1].map(v => +v.toFixed(1)) })) : L.length; },
   // stage a clean n-v-4 in the open at `range` metres, both sides aware. Balance rig.
   // strip cover around the squad — for isolating mechanics on a clean field
