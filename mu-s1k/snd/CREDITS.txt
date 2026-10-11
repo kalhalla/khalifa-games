@@ -20,3 +20,11 @@ Recorded drum kit and chord instruments
 - fmpiano/: VCSL TX81Z FM Piano, CC0.
 - vibes/: VCSL Vibraphone, soft mallets, CC0.
 All trimmed, levelled and converted to MP3 for MU-S1K.
+
+Recorded basses and pad
+
+- bass/thick, woodsy, trance, hard: Sonic Pi samples bass_thick_c,
+  bass_woodsy_c, bass_trance_c, bass_hard_c (CC0, via freesound.org), tuned
+  and copied an octave up.
+- pad/: Sonic Pi sample tbd_pad_3, donated by The Black Dog under CC0, tuned
+  to D and copied an octave up and down.
