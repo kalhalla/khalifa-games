@@ -341,7 +341,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
     <button id="tset">SETTINGS <small>sound · music · graphics</small></button>
   </div>
   <div class="foot">© GAMELAB · NO GRUNTS WERE CONSULTED</div>
-  <div id="tver">v29</div>
+  <div id="tver">v30</div>
 </div>
 
 <div id="ops" class="screen">
@@ -855,11 +855,24 @@ function groundY(x, z) {
 }
 
 // a plateau stands h metres proud with a steep 1.8 m cliff all round; a ramp climbs from its foot to the top
-function mesaLift(x, z) {
+// v30: vis = the ground MESH's version. Along a cliffed edge the plateau stops dead MESA_STEP in from the edge
+// (no rounded shoulder), so the faceted rock wall and its turf cap can cover the drop; map-edge sides keep the shoulder
+const MESA_STEP = 1.1;
+function mesaLift(x, z, vis) {
   let best = 0;
   const sm = t => t * t * (3 - 2 * t), c01 = v => Math.max(0, Math.min(1, v));
   for (const m of mesas) {
-    if (x > m.x0 - 2 && x < m.x1 + 2 && z > m.z0 - 2 && z < m.z1 + 2) {
+    if (vis) {
+      const e0 = m.x0 <= 0.5, e1 = m.x1 >= MW - 0.5, f0 = m.z0 <= 0.5, f1 = m.z1 >= MH - 0.5;
+      const iN = Math.min(e0 ? 1e9 : x - m.x0, e1 ? 1e9 : m.x1 - x, f0 ? 1e9 : z - m.z0, f1 ? 1e9 : m.z1 - z);
+      const iE = Math.min(e0 ? x - m.x0 : 1e9, e1 ? m.x1 - x : 1e9, f0 ? z - m.z0 : 1e9, f1 ? m.z1 - z : 1e9);
+      // beside a ramp's top there is no rock wall (the cliff band has its gap there): keep the old rounded shoulder
+      let nearRamp = false;
+      for (const r of m.ramps) { const dx = r.tx - r.fx, dz = r.tz - r.fz, L2 = dx * dx + dz * dz, t = c01(((x - r.fx) * dx + (z - r.fz) * dz) / L2);
+        if (Math.hypot(r.fx + dx * t - x, r.fz + dz * t - z) < r.w / 2 + 0.9) { nearRamp = true; break; } }
+      if (nearRamp) best = Math.max(best, m.h * sm(c01((Math.min(iN, iE) + 0.9) / 1.8)));
+      else if (iN >= MESA_STEP) best = Math.max(best, m.h * sm(c01((iE + 0.9) / 1.8)));
+    } else if (x > m.x0 - 2 && x < m.x1 + 2 && z > m.z0 - 2 && z < m.z1 + 2) {
       const inset = Math.min(x - m.x0, m.x1 - x, z - m.z0, m.z1 - z);
       best = Math.max(best, m.h * sm(c01((inset + 0.9) / 1.8)));
     }
@@ -1161,17 +1174,19 @@ function buildRoadStrips() {
      continuous mesh with the plain, the rock columns stand in front of the faces. Gameplay is unchanged:
      groundY still has no ridge in it, and rim sentries stand at groundY + h, which is exactly the top. */
 let ridgeLifts = [];
+const RIDGE_STEP = 1.5;
 function ridgeLift(x, z) {
   let best = 0;
   for (const r of ridgeLifts) {
     if (x < r.x0 - 0.5 || x > r.x1 + 0.5 || z < r.z0 - 0.5 || z > r.z1 + 0.5) continue;
-    const inset = Math.min(x - r.x0, r.x1 - x, z - r.z0, r.z1 - z), t = Math.max(0, Math.min(1, (inset - 0.1) / 0.9));
-    best = Math.max(best, r.h * t * t * (3 - 2 * t));
+    const inset = Math.min(x - r.x0, r.x1 - x, z - r.z0, r.z1 - z);
+    if (inset >= RIDGE_STEP) best = Math.max(best, r.h);   // v30: a step, hidden by the rock wall and its turf cap
   }
   return best;
 }
 function terrainVisY(x, z) {
   let y = groundY(x, z);
+  if (mesas.length) y += mesaLift(x, z, true) - mesaLift(x, z);   // v30: the plateau ends in a step behind the rock wall
   if (ridgeLifts.length) y += ridgeLift(x, z);
   if (roads.length) { const rd = roadDist(x, z, true); if (rd && rd.t < 1.06) y -= 0.14; }
   return y;
@@ -5302,8 +5317,8 @@ function mkPortal(cx, cz, nx, nz) {
   for (const side of [-1, 1]) p.push({ g: GEO.box, m: M4(side * (R + 1 + 6.5), (HILL - 1.5) / 2, -0.35, 13, HILL + 1.5, 1.3), c: 0x6e4c30, grad: [0x4e3420, 0x7a5636, -1.5, HILL] });
   p.push({ g: GEO.box, m: M4(0, HILL, -5.0, 34.6, 0.35, 11), c: 0x5c8c34, grad: [0x4a7a2a, 0x6a9a3c, HILL - 0.2, HILL + 0.2] });
   p.push({ g: GEO.box, m: M4(0, CROWN + 0.9, -0.3, 2 * R + 4, HILL - CROWN - 0.6, 1.3), c: 0x6e4c30 });
-  cliffFace(p, -17, 0.3, -(R + 1.2), 0.3, 0, 1, HILL, foot, cx * 0.3 + cz, { hMin: 0.7, out: 0 });
-  cliffFace(p, R + 1.2, 0.3, 17, 0.3, 0, 1, HILL, foot, cx + cz * 0.3, { hMin: 0.7, out: 0 });
+  rockWall(p, [[-17, 0.5], [-(R + 1.15), 0.5]], { top: () => HILL + 0.05, foot, inT: 0.3, out: 0.8, n: [0, 1], seed: cx * 0.3 + cz });   // v30
+  rockWall(p, [[R + 1.15, 0.5], [17, 0.5]], { top: () => HILL + 0.05, foot, inT: 0.3, out: 0.8, n: [0, 1], seed: cx + cz * 0.3 });
   cliffLip(p, -17, 0.2, 17, 0.2, 0, 1, HILL + 0.15, cx + cz);
   p.push({ g: GEO.box, m: M4(-(R + 3.2), 0.5, 1.0, 3.2, 1.0, 1.0), c: 0x8b877d }, { g: GEO.box, m: M4(R + 3.2, 0.5, 1.0, 3.2, 1.0, 1.0), c: 0x8b877d });   // low wing walls
   const g = mergeGeos(p);
@@ -5413,32 +5428,109 @@ function flushThickets() {
   }
   thicketSpots = [];
 }
-/* v23 cliff kit, after the prop sheet: a face of tall six-sided rock columns of uneven height, earth showing
-   between them, a shorter column stepped out in front here and there, boulders and a bush at the foot.
-   Shared by canyon ridges, plateau cliffs and the hills over the tunnel portals. Coordinates are the mesh's own;
-   foot(x, z) gives the ground under a point in those coordinates. */
-GEO.col6 = new THREE.CylinderGeometry(0.42, 0.5, 1, 6);
+/* v23's hex-column cliff kit (cliffFace, GEO.col6) was retired in v30 for the faceted rockWall below. */
 const ROCK_LO = 0x5c5b55, ROCK_HI = 0x9d9b91;
-function cliffFace(p, ax, az, bx, bz, nx, nz, H, foot, seed, o) {
-  const hMin = (o && o.hMin) || 0.66, outB = o && o.out !== undefined ? o.out : 0.1;
-  const L = Math.hypot(bx - ax, bz - az), n = Math.max(1, Math.round(L / 1.45));
-  for (let i = 0; i < n; i++) {
-    const t = (i + 0.5) / n, k = seed + i * 1.37;
-    const x = ax + (bx - ax) * t, z = az + (bz - az) * t;
-    const r = 0.7 + hash2(k, 1) * 0.55, hh = H * (hMin + hash2(k, 2) * (1.04 - hMin)), out = outB + hash2(k, 3) * 0.45;
-    const cx = x + nx * out, cz = z + nz * out, y0 = foot(cx, cz) - 0.5;
-    p.push({ g: GEO.col6, m: M4(cx, y0 + (hh + 0.5) / 2, cz, r * 2, hh + 0.5, r * 2, hash2(k, 4) * 1.05, (hash2(k, 5) - 0.5) * 0.12), c: ROCK_LO, grad: [ROCK_LO, ROCK_HI, y0, y0 + H + 0.5] });
-    if (hash2(k, 6) > 0.55) {                       // a shorter column stepped out in front
-      const r2 = r * 0.8, h2 = H * (0.25 + hash2(k, 7) * 0.25), fx = cx + nx * (r + 0.4), fz = cz + nz * (r + 0.4), f0 = foot(fx, fz) - 0.4;
-      p.push({ g: GEO.col6, m: M4(fx, f0 + (h2 + 0.4) / 2, fz, r2 * 2, h2 + 0.4, r2 * 2, hash2(k, 8), (hash2(k, 9) - 0.5) * 0.15), c: ROCK_LO, grad: [ROCK_LO, ROCK_HI, f0, f0 + H] });
+/* v30 cliff kit (Khal: "faceted cliffs that connect smoothly to the grass plateaus, not odd shaped cylinders").
+   One continuous sheet of big rock facets per cliff line: it rises from under the ground just outside the edge,
+   bulges out irregularly, tucks in under a rock lip, and the turf droops over that lip and runs back on to the
+   plateau as a cap. The ground mesh steps up behind it (mesaLift vis / ridgeLift), and the cap covers that
+   step, so grass meets rock with no seam. pts is the edge line (mesh coordinates); top(x, z) and foot(x, z)
+   give the plateau and the low ground there; o: inT (top row's inset), out (foot's outset), cap (turf cap
+   to capIn), n (outward normal for an open line) or closed (a loop). */
+const ROCK_T = [0x6e6c65, 0x878479, 0x9b978b, 0x86796a, 0x787d7e].map(h => SC(h));
+const ROCK_SKY = SC(0xb4b0a4);
+function rockWall(p, pts, o) {
+  const top = o.top, foot = o.foot, inT = o.inT, out = o.out, seed = o.seed || 0, closed = !!o.closed, cap = !!o.cap;
+  const P = [], segs = closed ? pts.length : pts.length - 1;
+  for (let i = 0; i < segs; i++) {
+    const a = pts[i], b = pts[(i + 1) % pts.length], L = Math.hypot(b[0] - a[0], b[1] - a[1]), n = Math.max(1, Math.round(L / 1.45));
+    for (let k = 0; k < n; k++) P.push([a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n]);
+  }
+  if (!closed) P.push(pts[pts.length - 1].slice());
+  const N = P.length, segN = [];
+  for (let i = 0; i < (closed ? N : N - 1); i++) { const a = P[i], b = P[(i + 1) % N], dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz) || 1; segN.push([dz / l, -dx / l]); }
+  let fl = 1;
+  if (o.n) fl = segN[0][0] * o.n[0] + segN[0][1] * o.n[1] < 0 ? -1 : 1;
+  else { let cx = 0, cz = 0; for (const q of pts) { cx += q[0]; cz += q[1]; } cx /= pts.length; cz /= pts.length;
+    const mx = (P[0][0] + P[1][0]) / 2 - cx, mz = (P[0][1] + P[1][1]) / 2 - cz; fl = segN[0][0] * mx + segN[0][1] * mz < 0 ? -1 : 1; }
+  const M = P.map((_, i) => {
+    const n1 = segN[closed ? (i - 1 + N) % N : Math.max(0, i - 1)], n2 = segN[closed ? i : Math.min(segN.length - 1, i)];
+    const d = 1 + n1[0] * n2[0] + n1[1] * n2[1];
+    return d < 0.3 ? [n2[0] * fl, n2[1] * fl] : [(n1[0] + n2[0]) / d * fl, (n1[1] + n2[1]) / d * fl];
+  });
+  const C = [], meta = [];
+  let run = 0;
+  for (let i = 0; i < N; i++) {
+    if (i) run += Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]);
+    // buttresses and bays: a slow swell along the line, so the face reads as big masses, not a frill
+    const swell = Math.max(0, vnoise(run * 0.16 + seed * 0.37, seed * 0.11) - 0.35) * 1.5;
+    const [x, z] = P[i], [mx, mz] = M[i], ml = Math.hypot(mx, mz) || 1, tx = -mz / ml, tz = mx / ml, k = seed + i * 1.73;
+    const ends = !closed && (i === 0 || i === N - 1);
+    const ti = top(x - mx * inT, z - mz * inT), fo = foot(x + mx * out, z + mz * out) - 0.6;
+    const at = (off, y, j) => [x + mx * off + tx * j, y, z + mz * off + tz * j];
+    const R = [at(out + hash2(k, 1) * 0.25, fo, 0)];
+    for (const [sF, b] of [[0.3, 1], [0.6, 1], [0.84, 0.55]]) {
+      const bul = ends ? 0 : (swell * 1.25 * (1 - sF * 0.5) + hash2(k, sF * 10) * 0.45) * b, jit = ends ? 0 : (hash2(k, sF * 20 + 3) - 0.5) * 0.7;
+      R.push(at(out + (-inT - out) * sF + bul, fo + (ti - fo) * sF + (hash2(k, sF * 30) - 0.5) * 0.5, jit));
     }
-    if (hash2(k, 10) > 0.62) {                      // boulders at the foot
-      const s = 0.6 + hash2(k, 11) * 0.5, fx = cx + nx * (r + 1.1), fz = cz + nz * (r + 1.1);
-      p.push({ g: GEO.blob, m: M4(fx, foot(fx, fz) + s * 0.2, fz, s, s * 0.75, s, k), c: 0x83827a, grad: [0x6a6963, 0x9a988e, foot(fx, fz) - 0.2, foot(fx, fz) + s] });
+    R.push(at(-inT + 0.05 + hash2(k, 7) * 0.12 + swell * 0.15, ti - 0.42 - hash2(k, 8) * 0.18, 0));          // the rock lip
+    if (cap) {
+      R.push(at(-inT + 0.25 + hash2(k, 9) * 0.15, ti - 0.14, 0));                             // turf drooping over it
+      for (const d of [inT + 0.3, (inT + o.capIn) / 2 + 0.3, o.capIn]) {
+        const q = at(-d - (d === o.capIn ? 0 : hash2(k, d) * 0.3), 0, d === o.capIn ? 0 : (hash2(k, d + 5) - 0.5) * 0.6); q[1] = top(q[0], q[2]) + 0.05; R.push(q);
+      }
+    } else R.push(at(-inT, ti + 0.02, 0));
+    C.push(R); meta.push([mx, mz, fo, ti, run]);
+  }
+  const pos = [], col = [], c = new THREE.Color(), _a = new THREE.Vector3(), _b = new THREE.Vector3(), _n = new THREE.Vector3();
+  const tri = (A, B, D, ref, j, mt) => {
+    _a.set(B[0] - A[0], B[1] - A[1], B[2] - A[2]); _b.set(D[0] - A[0], D[1] - A[1], D[2] - A[2]); _n.crossVectors(_a, _b);
+    if (_n.x * ref[0] + _n.y * ref[1] + _n.z * ref[2] < 0) { const t = B; B = D; D = t; _n.negate(); }
+    const ny = _n.y / (_n.length() || 1), cx = (A[0] + B[0] + D[0]) / 3, cy = (A[1] + B[1] + D[1]) / 3, cz = (A[2] + B[2] + D[2]) / 3, h = hash2(cx * 2.1 + seed, cz * 1.7);
+    const sF = Math.max(0, Math.min(1, (cy - mt[2]) / ((mt[3] - mt[2]) || 1)));
+    if (j < 4 || (!cap && j === 4)) {                       // rock: tone by facet, lighter up the face, strata, moss on ledges
+      // tone in patches (slow noise along the line), a little per facet; strata as level bands
+      const patch = vnoise(mt[4] * 0.12 + seed * 0.21, cy * 0.18 + 4.4), tone = Math.min(4, (patch * 4.2 + h * 0.8) | 0);
+      c.copy(ROCK_T[tone]).lerp(ROCK_SKY, sF * 0.3);
+      if (hash2(Math.floor(cy * 1.25 + seed), 3.3) > 0.66) c.multiplyScalar(0.9);
+      if (ny > 0.5) c.lerp(LP.deep, Math.min(0.75, (ny - 0.5) * 1.6));
+      if (sF < 0.2) c.multiplyScalar(0.72 + sF * 1.4);
+      c.multiplyScalar(0.96 + hash2(cx * 5.3, cz * 4.1) * 0.08);
+    } else if (j === 4) c.copy(LP.earthD).lerp(LP.deep, 0.35 + h * 0.2);                    // the overhang's underside
+    else {                                                  // turf, in the ground's own greens
+      const clump = vnoise(cx * 0.42 + 7.1, cz * 0.42 - 3.3) * 0.75 + h * 0.25;
+      c.copy(clump < 0.33 ? LP.lush : clump < 0.66 ? LP.mid : LP.deep).lerp(LP.dry, h * 0.2);
+      if (j === 5) c.multiplyScalar(0.8);
+      c.multiplyScalar(0.93 + hash2(cx * 7.3, cz * 5.9) * 0.14);
     }
-    if (hash2(k, 12) > 0.7) {                       // a bush or a tuft at the foot
-      const s = 0.7 + hash2(k, 13) * 0.5, fx = cx + nx * (r + 0.6) + (hash2(k, 14) - 0.5), fz = cz + nz * (r + 0.6);
-      p.push({ g: GEO.ico, m: M4(fx, foot(fx, fz) + s * 0.3, fz, s, s * 0.8, s, k), c: 0x4f7f28, grad: [0x3b6420, 0x6f9a32, foot(fx, fz), foot(fx, fz) + s] });
+    for (const v of [A, B, D]) { pos.push(v[0], v[1], v[2]); col.push(c.r, c.g, c.b); }
+  };
+  const rows = C[0].length;
+  for (let i = 0; i < (closed ? N : N - 1); i++) {
+    const i2 = (i + 1) % N, mt = meta[i], ref = [mt[0] + meta[i2][0], 0.8, mt[1] + meta[i2][1]];
+    for (let j = 0; j + 1 < rows; j++) {
+      const A = C[i][j], B = C[i2][j], Cc = C[i][j + 1], D = C[i2][j + 1];
+      if ((i + j) % 2) { tri(A, B, D, ref, j, mt); tri(A, D, Cc, ref, j, mt); } else { tri(A, B, Cc, ref, j, mt); tri(B, D, Cc, ref, j, mt); }
+    }
+  }
+  // an open line's two ends are closed with a cheek back into the hill
+  if (!closed) for (const [e, sg] of [[0, -1], [N - 1, 1]]) {
+    const [mx, mz] = meta[e], ml = Math.hypot(mx, mz) || 1, tx = -mz / ml * sg, tz = mx / ml * sg, R = C[e], mt = meta[e];
+    const inner = v => [v[0] - mx / ml * (inT + 0.9), v[1], v[2] - mz / ml * (inT + 0.9)];
+    for (let j = 0; j < Math.min(5, rows - 1); j++) { const A = R[j], B = R[j + 1], Ai = inner(A), Bi = inner(B); tri(A, B, Bi, [tx, 0, tz], 0, mt); tri(A, Bi, Ai, [tx, 0, tz], 0, mt); }
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  p.push({ g, m: M4(0, 0, 0, 1, 1, 1), vc: true });
+  // scree: boulders and the odd bush at the foot
+  for (let i = 0; i < N; i++) {
+    const k = seed + i * 1.73, [x, z] = P[i], [mx, mz] = M[i];
+    if (hash2(k, 10) > 0.6) {
+      const sz = 0.5 + hash2(k, 11) * 0.6, d = out + 0.5 + hash2(k, 12) * 0.7, fx = x + mx * d, fz = z + mz * d, fy = foot(fx, fz);
+      p.push({ g: GEO.blob, m: M4(fx, fy + sz * 0.15, fz, sz, sz * 0.7, sz * 0.9, k), c: 0x83827a, grad: [0x66655f, 0x9a988e, fy - 0.2, fy + sz] });
+    }
+    if (hash2(k, 13) > 0.78) {
+      const sz = 0.7 + hash2(k, 14) * 0.5, d = out + 0.4, fx = x + mx * d + (hash2(k, 15) - 0.5), fz = z + mz * d, fy = foot(fx, fz);
+      p.push({ g: GEO.ico, m: M4(fx, fy + sz * 0.3, fz, sz, sz * 0.8, sz, k), c: 0x4f7f28, grad: [0x3b6420, 0x6f9a32, fy, fy + sz] });
     }
   }
 }
@@ -5537,7 +5629,9 @@ function mkRidge(x, z, w, d, h) {
   const top = (lx, lz) => foot(lx, lz) + h;
   ridgeTopDecor(p, hw - 1.2, hd - 1.2, top, x * 0.3 + z * 0.7);
   const sides = [[-hw, -hd, hw, -hd, 0, -1], [hw, hd, -hw, hd, 0, 1], [-hw, hd, -hw, -hd, -1, 0], [hw, -hd, hw, hd, 1, 0]];
-  sides.forEach(([ax, az, bx, bz, nx, nz], i) => { cliffFace(p, ax, az, bx, bz, nx, nz, h, foot, x * 0.37 + z * 0.11 + i * 17, { out: 0.0 }); cliffLip(p, ax - nx * 0.9, az - nz * 0.9, bx - nx * 0.9, bz - nz * 0.9, nx, nz, top, x + z + i * 5); });
+  // v30: one faceted rock wall right round, its turf cap running back on to the top
+  rockWall(p, [[-hw, -hd], [hw, -hd], [hw, hd], [-hw, hd]], { top, foot, inT: 0.8, out: 0.6, cap: true, capIn: 3.6, closed: true, seed: x * 0.37 + z * 0.11 });
+  sides.forEach(([ax, az, bx, bz, nx, nz], i) => cliffLip(p, ax - nx * 1.2, az - nz * 1.2, bx - nx * 1.2, bz - nz * 1.2, nx, nz, (lx, lz) => top(lx, lz) + 0.05, x + z + i * 5));
   const m = new THREE.Mesh(mergeGeos(p), propMat); m.userData.own = true; m.castShadow = true; m.receiveShadow = true;
   m.position.set(cx, base, cz); edgeRoot.add(m);
   // a few pines well back from the lip, where they can't hide a man on the rim
@@ -5572,13 +5666,15 @@ function mesaObstacles() {
       let segs = [[a, b]];
       for (const [g0, g1] of gaps) segs = segs.flatMap(([s0, s1]) => g1 <= s0 || g0 >= s1 ? [[s0, s1]] : [[s0, g0], [g1, s1]].filter(([u, v]) => v - u > 0.3));
       for (const [s0, s1] of segs) {
-        out.push(along ? { type: 'cliff', x: s0, z: S.az - 0.8, w: s1 - s0, d: 1.6, tall: false } : { type: 'cliff', x: S.ax - 0.8, z: s0, w: 1.6, d: s1 - s0, tall: false });
-        // v23: the cliff kit, its foot taken from the low ground just outside the edge
-        const ax = along ? s0 : S.ax + S.nx * 0.6, az = along ? S.az + S.nz * 0.6 : s0, bx = along ? s1 : S.ax + S.nx * 0.6, bz = along ? S.az + S.nz * 0.6 : s1;
-        const lo = (px, pz) => groundY(px + S.nx * 2.5, pz + S.nz * 2.5);
-        const top = groundY((ax + bx) / 2 - S.nx * 3, (az + bz) / 2 - S.nz * 3), H = top - lo((ax + bx) / 2, (az + bz) / 2);
-        cliffFace(rocks, ax, az, bx, bz, S.nx, S.nz, H, lo, s0 * 0.7 + m.h, { hMin: 0.84, out: -0.45 });
-        cliffLip(rocks, ax - S.nx * 0.6, az - S.nz * 0.6, bx - S.nx * 0.6, bz - S.nz * 0.6, S.nx, S.nz, top, s1);
+        // the band men can't cross: 0.8 m in from the edge to 1.3 m out (v30: the rock's foot bulges out that far)
+        const lo0 = S.nx + S.nz > 0 ? -0.8 : -1.3;
+        out.push(along ? { type: 'cliff', x: s0, z: S.az + lo0, w: s1 - s0, d: 2.1, tall: false } : { type: 'cliff', x: S.ax + lo0, z: s0, w: 2.1, d: s1 - s0, tall: false });
+        // v30: one faceted rock wall along the edge, run on past a corner so neighbouring sides meet
+        const e0 = s0 <= a + 0.01 ? 1.2 : 0, e1 = s1 >= b - 0.01 ? 1.2 : 0;
+        const ax = along ? s0 - e0 : S.ax, az = along ? S.az : s0 - e0, bx = along ? s1 + e1 : S.ax, bz = along ? S.az : s1 + e1;
+        const plat = (px, pz) => baseY(px, pz) + m.h;
+        rockWall(rocks, [[ax, az], [bx, bz]], { top: plat, foot: groundY, inT: 0.6, out: 1.0, cap: true, capIn: 3.2, n: [S.nx, S.nz], seed: s0 * 0.7 + m.h });
+        cliffLip(rocks, ax - S.nx * 1.4, az - S.nz * 1.4, bx - S.nx * 1.4, bz - S.nz * 1.4, S.nx, S.nz, (px, pz) => plat(px, pz) + 0.05, s1);
       }
     }
   }
@@ -8937,6 +9033,7 @@ window.GS = { MISSIONS, get roster() { return roster; }, get fallen() { return f
   tp(x, z) { sol.forEach((s, i) => { s.x = s.tx = x; s.z = s.tz = z + i * 1.4; s.path = null; s.angle = Math.PI; });
              posH.length = 0; camTgt.set(x, 0, z); camPos.set(x, CAM_H * camZoom, z + CAM_Z * camZoom); },
   trees() { return obs.filter(o => o.type === 'tree').map(o => [+o.x.toFixed(1), +o.z.toFixed(1)]); },
+  portals() { return portals.map(q => [+q.x.toFixed(1), +q.z.toFixed(1), q.nx, q.nz]); },
   roads() { return roads.map(r => ({ kind: r.kind, w: r.w, pts: r.pts.map(q => q.map(v => +v.toFixed(1))) })); },
   glass(all) { const L = fadeTrees.filter(t => t.ghost); return all ? L.map(t => ({ x: +((t.x0 + t.x1) / 2).toFixed(1), z: +((t.z0 + t.z1) / 2).toFixed(1), f: +t.f.toFixed(2), hit: t.hit, y: [t.y0, t.y1].map(v => +v.toFixed(1)) })) : L.length; },
   // stage a clean n-v-4 in the open at `range` metres, both sides aware. Balance rig.
