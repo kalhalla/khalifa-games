@@ -356,7 +356,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
     <button id="tset">SETTINGS <small>sound · music · graphics</small></button>
   </div>
   <div class="foot">© GAMELAB · NO GRUNTS WERE CONSULTED</div>
-  <div id="tver">v33</div>
+  <div id="tver">v34</div>
 </div>
 
 <div id="ops" class="screen">
@@ -687,9 +687,9 @@ sun.position.set(38, 54, 26);
 const SUN_OFF = new THREE.Vector3(38, 54, 26);   // v31: set per op by the lighting preset
 sun.castShadow = true;
 sun.shadow.mapSize.set(MOBILE ? 1024 : 2048, MOBILE ? 1024 : 2048);
-sun.shadow.bias = -0.0009;
-sun.shadow.normalBias = 0.03;
-{ const c = sun.shadow.camera; c.left = -30; c.right = 30; c.top = 30; c.bottom = -30; c.near = 8; c.far = 140; }
+sun.shadow.bias = -0.0006;
+sun.shadow.normalBias = 0.025;
+{ const c = sun.shadow.camera; c.left = -25; c.right = 25; c.top = 25; c.bottom = -25; c.near = 8; c.far = 140; }
 scene.add(sun, sun.target);
 const hemi = new THREE.HemisphereLight(0xffffff, 0xffffff, 0.45); hemi.color = SC(0x8fb6d8); hemi.groundColor = SC(0x3d5020); scene.add(hemi);
 const amb = new THREE.AmbientLight(0xffffff, 0.16); amb.color = SC(0x66788c); scene.add(amb);
@@ -920,7 +920,7 @@ function fbm(x, y) { return vnoise(x, y) * 0.6 + vnoise(x * 2.1, y * 2.1) * 0.27
 // bare terrain, before any river is cut into it
 function baseY(x, z) { return (fbm(x * 0.04 + 9, z * 0.04 + 4) - 0.5) * 2.9 + (fbm(x * 0.15, z * 0.15) - 0.5) * 0.6; }
 function groundY(x, z) {
-  const g = baseY(x, z) - waterFactor(x, z) * WATER_DEPTH + (mesas.length ? mesaLift(x, z) : 0);
+  const g = baseY(x, z) - waterFactor(x, z) * WATER_DEPTH + (mesas.length ? mesaLift(x, z) : 0) + roadDeltaAt(x, z);
   const p = padBlend(x, z);
   return p ? g * (1 - p.f) + p.y * p.f : g;
 }
@@ -1102,7 +1102,8 @@ gndGeo.setAttribute('wts', new THREE.BufferAttribute(new Float32Array(gndGeo.att
 gndGeo.setAttribute('aog', new THREE.BufferAttribute(new Float32Array(gndGeo.attributes.position.count).fill(1), 1));   // v21 contact shading
 /* the low-poly palette (ground study D): grass in three greens that clump, drying in broad patches,
    mud round buildings, tan dirt on tracks, gravel on roads, a grey-green riverbed */
-const LP = { lush: SC(0x5c8c34), mid: SC(0x6a9840), deep: SC(0x4c7c2e), dry: SC(0x9a9a4a), mud: SC(0x5e4630), mudWet: SC(0x3e2e22),
+const LP = { lush: SC(0x5c8c34), mid: SC(0x6a9840), deep: SC(0x4c7c2e), dry: SC(0x9a9a4a),
+             meadow: SC(0x93ad46), moss: SC(0x3c6630), olive: SC(0x707c3a), sea: SC(0x4c7e52), clover: SC(0x7caa5a), straw: SC(0xb0a462), mud: SC(0x5e4630), mudWet: SC(0x3e2e22),
              dirt: SC(0xa08660), dirtD: SC(0x8a7250), grav: SC(0x9c968a), bed: SC(0x58705e), bedD: SC(0x3c5048), sub: SC(0x2e4a46),
              // v23, after the prop sheet: cut earth on steep banks and cliffs, pebble beaches, period roads
              earth: SC(0x7a5434), earthD: SC(0x5c3e26), peb: SC(0x8e897b), pebD: SC(0x726d62),
@@ -1158,7 +1159,58 @@ scene.add(gnd);
    1 edge). Nothing else in the game reads them — they are scenery with a purpose: they
    lead your eye from the spawn to the objective. */
 let roads = [];
-function setRoads(list) { roads = list || []; }
+function setRoads(list) { roads = list || []; if (roadDelta) { roadDelta.fill(0); roadFoot.fill(0); } }
+/* v34: road relief, baked to a 0.4 m grid over the map (and a margin) so groundY stays cheap.
+   A road sits on a low cambered bank, 0.2 m up with a crown, its shoulders running out to 1.6 half-widths.
+   A track is worn in: 5 cm down overall, two ruts 10 cm deeper, a little grass crown between them.
+   groundY includes it, so men, vehicles, shadows and the strips all agree. Bridges, water and the inside of a
+   road tunnel get none. roadFoot marks where a strip lies, so the ground mesh can sink a touch beneath it. */
+const RD_X0 = -12, RD_S = 0.4, RD_N = 310;
+let roadDelta = null, roadFoot = null;
+function roadProfile(road, t) {
+  if (road) {
+    if (t < 0.92) return 0.3 + 0.05 * (1 - t * t);
+    if (t < 1.6) { const k = (t - 0.92) / 0.68; return 0.3 * (1 - k * k * (3 - 2 * k)); }
+    return 0;
+  }
+  if (t > 1.18) return 0;
+  const rut = Math.exp(-Math.pow((t - 0.62) / 0.17, 2)), dip = -0.05 * (1 - Math.pow(Math.min(1, t / 1.18), 2));
+  return dip - 0.1 * rut + 0.025 * Math.exp(-Math.pow(t / 0.22, 2));
+}
+function buildRoadDelta() {
+  if (!roadDelta) { roadDelta = new Float32Array(RD_N * RD_N); roadFoot = new Uint8Array(RD_N * RD_N); }
+  roadDelta.fill(0); roadFoot.fill(0);
+  // tracks first, then roads over them (a road's bank wins where a track meets it)
+  for (const pass of [false, true]) for (const r of roads) {
+    if ((r.kind === 'road') !== pass) continue;
+    const hw = r.w / 2, reach = hw * (pass ? 1.62 : 1.22);
+    let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9;
+    for (const [x, z] of r.pts) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); z0 = Math.min(z0, z); z1 = Math.max(z1, z); }
+    const i0 = Math.max(0, Math.floor((x0 - reach - RD_X0) / RD_S)), i1 = Math.min(RD_N - 1, Math.ceil((x1 + reach - RD_X0) / RD_S));
+    const j0 = Math.max(0, Math.floor((z0 - reach - RD_X0) / RD_S)), j1 = Math.min(RD_N - 1, Math.ceil((z1 + reach - RD_X0) / RD_S));
+    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+      const x = RD_X0 + i * RD_S, z = RD_X0 + j * RD_S, d = segDist(r.pts, x, z);
+      if (d > reach) continue;
+      if (waterFactor(x, z) > 0.02 || onBridge(x, z, 0.3)) continue;
+      if (r.tun && tunnels.length) { const tn = tunAt(x, z); if (tn && tn.side < tn.T.hw + 0.4) continue; }
+      const k = j * RD_N + i, v = roadProfile(pass, d / hw);
+      if (pass) { if (v > roadDelta[k] || roadDelta[k] < 0) roadDelta[k] = Math.max(v, 0); roadFoot[k] = 1; }
+      else { if (v < roadDelta[k]) roadDelta[k] = v; roadFoot[k] = 1; }
+    }
+  }
+}
+function roadDeltaAt(x, z) {
+  if (!roadDelta) return 0;
+  const fx = (x - RD_X0) / RD_S, fz = (z - RD_X0) / RD_S;
+  if (fx < 0 || fz < 0 || fx >= RD_N - 1 || fz >= RD_N - 1) return 0;
+  const i = fx | 0, j = fz | 0, u = fx - i, v = fz - j, k = j * RD_N + i;
+  return (roadDelta[k] * (1 - u) + roadDelta[k + 1] * u) * (1 - v) + (roadDelta[k + RD_N] * (1 - u) + roadDelta[k + RD_N + 1] * u) * v;
+}
+function roadFootAt(x, z) {
+  if (!roadFoot) return 0;
+  const i = Math.round((x - RD_X0) / RD_S), j = Math.round((z - RD_X0) / RD_S);
+  return i < 0 || j < 0 || i >= RD_N || j >= RD_N ? 0 : roadFoot[j * RD_N + i];
+}
 function segDist(pts, x, z) {
   let best = 1e9;
   for (let i = 0; i + 1 < pts.length; i++) {
@@ -1198,13 +1250,14 @@ function buildRoadStrips() {
   roads.forEach((r, ri) => {
     const hw = r.w / 2, road = r.kind === 'road', lift = 0.012 + ri * 0.005;   // v26: the ground is sunk beneath, so the strip lies on groundY
     // columns across: [offset, colour picker]
+    // v34: a road on its bank (grass shoulders, a gravel edge, worn wheel lines); a track with its ruts sampled where they bottom out
     const cols = road
-      ? [[-(hw + 0.55), 'fray'], [-hw, 'verge'], [-hw + 0.25, 'tar'], [-hw * 0.4, 'tar'], [hw * 0.4, 'tar'], [hw - 0.25, 'tar'], [hw, 'verge'], [hw + 0.55, 'fray']]
-      : [[-(hw + 0.3), 'fray'], [-hw * 0.72, 'rut'], [-hw * 0.4, 'dirt'], [-hw * 0.12, 'crown'], [hw * 0.12, 'crown'], [hw * 0.4, 'dirt'], [hw * 0.72, 'rut'], [hw + 0.3, 'fray']];
+      ? [[-hw * 1.58, 'bank'], [-hw * 1.25, 'bank'], [-(hw + 0.18), 'verge'], [-hw + 0.12, 'edge'], [-hw * 0.62, 'wear'], [-hw * 0.2, 'tar'], [hw * 0.2, 'tar'], [hw * 0.62, 'wear'], [hw - 0.12, 'edge'], [hw + 0.18, 'verge'], [hw * 1.25, 'bank'], [hw * 1.58, 'bank']]
+      : [[-hw * 1.16, 'fray'], [-hw * 0.88, 'dirt'], [-hw * 0.62, 'rut'], [-hw * 0.38, 'dirt'], [-hw * 0.12, 'crown'], [hw * 0.12, 'crown'], [hw * 0.38, 'dirt'], [hw * 0.62, 'rut'], [hw * 0.88, 'dirt'], [hw * 1.16, 'fray']];
     // densify the centre line
     const P = [];
     for (let i = 0; i + 1 < r.pts.length; i++) {
-      const [ax, az] = r.pts[i], [bx, bz] = r.pts[i + 1], L = Math.hypot(bx - ax, bz - az), n = Math.max(1, Math.ceil(L / 0.9));
+      const [ax, az] = r.pts[i], [bx, bz] = r.pts[i + 1], L = Math.hypot(bx - ax, bz - az), n = Math.max(1, Math.ceil(L / 0.7));
       for (let k = 0; k < n; k++) P.push([ax + (bx - ax) * k / n, az + (bz - az) * k / n]);
     }
     P.push(r.pts[r.pts.length - 1]);
@@ -1215,15 +1268,23 @@ function buildRoadStrips() {
       // v28: the strip stops at a bridge's ends (the deck carries the road across) and at water
       const tn = r.tun ? tunAt(x, z) : null;
       // v31: a track stops at the edge of a road it crosses (the two strips fought where they overlapped)
-      if (r.kind !== 'road' && roads.some(o => o !== r && o.kind === 'road' && segDist(o.pts, x, z) < o.w / 2 + 0.35)) { rows.push(null); continue; }
+      if (r.kind !== 'road' && roads.some(o => o !== r && o.kind === 'road' && segDist(o.pts, x, z) < o.w / 2 * 1.5)) { rows.push(null); continue; }
       if ((tn && tn.side < tn.T.hw + 0.4) || waterFactor(x, z) > 0.04 || onBridge(x, z, 0.3) || x < -60 || x > MW + 60 || z < -60 || z > MH + 60) { rows.push(null); continue; }
       rows.push(cols.map(([off, kind], j) => {
-        const fr = kind === 'fray' ? (hash2(x * 1.7 + j, z * 1.3) - 0.3) * 0.5 : 0, o = off + Math.sign(off) * fr;
-        const px = x + nx * o, pz = z + nz * o, h = hash2(px * 2.3, pz * 1.9), patch = vnoise(px * 0.32 + 11, pz * 0.32 - 5);
-        if (kind === 'tar') { c.copy(LP.tar).lerp(LP.tarD, h * 0.55); if (patch > 0.7) c.lerp(LP.grav, 0.2); else if (patch < 0.25) c.multiplyScalar(0.9); }
-        else if (kind === 'verge') c.copy(LP.verge).lerp(LP.dirtD, h * 0.45);
+        const outer = j === 0 || j === cols.length - 1;
+        const fr = outer ? (hash2(x * 1.7 + j, z * 1.3) - 0.3) * (road ? 0.35 : 0.5) : kind === 'edge' ? (hash2(x * 2.9, z * 1.1 + j) - 0.5) * 0.18 : 0, o = off + Math.sign(off) * fr;
+        const px = x + nx * o, pz = z + nz * o, h = hash2(px * 2.3, pz * 1.9), patch = vnoise(px * 0.32 + 11, pz * 0.32 - 5), along = vnoise(px * 0.09 + pz * 0.09, 3.7);
+        if (kind === 'tar' || kind === 'wear' || kind === 'edge') {
+          c.copy(LP.tar).lerp(LP.tarD, h * 0.45 + along * 0.25);
+          if (patch > 0.72) c.lerp(LP.grav, 0.24); else if (patch < 0.22) c.multiplyScalar(0.86);   // repairs, and older patches
+          if (kind === 'wear') c.multiplyScalar(0.84);                                               // where the wheels run
+          if (kind === 'edge') c.lerp(LP.grav, 0.35 + h * 0.25);                                     // the crumbling edge
+          if (weatherRain) c.multiplyScalar(0.8);                                                    // wet
+        }
+        else if (kind === 'bank') { c.copy(outer ? LP.mid : LP.lush).lerp(LP.dry, 0.2 + h * 0.3); if (!outer) c.lerp(LP.verge, 0.15); }
+        else if (kind === 'verge') c.copy(LP.verge).lerp(LP.grav, h * 0.4).lerp(LP.dirtD, along * 0.3);
         else if (kind === 'fray') c.copy(road ? LP.verge : LP.dirt).lerp(LP.dry, 0.35 + h * 0.3);
-        else if (kind === 'rut') c.copy(LP.rut).lerp(LP.dirtD, h * 0.4);
+        else if (kind === 'rut') { c.copy(LP.rut).lerp(LP.dirtD, h * 0.4); if (weatherRain) c.copy(LP.mudWet).lerp(LP.rut, 0.3); }
         else if (kind === 'crown') c.copy(LP.dirt).lerp(LP.mid, 0.45 + h * 0.2);
         else c.copy(LP.dirt).lerp(LP.dirtD, h * 0.5);
         c.multiplyScalar(0.94 + hash2(px * 5.1, pz * 4.3) * 0.12);
@@ -1270,7 +1331,7 @@ function terrainVisY(x, z) {
   let y = groundY(x, z);
   if (mesas.length) y += mesaLift(x, z, true) - mesaLift(x, z);   // v30: the plateau ends in a step behind the rock wall
   if (ridgeLifts.length) y += ridgeLift(x, z);
-  if (roads.length) { const rd = roadDist(x, z, true); if (rd && rd.t < 1.06) y -= 0.14; }
+  if (roads.length && roadFootAt(x, z)) y -= 0.14;   // v34: under the whole strip, banks included
   return y;
 }
 
@@ -1332,8 +1393,19 @@ function rebuildTerrain() {
         // three greens in clumps a metre or two across, drying in broad patches
         const clump = cl(vnoise(cx * 0.42 + 7.1, cz * 0.42 - 3.3) * 0.75 + h * 0.25, 0, 1);
         c.copy(clump < 0.33 ? LP.lush : clump < 0.66 ? LP.mid : LP.deep);
+        // v34: field-sized swathes — a yellow-green meadow here, dark moss there, olive scrub between
+        const macro = fbm(cx * 0.016 + 5.3, cz * 0.016 - 9.1), meso = vnoise(cx * 0.12 + 2.3, cz * 0.12 + 8.1);
+        if (macro > 0.6) c.lerp(LP.meadow, cl((macro - 0.6) * 2.6, 0, 0.75) * (0.6 + meso * 0.4));
+        else if (macro < 0.38) c.lerp(LP.moss, cl((0.38 - macro) * 2.8, 0, 0.7));
+        if (meso > 0.72) c.lerp(LP.olive, (meso - 0.72) * 1.6);
+        // blue-green and lusher by water, straw-coloured on the high ground
+        if (waterZones.length) { const q = riverInset(cx, cz); if (q > -6) c.lerp(LP.sea, cl((q + 6) / 5, 0, 0.55)); }
+        const hi = baseY(cx, cz); if (hi > 0.9) c.lerp(LP.straw, cl((hi - 0.9) * 0.5, 0, 0.35));
+        // clover and flower-dotted patches, a metre across
+        if (vnoise(cx * 0.85 + 1.7, cz * 0.85 - 4.2) > 0.78) c.lerp(LP.clover, 0.4);
         const dry = cl((fbm(cx * 0.035 + 21, cz * 0.035 + 33) - 0.5) * 2.4, 0, 1);
         c.lerp(LP.dry, dry * (0.45 + clump * 0.35)); w0 = 1;
+        if (weatherRain) c.multiplyScalar(0.86);   // wet grass is darker
       }
     }
     c.multiplyScalar(0.92 + hash2(cx * 7.3, cz * 5.9) * 0.16);   // every facet a shade apart
@@ -1840,6 +1912,14 @@ const SFX = {
     thump(70, 38, 0.12, 0.16 * g, mixSfx, p, t + 0.09);
     nburst(500, 1.5, 0.06, 0.06 * g, mixSfx, p, t + 0.2);
   },
+  // v34: thunder — a crack if it was close, then a long rolling rumble that arrives later the further away
+  thunder(d) {
+    if (!AC) return; const t = AC.currentTime, k = Math.max(0.25, 1 - d / 90), p = (Math.random() - 0.5) * 1.2;
+    if (d < 30) nburst(2400, 0.7, 0.12, 0.35 * k, mixSfx, p, t, 'highpass');
+    nsweep(520, 70, 0.7, 2.6, 0.42 * k, mixSfx, p, t + 0.05, 'lowpass');
+    nburst(110, 0.5, 3.4, 0.30 * k, mixSfx, p, t + 0.2, 'lowpass');
+    nburst(70, 0.4, 2.6, 0.22 * k, mixSfx, -p, t + 0.9, 'lowpass');
+  },
   boom(x, z) {
     if (!AC) return; const { g, p } = place(x, z); const t = AC.currentTime;
     nburst(3000, 0.6, 0.03, 0.40 * g, mixGun, p, t, 'highpass');
@@ -2075,16 +2155,26 @@ function clearFx() {
    · Rain: streaks round the camera, slanted by the wind, a hiss in the ambience, wet ground. It shortens
      how far quiet noises carry and takes a little off how far you are seen. */
 const LIGHT = {
-  dawn:      { sky: 0xc6b8b0, sun: 0xffc89e, si: 1.0, off: [56, 32, -6], hs: 0x9eaccc, hg: 0x404a2a, hi: 0.56, ex: 0.9, cloud: 0.22, wind: 0.5, smoke: 0xffe8dc },
-  morning:   { sky: 0xa9c5da, sun: 0xfff0dc, si: 1.08, off: [46, 44, 20], hs: 0x8fb6d8, hg: 0x3d5020, hi: 0.46, ex: 0.83, cloud: 0.32, wind: 0.7, smoke: 0xffffff },
-  noon:      { sky: 0x9fc0d8, sun: 0xfff0d4, si: 1.15, off: [38, 54, 26], hs: 0x8fb6d8, hg: 0x3d5020, hi: 0.45, ex: 0.82, cloud: 0.38, wind: 0.6, smoke: 0xffffff },
-  afternoon: { sky: 0xa8bccc, sun: 0xffe2b6, si: 1.1, off: [-34, 46, 28], hs: 0x8eaed0, hg: 0x40501f, hi: 0.45, ex: 0.83, cloud: 0.34, wind: 0.85, smoke: 0xfff4e6 },
-  dusk:      { sky: 0xc89c86, sun: 0xffa466, si: 1.15, off: [-48, 36, 16], hs: 0x929cc4, hg: 0x48482e, hi: 0.66, ex: 1.02, cloud: 0.18, wind: 0.6, smoke: 0xffd6c0 },
-  overcast:  { sky: 0x8e989f, sun: 0xdde2e8, si: 0.5, off: [30, 60, 20], hs: 0x9aa4ae, hg: 0x3a4430, hi: 0.74, ex: 0.92, cloud: 0, wind: 1.15, smoke: 0xe8ecf0 },
+  dawn:      { sky: 0xc6b8b0, sun: 0xffc89e, si: 1.12, off: [56, 32, -6], hs: 0x9eaccc, hg: 0x404a2a, hi: 0.46, ai: 0.1, ex: 0.9, cloud: 0.22, wind: 0.5, smoke: 0xffe8dc },
+  morning:   { sky: 0xa9c5da, sun: 0xfff0dc, si: 1.26, off: [46, 44, 20], hs: 0x8fb6d8, hg: 0x3d5020, hi: 0.35, ai: 0.09, ex: 0.83, cloud: 0.32, wind: 0.7, smoke: 0xffffff },
+  noon:      { sky: 0x9fc0d8, sun: 0xfff0d4, si: 1.34, off: [38, 54, 26], hs: 0x8fb6d8, hg: 0x3d5020, hi: 0.33, ai: 0.09, ex: 0.82, cloud: 0.38, wind: 0.6, smoke: 0xffffff },
+  afternoon: { sky: 0xa8bccc, sun: 0xffe2b6, si: 1.28, off: [-34, 46, 28], hs: 0x8eaed0, hg: 0x40501f, hi: 0.34, ai: 0.09, ex: 0.83, cloud: 0.34, wind: 0.85, smoke: 0xfff4e6 },
+  dusk:      { sky: 0xc89c86, sun: 0xffa466, si: 1.28, off: [-48, 36, 16], hs: 0x929cc4, hg: 0x48482e, hi: 0.54, ai: 0.11, ex: 1.02, cloud: 0.18, wind: 0.6, smoke: 0xffd6c0 },
+  overcast:  { sky: 0x8e989f, sun: 0xdde2e8, si: 0.5, off: [30, 60, 20], hs: 0x9aa4ae, hg: 0x3a4430, hi: 0.74, ex: 0.92, cloud: 0, wind: 1.15, smoke: 0xe8ecf0, ai: 0.16 },
+  heavy:     { sky: 0x737d85, sun: 0xd2d8e0, si: 0.38, off: [30, 62, 20], hs: 0x8a959e, hg: 0x323c2a, hi: 0.72, ex: 0.92, cloud: 0, wind: 1.5, smoke: 0xdde2e8, ai: 0.17 },
+  storm:     { sky: 0x535c64, sun: 0xc4ccd8, si: 0.3, off: [30, 62, 20], hs: 0x77828d, hg: 0x2a3224, hi: 0.66, ex: 0.96, cloud: 0, wind: 1.85, smoke: 0xcfd6de, ai: 0.17 },
 };
+/* v34: three strengths of bad weather. n: how much rain (share of the streaks), fog: near/far, see/hear: how much
+   it hides you, wind: its strength, lightning: a storm. */
+const WEATHER = {
+  rain:  { n: 0.5, fog: [46, 128], see: 0.85, hear: [0.6, 0.85], wind: 1.15, light: 'overcast', puddles: 18, ripple: 0.5 },
+  heavy: { n: 1, fog: [32, 100], see: 0.72, hear: [0.45, 0.75], wind: 1.5, light: 'heavy', puddles: 30, ripple: 1 },
+  storm: { n: 1, fog: [30, 96], see: 0.7, hear: [0.45, 0.7], wind: 1.85, light: 'storm', puddles: 30, ripple: 1, lightning: true },
+};
+let wx = null;
 function lightOf(M) {
   if (M.light) return M.light;
-  if (M.weather === 'rain') return 'overcast';
+  if (WEATHER[M.weather]) return WEATHER[M.weather].light;
   const t = M.sub || '';
   return /Dawn|Pre-dawn/.test(t) ? 'dawn' : /Dusk|Evening/.test(t) ? 'dusk' : /Afternoon/.test(t) ? 'afternoon' : /Morning/.test(t) ? 'morning' : 'noon';
 }
@@ -2096,6 +2186,7 @@ function applyLight(name) {
   sun.color = SC(L.sun); sun.intensity = L.si; SUN_OFF.set(...L.off);
   hemi.color = SC(L.hs); hemi.groundColor = SC(L.hg); hemi.intensity = L.hi;
   R.toneMappingExposure = L.ex; ATMO.cloud.value = L.cloud; windMag = L.wind; smokeTint.copy(SC(L.smoke));
+  amb.intensity = L.ai !== undefined ? L.ai : 0.16; rim.intensity = L.cloud > 0 ? 0.2 : 0.28;   // v34: less fill on a sunny day, so the shadows go deep
 }
 
 // ---- smoke ----
@@ -2216,7 +2307,8 @@ function stepMist(dt) {
 }
 
 // ---- rain ----
-const RAIN_N = MOBILE ? 380 : 720;
+const RAIN_N = MOBILE ? 600 : 1150;
+let rainCount = 0;
 const rainPos = new Float32Array(RAIN_N * 6), rainD = new Float32Array(RAIN_N * 3);
 const rainGeo = new THREE.BufferGeometry(); rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
 const rainMesh = new THREE.LineSegments(rainGeo, new THREE.LineBasicMaterial({ color: SC(0xc0ccd8), transparent: true, opacity: 0.34, depthWrite: false }));
@@ -2227,23 +2319,184 @@ function rainDrop(i, top) {
 }
 function stepRain(dt) {
   if (!rainMesh.visible) return;
-  const wx = Math.cos(windAng) * windMag * 4, wz = Math.sin(windAng) * windMag * 4;
-  for (let i = 0; i < RAIN_N; i++) {
+  const wdx = Math.cos(windAng) * windMag * 4, wdz = Math.sin(windAng) * windMag * 4;
+  const fall = wx && wx.n > 0.7 ? 30 : 24, len = wx && wx.n > 0.7 ? 1.25 : 0.95;
+  for (let i = 0; i < rainCount; i++) {
     let x = rainD[i * 3], y = rainD[i * 3 + 1], z = rainD[i * 3 + 2];
-    y -= 24 * dt; x += wx * dt; z += wz * dt;
+    y -= fall * dt; x += wdx * dt; z += wdz * dt;
     if (y < groundY(x, z) || Math.abs(x - camTgt.x) > 30 || z - camTgt.z > 20 || z - camTgt.z < -34) { rainDrop(i, true); x = rainD[i * 3]; y = rainD[i * 3 + 1]; z = rainD[i * 3 + 2]; }
     rainD[i * 3] = x; rainD[i * 3 + 1] = y; rainD[i * 3 + 2] = z;
-    const o = i * 6; rainPos[o] = x; rainPos[o + 1] = y; rainPos[o + 2] = z; rainPos[o + 3] = x - wx * 0.04; rainPos[o + 4] = y + 0.95; rainPos[o + 5] = z - wz * 0.04;
+    const o = i * 6; rainPos[o] = x; rainPos[o + 1] = y; rainPos[o + 2] = z; rainPos[o + 3] = x - wdx * 0.045; rainPos[o + 4] = y + len; rainPos[o + 5] = z - wdz * 0.045;
   }
   rainGeo.attributes.position.needsUpdate = true;
+}
+
+// ---- v34: lightning ----
+let stormT = 8, flashT = 0, thunderT = 0, thunderShown = false, flashK = 0;
+const boltGeo = new THREE.BufferGeometry(); boltGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(90 * 3), 3));
+const boltMesh = new THREE.LineSegments(boltGeo, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 1, depthWrite: false, fog: false }));
+boltMesh.frustumCulled = false; boltMesh.visible = false; boltMesh.renderOrder = 4.6; scene.add(boltMesh);
+function strike() {
+  // somewhere off to the side of the view, mostly; now and then close
+  const a = Math.random() * Math.PI * 2, d = Math.random() < 0.2 ? 14 + Math.random() * 14 : 32 + Math.random() * 40;
+  const x = camTgt.x + Math.cos(a) * d, z = camTgt.z - 6 + Math.sin(a) * d * 0.8, y0 = groundY(x, z);
+  // a jagged bolt with a fork
+  const pa = boltGeo.attributes.position.array; let n = 0;
+  const seg = (ax, ay, az, bx, by, bz) => { pa[n++] = ax; pa[n++] = ay; pa[n++] = az; pa[n++] = bx; pa[n++] = by; pa[n++] = bz; };
+  let px = x + (Math.random() - 0.5) * 6, py = y0 + 70, pz = z + (Math.random() - 0.5) * 6;
+  const steps = 13;
+  for (let i = 1; i <= steps; i++) {
+    const t = i / steps, nx = x + (Math.random() - 0.5) * 6 * (1 - t), ny = y0 + 70 * (1 - t), nz = z + (Math.random() - 0.5) * 6 * (1 - t);
+    seg(px, py, pz, nx, ny, nz);
+    if (i === 5 || i === 8) { let fx = nx, fy = ny, fz = nz; for (let k = 0; k < 3; k++) { const gx = fx + (Math.random() - 0.5) * 7, gy = fy - 6 - Math.random() * 4, gz = fz + (Math.random() - 0.5) * 5; seg(fx, fy, fz, gx, gy, gz); fx = gx; fy = gy; fz = gz; } }
+    px = nx; py = ny; pz = nz;
+  }
+  boltGeo.setDrawRange(0, n / 3); boltGeo.attributes.position.needsUpdate = true;
+  boltMesh.visible = true; flashT = 0.32; flashK = d < 30 ? 1 : 0.7;
+  flashScreen(d < 30 ? 0.45 : 0.25);
+  const delay = Math.min(2.6, d / 110);
+  setTimeout(() => { if (phase === 'play' || phase === 'intro') { SFX.thunder(d); thunderT = 1.9; } }, delay * 1000);
+  if (!thunderShown && phase === 'play') { thunderShown = true; setTimeout(() => showToast('THUNDER', 'shots under it carry half as far — and the flashes show anyone standing'), (delay + 0.6) * 1000); }
+}
+function stepStorm(dt) {
+  if (thunderT > 0) thunderT -= dt;
+  if (flashT > 0) {
+    flashT -= dt;
+    // two pulses: the leader and the return stroke
+    const t = 0.32 - flashT, pulse = (t < 0.07 ? 1 : t < 0.13 ? 0.15 : t < 0.22 ? 0.85 : Math.max(0, (0.32 - t) / 0.1) * 0.4) * flashK;
+    amb.intensity = (LIGHT[lightName] ? (LIGHT[lightName].ai !== undefined ? LIGHT[lightName].ai : 0.16) : 0.13) + pulse * (nightMode ? 3.2 : 2.2);
+    boltMesh.material.opacity = Math.min(1, pulse * 1.4); boltMesh.visible = flashT > 0.05;
+    if (flashT <= 0) { boltMesh.visible = false; amb.intensity = nightMode ? 0.13 : LIGHT[lightName] && LIGHT[lightName].ai !== undefined ? LIGHT[lightName].ai : 0.16; }
+  }
+  if (!wx || !wx.lightning) return;
+  stormT -= dt;
+  if (stormT <= 0) { stormT = 7 + Math.random() * 11; strike(); }
+}
+
+// ---- v34: puddles in the ruts and the hollows when it rains, rain rings on them ----
+const puddleMat = new THREE.MeshPhongMaterial({ side: THREE.DoubleSide, vertexColors: true, shininess: 90, specular: SC(0x8a98a6), transparent: true, opacity: 0.66, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -8 });
+let puddles = [], puddleMesh = null;
+const RIPPLE_N = MOBILE ? 50 : 90;
+const rippleMesh = new THREE.InstancedMesh(new THREE.RingGeometry(0.8, 1, 18).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false }), RIPPLE_N);
+rippleMesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(RIPPLE_N * 3), 3);
+rippleMesh.frustumCulled = false; rippleMesh.count = 0; rippleMesh.renderOrder = 2.6; scene.add(rippleMesh);
+const ripples = [];
+function buildPuddles(M) {
+  if (puddleMesh) { scene.remove(puddleMesh); puddleMesh.geometry.dispose(); puddleMesh = null; }
+  puddles = []; ripples.length = 0; rippleMesh.count = 0;
+  if (!wx) return;
+  const spots = [];
+  // in the ruts of the tracks, and the odd pothole at a road's edge
+  for (const r of roads) {
+    const hw = r.w / 2, track = r.kind !== 'road';
+    for (let i = 0; i + 1 < r.pts.length; i++) {
+      const [ax, az] = r.pts[i], [bx, bz] = r.pts[i + 1], L = Math.hypot(bx - ax, bz - az), ux = (bx - ax) / (L || 1), uz = (bz - az) / (L || 1);
+      for (let d = 2; d < L; d += 3.2) {
+        const x = ax + ux * d, z = az + uz * d, side = hash2(x, z) < 0.5 ? -1 : 1, off = track ? hw * 0.62 * side : hw * 0.85 * side;
+        const px = x - uz * off, pz = z + ux * off;
+        if (px < 2 || px > MW - 2 || pz < 2 || pz > MH - 2 || waterFactor(px, pz) > 0 || onBridge(px, pz, 1)) continue;
+        if (hash2(px * 1.3, pz * 0.7) < (track ? 0.45 : 0.85)) continue;
+        spots.push({ x: px, z: pz, r: track ? 0.32 + hash2(px, pz) * 0.3 : 0.3 + hash2(pz, px) * 0.2, ux, uz, len: track ? 1.8 + hash2(pz * 3, px) * 1.6 : 1.2 });
+      }
+    }
+  }
+  // and the low spots in the grass
+  for (let k = 0; k < 220; k++) {
+    const x = 6 + hash2(k * 1.7, missionIdx + 3.3) * (MW - 12), z = 6 + hash2(missionIdx + 1.1, k * 2.3) * (MH - 12);
+    if (waterFactor(x, z) > 0 || padBlend(x, z) || roadFootAt(x, z) || blocked(x, z, 1.5)) continue;
+    const y = groundY(x, z);
+    if (y > groundY(x + 2, z) - 0.05 || y > groundY(x - 2, z) - 0.05 || y > groundY(x, z + 2) - 0.05 || y > groundY(x, z - 2) - 0.05) continue;   // a hollow
+    spots.push({ x, z, r: 0.8 + hash2(x, z) * 1.2, ux: 1, uz: 0, len: 1 });
+  }
+  const want = wx.puddles;
+  for (let i = spots.length - 1; i > 0; i--) { const j = Math.floor(hash2(i, missionIdx * 7.1) * (i + 1)); const t = spots[i]; spots[i] = spots[j]; spots[j] = t; }
+  const pos = [], col = [], cE = SC(0x4e4a3e), cM = SC(0x6c767c), cC = SC(0x8c989e);   // muddy rim, then the grey sky in the water
+  for (const S of spots) {
+    if (puddles.length >= want) break;
+    if (puddles.some(P => Math.hypot(P.x - S.x, P.z - S.z) < 2.5)) continue;
+    const N = 12, y = groundY(S.x, S.z) + 0.03, ring = [], Y = (x, z) => groundY(x, z) + 0.035;   // laid on the ground, so it sits in the rut
+    for (let k = 0; k < N; k++) {
+      const a = k / N * Math.PI * 2, rr = S.r * (0.75 + hash2(S.x + k, S.z * 1.3) * 0.45);
+      const lx = Math.cos(a) * rr * S.len, lz = Math.sin(a) * rr;   // long axis along the track
+      ring.push([S.x + S.ux * lx - S.uz * lz, S.z + S.uz * lx + S.ux * lz]);
+    }
+    for (let k = 0; k < N; k++) {
+      const A = ring[k], B = ring[(k + 1) % N];
+      // centre (pale: the sky in it), a mid ring, a muddy rim
+      const mA = [S.x + (A[0] - S.x) * 0.6, S.z + (A[1] - S.z) * 0.6], mB = [S.x + (B[0] - S.x) * 0.6, S.z + (B[1] - S.z) * 0.6];
+      for (const [p, c] of [[[S.x, S.z], cC], [mB, cM], [mA, cM], [mA, cM], [mB, cM], [B, cE], [mA, cM], [B, cE], [A, cE]]) { pos.push(p[0], Y(p[0], p[1]), p[1]); col.push(c.r, c.g, c.b); }
+    }
+    puddles.push({ x: S.x, z: S.z, r: S.r * 0.8, y });
+  }
+  if (!pos.length) return;
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.computeVertexNormals();
+  { const nm = g.attributes.normal; for (let i = 0; i < nm.count; i++) nm.setXYZ(i, 0, 1, 0); }   // flat water: up, whichever way it wound
+  puddleMesh = new THREE.Mesh(g, puddleMat); puddleMesh.renderOrder = 2.5; puddleMesh.receiveShadow = true; scene.add(puddleMesh);
+}
+const _rm = new THREE.Matrix4(), _rq0 = new THREE.Quaternion(), _rv = new THREE.Vector3(), _rs = new THREE.Vector3(), _rc = new THREE.Color();
+function stepPuddles(dt) {
+  if (!puddles.length) return;
+  const rate = wx ? wx.ripple * puddles.length * 3.2 : 0;
+  let want = rate * dt; while (want > 0) { if (Math.random() < want && ripples.length < RIPPLE_N) { const P = puddles[(Math.random() * puddles.length) | 0], a = Math.random() * 6.283, rr = Math.sqrt(Math.random()) * P.r; ripples.push({ x: P.x + Math.cos(a) * rr, z: P.z + Math.sin(a) * rr, y: P.y + 0.01, t: 0 }); } want -= 1; }
+  let n = 0;
+  for (let i = ripples.length - 1; i >= 0; i--) { const R = ripples[i]; R.t += dt; if (R.t > 0.55) { ripples.splice(i, 1); continue; } }
+  for (const R of ripples) {
+    const k = R.t / 0.55, sc = 0.05 + k * 0.32;
+    _rm.compose(_rv.set(R.x, R.y, R.z), _rq0, _rs.set(sc, 1, sc)); rippleMesh.setMatrixAt(n, _rm);
+    const v = (1 - k) * 0.55; rippleMesh.setColorAt(n, _rc.setRGB(v, v, v)); n++;
+  }
+  rippleMesh.count = n; rippleMesh.instanceMatrix.needsUpdate = true; if (rippleMesh.instanceColor) rippleMesh.instanceColor.needsUpdate = true;
+}
+
+// ---- v34: wild flowers in clusters (poppies, daisies, buttercups, vetch) ----
+const FLOWER_N = MOBILE ? 360 : 760;
+const flowerGeo = new THREE.OctahedronGeometry(0.1, 0); flowerGeo.scale(1, 0.5, 1);   // eight faces: 760 of them cost 6k triangles
+flowerGeo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(flowerGeo.attributes.position.count * 3).fill(1), 3));
+const flowerMesh = new THREE.InstancedMesh(flowerGeo, new THREE.MeshPhongMaterial({ vertexColors: true, flatShading: true, shininess: 4 }), FLOWER_N);
+flowerMesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(FLOWER_N * 3).fill(1), 3);   // made up front, so the program is built with it
+flowerMesh.frustumCulled = false; flowerMesh.count = 0; flowerMesh.receiveShadow = true; scene.add(flowerMesh);
+function buildFlowers(M) {
+  let n = 0;
+  if (!M.night && !(M.buildings && M.buildings.length > 2)) {
+    const cols = [0xd8392c, 0xffffff, 0xf4d03a, 0xa77ad0, 0xffffff, 0xd8392c].map(h => SC(h)), d = new THREE.Object3D();
+    for (let c = 0; c < 70 && n < FLOWER_N; c++) {
+      const cx = 4 + hash2(c * 3.1, missionIdx + 0.7) * (MW - 8), cz = 4 + hash2(missionIdx + 2.9, c * 1.7) * (MH - 8), col = cols[c % cols.length];
+      const cnt = 8 + ((hash2(c, 9) * 14) | 0), sp = 1 + hash2(c, 4) * 1.6;
+      for (let k = 0; k < cnt && n < FLOWER_N; k++) {
+        const x = cx + (hash2(c + k * 0.37, 1.1) - 0.5) * 2 * sp, z = cz + (hash2(2.2, c + k * 0.53) - 0.5) * 2 * sp;
+        if (waterFactor(x, z) > 0 || padBlend(x, z) || roadFootAt(x, z) || blocked(x, z, 0.3)) continue;
+        d.position.set(x, terrainVisY(x, z) + 0.05, z); d.rotation.set(0, hash2(x, z) * 6, 0); d.scale.setScalar(0.7 + hash2(z, x) * 0.7); d.updateMatrix();
+        flowerMesh.setMatrixAt(n, d.matrix); flowerMesh.setColorAt(n, _rc.copy(col).multiplyScalar(0.85 + hash2(x * 3, z) * 0.3)); n++;
+      }
+    }
+  }
+  flowerMesh.count = n; flowerMesh.instanceMatrix.needsUpdate = true; if (flowerMesh.instanceColor) flowerMesh.instanceColor.needsUpdate = true;
+}
+
+// ---- v34: the sun's shadow box follows the camera tightly and snaps to whole texels, so edges are crisp and don't crawl ----
+const SHADOW_HALF = 25;
+const _sd = new THREE.Vector3(), _sxA = new THREE.Vector3(), _syA = new THREE.Vector3(), _sUp = new THREE.Vector3(0, 1, 0);
+function placeSun(tx, tz) {
+  const c = sun.shadow.camera, L = SHADOW_HALF * Math.max(0.75, Math.min(1.45, camZoom));
+  if (Math.abs(c.right - L) > 0.01) { c.left = -L; c.right = L; c.top = L; c.bottom = -L; c.updateProjectionMatrix(); }
+  const texel = 2 * L / sun.shadow.mapSize.x;
+  _sd.copy(SUN_OFF).normalize(); _sxA.crossVectors(_sUp, _sd).normalize(); _syA.crossVectors(_sd, _sxA);
+  const px = tx * _sxA.x + tz * _sxA.z, py = tx * _syA.x + tz * _syA.z;
+  const ox = Math.round(px / texel) * texel - px, oy = Math.round(py / texel) * texel - py;
+  const nx = tx + _sxA.x * ox + _syA.x * oy, ny = _sxA.y * ox + _syA.y * oy, nz = tz + _sxA.z * ox + _syA.z * oy;
+  sun.target.position.set(nx, ny, nz); sun.position.set(nx + SUN_OFF.x, ny + SUN_OFF.y, nz + SUN_OFF.z);
+  sun.target.updateMatrixWorld();
 }
 
 // ---- per mission, per frame ----
 function setupAtmo(M) {
   smoke = []; smokers = []; smokeMesh.count = 0;
-  weatherRain = M.weather === 'rain';
-  rainMesh.visible = weatherRain;
+  wx = WEATHER[M.weather] || null; weatherRain = !!wx;
+  rainMesh.visible = weatherRain; rainCount = wx ? Math.round(RAIN_N * wx.n) : 0; rainGeo.setDrawRange(0, rainCount * 2);
+  rainMesh.material.opacity = wx && wx.n > 0.7 ? 0.42 : 0.34;
   if (weatherRain) for (let i = 0; i < RAIN_N; i++) rainDrop(i, false);
+  if (wx) windMag = Math.max(windMag, wx.wind);
+  stormT = 5 + Math.random() * 6; flashT = 0; thunderT = 0; thunderShown = false; boltMesh.visible = false;
   gndMat.shininess = weatherRain ? 26 : 4; gndMat.specular = SC(weatherRain ? 0x30363a : 0x101010);
   windAng = hash2(missionIdx * 3.3, 1.7) * 6.283;
   buildMist(M);
@@ -2252,7 +2505,7 @@ function stepAtmo(dt) {
   windAng += Math.sin(ATMO.t.value * 0.05) * 0.02 * dt;
   ATMO.wind.value.set(Math.cos(windAng) * windMag, Math.sin(windAng) * windMag);
   ATMO.off.value.x -= Math.cos(windAng) * windMag * 3.2 * 0.0125 * dt; ATMO.off.value.y -= Math.sin(windAng) * windMag * 3.2 * 0.0125 * dt;
-  stepSmoke(dt); stepMist(dt); stepRain(dt);
+  stepSmoke(dt); stepMist(dt); stepRain(dt); stepStorm(dt); stepPuddles(dt);
 }
 
 // one shared flash light for all muzzle fire
@@ -4161,11 +4414,11 @@ const MISSIONS = [
     name: 'The Bridge',
     roads: [{ k: 'road', w: 3.6, pts: [[.5, 0.0], [.5, .3], [.5, .7], [.5, 1.0]] }],
     obj: 'Blow the bridge',
-    sub: 'Sector 9 · Morning · Rain · River in spate',
+    sub: 'Sector 9 · Morning · Heavy rain · River in spate',
     brief: 'One bridge, and their armour needs it tomorrow. Two men guard our end, a gun watches it from the far bank, and a patrol walks ' +
            'this side of the water. Get a charge onto the planks or right at the foot of them, then get clear: thirty seconds, and the river ' +
            'takes anyone still standing on it. Then back to our lines.',
-    weather: 'rain', scatter: 46, diff: 0.2, noExtras: true, charges: 2,
+    weather: 'heavy', scatter: 46, diff: 0.2, noExtras: true, charges: 2,
     water: [{ x1: 0, z1: .42, x2: 1, z2: .5 }],
     bridge: [{ x1: .465, z1: .415, x2: .535, z2: .505 }],
     targets: [{ t: 'bridge', b: 0 }],
@@ -4241,11 +4494,11 @@ const MISSIONS = [
     name: 'The Convoy',
     roads: [{ k: 'road', w: 4.0, pts: [[0.0, .3], [.35, .3], [.65, .3], [1.0, .3]] }, { k: 'track', pts: [[.49, 1.0], [.49, .7], [.49, .3]] }],
     obj: 'Burn the fuel lorry, then get out',
-    sub: 'Sector 6 · Dusk · Traffic on the road',
+    sub: 'Sector 6 · Dusk · Storm · Traffic on the road',
     brief: 'Their armour runs on what is in one fuel lorry, parked in a wired depot across the main road. Traffic comes and goes on that road ' +
            'and the crews look about them. A pillbox covers the road where the ride comes out of the trees; a pair walks the verge. Get a blast ' +
            'near the lorry — it does the rest, and it does not care whose men are standing beside it. Then back through the trees.',
-    weather: null, scatter: 28, diff: 0.45, noExtras: true, charges: 1,
+    weather: 'storm', scatter: 28, diff: 0.45, noExtras: true, charges: 1,
     targets: [{ t: 'lorry', x: .7, z: .165, a: Math.PI * .5 }, { t: 'pillbox', x: .6, z: .37, a: 0 }],
     objectives: [{ t: 'destroy', what: 'lorry' }, { t: 'extract', label: 'Back through the trees to our lines' }], extract: { x: .49, z: .95, r: 7 },
     enemies: [
@@ -4405,11 +4658,11 @@ const MISSIONS = [
   },
   {
     name: 'Night Wire',
-    night: true, guards: true, charges: 3, truck: 360,
+    night: true, guards: true, charges: 3, truck: 360, weather: 'storm',
     // the road runs from the top of the map down to the gate; the truck comes down it
     roads: [{ k: 'road', w: 3.6, pts: [[.62, 0.0], [.62, .22], [.62, .50], [.6, .66], [.52, .78], [.5, .97]] }],
     obj: 'Free the prisoners and get them out',
-    sub: 'Sector 3 · Night · Wire · Dogs · Charges',
+    sub: 'Sector 3 · Night · Storm · Wire · Dogs · Charges',
     brief: 'A holding camp in the trees. Two towers at the gate, a lamp and a gun in each, and a dog that does not care how flat you are lying. Our people are in the two long huts; get a man through each door and they will do the rest. The gate is timber. You have three charges, thirty seconds each. The moment they are alarmed they are on the radio, and a truck with six men is six minutes down that road. Get every prisoner out of the wire and back to our lines. Kill the guards you must and leave the rest asleep — a camp that never wakes never calls the truck.',
     scatter: 28,
     win: 'liberate',
@@ -5235,7 +5488,8 @@ function stepMarks(dt) {
 /*───────────────────── noise ─────────────────────*/
 // the single most important tactical channel: everything loud pulls the camp toward you
 function noiseEvent(x, z, radius, level) {
-  if (weatherRain) radius *= level < 0.5 ? 0.6 : 0.85;   // v31: the rain covers the small sounds
+  if (wx) radius *= level < 0.5 ? wx.hear[0] : wx.hear[1];   // v31: the rain covers the small sounds
+  if (thunderT > 0 && level >= 0.3) radius *= 0.45;            // v34: fire under the thunder and it carries half as far
   if (level >= 0.3) { scareBirds(x, z, radius * 1.4); panicFauna(x, z, radius * 1.6, false); AMB.hush(6 + level * 8); }
   for (const e of ens) {
     if (e.dead) continue;
@@ -5544,7 +5798,8 @@ function detectRate(e, s) {
   }
   if (inCover(s.x, s.z) && !e.tower) r *= 0.38;   // a man six metres up looks down into the scrub
   if (mists.length && inMist(s.x, s.z)) r *= 0.5;   // v31: in the mist
-  if (weatherRain) r *= 0.85;
+  if (wx) r *= wx.see;
+  if (flashT > 0 && !inCover(s.x, s.z)) r *= 2.5;   // v34: the lightning shows everyone standing in the open
   r *= s.moving ? 1.25 : 0.65;
   if (weatherFog) r *= 0.8;
   if (e.state === 'engage' || e.state === 'search') r *= 1.6; // already looking for you
@@ -6320,7 +6575,7 @@ function destroyTarget(T, how) {
   } else if (T.kind === 'bridge') {
     bridgeZones = bridgeZones.filter(r => r !== T.zone);
     T.mesh.rotation.z = 0.35; T.mesh.position.y -= 1.6;
-    rebuildTerrain(); buildRoadStrips(); buildWater(); buildGrid(); buildPathGrid(); bakeLookHeights();   // v28: the road goes with the bridge
+    buildRoadDelta(); rebuildTerrain(); buildRoadStrips(); buildWater(); buildGrid(); buildPathGrid(); bakeLookHeights();   // v28: the road goes with the bridge
     spawnParts(T.x, groundY(T.x, T.z) + 1, T.z, 40, 0x8a6a3c, 10, 0.22, 1.2, 12);
     addSmoker(T.x, T.z, { life: 8, rate: 6, size: 2.4, col: 0x9a8c74, a: 0.45, burst: 10 });   // v31: dust off the timbers
     showToast('BRIDGE DOWN', 'nothing crosses here now');
@@ -6427,12 +6682,14 @@ function initMission(idx) {
   $('bx').style.display = M.charges ? '' : 'none'; $('xc').textContent = chargeCount; $('xt').style.display = 'none';
   seenMap.fill(0); liveMap.fill(0);
   weatherFog = M.weather === 'fog';
+  wx = WEATHER[M.weather] || null; weatherRain = !!wx;   // v34: early, the ground and the roads are coloured wet
   night = !!M.night;
   setNightLighting(night);
 
   if (!night) {
-    scene.fog.near = weatherFog ? 14 : M.weather === 'rain' ? 46 : 78;
-    scene.fog.far = weatherFog ? 52 : M.weather === 'rain' ? 128 : 168;
+    const W0 = WEATHER[M.weather];
+    scene.fog.near = weatherFog ? 14 : W0 ? W0.fog[0] : 78;
+    scene.fog.far = weatherFog ? 52 : W0 ? W0.fog[1] : 168;
     lookFog = weatherFog; setLook(LOOK.on);
     if (weatherFog) {
       applyLight('noon');
@@ -6474,6 +6731,7 @@ function initMission(idx) {
     extendRoadsPastEdge([...list.map(r => r.pts), ...(roadPath ? [roadPath] : [])]);
     setRoads(list);
     planTunnels();
+    buildRoadDelta();   // v34
   }
   rebuildTerrain();
   buildRoadStrips();
@@ -6506,6 +6764,7 @@ function initMission(idx) {
   for (const b of (M.buildings || [])) mkBuilding(b, obs);
   buildTargets(M);
   buildGrid();
+  buildPuddles(M); buildFlowers(M);   // v34: after the obstacles, so neither lands under a hut
 
   topUpRoster();
   const crew = activeRoster();
@@ -6567,7 +6826,7 @@ function initMission(idx) {
   resetBirds();
   placeFauna(M);
   updObjBar();
-  AMB.set({ wind: weatherFog ? 0.35 : Math.min(1.2, 0.3 + windMag * 0.5), fog: weatherFog ? 1 : 0, birds: weatherFog ? 0.4 : M.weather === 'rain' ? 0.1 : 1, river: 0, rain: M.weather === 'rain' ? 1 : 0 });
+  AMB.set({ wind: weatherFog ? 0.35 : Math.min(1.4, 0.3 + windMag * 0.5), fog: weatherFog ? 1 : 0, birds: weatherFog ? 0.4 : wx ? 0.05 : 1, river: 0, rain: wx ? (wx.n > 0.7 ? 1.6 : 1) : 0 });
   for (const m of marks) m.el.remove(); marks.length = 0;
   camFocus = 0; camDyn = 1; lastMan = false; slowT = 0; timeScale = 1; muffleMusic(0); camPull = 0;
   tutStep = (idx === 0 && !tutDone) ? 0 : -1; tutT = 0; hideHint();
@@ -8225,9 +8484,7 @@ function updateCamera(dt) {
     camPos.y + (Math.random() - 0.5) * s * 1.1,
     camPos.z + (Math.random() - 0.5) * s * 1.7);
   camera.lookAt(camTgt.x, 0, camTgt.z - 5.5);
-  sun.position.set(camTgt.x + SUN_OFF.x, SUN_OFF.y, camTgt.z + SUN_OFF.z);
-  sun.target.position.set(camTgt.x, 0, camTgt.z);
-  sun.target.updateMatrixWorld();
+  placeSun(camTgt.x, camTgt.z);   // v34
   leadRing.position.set(L.x, groundY(L.x, L.z) + 0.06, L.z);
   leadRing.scale.setScalar(1 + Math.sin(performance.now() * 0.004) * 0.06);
   muzzleT -= dt;
@@ -8610,11 +8867,11 @@ function buildDaily(key) {
   const base = MISSIONS[pool[Math.floor(rnd() * pool.length)]];
   const night = !!base.night, fog = base.weather === 'fog';
   const light = night || fog ? null : ['dawn', 'morning', 'noon', 'afternoon', 'dusk'][Math.floor(rnd() * 5)];
-  const weather = fog ? 'fog' : night ? null : rnd() < 0.25 ? 'rain' : null;
+  const wr = rnd(), weather = fog ? 'fog' : night ? (wr < 0.3 ? 'storm' : null) : wr < 0.14 ? 'rain' : wr < 0.24 ? 'heavy' : wr < 0.32 ? 'storm' : null;
   const mist = !night && !weather && (light === 'dawn' || light === 'morning') && rnd() < 0.6;
   const sniper = rnd() < 0.4;
   const when = night ? 'Night' : fog ? 'Fog' : { dawn: 'Dawn', morning: 'Morning', noon: 'Noon', afternoon: 'Afternoon', dusk: 'Dusk' }[light];
-  const sub = [`Daily · ${dailyLabel(key)}`, when, weather === 'rain' ? 'Rain' : null, mist ? 'Mist' : null, sniper ? 'Sniper attached' : null].filter(Boolean).join(' · ');
+  const sub = [`Daily · ${dailyLabel(key)}`, when, { rain: 'Rain', heavy: 'Heavy rain', storm: 'Storm' }[weather] || null, mist ? 'Mist' : null, sniper ? 'Sniper attached' : null].filter(Boolean).join(' · ');
   return Object.assign({}, base, { daily: key, light, weather, mist, sniper, sub,
     diff: Math.min(0.9, (base.diff || 0) + 0.15), noExtras: false, side: false, when });
 }
@@ -8762,8 +9019,7 @@ function stepIntro(dt) {
   camera.position.lerpVectors(introA, introB, e);
   _v.lerpVectors(introLA, introLB, e);
   camera.lookAt(_v);
-  sun.position.set(_v.x + SUN_OFF.x, SUN_OFF.y, _v.z + SUN_OFF.z);
-  sun.target.position.set(_v.x, 0, _v.z); sun.target.updateMatrixWorld();
+  placeSun(_v.x, _v.z);   // v34
   rigBeginFrame();
   for (const u of [...sol, ...ens]) if (!u.dead) animateUnit(u, dt);
   updateBars(); stepBirds(dt); stepFauna(dt); stepParts(dt); stepAtmo(dt);
@@ -9071,6 +9327,8 @@ function showOps() {
     const extras = [];
     if (M.weather === 'fog') extras.push('fog');
     if (M.weather === 'rain') extras.push('rain');
+    if (M.weather === 'heavy') extras.push('heavy rain');
+    if (M.weather === 'storm') extras.push('storm');
     if (M.mist) extras.push('mist');
     if (M.artillery) extras.push('artillery');
     if (M.water && M.water.length) extras.push('river');
@@ -9435,9 +9693,7 @@ function frame(t) {
     const r = 30, cx = MW / 2 + Math.cos(titleT * 0.31) * 16, cz = MH * 0.45 + Math.sin(titleT * 0.23) * 14;
     camera.position.set(cx + Math.cos(titleT) * r, 17 + Math.sin(titleT * 1.7) * 2.5, cz + Math.sin(titleT) * r);
     camera.lookAt(cx, 1.6, cz);
-    sun.position.set(cx + SUN_OFF.x, SUN_OFF.y, cz + SUN_OFF.z);
-    sun.target.position.set(cx, 0, cz);
-    sun.target.updateMatrixWorld();
+    placeSun(cx, cz);
     stepParts(dt); stepBirds(dt);
     for (const u of [...sol, ...ens]) {
       if (!u.dead) { u.mesh.position.set(u.x, groundY(u.x, u.z), u.z); u.mesh.rotation.y = u.angle; }
@@ -9639,6 +9895,7 @@ window.GS = { MISSIONS, get roster() { return roster; }, get fallen() { return f
              posH.length = 0; camTgt.set(x, 0, z); camPos.set(x, CAM_H * camZoom, z + CAM_Z * camZoom); },
   trees() { return obs.filter(o => o.type === 'tree').map(o => [+o.x.toFixed(1), +o.z.toFixed(1)]); },
   portals() { return portals.map(q => [+q.x.toFixed(1), +q.z.toFixed(1), q.nx, q.nz]); },
+  strike() { strike(); return flashT; },
   atmo() { return { light: lightName, cloud: ATMO.cloud.value, wind: [+windAng.toFixed(2), windMag], rain: weatherRain, mists: mists.map(P => [+P.x.toFixed(1), +P.z.toFixed(1), +P.r.toFixed(1)]), smoke: smoke.length, smokers: smokers.length }; },
   smoke(x, z) { return addSmoker(x, z, { life: 12, rate: 5, size: 2.0, col: 0x8a857c, a: 0.62, burst: 8 }) && smokers.length; },
   split(v) { setSplit(v === undefined ? !split : !!v); return split; },
