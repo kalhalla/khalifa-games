@@ -39,7 +39,7 @@ chords:{mode:'arp',prog:[0,5,2,4],stab:'',cutoff:.6,vol:.75,ext:true},
 fx:{rev:.55,dly:.45,pump:.55}}
 };
 /* Pad sounds: built-in vocal chops, drums and effects, or your own sample */
-const PADS_DEF=[['v:ah','Ah'],['v:oh','Oh'],['v:ooh','Ooh'],['v:ee','Ee'],['v:hey','Hey!'],['v:yeah','Yeah'],['v:ohoh','Oh-oh'],['v:choir','Choir'],['d:kick','Kick'],['d:clap','Clap'],['d:hat','Hat'],['d:open','Open hat'],['d:perc','Perc'],['fx:stab','Stab'],['fx:riser','Riser'],['fx:drop','Sub drop']];
+const PADS_DEF=[['v:ah','Ah'],['v:oh','Vox'],['v:ooh','Ooh'],['v:ee','Vox high'],['v:hey','Vox stab'],['v:yeah','Vox chop'],['v:ohoh','Oh-oh'],['v:choir','Choir'],['d:kick','Kick'],['d:clap','Clap'],['d:hat','Hat'],['d:open','Open hat'],['d:perc','Perc'],['fx:stab','Stab'],['fx:riser','Riser'],['fx:drop','Sub drop']];
 const SND_NAME=Object.fromEntries(PADS_DEF);
 const defPads=()=>PADS_DEF.map(([snd])=>({snd,pitch:0,vol:snd.startsWith('d:')?.8:.75}));
 const blankPh=()=>Array.from({length:16},()=>[]);
@@ -347,7 +347,8 @@ return normPeak(await oc.startRendering(),.9);
 function renderBuiltins(){
 const sr=ctx.sampleRate;
 BUILT=(async()=>{try{
-for(const k of Object.keys(VOX))BUF['v:'+k]=await renderVox(VOX[k],sr);
+/* real voice recordings (CC0, see /mu-s1k/snd/CREDITS.txt); the formant synth is only a fallback */
+await Promise.all(Object.keys(VOX).map(async k=>{try{const r=await fetch('/mu-s1k/snd/'+k+'.mp3');if(!r.ok)throw 0;BUF['v:'+k]=normPeak(await ctx.decodeAudioData(await r.arrayBuffer()),.9)}catch(e){try{BUF['v:'+k]=await renderVox(VOX[k],sr)}catch(e2){}}}));
 for(const k of ['stab','riser','drop'])BUF['fx:'+k]=await renderFx(k,sr);
 }catch(e){}})();
 }
@@ -972,7 +973,7 @@ w.addEventListener('keydown',e=>{const m={ArrowRight:1,ArrowUp:1,ArrowLeft:-1,Ar
 }
 setupWheel($('#wheel'),$('#drum'));setupWheel($('#wheel2'),$('#drum2'));
 /* ---------- + add a sound: first choose the sound, then where it plays ---------- */
-const SHVOX=[['v:ooh','Ooh'],['v:ah','Ah'],['v:oh','Oh'],['v:ee','Ee'],['v:hey','Hey!'],['v:yeah','Yeah'],['v:ohoh','Oh-oh'],['v:choir','Choir'],['fx:stab','Chord stab'],['fx:riser','Riser']];
+const SHVOX=[['v:ooh','Ooh'],['v:ah','Ah'],['v:oh','Vox'],['v:ee','Vox high'],['v:hey','Vox stab'],['v:yeah','Vox chop'],['v:ohoh','Oh-oh'],['v:choir','Choir'],['fx:stab','Chord stab'],['fx:riser','Riser']];
 const WHERE=[['bar','once a bar','on the first beat: a big, clear statement',[0]],['beat','on every beat','with the kick: steady and hypnotic',[0,4,8,12]],['off','between the beats','with the hi-hats: bouncy',[2,6,10,14]],['drop','only in the drop','twice a bar, saved for the big moment',[0,8]],['tap','I will tap it in','play it live on a pad while the beat runs',[]]];
 let SH=null;
 function openSheet(o){
@@ -987,7 +988,7 @@ const head=(t,back)=>`<div class="h">${back?`<button class="btn back" data-sh="b
 if(SH.step==='full')h=head('No room for another layer')+`<p class="meta" style="margin:0">A track can have ${MAXL} layers. Delete one on the layers page, then add your sound.</p>`;
 else if(SH.step==='src')h=head('Step 1 · choose a sound')+`<div class="choices">
 <button class="choice" data-sh="rec" style="--c:var(--kick)"><b>record my voice</b><small>sing, hum, clap or say a word</small></button>
-<button class="choice" data-sh="vox" style="--c:var(--chords)"><b>a ready-made vocal</b><small>ooh, hey, a choir and more</small></button>
+<button class="choice" data-sh="vox" style="--c:var(--chords)"><b>a ready-made vocal</b><small>ooh, ah, a real choir and more</small></button>
 <button class="choice" data-sh="video" style="--c:var(--acid)"><b>from a video</b><small>a screen recording or any clip in Photos</small></button>
 <button class="choice" data-sh="file" style="--c:var(--perc)"><b>a sound file</b><small>a WAV, MP3 or M4A on this device</small></button></div>`;
 else if(SH.step==='clip')h=head('Step 1 · pick the moment','src')+clipStep();

@@ -1,0 +1,12 @@
+MU-S1K built-in vocal sounds
+
+Cut, tuned and filtered from two recordings released under Creative Commons 0
+(public domain) in the Sonic Pi sample set (github.com/sonic-pi-net/sonic-pi,
+etc/samples):
+
+- tbd_voctone: donated by The Black Dog under CC0.
+  Used for: ooh, ah, oh, ee, hey (vox stab), yeah (vox chop), ohoh.
+- ambi_choir: from freesound.org/people/Exsomniel/sounds/207809/, CC0.
+  Used for: choir.
+
+No attribution is required by CC0; it is given here as thanks.
