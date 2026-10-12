@@ -359,7 +359,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
     <button id="tset">SETTINGS <small>sound · music · graphics</small></button>
   </div>
   <div class="foot">© GAMELAB · NO GRUNTS WERE CONSULTED</div>
-  <div id="tver">v40</div>
+  <div id="tver">v41</div>
 </div>
 
 <div id="ops" class="screen">
@@ -1374,24 +1374,28 @@ function buildStreets() {
   for (const m of streetRoot.children.slice()) { streetRoot.remove(m); m.geometry.dispose(); }
   if (!streets.length && !squares.length) return;
   const Q = { p: [], uv: [], c: [] }, S = TEXSZ.cobble, at = (x, z, lift) => [x, groundY(x, z) + lift, z];
-  const tint = (x, z, k) => { const v = k * (0.88 + vnoise(x * 0.35 + 3.1, z * 0.35 - 7.3) * 0.2); return v; };
-  const colOf = v => { const c = Math.max(0, Math.min(255, v * 255)) | 0; return (c << 16) | (c << 8) | c; };
+  // v41: tone at two scales (worn and dirty patches every few metres, a stone's-throw mottle) and warm/cool drift, so the
+  // texture's 3 m repeat never lines up into a pattern
+  const tint = (x, z, k) => [k * (0.8 + vnoise(x * 0.11 + 3.1, z * 0.11 - 7.3) * 0.26 + vnoise(x * 0.47 - 1.7, z * 0.47 + 5.2) * 0.12), vnoise(x * 0.07 + 11.3, z * 0.07 + 2.9) - 0.5];
+  const colOf = ([v, w]) => { const ch = f => Math.max(0, Math.min(255, f * 255)) | 0; return (ch(v * (1 + w * 0.07)) << 16) | (ch(v) << 8) | ch(v * (1 - w * 0.08)); };
   // streets: kerb top, kerb face, gutter, setts, crown, setts, gutter, kerb face, kerb top
   for (const r of streets) {
     const hw = r.w / 2, cols = [[-hw - 0.34, 0.13, 0.95], [-hw, 0.13, 1.0], [-hw, 0.025, 0.58], [-hw + 0.45, 0.025, 0.7], [-hw * 0.45, 0.04, 0.86], [0, 0.06, 0.9], [hw * 0.45, 0.04, 0.86], [hw - 0.45, 0.025, 0.7], [hw, 0.025, 0.58], [hw, 0.13, 1.0], [hw + 0.34, 0.13, 0.95]];
     const P = [];
     for (let i = 0; i + 1 < r.pts.length; i++) { const [ax, az] = r.pts[i], [bx, bz] = r.pts[i + 1], L = Math.hypot(bx - ax, bz - az), n = Math.max(1, Math.ceil(L / 0.6)); for (let k = 0; k < n; k++) P.push([ax + (bx - ax) * k / n, az + (bz - az) * k / n]); }
     P.push(r.pts[r.pts.length - 1]);
+    const alongS = [0]; for (let i = 1; i < P.length; i++) alongS.push(alongS[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));   // v41: the courses run across the street
     const rows = P.map((q, i) => {
       const a = P[Math.max(0, i - 1)], b = P[Math.min(P.length - 1, i + 1)], dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz) || 1, nx = -dz / l, nz = dx / l;
       if (inSquare(q[0], q[1], 0.05) || q[0] < -30 || q[0] > MW + 30 || q[1] < -30 || q[1] > MH + 30) return null;
-      return cols.map(([o, lift, k]) => { const x = q[0] + nx * o, z = q[1] + nz * o; return [x, groundY(x, z) + lift, z, tint(x, z, k)]; });
+      return cols.map(([o, lift, k]) => { const x = q[0] + nx * o, z = q[1] + nz * o; return [x, groundY(x, z) + lift, z, tint(x, z, k), o, alongS[i]]; });
     });
     for (let i = 0; i + 1 < rows.length; i++) {
       const A = rows[i], B = rows[i + 1]; if (!A || !B) continue;
       for (let j = 0; j + 1 < cols.length; j++) {
         const a = A[j], b = A[j + 1], c = B[j + 1], d = B[j];
-        uvQ(Q, a, b, c, d, [a[0] / S, a[2] / S], [b[0] / S, b[2] / S], [c[0] / S, c[2] / S], [d[0] / S, d[2] / S], colOf(a[3]), colOf(b[3]), colOf(c[3]), colOf(d[3]));
+        const U = p => [p[4] / S, p[5] / S + r.pts[0][0] * 0.37];
+        uvQ(Q, a, b, c, d, U(a), U(b), U(c), U(d), colOf(a[3]), colOf(b[3]), colOf(c[3]), colOf(d[3]));
       }
     }
   }
@@ -5057,20 +5061,45 @@ const TEX = {
     drawStones(x, 0, 0, N, N, [0xa8a294, 0x9a958a, 0xb4ae9e, 0x8c877c, 0xa69c88, 0x958a76], '#5e584e', 26, 44);
     for (let i = 0; i < 60; i++) { x.fillStyle = `rgba(80,110,50,${0.08 + trnd() * 0.1})`; x.beginPath(); x.arc(trnd() * N, trnd() * N, 3 + trnd() * 10, 0, 6.283); x.fill(); }
   }),
-  // cobbles (setts), 1.8 m square
-  cobble: canvasTex(256, (x, N) => {
-    x.fillStyle = '#34322c'; x.fillRect(0, 0, N, N);
-    const rows = 12, rh = N / rows;
-    for (let r = 0; r < rows; r++) for (let sx = -(r % 2) * rh * 0.6; sx < N;) {
-      const sw = rh * (0.95 + trnd() * 0.5), base = [0x8a867c, 0x7d7a72, 0x9a968c, 0x86807a, 0x928a7e][(trnd() * 5) | 0], k = 0.85 + trnd() * 0.3, Y = r * rh;
-      const g = x.createRadialGradient(sx + sw * 0.4, Y + rh * 0.35, 1, sx + sw / 2, Y + rh / 2, sw * 0.7); g.addColorStop(0, shade(base, k * 1.2)); g.addColorStop(1, shade(base, k * 0.7));
-      x.fillStyle = g; x.beginPath(); const rr = rh * 0.3, X0 = sx + 1.5, Y0 = Y + 1.5, W = sw - 3, H = rh - 3;
-      x.moveTo(X0 + rr, Y0); x.arcTo(X0 + W, Y0, X0 + W, Y0 + H, rr); x.arcTo(X0 + W, Y0 + H, X0, Y0 + H, rr); x.arcTo(X0, Y0 + H, X0, Y0, rr); x.arcTo(X0, Y0, X0 + W, Y0, rr); x.fill();
-      sx += sw;
+  // v41: cobbles (setts), 3 m square, ~21 cm courses. Seamless both ways (v40's did not wrap, so the tile edge showed as a
+  // grid line every 1.8 m), irregular rounded stones of mixed stone (granite greys, blue-grey, buff, brown, the odd dark
+  // basalt or rust one), widths and course heights varied, a few sunken or missing, moss and grit in the joints.
+  cobble: canvasTex(512, (x, N) => {
+    x.fillStyle = '#4a463d'; x.fillRect(0, 0, N, N);
+    for (let i = 0; i < 260; i++) { x.fillStyle = trnd() < 0.5 ? 'rgba(70,62,48,0.5)' : 'rgba(30,28,24,0.5)'; x.fillRect(trnd() * N, trnd() * N, 2 + trnd() * 5, 2 + trnd() * 5); }   // grit in the joints
+    const PAL = [0x8e8a80, 0x84817a, 0x9c978c, 0x8a8680, 0x7c8084, 0x767c80, 0xa29a8a, 0x968c7c, 0x8c8272, 0x6e6c68, 0x9a9184, 0xa8a49a];
+    const rows = 13, H = []; let sum = 0;
+    for (let r = 0; r < rows; r++) { const h = 0.82 + trnd() * 0.36; H.push(h); sum += h; }
+    let Y = 0;
+    for (let r = 0; r < rows; r++) {
+      const rh = H[r] / sum * N, W = []; let ws = 0;
+      while (ws < N - rh * 0.9) { const w = rh * (0.9 + trnd() * 0.75); W.push(w); ws += w; }
+      const kx = N / ws; let X = trnd() * N;
+      for (const w0 of W) {
+        const sw = w0 * kx, base = PAL[(trnd() * PAL.length) | 0], k = 0.84 + trnd() * 0.3, gone = trnd() < 0.015, sunk = trnd() < 0.06;
+        const jx = (trnd() - 0.5) * rh * 0.12, jy = (trnd() - 0.5) * rh * 0.12, pts = [];
+        const cxs = X + sw / 2 + jx, cys = Y + rh / 2 + jy, ax = sw / 2 - 1.2 - trnd() * 1.6, ay = rh / 2 - 1.2 - trnd() * 1.6;
+        for (let i = 0; i < 10; i++) { const t = i / 10 * 6.283, c = Math.cos(t), sn = Math.sin(t), sq = 0.32 + trnd() * 0.22;   // a rounded box, each corner its own
+          const ex = Math.sign(c) * Math.pow(Math.abs(c), sq), ey = Math.sign(sn) * Math.pow(Math.abs(sn), sq); pts.push([ex * ax * (0.94 + trnd() * 0.08), ey * ay * (0.94 + trnd() * 0.08)]); }
+        for (const ox of [-N, 0, N]) for (const oy of [-N, 0, N]) {
+          const px = cxs + ox, py = cys + oy; if (px + sw < 0 || px - sw > N || py + rh < 0 || py - rh > N) continue;
+          x.beginPath(); pts.forEach(([u, v], i) => x[i ? 'lineTo' : 'moveTo'](px + u, py + v)); x.closePath();
+          if (gone) { x.fillStyle = '#231f19'; x.fill(); continue; }
+          const kk = sunk ? k * 0.7 : k, g = x.createRadialGradient(px - ax * 0.3, py - ay * 0.35, 1, px, py, Math.max(ax, ay) * 1.15);
+          g.addColorStop(0, shade(base, kk * 1.14)); g.addColorStop(0.6, shade(base, kk)); g.addColorStop(1, shade(base, kk * 0.76));
+          x.fillStyle = g; x.fill();
+          x.save(); x.clip();
+          for (let i = 0; i < 6; i++) { x.fillStyle = trnd() < 0.5 ? 'rgba(255,250,235,0.07)' : 'rgba(20,18,14,0.09)'; x.beginPath(); x.arc(px + (trnd() - 0.5) * sw, py + (trnd() - 0.5) * rh, 1 + trnd() * 3, 0, 6.283); x.fill(); }   // grain
+          x.restore();
+        }
+        X += sw;
+      }
+      Y += rh;
     }
+    for (let i = 0; i < 90; i++) { const mx = trnd() * N, my = trnd() * N; x.fillStyle = `rgba(${70 + trnd() * 30 | 0},${100 + trnd() * 30 | 0},${40 + trnd() * 20 | 0},${0.25 + trnd() * 0.25})`; x.fillRect(mx, my, 2 + trnd() * 6, 1.5 + trnd() * 2.5); }   // moss in the joints
   }),
 };
-const TEXSZ = { tile: 2.0, plaster: 4.0, stone: 3.0, cobble: 1.8 };
+const TEXSZ = { tile: 2.0, plaster: 4.0, stone: 3.0, cobble: 3.0 };
 const TEXMAT = {};
 for (const k in TEX) { const m = new THREE.MeshPhongMaterial({ map: TEX[k], vertexColors: true, flatShading: true, shininess: k === 'tile' ? 12 : 5, specular: SC(0x18150f) }); TEXMAT[k] = m; }
 TEXMAT.cobble.polygonOffset = true; TEXMAT.cobble.polygonOffsetFactor = -1; TEXMAT.cobble.polygonOffsetUnits = -4;   // v40: the streets lie on the ground
@@ -5480,8 +5509,11 @@ function mkBuilding(b, into) {
         PL.push({ g: GEO.box, m: M4(px, 0.475, pz, ow, 0.95, od), dirt: true }, { g: GEO.box, m: M4(px, (WALL_H + 2.05) / 2, pz, ow, WALL_H - 2.05, od) });
         const t = horiz ? (px) * N[2] : -(pz) * N[0], fx = horiz ? 0 : px + N[0] * (od / 2 + 0.01), fz = horiz ? pz + N[2] * (od / 2 + 0.01) : 0;
         const ffx = horiz ? 0 : (outer > 0 ? x + w : x) - cx, ffz = horiz ? (outer > 0 ? z + d : z) - cz : 0;
-        fbox(VC, ffx, ffz, N, t, 1.5, 0.02, 1.4, 1.4, 0.06, 0xc4bcaa);   // the surround …
-        fbox(VC, ffx, ffz, N, t, 1.5, -0.2, 1.1, 1.1, 0.5, 0x15130f);    // … the dark room behind it …
+        // v41: the surround is a frame round the opening, not a slab across it (v40's slab and the dark box shared their
+        // front face at +0.05 m and z-fought, which shimmered as the camera moved). The dark is a panel set back in the reveal.
+        for (const sg of [-1, 1]) fbox(VC, ffx, ffz, N, t + sg * 0.63, 1.5, 0.03, 0.16, 1.42, 0.06, 0xc4bcaa);
+        fbox(VC, ffx, ffz, N, t, 2.13, 0.03, 1.42, 0.16, 0.06, 0xc4bcaa);
+        fbox(VC, ffx, ffz, N, t, 1.5, -0.4, 1.06, 1.06, 0.04, 0x15130f);
         fbox(VC, ffx, ffz, N, t, 0.9, 0.1, 1.5, 0.12, 0.26, 0xb4ac9a);   // … the sill
         for (const sg of [-1, 1]) { fbox(VC, ffx, ffz, N, t + sg * 1.12, 1.5, 0.06, 0.58, 1.2, 0.05, sg < 0 ? 0x3e5a3a : 0x5a3a22); fbox(VC, ffx, ffz, N, t + sg * 1.12, 1.5, 0.09, 0.5, 0.06, 0.02, 0x2a2018); }
         if (hash2(wa0(t), bseed) < 0.3) fbox(VC, ffx, ffz, N, t, 1.18, 0.32, 1.0, 0.16, 0.2, 0x6a4a2c);   // the odd window box
