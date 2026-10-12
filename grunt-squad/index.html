@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="theme-color" content="#0d1408">
 <title>Grunt Squad — Khalifa Games</title>
-<meta name="description" content="A top-down tactical stealth shooter in the Cannon Fodder tradition. Four grunts, fifteen operations, no install.">
+<meta name="description" content="A top-down tactical stealth shooter in the Cannon Fodder tradition. Four grunts, sixteen operations, no install.">
 <meta property="og:title" content="Grunt Squad — war, but badly organised">
-<meta property="og:description" content="Four grunts, fifteen operations. Crawl past the sentries, post a grenade through the slit, get home.">
+<meta property="og:description" content="Four grunts, sixteen operations. Crawl past the sentries, post a grenade through the slit, get home.">
 <meta property="og:image" content="https://khalifa.games/grunt-squad/title.png">
 <meta property="og:url" content="https://khalifa.games/grunt-squad/">
 <meta name="twitter:card" content="summary_large_image">
@@ -34,6 +34,9 @@ canvas#gl{display:block;position:fixed;inset:0}
   background:radial-gradient(ellipse 70% 60% at 50% 50%,rgba(216,72,58,0) 55%,rgba(190,40,30,.75) 100%);transition:opacity .18s}
 #flash{position:fixed;inset:0;z-index:7;pointer-events:none;opacity:0;background:#ffe9c0}
 /* mobile: blend-mode layers over WebGL force a full-screen composite every frame — swap for plain alpha */
+/* v38: grey and wet ops close in harder at the corners, as the reference does */
+body.wet #grade{background:radial-gradient(ellipse 74% 64% at 50% 48%,rgba(0,0,0,0) 38%,rgba(4,10,8,.38) 72%,rgba(2,6,4,.78) 100%)}
+body.mobile.wet #grade{background:radial-gradient(ellipse 74% 64% at 50% 48%,rgba(0,0,0,0) 42%,rgba(4,10,8,.3) 74%,rgba(2,6,4,.62) 100%)}
 body.mobile #grade{mix-blend-mode:normal;background:radial-gradient(ellipse 78% 68% at 50% 46%,rgba(0,0,0,0) 50%,rgba(4,10,2,.22) 80%,rgba(2,6,1,.5) 100%)}
 body.mobile #warm{display:none}
 body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
@@ -356,7 +359,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
     <button id="tset">SETTINGS <small>sound · music · graphics</small></button>
   </div>
   <div class="foot">© GAMELAB · NO GRUNTS WERE CONSULTED</div>
-  <div id="tver">v34</div>
+  <div id="tver">v40</div>
 </div>
 
 <div id="ops" class="screen">
@@ -756,7 +759,7 @@ function lookInject(sh, m) {
 #if defined( TONE_MAPPING )
   {
     vec3 lkG = gl_FragColor.rgb; float lkY = dot(lkG, vec3(0.2126, 0.7152, 0.0722));
-    lkG = max(mix(vec3(lkY), lkG, 0.96), 0.0);
+    lkG = max(mix(vec3(lkY), lkG, 1.05), 0.0);   // v38: a touch richer in the greens (was 0.96, a touch flatter)
     vec3 lkT = mix(vec3(0.95, 0.98, 1.06), vec3(1.05, 1.01, 0.93), smoothstep(0.015, 0.2, lkY));
     gl_FragColor.rgb = mix(gl_FragColor.rgb, lkG * lkT, uLkGrade);
   }
@@ -832,6 +835,41 @@ function lookInject(sh, m) {
     transformed.xz += swL * swG * 0.014 * swH * swH * uAtSway;
   }`);
   }
+  // v35: the grass family (tufts, clover, ferns, flowers). Lit as the field is (up-facing normals, both sides),
+  // a per-vertex tint weight, wind sway by height², and flattened round the men in GS_U (x, z, radius, on).
+  if (ud.gsGrass) {
+    sh.uniforms.uGsU = grassU; sh.uniforms.uAtT = ATMO.t; sh.uniforms.uAtWind = ATMO.wind; sh.uniforms.uAtSway = ATMO.sway;
+    vs = vs.replace('#include <common>', `#include <common>
+attribute float tw; uniform vec4 uGsU[${GRASS.slots}]; uniform float uAtT, uAtSway; uniform vec2 uAtWind;`)
+      .replace('#include <color_vertex>', `#include <color_vertex>
+#if defined( USE_COLOR ) && defined( USE_INSTANCING_COLOR )
+  vColor = color * mix(vec3(1.0), instanceColor.xyz, tw);
+#endif`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+  {
+#ifdef USE_INSTANCING
+    mat4 gsM = instanceMatrix;
+#else
+    mat4 gsM = mat4(1.0);
+#endif
+    vec2 gsP = (modelMatrix * gsM[3]).xz;
+    float gsF = 1.0;
+    for (int i = 0; i < ${GRASS.slots}; i++) {
+      vec4 u = uGsU[i];
+      gsF = min(gsF, mix(1.0, smoothstep(u.z * 0.45, u.z, distance(gsP, u.xy)), u.w));
+    }
+    float gsH = max(0.0, position.y);
+    transformed.y = mix(min(transformed.y, 0.0) + gsH * 0.16, transformed.y, gsF);
+    transformed.xz *= mix(1.55, 1.0, gsF);
+    float gsS = max(1e-3, dot(gsM[0].xyz, gsM[0].xyz));
+    vec2 gsW = vec2(dot(uAtWind, gsM[0].xz), dot(uAtWind, gsM[2].xz)) / gsS;
+    float gsG = sin(uAtT * 1.9 + gsP.x * 0.41 + gsP.y * 0.27) * 0.55 + sin(uAtT * 3.3 + gsP.x * 0.17 - gsP.y * 0.33) * 0.3 + 0.45;
+    float gsFl = sin(uAtT * 7.0 + position.x * 31.0 + position.z * 23.0 + gsP.x) * 0.25;
+    transformed.xz += (gsW * gsG + vec2(gsFl, -gsFl) * 0.4) * 0.55 * gsH * gsH * uAtSway * gsF;
+  }`);
+    fs = fs.replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>\n  normal = normalize( vNormal );');
+  }
+  if (ud.upN) fs = fs.replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>\n  normal = normalize( vNormal );');   // v36: flat water, lit as up from both sides
   sh.fragmentShader = fs; sh.vertexShader = vs;
 }
 THREE.Material.prototype.onBeforeCompile = function (sh) { lookInject(sh, this); };
@@ -1134,7 +1172,7 @@ const detailTex = (() => {
   t.wrapS = t.wrapT = THREE.RepeatWrapping; t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearMipmapLinearFilter; t.generateMipmaps = true;
   t.anisotropy = Math.min(4, R.capabilities.getMaxAnisotropy()); t.needsUpdate = true; return t;
 })();
-const gndMat = new THREE.MeshPhongMaterial({ vertexColors: true, flatShading: true, shininess: 4, specular: SC(0x101010) });
+const gndMat = new THREE.MeshPhongMaterial({ vertexColors: true, flatShading: false, shininess: 4, specular: SC(0x101010) });   // v35: smooth — the facets belong to the props, not the field
 const GFX_DET = { value: 1 };
 gndMat.onBeforeCompile = sh => {
   sh.uniforms.uDet = { value: detailTex }; sh.uniforms.uDetOn = GFX_DET;
@@ -1198,6 +1236,7 @@ function buildRoadDelta() {
       else { if (v < roadDelta[k]) roadDelta[k] = v; roadFoot[k] = 1; }
     }
   }
+  markStreetFoot();   // v40
 }
 function roadDeltaAt(x, z) {
   if (!roadDelta) return 0;
@@ -1283,11 +1322,11 @@ function buildRoadStrips() {
         }
         else if (kind === 'bank') { c.copy(outer ? LP.mid : LP.lush).lerp(LP.dry, 0.2 + h * 0.3); if (!outer) c.lerp(LP.verge, 0.15); }
         else if (kind === 'verge') c.copy(LP.verge).lerp(LP.grav, h * 0.4).lerp(LP.dirtD, along * 0.3);
-        else if (kind === 'fray') c.copy(road ? LP.verge : LP.dirt).lerp(LP.dry, 0.35 + h * 0.3);
+        else if (kind === 'fray') { if (road) c.copy(LP.verge).lerp(LP.dry, 0.35 + h * 0.3); else terrCol(px, pz, groundY(px, pz), 1, hash2(px * 1.7, pz * 1.3), c); }   // v36: the strip's ragged edge takes the ground's own colour, so it melts into the churned verge
         else if (kind === 'rut') { c.copy(LP.rut).lerp(LP.dirtD, h * 0.4); if (weatherRain) c.copy(LP.mudWet).lerp(LP.rut, 0.3); }
-        else if (kind === 'crown') c.copy(LP.dirt).lerp(LP.mid, 0.45 + h * 0.2);
-        else c.copy(LP.dirt).lerp(LP.dirtD, h * 0.5);
-        c.multiplyScalar(0.94 + hash2(px * 5.1, pz * 4.3) * 0.12);
+        else if (kind === 'crown') { c.copy(LP.dirt).lerp(LP.mid, 0.45 + h * 0.2); if (weatherRain) c.lerp(LP.mudWet, 0.25); }
+        else { c.copy(LP.dirt).lerp(LP.dirtD, h * 0.5); if (!road) c.lerp(mudCol(px, pz, h, _mc), weatherRain ? 0.7 : 0.4); }   // v36: packed mud, not sand
+        if (kind !== 'fray' || road) c.multiplyScalar(0.94 + hash2(px * 5.1, pz * 4.3) * 0.12);
         return [px, groundY(px, pz) + lift, pz, c.r, c.g, c.b];
       }));
     }
@@ -1306,8 +1345,73 @@ function buildRoadStrips() {
       for (let i = 0; i < col.length; i += 9) for (let k = 0; k < 3; k++) { const t = col[i + 3 + k]; col[i + 3 + k] = col[i + 6 + k]; col[i + 6 + k] = t; }
       g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.computeVertexNormals(); }
     const mt = ri ? roadMat.clone() : roadMat; if (ri) mt.polygonOffsetUnits = -4 - ri * 3;   // a later road wins where two cross
+    mt.shininess = weatherRain ? 34 : 3; mt.specular = SC(weatherRain ? 0x2c3236 : 0x0c0c0c);   // v36: wet mud and tar shine
     const m = new THREE.Mesh(g, mt); m.receiveShadow = true; m.renderOrder = 0; roadRoot.add(m);
   });
+}
+
+/* v40: cobbled streets and squares (the village). Not roads: no relief, no traffic, no ruts or mud. A street is a strip
+   of setts between kerbs with a gutter each side; a square is paved edge to edge. Both are textured (TEX.cobble, world
+   uv), lie on groundY, and mark roadFoot so the ground mesh sinks beneath them and nothing grows through. Where a street
+   meets a square, the street stops at the square's edge. Lay junctions as squares. */
+let streets = [], squares = [];
+const streetRoot = new THREE.Group(); scene.add(streetRoot);
+function setStreets(M) {
+  streets = (M.streets || []).map(r => ({ w: r.w || 6, pts: r.pts.map(p => [p[0] * MW, p[1] * MH]) }));
+  squares = (M.squares || []).map(q => ({ x0: q.x * MW, z0: q.z * MH, x1: (q.x + q.w) * MW, z1: (q.z + q.d) * MH }));
+}
+const inSquare = (x, z, pad) => squares.some(q => x > q.x0 - pad && x < q.x1 + pad && z > q.z0 - pad && z < q.z1 + pad);
+function onStreet(x, z, pad) { if (inSquare(x, z, pad || 0)) return true; for (const r of streets) if (segDist(r.pts, x, z) < r.w / 2 + 0.35 + (pad || 0)) return true; return false; }
+function markStreetFoot() {   // called at the end of buildRoadDelta
+  if (!streets.length && !squares.length) return;
+  for (let j = 0; j < RD_N; j++) for (let i = 0; i < RD_N; i++) {
+    const x = RD_X0 + i * RD_S, z = RD_X0 + j * RD_S;
+    if (x < -2 || x > MW + 2 || z < -2 || z > MH + 2) continue;
+    if (onStreet(x, z, -0.15)) roadFoot[j * RD_N + i] = 1;
+  }
+}
+function buildStreets() {
+  for (const m of streetRoot.children.slice()) { streetRoot.remove(m); m.geometry.dispose(); }
+  if (!streets.length && !squares.length) return;
+  const Q = { p: [], uv: [], c: [] }, S = TEXSZ.cobble, at = (x, z, lift) => [x, groundY(x, z) + lift, z];
+  const tint = (x, z, k) => { const v = k * (0.88 + vnoise(x * 0.35 + 3.1, z * 0.35 - 7.3) * 0.2); return v; };
+  const colOf = v => { const c = Math.max(0, Math.min(255, v * 255)) | 0; return (c << 16) | (c << 8) | c; };
+  // streets: kerb top, kerb face, gutter, setts, crown, setts, gutter, kerb face, kerb top
+  for (const r of streets) {
+    const hw = r.w / 2, cols = [[-hw - 0.34, 0.13, 0.95], [-hw, 0.13, 1.0], [-hw, 0.025, 0.58], [-hw + 0.45, 0.025, 0.7], [-hw * 0.45, 0.04, 0.86], [0, 0.06, 0.9], [hw * 0.45, 0.04, 0.86], [hw - 0.45, 0.025, 0.7], [hw, 0.025, 0.58], [hw, 0.13, 1.0], [hw + 0.34, 0.13, 0.95]];
+    const P = [];
+    for (let i = 0; i + 1 < r.pts.length; i++) { const [ax, az] = r.pts[i], [bx, bz] = r.pts[i + 1], L = Math.hypot(bx - ax, bz - az), n = Math.max(1, Math.ceil(L / 0.6)); for (let k = 0; k < n; k++) P.push([ax + (bx - ax) * k / n, az + (bz - az) * k / n]); }
+    P.push(r.pts[r.pts.length - 1]);
+    const rows = P.map((q, i) => {
+      const a = P[Math.max(0, i - 1)], b = P[Math.min(P.length - 1, i + 1)], dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz) || 1, nx = -dz / l, nz = dx / l;
+      if (inSquare(q[0], q[1], 0.05) || q[0] < -30 || q[0] > MW + 30 || q[1] < -30 || q[1] > MH + 30) return null;
+      return cols.map(([o, lift, k]) => { const x = q[0] + nx * o, z = q[1] + nz * o; return [x, groundY(x, z) + lift, z, tint(x, z, k)]; });
+    });
+    for (let i = 0; i + 1 < rows.length; i++) {
+      const A = rows[i], B = rows[i + 1]; if (!A || !B) continue;
+      for (let j = 0; j + 1 < cols.length; j++) {
+        const a = A[j], b = A[j + 1], c = B[j + 1], d = B[j];
+        uvQ(Q, a, b, c, d, [a[0] / S, a[2] / S], [b[0] / S, b[2] / S], [c[0] / S, c[2] / S], [d[0] / S, d[2] / S], colOf(a[3]), colOf(b[3]), colOf(c[3]), colOf(d[3]));
+      }
+    }
+  }
+  // squares: a 1 m grid of setts, darker at the edge, and a kerb round the outside
+  for (const q of squares) {
+    const nx = Math.ceil(q.x1 - q.x0), nz = Math.ceil(q.z1 - q.z0), dx = (q.x1 - q.x0) / nx, dz = (q.z1 - q.z0) / nz;
+    const V = (i, j) => { const x = q.x0 + i * dx, z = q.z0 + j * dz, edge = Math.min(i, nx - i, j, nz - j) === 0; return [x, groundY(x, z) + 0.035, z, tint(x, z, edge ? 0.72 : 0.9)]; };
+    for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
+      const a = V(i, j), b = V(i + 1, j), c = V(i + 1, j + 1), d = V(i, j + 1);
+      uvQ(Q, a, b, c, d, [a[0] / S, a[2] / S], [b[0] / S, b[2] / S], [c[0] / S, c[2] / S], [d[0] / S, d[2] / S], colOf(a[3]), colOf(b[3]), colOf(c[3]), colOf(d[3]));
+    }
+  }
+  // every face up
+  for (let i = 0; i < Q.p.length; i += 9) {
+    const ux = Q.p[i + 3] - Q.p[i], uz = Q.p[i + 5] - Q.p[i + 2], vx = Q.p[i + 6] - Q.p[i], vz = Q.p[i + 8] - Q.p[i + 2];
+    if (uz * vx - ux * vz < 0) for (let j = 0; j < 3; j++) { let t = Q.p[i + 3 + j]; Q.p[i + 3 + j] = Q.p[i + 6 + j]; Q.p[i + 6 + j] = t; t = Q.c[i + 3 + j]; Q.c[i + 3 + j] = Q.c[i + 6 + j]; Q.c[i + 6 + j] = t; if (j < 2) { const ti = i / 3 * 2; t = Q.uv[ti + 2 + j]; Q.uv[ti + 2 + j] = Q.uv[ti + 4 + j]; Q.uv[ti + 4 + j] = t; } }
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(Q.p, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(Q.uv, 2)); g.setAttribute('color', new THREE.Float32BufferAttribute(Q.c, 3));
+  g.computeVertexNormals();
+  const m = new THREE.Mesh(g, TEXMAT.cobble); m.receiveShadow = true; m.renderOrder = 0; streetRoot.add(m);
 }
 
 /* v26: what the ground MESH shows, as opposed to groundY (where things stand). Two differences:
@@ -1331,101 +1435,177 @@ function terrainVisY(x, z) {
   let y = groundY(x, z);
   if (mesas.length) y += mesaLift(x, z, true) - mesaLift(x, z);   // v30: the plateau ends in a step behind the rock wall
   if (ridgeLifts.length) y += ridgeLift(x, z);
-  if (roads.length && roadFootAt(x, z)) y -= 0.14;   // v34: under the whole strip, banks included
+  if ((roads.length || streets.length || squares.length) && roadFootAt(x, z)) y -= 0.14;   // v34: under the whole strip, banks included (v40: and the streets)
   return y;
 }
 
+/* v36: churned mud. Where men and lorries turn — at a door, where a track ends by a hut, where it meets a road — the
+   ground is trodden into a broad apron, and along every track the verge is churned out past the strip, its edge
+   ragged where it bleeds into the grass. mudAt() is 0 (grass) to 1 (mud); the ground colour, the grass density and
+   the pebbles all read it. Purely visual: nothing about movement or concealment changes. */
+let aprons = [];
+const sstep = (a, b, v) => { const t = Math.max(0, Math.min(1, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
+function planAprons(M) {
+  aprons = [];
+  for (const b of (M.buildings || [])) {
+    const dx = (b.doorX + (b.doorW || .03) / 2) * MW, dz = (b.doorZ + (b.doorD || .03) / 2) * MH;
+    const bx0 = b.x * MW, bz0 = b.z * MH, bx1 = (b.x + b.w) * MW, bz1 = (b.z + b.d) * MH, dl = [dx - bx0, bx1 - dx, dz - bz0, bz1 - dz], m = Math.min(...dl);
+    const ox = m === dl[0] ? -1 : m === dl[1] ? 1 : 0, oz = ox ? 0 : m === dl[2] ? -1 : 1;
+    aprons.push({ x: dx + ox * 2.4, z: dz + oz * 2.4, r: 3.8 });
+  }
+  for (const r of roads) {
+    if (r.kind === 'road') continue;
+    for (const e of [r.pts[0], r.pts[r.pts.length - 1]])
+      if (pads.some(p => e[0] > p.x0 - 8 && e[0] < p.x1 + 8 && e[1] > p.z0 - 8 && e[1] < p.z1 + 8)) aprons.push({ x: e[0], z: e[1], r: 3.4 });
+    // where it meets a road
+    for (const o of roads) {
+      if (o.kind !== 'road') continue;
+      for (let i = 0; i + 1 < r.pts.length; i++) {
+        const [ax, az] = r.pts[i], [bx, bz] = r.pts[i + 1], L = Math.hypot(bx - ax, bz - az);
+        for (let d = 0; d < L; d += 1) {
+          const x = ax + (bx - ax) * d / L, z = az + (bz - az) * d / L;
+          if (segDist(o.pts, x, z) < o.w / 2 * 1.7 && !aprons.some(A => Math.hypot(A.x - x, A.z - z) < 5)) aprons.push({ x, z, r: 2.8 });
+        }
+      }
+    }
+  }
+}
+function mudAt(x, z) {
+  let m = 0;
+  const n = (vnoise(x * 0.55 + 4.1, z * 0.55 - 2.7) - 0.5) * 0.9 + (vnoise(x * 1.7 - 3.3, z * 1.7 + 1.9) - 0.5) * 0.35;
+  for (const A of aprons) { const d = Math.hypot(x - A.x, z - A.z) / A.r + n * 0.45; if (d < 1.3) m = Math.max(m, sstep(1.3, 0.72, d)); }
+  for (const r of roads) {
+    if (r.kind === 'road') continue;
+    const t = segDist(r.pts, x, z) / (r.w / 2) + n * 0.75;
+    if (t < 2.2) m = Math.max(m, sstep(2.2, 1.2, t) * 0.92);
+  }
+  const pd = pads.length ? padBlend(x, z) : null; if (pd && pd.f > 0.05) m = Math.max(m, sstep(0.06, 0.45, pd.f + n * 0.25));
+  return m;
+}
+function mudCol(x, z, h, c) {
+  if (weatherRain) c.copy(LP.mudWet).lerp(LP.mud, 0.25 + h * 0.4);
+  else c.copy(LP.mud).lerp(LP.dirtD, 0.3 + h * 0.3);
+  return c;
+}
+/* v35: the grass colour on its own, so the tufts can wear the colour of the ground they grow from */
+function grassCol(cx, cz, h, c) {
+  const cl = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  // three greens in clumps a metre or two across, drying in broad patches
+  const clump = cl(vnoise(cx * 0.42 + 7.1, cz * 0.42 - 3.3) * 0.75 + h * 0.25, 0, 1);
+  c.copy(clump < 0.33 ? LP.lush : clump < 0.66 ? LP.mid : LP.deep);
+  // v34: field-sized swathes — a yellow-green meadow here, dark moss there, olive scrub between
+  const macro = fbm(cx * 0.016 + 5.3, cz * 0.016 - 9.1), meso = vnoise(cx * 0.12 + 2.3, cz * 0.12 + 8.1);
+  if (macro > 0.6) c.lerp(LP.meadow, cl((macro - 0.6) * 2.6, 0, 0.75) * (0.6 + meso * 0.4));
+  else if (macro < 0.38) c.lerp(LP.moss, cl((0.38 - macro) * 2.8, 0, 0.7));
+  if (meso > 0.72) c.lerp(LP.olive, (meso - 0.72) * 1.6);
+  // blue-green and lusher by water, straw-coloured on the high ground
+  if (waterZones.length) { const q = riverInset(cx, cz); if (q > -6) c.lerp(LP.sea, cl((q + 6) / 5, 0, 0.55)); }
+  const hi = baseY(cx, cz); if (hi > 0.9) c.lerp(LP.straw, cl((hi - 0.9) * 0.5, 0, 0.35));
+  // clover and flower-dotted patches, a metre across
+  if (vnoise(cx * 0.85 + 1.7, cz * 0.85 - 4.2) > 0.78) c.lerp(LP.clover, 0.4);
+  const dry = cl((fbm(cx * 0.035 + 21, cz * 0.035 + 33) - 0.5) * 2.4, 0, 1);
+  c.lerp(LP.dry, dry * (0.45 + clump * 0.35));
+  if (weatherRain) c.multiplyScalar(0.86);   // wet grass is darker
+  return c;
+}
+/* the ground's colour and splat weights at one point. v35: evaluated per VERTEX (it was per facet), so grounds
+   blend into each other and the triangles no longer show as a mosaic of plates. ny: 1 flat, 0 vertical. */
+const _tw = [0, 0, 0, 0], _mc = new THREE.Color();
+function terrCol(cx, cz, cy, ny, h, c) {
+  const cl = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  let w0 = 0, w1 = 0, w2 = 0, w3 = 0;                  // splat weights: grass, mud, dirt, gravel
+  const wf = waterFactor(cx, cz), pd = padBlend(cx, cz);
+  const sy0 = baseY(cx, cz) - WATER_DROP;
+  if (ny < 0.72 && !(pd && pd.f > 0.5) && (wf > 0.02 ? cy > sy0 - 0.65 : true)) {
+    // a cut bank or cliff face: earth in bands, darker toward its foot
+    const band = vnoise(cy * 2.2, (cx + cz) * 0.3);
+    c.copy(LP.earth).lerp(LP.earthD, band * 0.6 + (1 - ny) * 0.3); w1 = 1;
+  } else if (wf < 0.05 && waterZones.length && (() => { const q = riverInset(cx, cz); return q > -1.7 && q < -0.55; })() && !onBridge(cx, cz, 2.5) && vnoise(cx * 0.13 + 5, cz * 0.13 + 9) > 0.52) {
+    // a pebble beach along the top of the bank, in stretches
+    c.copy(LP.peb).lerp(LP.pebD, h * 0.7); w3 = 1;
+  } else if (pd && pd.f > 0.5) {
+    mudCol(cx, cz, h, c); w1 = 1;    // trodden mud round a building (v36: wet in the rain)
+  } else if (wf > 0.02) {
+    // the bank goes to wet mud, the bed to grey-green silt that darkens with depth
+    if (wf < 0.28) { c.copy(LP.mudWet).lerp(LP.mud, h * 0.4); w1 = 1; }
+    else { c.copy(LP.bed).lerp(LP.bedD, cl((wf - 0.28) * 1.4, 0, 1)); w3 = 1; }
+    if (cy < sy0) c.lerp(LP.sub, cl((sy0 - cy) * 0.9, 0, 0.7));
+  } else {
+    const rd = roadDist(cx, cz);
+    if (rd && rd.t < (rd.kind === 'road' ? 1.12 : 1)) {
+      if (rd.kind === 'road') {
+        if (rd.t > 0.8) { c.copy(LP.verge).lerp(LP.dirtD, h * 0.5); w2 = 1; }
+        else {
+          const patch = vnoise(cx * 0.32 + 11, cz * 0.32 - 5);
+          c.copy(LP.tar).lerp(LP.tarD, h * 0.6); if (patch > 0.7) c.lerp(LP.grav, 0.22); else if (patch < 0.25) c.multiplyScalar(0.9);
+          w2 = 0.5; w3 = 0.2;
+        }
+      } else {
+        c.copy(LP.dirt).lerp(LP.dirtD, h * 0.6); w2 = 1;
+        if (rd.t < 0.22) { c.lerp(LP.mid, 0.45); w0 = 0.5; w2 = 0.5; }
+        else if (rd.t < 0.66) c.lerp(LP.rut, 0.55);
+        else if (rd.t > 0.82) { c.lerp(LP.dry, 0.4); w0 = 0.4; w2 = 0.6; }
+      }
+    } else {
+      grassCol(cx, cz, h, c); w0 = 1;
+      c.multiplyScalar(0.9);   // v35: a shade under the tufts, so they read against it
+      const md = mudAt(cx, cz);   // v36: churned mud round doors, track ends and along the verges
+      if (md > 0) { c.lerp(mudCol(cx, cz, h, _mc), md); w0 = 1 - md; w1 = md; }
+    }
+  }
+  // v35: no longer "every facet a shade apart" — a soft mottle that blends between vertices
+  c.multiplyScalar(0.95 + vnoise(cx * 1.9 + 3.3, cz * 1.9 - 7.7) * 0.1);
+  _tw[0] = w0; _tw[1] = w1; _tw[2] = w2; _tw[3] = w3;
+  return c;
+}
+const vKey = (x, y) => Math.round(x * 64) * 1048576 + Math.round(y * 64);
 // called once at boot and again whenever a mission changes the rivers
 function rebuildTerrain() {
-  const pa = gndGeo.attributes.position, ca = gndGeo.attributes.color, wa = gndGeo.attributes.wts, c = new THREE.Color(), cl = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  const pa = gndGeo.attributes.position, ca = gndGeo.attributes.color, wa = gndGeo.attributes.wts, na = gndGeo.attributes.normal, c = new THREE.Color();
   const wx = i => pa.getX(i) + MW / 2, wz = i => MH / 2 - pa.getY(i);
   for (let i = 0; i < pa.count; i++) pa.setZ(i, terrainVisY(wx(i), wz(i)));
   pa.needsUpdate = true;
-  gndGeo.computeVertexNormals();
+  // v35: smooth normals — every face's normal summed into the point it shares with its neighbours
+  const acc = new Map();
   for (let f = 0; f < pa.count; f += 3) {
-    let cx = 0, cz = 0, cy = 0;
-    for (let k = 0; k < 3; k++) { cx += wx(f + k); cz += wz(f + k); cy += pa.getZ(f + k); }
-    cx /= 3; cz /= 3; cy /= 3;
-    const h = hash2(cx * 1.7, cz * 1.3);
-    let w0 = 0, w1 = 0, w2 = 0, w3 = 0;                  // splat weights: grass, mud, dirt, gravel
-    const wf = waterFactor(cx, cz), pd = padBlend(cx, cz);
-    // v23: how steep this facet is (1 flat, 0 vertical) — steep ground shows its earth, as on the sheet
-    let ny = 1;
-    { const ax = pa.getX(f), ay = pa.getY(f), az = pa.getZ(f);
-      const ux = pa.getX(f + 1) - ax, uy = pa.getY(f + 1) - ay, uz = pa.getZ(f + 1) - az, vx = pa.getX(f + 2) - ax, vy = pa.getY(f + 2) - ay, vz = pa.getZ(f + 2) - az;
-      const nx = uy * vz - uz * vy, nyy = uz * vx - ux * vz, nz = ux * vy - uy * vx;   // plane is x,y with z up
-      ny = Math.abs(nz) / (Math.hypot(nx, nyy, nz) || 1); }
-    const sy0 = baseY(cx, cz) - WATER_DROP;
-    if (ny < 0.72 && !(pd && pd.f > 0.5) && (wf > 0.02 ? cy > sy0 - 0.65 : true)) {
-      // a cut bank or cliff face: earth in bands, darker toward its foot
-      const band = hash2(Math.floor(cy * 2.2), Math.floor(cx * 0.3 + cz * 0.3));
-      c.copy(LP.earth).lerp(LP.earthD, band * 0.6 + (1 - ny) * 0.3); w1 = 1;
-    } else if (wf < 0.05 && waterZones.length && (() => { const q = riverInset(cx, cz); return q > -1.7 && q < -0.55; })() && !onBridge(cx, cz, 2.5) && vnoise(cx * 0.13 + 5, cz * 0.13 + 9) > 0.52) {
-      // a pebble beach along the top of the bank, in stretches
-      c.copy(LP.peb).lerp(LP.pebD, h * 0.7); w3 = 1;
-    } else if (pd && pd.f > 0.5) {
-      c.copy(LP.mud).lerp(LP.mudWet, h * 0.5); w1 = 1;    // trodden mud round a building
-    } else if (wf > 0.02) {
-      // the bank goes to wet mud, the bed to grey-green silt that darkens with depth
-      if (wf < 0.28) { c.copy(LP.mudWet).lerp(LP.mud, h * 0.4); w1 = 1; }
-      else { c.copy(LP.bed).lerp(LP.bedD, cl((wf - 0.28) * 1.4, 0, 1)); w3 = 1; }
-      const sy = baseY(cx, cz) - WATER_DROP;
-      if (cy < sy) c.lerp(LP.sub, cl((sy - cy) * 0.9, 0, 0.7));
-    } else {
-      const rd = roadDist(cx, cz);
-      if (rd && rd.t < (rd.kind === 'road' ? 1.12 : 1)) {
-        // v23, after the sheet but in period: a road is dark worn tarmac with patched repairs and a crisp
-        // band of tan verge, no paint; a track is packed earth with two darker ruts and grass up the middle
-        if (rd.kind === 'road') {
-          if (rd.t > 0.8) { c.copy(LP.verge).lerp(LP.dirtD, h * 0.5); w2 = 1; }
-          else {
-            const patch = vnoise(cx * 0.32 + 11, cz * 0.32 - 5);
-            c.copy(LP.tar).lerp(LP.tarD, h * 0.6); if (patch > 0.7) c.lerp(LP.grav, 0.22); else if (patch < 0.25) c.multiplyScalar(0.9);
-            w2 = 0.5; w3 = 0.2;
-          }
-        } else {
-          c.copy(LP.dirt).lerp(LP.dirtD, h * 0.6); w2 = 1;
-          if (rd.t < 0.22) { c.lerp(LP.mid, 0.45); w0 = 0.5; w2 = 0.5; }          // grass up the crown
-          else if (rd.t < 0.66) c.lerp(LP.rut, 0.55);                                // the ruts
-          else if (rd.t > 0.82) { c.lerp(LP.dry, 0.4); w0 = 0.4; w2 = 0.6; }        // the verge
-        }
-      } else {
-        // three greens in clumps a metre or two across, drying in broad patches
-        const clump = cl(vnoise(cx * 0.42 + 7.1, cz * 0.42 - 3.3) * 0.75 + h * 0.25, 0, 1);
-        c.copy(clump < 0.33 ? LP.lush : clump < 0.66 ? LP.mid : LP.deep);
-        // v34: field-sized swathes — a yellow-green meadow here, dark moss there, olive scrub between
-        const macro = fbm(cx * 0.016 + 5.3, cz * 0.016 - 9.1), meso = vnoise(cx * 0.12 + 2.3, cz * 0.12 + 8.1);
-        if (macro > 0.6) c.lerp(LP.meadow, cl((macro - 0.6) * 2.6, 0, 0.75) * (0.6 + meso * 0.4));
-        else if (macro < 0.38) c.lerp(LP.moss, cl((0.38 - macro) * 2.8, 0, 0.7));
-        if (meso > 0.72) c.lerp(LP.olive, (meso - 0.72) * 1.6);
-        // blue-green and lusher by water, straw-coloured on the high ground
-        if (waterZones.length) { const q = riverInset(cx, cz); if (q > -6) c.lerp(LP.sea, cl((q + 6) / 5, 0, 0.55)); }
-        const hi = baseY(cx, cz); if (hi > 0.9) c.lerp(LP.straw, cl((hi - 0.9) * 0.5, 0, 0.35));
-        // clover and flower-dotted patches, a metre across
-        if (vnoise(cx * 0.85 + 1.7, cz * 0.85 - 4.2) > 0.78) c.lerp(LP.clover, 0.4);
-        const dry = cl((fbm(cx * 0.035 + 21, cz * 0.035 + 33) - 0.5) * 2.4, 0, 1);
-        c.lerp(LP.dry, dry * (0.45 + clump * 0.35)); w0 = 1;
-        if (weatherRain) c.multiplyScalar(0.86);   // wet grass is darker
-      }
+    const ax = pa.getX(f), ay = pa.getY(f), az = pa.getZ(f);
+    const ux = pa.getX(f + 1) - ax, uy = pa.getY(f + 1) - ay, uz = pa.getZ(f + 1) - az, vx = pa.getX(f + 2) - ax, vy = pa.getY(f + 2) - ay, vz = pa.getZ(f + 2) - az;
+    let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx; if (nz < 0) { nx = -nx; ny = -ny; nz = -nz; }
+    for (let k = 0; k < 3; k++) {
+      const key = vKey(pa.getX(f + k), pa.getY(f + k)); let a = acc.get(key);
+      if (!a) acc.set(key, a = [0, 0, 0]); a[0] += nx; a[1] += ny; a[2] += nz;
     }
-    c.multiplyScalar(0.92 + hash2(cx * 7.3, cz * 5.9) * 0.16);   // every facet a shade apart
-    for (let k = 0; k < 3; k++) { ca.setXYZ(f + k, c.r, c.g, c.b); wa.setXYZW(f + k, w0, w1, w2, w3); }
   }
-  ca.needsUpdate = true; wa.needsUpdate = true;
+  const cache = new Map();
+  for (let i = 0; i < pa.count; i++) {
+    const key = vKey(pa.getX(i), pa.getY(i)), a = acc.get(key), L = Math.hypot(a[0], a[1], a[2]) || 1;
+    na.setXYZ(i, a[0] / L, a[1] / L, a[2] / L);
+    let e = cache.get(key);
+    if (!e) {
+      const cx = wx(i), cz = wz(i);
+      terrCol(cx, cz, pa.getZ(i), a[2] / L, hash2(cx * 1.7, cz * 1.3), c);
+      e = [c.r, c.g, c.b, _tw[0], _tw[1], _tw[2], _tw[3]]; cache.set(key, e);
+    }
+    ca.setXYZ(i, e[0], e[1], e[2]); wa.setXYZW(i, e[3], e[4], e[5], e[6]);
+  }
+  na.needsUpdate = true; ca.needsUpdate = true; wa.needsUpdate = true;
 }
 
 // v21: contact shading on the ground — facets darken toward walls, huts, trunks and rock, in three bands
 function bakeGroundAO() {
-  const pa = gndGeo.attributes.position, ao = gndGeo.attributes.aog;
-  for (let f = 0; f < pa.count; f += 3) {
-    let cx = 0, cz = 0;
-    for (let k = 0; k < 3; k++) { cx += pa.getX(f + k) + MW / 2; cz += MH / 2 - pa.getY(f + k); }
-    cx /= 3; cz /= 3;
-    let v = 1;
-    if (cx > -3 && cx < MW + 3 && cz > -3 && cz < MH + 3 && !(ridgeLifts.length && ridgeLift(cx, cz) > 0.3)) {   // v26: a ridge top is open ground, not the foot of a wall
-      if (blocked(cx, cz, 0.35)) v = 0.74; else if (blocked(cx, cz, 0.9)) v = 0.8; else if (blocked(cx, cz, 1.6)) v = 0.89; else if (blocked(cx, cz, 2.4)) v = 0.95;
+  const pa = gndGeo.attributes.position, ao = gndGeo.attributes.aog, cache = new Map();
+  for (let i = 0; i < pa.count; i++) {   // v35: per vertex, so the shading fades out instead of stepping in plates
+    const key = vKey(pa.getX(i), pa.getY(i));
+    let v = cache.get(key);
+    if (v === undefined) {
+      const cx = pa.getX(i) + MW / 2, cz = MH / 2 - pa.getY(i);
+      v = 1;
+      if (cx > -3 && cx < MW + 3 && cz > -3 && cz < MH + 3 && !(ridgeLifts.length && ridgeLift(cx, cz) > 0.3)) {   // v26: a ridge top is open ground, not the foot of a wall
+        if (blocked(cx, cz, 0.35)) v = 0.74; else if (blocked(cx, cz, 0.9)) v = 0.8; else if (blocked(cx, cz, 1.6)) v = 0.89; else if (blocked(cx, cz, 2.4)) v = 0.95;
+      }
+      cache.set(key, v);
     }
-    for (let k = 0; k < 3; k++) ao.setX(f + k, v);
+    ao.setX(i, v);
   }
   ao.needsUpdate = true;
 }
@@ -2381,57 +2561,107 @@ const rippleMesh = new THREE.InstancedMesh(new THREE.RingGeometry(0.8, 1, 18).ro
 rippleMesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(RIPPLE_N * 3), 3);
 rippleMesh.frustumCulled = false; rippleMesh.count = 0; rippleMesh.renderOrder = 2.6; scene.add(rippleMesh);
 const ripples = [];
+/* v36: water in the ruts. In rain each track's two ruts hold long ribbons of water, broken where the rut rises,
+   their edges feathered (vertex alpha) so they sit in the mud instead of on it. The grey sky shows in them; v38's lamp
+   streak lands on them too. Hollows in the grass and the odd pothole at a road's edge keep a round puddle, also
+   feathered now (v34's had a hard dark rim and read as slabs). Ripples are spawned on both. */
+const rutMat = new THREE.MeshPhongMaterial({ side: THREE.DoubleSide, vertexColors: true, shininess: 110, specular: SC(0x9aa8b4), transparent: true, opacity: 1, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -10 });
+rutMat.userData = { lookRim: false, lookAO: false, upN: true };
+let rutMesh = null;
 function buildPuddles(M) {
   if (puddleMesh) { scene.remove(puddleMesh); puddleMesh.geometry.dispose(); puddleMesh = null; }
+  if (rutMesh) { scene.remove(rutMesh); rutMesh.geometry.dispose(); rutMesh = null; }
   puddles = []; ripples.length = 0; rippleMesh.count = 0;
   if (!wx) return;
+  const sky = SC(LIGHT[lightName] ? LIGHT[lightName].sky : 0x8e989f), cW = new THREE.Color().copy(sky).lerp(SC(0x4c5862), 0.5), cE = SC(0x3a3026);
+  // ---- the ruts ----
+  const rp = [], rc = [], heavy = wx.n > 0.7;
+  roads.forEach((r, ri) => {
+    if (r.kind === 'road') return;
+    const hw = r.w / 2, P = [];
+    for (let i = 0; i + 1 < r.pts.length; i++) {
+      const [ax, az] = r.pts[i], [bx, bz] = r.pts[i + 1], L = Math.hypot(bx - ax, bz - az), n = Math.max(1, Math.ceil(L / 0.45));
+      for (let k = 0; k < n; k++) P.push([ax + (bx - ax) * k / n, az + (bz - az) * k / n]);
+    }
+    P.push(r.pts[r.pts.length - 1]);
+    for (const side of [-1, 1]) {
+      let prev = null, s0 = 0;
+      for (let i = 0; i < P.length; i++) {
+        const a = P[Math.max(0, i - 1)], b = P[Math.min(P.length - 1, i + 1)], dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz) || 1, nx = -dz / l, nz = dx / l;
+        const [x, z] = P[i]; s0 += i ? Math.hypot(x - P[i - 1][0], z - P[i - 1][1]) : 0;
+        const cx = x + nx * hw * 0.62 * side, cz = z + nz * hw * 0.62 * side;
+        let ok = cx > -4 && cx < MW + 4 && cz > -4 && cz < MH + 4 && waterFactor(cx, cz) <= 0 && !onBridge(cx, cz, 1);
+        if (ok && roads.some(o => o !== r && o.kind === 'road' && segDist(o.pts, cx, cz) < o.w / 2 * 1.6)) ok = false;
+        if (ok && r.tun) { const tn = tunAt(cx, cz); if (tn && tn.side < tn.T.hw + 0.4) ok = false; }
+        const wv = vnoise(s0 * 0.24 + side * 13.7 + ri * 5.1, 2.3 + ri);
+        const wet = ok ? sstep(heavy ? 0.36 : 0.44, heavy ? 0.5 : 0.58, wv) : 0;
+        const half = 0.1 + 0.17 * wet, y = groundY(cx, cz) + 0.028;
+        const row = wet > 0.02 ? [[cx - nx * half, y, cz - nz * half, 0], [cx, y, cz, 0.86 * wet], [cx + nx * half, y, cz + nz * half, 0]] : null;
+        if (row && prev) for (let j = 0; j < 2; j++) {
+          for (const [v, isEdge] of [[prev[j], 1], [row[j], 1], [prev[j + 1], 1], [prev[j + 1], 1], [row[j], 1], [row[j + 1], 1]]) {
+            rp.push(v[0], v[1], v[2]); const c = v[3] > 0.01 ? cW : cE; rc.push(c.r, c.g, c.b, v[3]);
+          }
+        }
+        if (row && i % 5 === 0 && wet > 0.6 && cx > 1 && cx < MW - 1 && cz > 1 && cz < MH - 1) puddles.push({ x: cx, z: cz, r: 0.12, y });
+        prev = row;
+      }
+    }
+  });
+  if (rp.length) {
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(rp, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(rc, 4));
+    const nm = new Float32Array(rp.length); for (let i = 1; i < nm.length; i += 3) nm[i] = 1; g.setAttribute('normal', new THREE.BufferAttribute(nm, 3));
+    rutMesh = new THREE.Mesh(g, rutMat); rutMesh.renderOrder = 2.5; rutMesh.receiveShadow = true; scene.add(rutMesh);
+  }
+  // ---- round puddles: potholes at a road's edge, and the hollows in the grass ----
   const spots = [];
-  // in the ruts of the tracks, and the odd pothole at a road's edge
   for (const r of roads) {
-    const hw = r.w / 2, track = r.kind !== 'road';
+    if (r.kind !== 'road') continue;
+    const hw = r.w / 2;
     for (let i = 0; i + 1 < r.pts.length; i++) {
       const [ax, az] = r.pts[i], [bx, bz] = r.pts[i + 1], L = Math.hypot(bx - ax, bz - az), ux = (bx - ax) / (L || 1), uz = (bz - az) / (L || 1);
       for (let d = 2; d < L; d += 3.2) {
-        const x = ax + ux * d, z = az + uz * d, side = hash2(x, z) < 0.5 ? -1 : 1, off = track ? hw * 0.62 * side : hw * 0.85 * side;
+        const x = ax + ux * d, z = az + uz * d, side = hash2(x, z) < 0.5 ? -1 : 1, off = hw * 0.8 * side;
         const px = x - uz * off, pz = z + ux * off;
         if (px < 2 || px > MW - 2 || pz < 2 || pz > MH - 2 || waterFactor(px, pz) > 0 || onBridge(px, pz, 1)) continue;
-        if (hash2(px * 1.3, pz * 0.7) < (track ? 0.45 : 0.85)) continue;
-        spots.push({ x: px, z: pz, r: track ? 0.32 + hash2(px, pz) * 0.3 : 0.3 + hash2(pz, px) * 0.2, ux, uz, len: track ? 1.8 + hash2(pz * 3, px) * 1.6 : 1.2 });
+        if (hash2(px * 1.3, pz * 0.7) < 0.85) continue;
+        spots.push({ x: px, z: pz, r: 0.35 + hash2(pz, px) * 0.25, ux, uz, len: 1.3 });
       }
     }
   }
-  // and the low spots in the grass
-  for (let k = 0; k < 220; k++) {
+  for (let k = 0; k < 240; k++) {
     const x = 6 + hash2(k * 1.7, missionIdx + 3.3) * (MW - 12), z = 6 + hash2(missionIdx + 1.1, k * 2.3) * (MH - 12);
-    if (waterFactor(x, z) > 0 || padBlend(x, z) || roadFootAt(x, z) || blocked(x, z, 1.5)) continue;
-    const y = groundY(x, z);
-    if (y > groundY(x + 2, z) - 0.05 || y > groundY(x - 2, z) - 0.05 || y > groundY(x, z + 2) - 0.05 || y > groundY(x, z - 2) - 0.05) continue;   // a hollow
-    spots.push({ x, z, r: 0.8 + hash2(x, z) * 1.2, ux: 1, uz: 0, len: 1 });
+    if (waterFactor(x, z) > 0 || roadFootAt(x, z) || blocked(x, z, 1.5)) continue;
+    const y = groundY(x, z), mud = mudAt(x, z);
+    if (mud < 0.5 && (y > groundY(x + 2, z) - 0.05 || y > groundY(x - 2, z) - 0.05 || y > groundY(x, z + 2) - 0.05 || y > groundY(x, z - 2) - 0.05)) continue;   // a hollow, or the churned mud
+    spots.push({ x, z, r: mud >= 0.5 ? 0.5 + hash2(x, z) * 0.6 : 0.8 + hash2(x, z) * 1.1, ux: 1, uz: 0, len: 1 + hash2(z, x) * 0.5 });
   }
   const want = wx.puddles;
   for (let i = spots.length - 1; i > 0; i--) { const j = Math.floor(hash2(i, missionIdx * 7.1) * (i + 1)); const t = spots[i]; spots[i] = spots[j]; spots[j] = t; }
-  const pos = [], col = [], cE = SC(0x4e4a3e), cM = SC(0x6c767c), cC = SC(0x8c989e);   // muddy rim, then the grey sky in the water
+  const pos = [], col = [];
+  let made = 0;
   for (const S of spots) {
-    if (puddles.length >= want) break;
-    if (puddles.some(P => Math.hypot(P.x - S.x, P.z - S.z) < 2.5)) continue;
-    const N = 12, y = groundY(S.x, S.z) + 0.03, ring = [], Y = (x, z) => groundY(x, z) + 0.035;   // laid on the ground, so it sits in the rut
+    if (made >= want) break;
+    if (puddles.some(P => P.r > 0.2 && Math.hypot(P.x - S.x, P.z - S.z) < 2.5)) continue;
+    const N = 14, y = groundY(S.x, S.z) + 0.03, ring = [], Y = (x, z) => Math.max(y - 0.01, groundY(x, z) + 0.03);
     for (let k = 0; k < N; k++) {
-      const a = k / N * Math.PI * 2, rr = S.r * (0.75 + hash2(S.x + k, S.z * 1.3) * 0.45);
-      const lx = Math.cos(a) * rr * S.len, lz = Math.sin(a) * rr;   // long axis along the track
+      const a = k / N * Math.PI * 2, rr = S.r * (0.72 + vnoise(S.x + Math.cos(a) * 1.3, S.z + Math.sin(a) * 1.3) * 0.55);
+      const lx = Math.cos(a) * rr * S.len, lz = Math.sin(a) * rr;
       ring.push([S.x + S.ux * lx - S.uz * lz, S.z + S.uz * lx + S.ux * lz]);
     }
     for (let k = 0; k < N; k++) {
       const A = ring[k], B = ring[(k + 1) % N];
-      // centre (pale: the sky in it), a mid ring, a muddy rim
-      const mA = [S.x + (A[0] - S.x) * 0.6, S.z + (A[1] - S.z) * 0.6], mB = [S.x + (B[0] - S.x) * 0.6, S.z + (B[1] - S.z) * 0.6];
-      for (const [p, c] of [[[S.x, S.z], cC], [mB, cM], [mA, cM], [mA, cM], [mB, cM], [B, cE], [mA, cM], [B, cE], [A, cE]]) { pos.push(p[0], Y(p[0], p[1]), p[1]); col.push(c.r, c.g, c.b); }
+      const mA = [S.x + (A[0] - S.x) * 0.62, S.z + (A[1] - S.z) * 0.62], mB = [S.x + (B[0] - S.x) * 0.62, S.z + (B[1] - S.z) * 0.62];
+      // centre and mid ring hold water; the outer ring feathers out to nothing
+      for (const [p, al] of [[[S.x, S.z], 0.88], [mB, 0.84], [mA, 0.84], [mA, 0.84], [mB, 0.84], [B, 0], [mA, 0.84], [B, 0], [A, 0]]) {
+        pos.push(p[0], Y(p[0], p[1]), p[1]); const c = al > 0 ? cW : cE; col.push(c.r, c.g, c.b, al);
+      }
     }
-    puddles.push({ x: S.x, z: S.z, r: S.r * 0.8, y });
+    puddles.push({ x: S.x, z: S.z, r: S.r * 0.75, y }); made++;
   }
   if (!pos.length) return;
-  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.computeVertexNormals();
-  { const nm = g.attributes.normal; for (let i = 0; i < nm.count; i++) nm.setXYZ(i, 0, 1, 0); }   // flat water: up, whichever way it wound
-  puddleMesh = new THREE.Mesh(g, puddleMat); puddleMesh.renderOrder = 2.5; puddleMesh.receiveShadow = true; scene.add(puddleMesh);
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 4));
+  const nm = new Float32Array(pos.length); for (let i = 1; i < nm.length; i += 3) nm[i] = 1; g.setAttribute('normal', new THREE.BufferAttribute(nm, 3));
+  puddleMesh = new THREE.Mesh(g, rutMat); puddleMesh.renderOrder = 2.5; puddleMesh.receiveShadow = true; scene.add(puddleMesh);
 }
 const _rm = new THREE.Matrix4(), _rq0 = new THREE.Quaternion(), _rv = new THREE.Vector3(), _rs = new THREE.Vector3(), _rc = new THREE.Color();
 function stepPuddles(dt) {
@@ -2449,29 +2679,343 @@ function stepPuddles(dt) {
 }
 
 // ---- v34: wild flowers in clusters (poppies, daisies, buttercups, vetch) ----
-const FLOWER_N = MOBILE ? 360 : 760;
-const flowerGeo = new THREE.OctahedronGeometry(0.1, 0); flowerGeo.scale(1, 0.5, 1);   // eight faces: 760 of them cost 6k triangles
-flowerGeo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(flowerGeo.attributes.position.count * 3).fill(1), 3));
-const flowerMesh = new THREE.InstancedMesh(flowerGeo, new THREE.MeshPhongMaterial({ vertexColors: true, flatShading: true, shininess: 4 }), FLOWER_N);
-flowerMesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(FLOWER_N * 3).fill(1), 3);   // made up front, so the program is built with it
-flowerMesh.frustumCulled = false; flowerMesh.count = 0; flowerMesh.receiveShadow = true; scene.add(flowerMesh);
-function buildFlowers(M) {
-  let n = 0;
-  if (!M.night && !(M.buildings && M.buildings.length > 2)) {
-    const cols = [0xd8392c, 0xffffff, 0xf4d03a, 0xa77ad0, 0xffffff, 0xd8392c].map(h => SC(h)), d = new THREE.Object3D();
-    for (let c = 0; c < 70 && n < FLOWER_N; c++) {
-      const cx = 4 + hash2(c * 3.1, missionIdx + 0.7) * (MW - 8), cz = 4 + hash2(missionIdx + 2.9, c * 1.7) * (MH - 8), col = cols[c % cols.length];
-      const cnt = 8 + ((hash2(c, 9) * 14) | 0), sp = 1 + hash2(c, 4) * 1.6;
-      for (let k = 0; k < cnt && n < FLOWER_N; k++) {
-        const x = cx + (hash2(c + k * 0.37, 1.1) - 0.5) * 2 * sp, z = cz + (hash2(2.2, c + k * 0.53) - 0.5) * 2 * sp;
-        if (waterFactor(x, z) > 0 || padBlend(x, z) || roadFootAt(x, z) || blocked(x, z, 0.3)) continue;
-        d.position.set(x, terrainVisY(x, z) + 0.05, z); d.rotation.set(0, hash2(x, z) * 6, 0); d.scale.setScalar(0.7 + hash2(z, x) * 0.7); d.updateMatrix();
-        flowerMesh.setMatrixAt(n, d.matrix); flowerMesh.setColorAt(n, _rc.copy(col).multiplyScalar(0.85 + hash2(x * 3, z) * 0.3)); n++;
+/*───────────────────── v35 grass: tufts, clover, ferns and wild flowers, in a ring round the camera ─────────────
+   The field was carried by colour alone (v13 took the tufts out for speed). The look Khal wants has grass you can see.
+   · The map is cut into GRASS.CH-metre chunks. Each chunk's plants are generated once per op (position, size, colour
+     taken from the ground they grow from) and stored as ready-made instance matrices, shuffled, per kind.
+   · Each kind is ONE InstancedMesh (four draw calls in all). When the camera moves, the chunks in view are copied in,
+     nearest first, the far ones thinned (a shuffled list, so a prefix is an even thinning). A fixed budget, wherever
+     you look: GRASS.cap per kind.
+   · All four share one material: up-facing normals (lit like the field, not like paper), a root-to-tip colour ramp,
+     sway in the wind, and flattening round our men (and any enemy in view), so a man in the grass still reads on a
+     phone. Grass never hides a man from the player; it is not concealment (the stance rules are unchanged). */
+const GRASS = { CH: 8, cap: { grass: MOBILE ? 1800 : 3800, clover: MOBILE ? 420 : 900, fern: MOBILE ? 150 : 320, flower: MOBILE ? 380 : 800 },
+                near: 15, far: 36, thin: 0.28, step: 0.6, slots: 10 };
+const GS_U = []; for (let i = 0; i < GRASS.slots; i++) GS_U.push(new THREE.Vector4(-999, -999, 1, 0));
+const grassU = { value: GS_U };
+const grassMat = new THREE.MeshPhongMaterial({ vertexColors: true, side: THREE.DoubleSide, shininess: 5, specular: SC(0x0e100c) });
+grassMat.userData = { gsGrass: true, lookRim: false, lookAO: false };
+grassMat.customProgramCacheKey = () => 'grass';
+// geometry: a list of triangles, each vertex [x, y, z, shade, tintW]. shade multiplies the colour; tintW = 1 takes the
+// per-plant colour (the ground's green, a petal colour), 0 keeps the vertex's own (a stem, a flower's eye)
+function grassGeo(tris) {
+  const n = tris.length * 3, P = new Float32Array(n * 3), N = new Float32Array(n * 3), C = new Float32Array(n * 3), W = new Float32Array(n);
+  let i = 0;
+  for (const t of tris) for (const v of t) {
+    P[i * 3] = v[0]; P[i * 3 + 1] = v[1]; P[i * 3 + 2] = v[2]; N[i * 3 + 1] = 1;
+    const col = v[5]; if (col) { C[i * 3] = col.r; C[i * 3 + 1] = col.g; C[i * 3 + 2] = col.b; } else C[i * 3] = C[i * 3 + 1] = C[i * 3 + 2] = v[3];
+    W[i] = v[4]; i++;
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(P, 3)); g.setAttribute('normal', new THREE.BufferAttribute(N, 3));
+  g.setAttribute('color', new THREE.BufferAttribute(C, 3)); g.setAttribute('tw', new THREE.BufferAttribute(W, 1));
+  return g;
+}
+const GRASS_GEO = (() => {
+  const r = k => hash2(k * 3.7, k * 1.3 + 0.5);
+  // a tuft: eight blades, one tapering triangle each, leaning out from the heart (8 triangles a tuft)
+  const tuft = [];
+  for (let b = 0; b < 8; b++) {
+    const a = b / 8 * 6.283 + r(b) * 0.7, d = 0.015 + r(b + 9) * 0.085, bx = Math.cos(a) * d, bz = Math.sin(a) * d;
+    const h = 0.24 + r(b + 20) * 0.3, lean = 0.05 + r(b + 31) * 0.13, la = a + (r(b + 40) - 0.5) * 1.2;
+    const w = 0.042 + r(b + 50) * 0.022, px = -Math.sin(a) * w, pz = Math.cos(a) * w;
+    tuft.push([[bx - px, -0.05, bz - pz, 0.52, 1], [bx + px, -0.05, bz + pz, 0.52, 1], [bx + Math.cos(la) * lean, h, bz + Math.sin(la) * lean, 1.42, 1]]);
+  }
+  // clover: four rounded leaflets (two triangles each) a hand's breadth off the ground
+  const clov = [];
+  for (let l = 0; l < 4; l++) {
+    const a = l / 4 * 6.283 + 0.4, ux = Math.cos(a), uz = Math.sin(a), y = 0.05 + (l % 2) * 0.03;
+    const ctr = [ux * 0.012, y - 0.015, uz * 0.012, 0.78, 1], tip = [ux * 0.15, y + 0.01, uz * 0.15, 1.08, 1];
+    const sL = [ux * 0.085 - uz * 0.06, y + 0.015, uz * 0.085 + ux * 0.06, 1.15, 1], sR = [ux * 0.085 + uz * 0.06, y + 0.015, uz * 0.085 - ux * 0.06, 1.15, 1];
+    clov.push([ctr, sL, tip], [ctr, tip, sR]);
+  }
+  // a fern: five fronds, each two tapering segments that arch up and droop
+  const fern = [];
+  for (let f = 0; f < 5; f++) {
+    const a = f / 5 * 6.283 + r(f + 3) * 0.5, ux = Math.cos(a), uz = Math.sin(a), px = -uz, pz = ux;
+    const L = 0.42 + r(f + 7) * 0.2, P = [[0, -0.03, 0.07], [L * 0.5, 0.26, 0.07], [L, 0.12, 0.0]];
+    const vtx = (q, s, sh) => [ux * q[0] + px * q[2] * s, q[1], uz * q[0] + pz * q[2] * s, sh, 1];
+    const A0 = vtx(P[0], -1, 0.55), A1 = vtx(P[0], 1, 0.55), Mi0 = vtx(P[1], -1, 1.0), Mi1 = vtx(P[1], 1, 1.0), Tp = vtx(P[2], 0, 1.25);
+    fern.push([A0, A1, Mi1], [A0, Mi1, Mi0], [Mi0, Mi1, Tp]);
+  }
+  // a wild flower: a stem and five petals round a yellow eye; the stem and eye keep their own colours
+  const stem = SC(0x4a6a2c), eye = SC(0xe8c030);
+  const flower = [];
+  const H = 0.26;
+  flower.push([[-0.014, -0.03, 0, 0, 0, stem], [0.014, -0.03, 0, 0, 0, stem], [0, H, 0, 0, 0, stem]]);
+  const ctr = [0, H + 0.014, 0, 1, 0, eye];
+  for (let k = 0; k < 4; k++) {   // four petals, two triangles each: a cross of white (or red, or yellow) round the eye
+    const a0 = k / 4 * 6.283, ux = Math.cos(a0), uz = Math.sin(a0);
+    const tip = [ux * 0.1, H + 0.012, uz * 0.1, 1.06, 1], sL = [ux * 0.05 - uz * 0.045, H, uz * 0.05 + ux * 0.045, 1, 1], sR = [ux * 0.05 + uz * 0.045, H, uz * 0.05 - ux * 0.045, 1, 1];
+    flower.push([ctr, sL, tip], [ctr, tip, sR]);
+  }
+  return { grass: grassGeo(tuft), clover: grassGeo(clov), fern: grassGeo(fern), flower: grassGeo(flower) };
+})();
+const GRASS_IM = {};
+for (const k of ['grass', 'clover', 'fern', 'flower']) {
+  const im = new THREE.InstancedMesh(GRASS_GEO[k], grassMat, GRASS.cap[k]);
+  im.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(GRASS.cap[k] * 3).fill(1), 3);   // before the first render, or it draws black
+  im.frustumCulled = false; im.count = 0; im.receiveShadow = true; im.castShadow = false; im.renderOrder = 0.5;
+  scene.add(im); GRASS_IM[k] = im;
+}
+let grassChunks = null, grassOn = true, grassDirty = true;
+const _gL = new THREE.Vector3(1e9, 0, 0), _gFr = new THREE.Frustum(), _gPM = new THREE.Matrix4(), _gB = new THREE.Box3(), _gD = new THREE.Vector3(), _gF = new THREE.Vector3();
+let grassT = 0, grassZoom = 0;
+function grassSlope(x, z) {
+  const a = terrainVisY(x + 0.35, z), b = terrainVisY(x - 0.35, z), c = terrainVisY(x, z + 0.35), d = terrainVisY(x, z - 0.35);
+  return Math.max(Math.abs(a - b), Math.abs(c - d)) / 0.7;
+}
+function buildGrass(M) {
+  const CH = GRASS.CH, NX = Math.ceil((MW + 4) / CH), NZ = Math.ceil((MH + 4) / CH), c = new THREE.Color(), d = new THREE.Object3D();
+  const town = M.buildings && M.buildings.length > 2, night = !!M.night;
+  grassChunks = [];
+  // flower clusters (as v34's, a little bigger): seventy patches of one colour each
+  const fcols = [0xd8392c, 0xf4f0e6, 0xf4d03a, 0xa77ad0, 0xf4f0e6, 0xd8392c, 0xf6f2ea, 0xe8c838].map(h => SC(h)), fcl = [];
+  if (!night && !town) for (let k = 0; k < 80; k++) fcl.push([4 + hash2(k * 3.1, missionIdx + 0.7) * (MW - 8), 4 + hash2(missionIdx + 2.9, k * 1.7) * (MH - 8), 1.2 + hash2(k, 4) * 1.8, fcols[k % fcols.length]]);
+  const seed = missionIdx * 13.37 + 1.1;
+  for (let cj = 0; cj < NZ; cj++) for (let ci = 0; ci < NX; ci++) {
+    const x0 = -2 + ci * CH, z0 = -2 + cj * CH, L = { grass: [], clover: [], fern: [], flower: [] };
+    let y0 = 1e9, y1 = -1e9;
+    for (let z = z0 + GRASS.step / 2; z < z0 + CH; z += GRASS.step) for (let x = x0 + GRASS.step / 2; x < x0 + CH; x += GRASS.step) {
+      const px = x + (hash2(x * 1.31 + seed, z * 0.77) - 0.5) * GRASS.step * 0.9, pz = z + (hash2(x * 0.53, z * 1.91 + seed) - 0.5) * GRASS.step * 0.9;
+      if (px < -1.5 || px > MW + 1.5 || pz < -1.5 || pz > MH + 1.5) continue;
+      const r0 = hash2(px * 7.13, pz * 3.71);
+      // where it can grow: not in water or by it, not on a hut floor, a road or track, an obstacle's footprint, or a steep face
+      if (waterFactor(px, pz) > 0 || padBlend(px, pz) || roadFootAt(px, pz) || blocked(px, pz, 0.12)) continue;
+      if (waterZones.length) { const q = riverInset(px, pz); if (q > -1.8) continue; }
+      if (grassSlope(px, pz) > 0.75) continue;
+      // density: clumps a few metres across, thicker in the meadow swathes, thin on the dry patches
+      const clump = vnoise(px * 0.21 + 3.1, pz * 0.21 - 8.4), macro = fbm(px * 0.016 + 5.3, pz * 0.016 - 9.1);
+      const dry = Math.max(0, Math.min(1, (fbm(px * 0.035 + 21, pz * 0.035 + 33) - 0.5) * 2.4));
+      let dens = 0.32 + clump * 0.55 + (macro > 0.6 ? 0.2 : 0) - dry * 0.25; if (town) dens *= 0.65;
+      const md = mudAt(px, pz); if (md > 0.62) continue; dens *= 1 - md * 1.3;   // v36: nothing grows in the churned mud
+      if (puddles.length && puddles.some(P => P.r > 0.2 && Math.hypot(P.x - px, P.z - pz) < P.r * 1.25 + 0.2)) continue;   // nor in a puddle
+      if (r0 > dens) continue;
+      const y = terrainVisY(px, pz), rot = hash2(pz * 2.9, px * 4.1) * 6.283, r1 = hash2(px * 2.17, pz * 5.3);
+      let kind = 'grass';
+      if (vnoise(px * 0.85 + 1.7, pz * 0.85 - 4.2) > 0.72 && r1 < 0.62) kind = 'clover';
+      else if ((blocked(px, pz, 2.0) || vnoise(px * 0.3 - 6.1, pz * 0.3 + 2.2) > 0.82) && r1 < 0.16) kind = 'fern';
+      grassCol(px, pz, hash2(px * 1.7, pz * 1.3), c);
+      let s = 0.8 + r1 * 0.55, sy = 0.75 + hash2(px * 9.1, pz * 0.3) * 0.6 + (macro > 0.6 ? 0.25 : 0) - dry * 0.2;
+      if (kind === 'clover') { c.lerp(LP.clover, 0.55).multiplyScalar(1.05); s = 0.9 + r1 * 0.5; sy = 1; }
+      else if (kind === 'fern') { c.lerp(LP.deep, 0.5).multiplyScalar(0.92); s = 0.9 + r1 * 0.6; sy = 0.9 + r1 * 0.3; }
+      else c.multiplyScalar(0.92 + hash2(pz * 6.1, px) * 0.2);
+      L[kind].push([px, y, pz, rot, s, sy, c.r, c.g, c.b, (r0 - 0.5) * 0.3]);
+      y0 = Math.min(y0, y); y1 = Math.max(y1, y);
+    }
+    // the flowers in this chunk
+    for (const [fx, fz, sp, fc] of fcl) {
+      if (fx < x0 - sp || fx > x0 + CH + sp || fz < z0 - sp || fz > z0 + CH + sp) continue;
+      const n = 10 + ((hash2(fx, fz) * 16) | 0);
+      for (let k = 0; k < n; k++) {
+        const x = fx + (hash2(fx + k * 0.37, 1.1) - 0.5) * 2 * sp, z = fz + (hash2(2.2, fz + k * 0.53) - 0.5) * 2 * sp;
+        if (x < x0 || x >= x0 + CH || z < z0 || z >= z0 + CH) continue;
+        if (waterFactor(x, z) > 0 || padBlend(x, z) || roadFootAt(x, z) || blocked(x, z, 0.2) || grassSlope(x, z) > 0.75 || mudAt(x, z) > 0.3) continue;
+        const y = terrainVisY(x, z); c.copy(fc).multiplyScalar(0.88 + hash2(x * 3, z) * 0.24);
+        L.flower.push([x, y, z, hash2(x, z) * 6.283, 0.85 + hash2(z, x) * 0.6, 0.7 + hash2(x * 2, z) * 0.6, c.r, c.g, c.b, (hash2(z * 3, x) - 0.5) * 0.4]);
+        y0 = Math.min(y0, y); y1 = Math.max(y1, y);
+      }
+    }
+    const C = { x: x0 + CH / 2, z: z0 + CH / 2, x0, z0, y0: y0 < 1e8 ? y0 - 0.2 : 0, y1: y1 > -1e8 ? y1 + 0.8 : 1, m: {}, c: {}, n: {} };
+    for (const k in L) {
+      const A = L[k];
+      for (let i = A.length - 1; i > 0; i--) { const j = Math.floor(hash2(i * 1.7 + ci, j0(cj) + i * 0.3) * (i + 1)); const t = A[i]; A[i] = A[j]; A[j] = t; }   // a fixed shuffle: any prefix is an even thinning
+      const m = new Float32Array(A.length * 16), cc = new Float32Array(A.length * 3);
+      A.forEach((q, i) => { d.position.set(q[0], q[1], q[2]); d.rotation.set(q[9], q[3], -q[9] * 0.6); d.scale.set(q[4], q[4] * q[5], q[4]); d.updateMatrix();
+        d.matrix.toArray(m, i * 16); cc[i * 3] = q[6]; cc[i * 3 + 1] = q[7]; cc[i * 3 + 2] = q[8]; });
+      C.m[k] = m; C.c[k] = cc; C.n[k] = A.length;
+    }
+    grassChunks.push(C);
+  }
+  grassDirty = true; _gL.set(1e9, 0, 0);
+  function j0(v) { return v * 0.71 + 0.13; }
+}
+// copy the chunks in view into the four meshes: nearest first, the far ones thinned, never past the cap
+function fillGrass() {
+  for (const k in GRASS_IM) GRASS_IM[k].count = 0;
+  if (!grassChunks || !grassOn) return;
+  camera.updateMatrixWorld(); _gPM.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse); _gFr.setFromProjectionMatrix(_gPM);
+  camera.getWorldDirection(_gD);
+  const t = _gD.y < -0.05 ? -camera.position.y / _gD.y : 30; _gF.copy(camera.position).addScaledVector(_gD, t);
+  const zk = Math.max(1, camZoom), near = GRASS.near * zk, far = GRASS.far * zk;
+  const vis = [];
+  for (const C of grassChunks) {
+    _gB.min.set(C.x0, C.y0, C.z0); _gB.max.set(C.x0 + GRASS.CH, C.y1, C.z0 + GRASS.CH);
+    if (!_gFr.intersectsBox(_gB)) continue;
+    const dd = Math.hypot(C.x - _gF.x, C.z - _gF.z); if (dd > far + GRASS.CH) continue;
+    vis.push([dd, C]);
+  }
+  vis.sort((a, b) => a[0] - b[0]);
+  for (const k in GRASS_IM) {
+    const im = GRASS_IM[k], cap = Math.round(GRASS.cap[k] * (gfxLow ? 0.5 : 1)), M = im.instanceMatrix.array, CC = im.instanceColor.array;
+    let n = 0;
+    for (const [dd, C] of vis) {
+      if (n >= cap) break;
+      const f = dd < near ? 1 : Math.max(GRASS.thin, 1 - (dd - near) / (far - near) * (1 - GRASS.thin));
+      const take = Math.min(cap - n, Math.round(C.n[k] * f)); if (take <= 0) continue;
+      M.set(C.m[k].subarray(0, take * 16), n * 16); CC.set(C.c[k].subarray(0, take * 3), n * 3); n += take;
+    }
+    im.count = n; im.instanceMatrix.needsUpdate = true; im.instanceColor.needsUpdate = true;
+  }
+}
+// per frame: the flattening slots (our men, then the nearest enemies in view), and a refill when the camera has moved
+function stepGrass(dt) {
+  if (!grassChunks) return;
+  let i = 0;
+  if (typeof sol !== 'undefined') {
+    for (const s of sol) if (!s.dead && i < GRASS.slots) GS_U[i++].set(s.x, s.z, s.prone ? 1.5 : 1.15, 1);
+    let best = [];
+    for (const e of ens) if (!e.dead && e.mesh.visible && !e.tower) best.push([Math.hypot(e.x - _gF.x, e.z - _gF.z), e]);
+    best.sort((a, b) => a[0] - b[0]);
+    for (const [, e] of best) { if (i >= GRASS.slots) break; GS_U[i++].set(e.x, e.z, e.prone ? 1.4 : 1.0, 1); }
+  }
+  for (; i < GRASS.slots; i++) GS_U[i].set(-999, -999, 1, 0);
+  grassT -= dt;
+  if (grassDirty || grassZoom !== camZoom || (grassT <= 0 && camera.position.distanceToSquared(_gL) > 0.8)) {
+    fillGrass(); _gL.copy(camera.position); grassT = 0.2; grassDirty = false; grassZoom = camZoom;
+  }
+}
+/* v36: pebbles and loose stones — along the churned verges of every track, in the mud aprons, round the foot of
+   every boulder cluster, a few at a road's edge and a scatter in the grass. One InstancedMesh of a jittered octahedron
+   (8 faceted triangles each), placed once per op over the whole map; at 1100 it costs ~9k triangles. */
+const PEB_N = MOBILE ? 550 : 1100;
+const pebGeo = (() => {
+  const v = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]].map((q, i) => q.map((c, j) => c * (0.75 + hash2(i * 3.1, j * 1.7) * 0.5)));
+  const F = [[0, 2, 4], [4, 2, 1], [1, 2, 5], [5, 2, 0], [4, 3, 0], [1, 3, 4], [5, 3, 1], [0, 3, 5]], P = [];
+  for (const f of F) for (const k of f) P.push(...v[k]);
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.computeVertexNormals();
+  g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(P.length).fill(1), 3));
+  return g;
+})();
+const pebMesh = new THREE.InstancedMesh(pebGeo, new THREE.MeshPhongMaterial({ vertexColors: true, flatShading: true, shininess: 14, specular: SC(0x26261f) }), PEB_N);
+pebMesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(PEB_N * 3).fill(1), 3);
+pebMesh.frustumCulled = false; pebMesh.count = 0; pebMesh.receiveShadow = true; scene.add(pebMesh);
+function buildPebbles(M) {
+  const cols = [0x8e8b80, 0xa29f95, 0x77746b, 0x6e6458, 0xb0ada2].map(h => SC(h)), c = new THREE.Color(), d = new THREE.Object3D(), pts = [];
+  const put = (x, z, big) => {
+    if (pts.length >= PEB_N || x < -1 || x > MW + 1 || z < -1 || z > MH + 1) return;
+    if (waterFactor(x, z) > 0.02 || padBlend(x, z) && padBlend(x, z).f > 0.6 || blocked(x, z, 0.05)) return;
+    if (roadFootAt(x, z) && (streets.length || squares.length) && onStreet(x, z, 0)) return;   // v40
+    pts.push([x, z, big]);
+  };
+  // along the tracks, in the churned verge either side
+  roads.forEach((r, ri) => {
+    const hw = r.w / 2, road = r.kind === 'road';
+    for (let i = 0; i + 1 < r.pts.length; i++) {
+      const [ax, az] = r.pts[i], [bx, bz] = r.pts[i + 1], L = Math.hypot(bx - ax, bz - az), ux = (bx - ax) / (L || 1), uz = (bz - az) / (L || 1);
+      for (let dd = 0; dd < L; dd += road ? 1.4 : 0.55) {
+        const k = hash2(ax + dd * 1.7, az + ri), side = k < 0.5 ? -1 : 1, off = hw * ((road ? 1.35 : 1.05) + hash2(dd * 3.1, ri + ax) * (road ? 0.4 : 0.65)) * side;
+        if (hash2(dd * 2.3 + ri, ax * 0.7) < (road ? 0.6 : 0.35)) continue;
+        put(ax + ux * dd - uz * off, az + uz * dd + ux * off, false);
+      }
+    }
+  });
+  // in the aprons
+  for (const A of aprons) for (let k = 0; k < 26; k++) { const a = hash2(A.x + k, A.z) * 6.283, rr = Math.sqrt(hash2(k, A.x * 0.3)) * A.r * 1.1; put(A.x + Math.cos(a) * rr, A.z + Math.sin(a) * rr, hash2(k * 3, A.z) < 0.15); }
+  // round the foot of every boulder cluster
+  for (const o of obs) if (o.type === 'rock') for (let k = 0; k < 9; k++) {
+    const a = hash2(o.x + k * 0.7, o.z) * 6.283, rr = o.radius * (1.0 + hash2(k, o.z) * 0.9);
+    put(o.x + Math.cos(a) * rr, o.z + Math.sin(a) * rr, k < 2);
+  }
+  // and a scatter in the grass
+  for (let k = 0; k < 260; k++) put(2 + hash2(k * 1.31, missionIdx + 0.9) * (MW - 4), 2 + hash2(missionIdx * 1.7 + 3.1, k * 0.77) * (MH - 4), false);
+  pts.forEach(([x, z, big], i) => {
+    const h = hash2(x * 4.1, z * 2.3), sc = big ? 0.17 + h * 0.13 : 0.06 + h * 0.08;
+    d.position.set(x, terrainVisY(x, z) + sc * 0.15, z); d.rotation.set(h * 0.6, hash2(z, x) * 6.283, hash2(x, z) * 0.5);
+    d.scale.set(sc * (1 + hash2(x, z * 3) * 0.6), sc * 0.62, sc); d.updateMatrix();
+    pebMesh.setMatrixAt(i, d.matrix);
+    c.copy(cols[(hash2(x * 7, z * 5) * cols.length) | 0]).multiplyScalar(weatherRain ? 0.9 : 1.05);
+    pebMesh.setColorAt(i, c);
+  });
+  pebMesh.count = pts.length; pebMesh.instanceMatrix.needsUpdate = true; pebMesh.instanceColor.needsUpdate = true;
+}
+// ---- v38: the lamps' bulbs, glows, pools and wet streaks, rebuilt per op; and the one real light that follows the eye ----
+const lampRoot = new THREE.Group(); scene.add(lampRoot);
+const lampGlowTex = (() => {
+  const N = 64, cv = document.createElement('canvas'); cv.width = cv.height = N; const x = cv.getContext('2d'), gr = x.createRadialGradient(N / 2, N / 2, 0, N / 2, N / 2, N / 2);
+  gr.addColorStop(0, 'rgba(255,240,210,1)'); gr.addColorStop(0.18, 'rgba(255,200,120,0.55)'); gr.addColorStop(0.5, 'rgba(255,160,80,0.14)'); gr.addColorStop(1, 'rgba(255,140,60,0)');
+  x.fillStyle = gr; x.fillRect(0, 0, N, N); const t = new THREE.CanvasTexture(cv); return t;
+})();
+const lampBulbMat = new THREE.MeshBasicMaterial({ color: 0xffffff }); lampBulbMat.color = SC(0xffe6b0);
+const lampSpriteMat = new THREE.SpriteMaterial({ map: lampGlowTex, color: 0xffffff, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false });
+const lampGlowMat = new THREE.MeshBasicMaterial({ map: lampGlowTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false, side: THREE.DoubleSide });
+lampGlowMat.userData = { lookRim: false, lookAO: false, lookCloud: false };
+const lampFloorMat = new THREE.MeshBasicMaterial({ vertexColors: true, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -12 });
+lampFloorMat.userData = { lookRim: false, lookAO: false, lookCloud: false };
+let lampActive = null;
+const _lpD = new THREE.Vector3(), _lpF = new THREE.Vector3();
+// how wet the ground is at (x, z): the mud, the ruts and the puddles shine; grass does not
+function wetAt(x, z) {
+  if (!weatherRain) return 0;
+  let w = Math.min(1, mudAt(x, z) * 1.2);
+  if (roadFootAt(x, z)) w = Math.max(w, 0.75);
+  for (const r of roads) if (r.kind !== 'road') { const t = segDist(r.pts, x, z) / (r.w / 2); if (t < 1) w = Math.max(w, 0.7 + 0.3 * Math.exp(-Math.pow((t - 0.62) / 0.15, 2))); }
+  for (const P of puddles) if (P.r > 0.2 && Math.hypot(P.x - x, P.z - z) < P.r * 1.2) w = 1;
+  if (padBlend(x, z) && padBlend(x, z).f > 0.5) w = Math.max(w, 0.8);
+  return w;
+}
+function buildLamps(M) {
+  for (const c of lampRoot.children.slice()) { lampRoot.remove(c); if (c.geometry && c.geometry !== GEO.sph) c.geometry.dispose(); }
+  lampActive = null; lampLight.intensity = 0;
+  const on = lampsOn(); if (!lamps.length) return;
+  const F = { p: [], c: [] }, warm = SC(LAMP.col), k0 = night ? 1.0 : weatherRain ? 0.85 : 0.6;
+  // v40: the bulbs and the glows are each ONE merged mesh for the whole op (a village has a dozen lamps; sprites were a
+  // draw call each). The camera always looks north at the same pitch, so the glow quads are baked facing it.
+  const bulbs = [], GQ = { p: [], uv: [], c: [] }, gs = night ? 3.4 : 2.6;
+  const vn = new THREE.Vector3(0, CAM_H, CAM_Z).normalize(), vr = new THREE.Vector3(1, 0, 0), vu = new THREE.Vector3().crossVectors(vn, vr).normalize();
+  for (const L of lamps) {
+    if (!on) continue;
+    if (!L.post) bulbs.push({ g: GEO.sph, m: M4(L.x, L.y, L.z, 0.13, 0.13, 0.13), c: 0xffffff });
+    const gx = L.x + L.nx * 0.05 + vn.x * 0.3, gy = L.y - 0.05 + vn.y * 0.3, gz = L.z + L.nz * 0.05 + vn.z * 0.3, h = gs / 2;
+    const corner = (sx, sy) => [gx + vr.x * sx * h + vu.x * sy * h, gy + vr.y * sx * h + vu.y * sy * h, gz + vr.z * sx * h + vu.z * sy * h];
+    uvQ(GQ, corner(-1, -1), corner(1, -1), corner(1, 1), corner(-1, 1), [0, 0], [1, 0], [1, 1], [0, 1]);
+    // the pool on the ground: a soft disc a metre or two out from the wall
+    const px = L.x + L.nx * 1.5, pz = L.z + L.nz * 1.5, R = 3.2, NS = 18;
+    for (let k = 0; k < NS; k++) {
+      const a0 = k / NS * 6.283, a1 = (k + 1) / NS * 6.283;
+      for (let r = 0; r < 3; r++) {
+        const r0 = R * r / 3, r1 = R * (r + 1) / 3, i0 = Math.pow(1 - r0 / R, 1.6) * 0.32 * k0, i1 = Math.pow(1 - r1 / R, 1.6) * 0.32 * k0;
+        const q = [[r0, a0], [r1, a0], [r1, a1], [r0, a1]].map(([rr, a]) => { const x = px + Math.cos(a) * rr, z = pz + Math.sin(a) * rr; return [x, groundY(x, z) + 0.05, z, 1 + wetAt(x, z) * 0.6]; });
+        const ca = vcCol.copy(warm).multiplyScalar(i0 * q[0][3]).clone(), cb = warm.clone().multiplyScalar(i1 * q[1][3]), cc = warm.clone().multiplyScalar(i1 * q[2][3]), cd = warm.clone().multiplyScalar(i0 * q[3][3]);
+        vcQ(F, q[0], q[1], q[2], q[3], ca, cb, cc, cd);
+      }
+    }
+    // the streak down the wet ground toward the camera (it looks north, from the south: +z)
+    if (weatherRain) {
+      const NR = 34, len = 8.5, rows = [];
+      for (let i = 0; i <= NR; i++) {
+        const t = i / NR, z = L.z + L.nz * 0.6 + 0.4 + t * len, wob = Math.sin(t * 9 + L.x) * 0.12 + (vnoise(L.x * 0.3 + t * 6, 3.3) - 0.5) * 0.25;
+        const hw = 0.22 + t * 0.4, fall = Math.pow(1 - t, 1.3) * (0.55 + 0.45 * vnoise(t * 14 + L.z, L.x));
+        rows.push([-1, 0, 1].map(sx => { const x = L.x + wob + sx * hw; const w = wetAt(x, z); return [x, groundY(x, z) + 0.055, z, sx ? 0 : fall * w * 1.5 * k0]; }));
+      }
+      for (let i = 0; i < NR; i++) for (let j = 0; j < 2; j++) {
+        const A = rows[i][j], B = rows[i][j + 1], C = rows[i + 1][j + 1], D = rows[i + 1][j];
+        vcQ(F, A, B, C, D, warm.clone().multiplyScalar(A[3]), warm.clone().multiplyScalar(B[3]), warm.clone().multiplyScalar(C[3]), warm.clone().multiplyScalar(D[3]));
       }
     }
   }
-  flowerMesh.count = n; flowerMesh.instanceMatrix.needsUpdate = true; if (flowerMesh.instanceColor) flowerMesh.instanceColor.needsUpdate = true;
+  if (F.p.length) {
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(F.p, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(F.c, 3));
+    const m = new THREE.Mesh(g, lampFloorMat); m.renderOrder = 2.7; m.frustumCulled = false; lampRoot.add(m);
+  }
+  if (bulbs.length) { const m = new THREE.Mesh(mergeGeos(bulbs), lampBulbMat); m.frustumCulled = false; lampRoot.add(m); }
+  if (GQ.p.length) {
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(GQ.p, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(GQ.uv, 2));
+    const m = new THREE.Mesh(g, lampGlowMat); m.renderOrder = 5; m.frustumCulled = false; lampRoot.add(m);
+  }
 }
+function stepLamps(dt) {
+  if (!lamps.length || !lampsOn()) { lampLight.intensity = 0; return; }
+  camera.getWorldDirection(_lpD); const tt = _lpD.y < -0.05 ? -camera.position.y / _lpD.y : 30; _lpF.copy(camera.position).addScaledVector(_lpD, tt);
+  let best = null, bd = 34 * 34;
+  for (const L of lamps) { const d = (L.x - _lpF.x) ** 2 + (L.z - _lpF.z) ** 2; if (d < bd) { bd = d; best = L; } }
+  if (!best) { lampLight.intensity = Math.max(0, lampLight.intensity - dt * 4); return; }
+  if (best !== lampActive) { lampActive = best; lampLight.position.set(best.x + best.nx * 0.25, best.y - 0.15, best.z + best.nz * 0.25); }
+  const flick = 0.96 + Math.sin(ATMO.t.value * 13.1) * 0.02 + Math.sin(ATMO.t.value * 31.7) * 0.02;
+  lampLight.intensity = LAMP.I * (night ? 1.3 : 1) * flick;
+}
+
+function buildFlowers() { }   // v35: the flowers are part of the grass now
 
 // ---- v34: the sun's shadow box follows the camera tightly and snaps to whole texels, so edges are crisp and don't crawl ----
 const SHADOW_HALF = 25;
@@ -2498,7 +3042,10 @@ function setupAtmo(M) {
   if (wx) windMag = Math.max(windMag, wx.wind);
   stormT = 5 + Math.random() * 6; flashT = 0; thunderT = 0; thunderShown = false; boltMesh.visible = false;
   gndMat.shininess = weatherRain ? 26 : 4; gndMat.specular = SC(weatherRain ? 0x30363a : 0x101010);
+  roadMat.shininess = weatherRain ? 34 : 3; roadMat.specular = SC(weatherRain ? 0x2c3236 : 0x0c0c0c);   // v36: wet mud and tar shine
   windAng = hash2(missionIdx * 3.3, 1.7) * 6.283;
+  wetTextures();   // v39
+  document.body.classList.toggle('wet', weatherRain || (lampsOn() && !night));   // v38: the heavier vignette
   buildMist(M);
 }
 function stepAtmo(dt) {
@@ -2506,6 +3053,8 @@ function stepAtmo(dt) {
   ATMO.wind.value.set(Math.cos(windAng) * windMag, Math.sin(windAng) * windMag);
   ATMO.off.value.x -= Math.cos(windAng) * windMag * 3.2 * 0.0125 * dt; ATMO.off.value.y -= Math.sin(windAng) * windMag * 3.2 * 0.0125 * dt;
   stepSmoke(dt); stepMist(dt); stepRain(dt); stepStorm(dt); stepPuddles(dt);
+  stepGrass(dt);   // v35
+  stepLamps(dt);   // v38
 }
 
 // one shared flash light for all muzzle fire
@@ -2627,81 +3176,147 @@ function treeBase(parts, k, bark, flare) {
     parts.push({ g: GEO.cone, m: M4(Math.sin(a) * r, h / 2, Math.cos(a) * r, 0.14, h, 0.14, a, (hash2(i, 7) - 0.5) * 0.6), c: [0x6a9a34, 0x7fa83c, 0x58862c][i % 3] });
   }
 }
-function treeGeo(kind) {
-  const parts = [], k = TREE_KINDS.indexOf(kind) + 1;
-  const bark = [0x5e4326, 0x6b4d2c, 0x54391f, 0x75583a];
-  if (kind === 'pine' || kind === 'pineTall') {
-    const tall = kind === 'pineTall', n = tall ? 6 : 5, top = tall ? 9.0 : 8.0;
-    treeBase(parts, k, bark[0], 0.55);
-    parts.push({ g: GEO.taper, m: M4(0, 1.6, 0, 0.6, 3.2, 0.6), c: bark[0] });
-    for (let i = 0; i < n; i++) {
-      const f = i / (n - 1), r = (tall ? 3.0 : 3.6) * (1 - f * 0.72), h = 2.1 - f * 0.6, y = 1.7 + i * (top - 2.9) / n;
-      parts.push({ g: GEO.skirtTop, m: M4(0, y, 0, r * 2, h, r * 2, i * 0.37 + k), c: 0x2d5a22,
-                   grad: [i % 2 ? 0x5e7c28 : 0x4f7424, 0x1f461a, y - 0.3, y + h * 0.35] });   // olive tips, dark into the heart
-    }
-    parts.push({ g: GEO.cone, m: M4(0, top - 0.3, 0, 0.8, 1.6, 0.8, k), c: 0x26501d });
-  } else if (kind === 'broad' || kind === 'broadBig') {
-    const big = kind === 'broadBig', h = big ? 3.0 : 2.6, sc = big ? 1.18 : 1;
-    treeBase(parts, k, bark[1], 0.75);
-    parts.push({ g: GEO.taper, m: M4(0, h / 2, 0, 1.0, h, 1.0), c: bark[1] });
-    const tips = [];
-    for (let i = 0; i < 4; i++) {                             // four gnarled limbs, each in two bends
-      const a = i * 1.57 + k * 0.6 + hash2(k, i) * 0.4;
-      const e1 = limb(parts, [Math.sin(a) * 0.15, h - 0.25, Math.cos(a) * 0.15], a, 0.55 + hash2(i, k) * 0.2, 1.5 * sc, 0.5, bark[i % 2 ? 1 : 3]);
-      const e2 = limb(parts, e1, a + 0.4, 0.3 + hash2(k * 3, i) * 0.3, 1.3 * sc, 0.34, bark[1]);
-      tips.push(e1, e2);
-    }
-    const lo = h + 0.6, hi = h + 4.6 * sc;
-    const leaf = () => ({ grad: [0x355f1c, 0x7ea436, lo, hi], c: 0x5a8a2a });
-    for (const [x, y, z] of tips) {                           // a clump on every elbow and branch end
-      const s = (1.7 + hash2(x, z) * 0.6) * sc;
-      parts.push({ g: GEO.ico, m: M4(x * 1.15, y + 0.5, z * 1.15, s, s * 0.88, s, hash2(z, x) * 3), ...leaf() });
-    }
-    for (let i = 0; i < 8; i++) {                             // the crown: a top, a ring, and a lower skirt of clumps
-      const ring = i === 0 ? 0 : i < 5 ? 1 : 2, a = i * 1.57 + k + (ring === 2 ? 0.78 : 0);
-      const r = [0, 1.4, 2.3][ring] * sc, s = [2.8, 2.2, 1.8][ring] * sc, y = h + [3.5, 2.8, 1.7][ring] * sc;
-      parts.push({ g: GEO.ico, m: M4(Math.sin(a) * r, y, Math.cos(a) * r, s, s * 0.85, s, a), ...leaf() });
-    }
-    parts.push({ g: GEO.ico, m: M4(0.5, 0.45, -0.9, 0.9, 0.7, 0.9, k), c: 0x4a7a26 });   // a little bush at its foot
-  } else {
-    // bare: a dead tree, forked three times
-    treeBase(parts, k, bark[2], 0.7);
-    const h = 3.0;
-    parts.push({ g: GEO.taper, m: M4(0, h / 2, 0, 0.85, h, 0.85), c: bark[2] });
-    for (let i = 0; i < 3; i++) {
-      const a = i * 2.09 + 0.4, e1 = limb(parts, [0, h - 0.2, 0], a, 0.5, 2.0, 0.42, bark[3]);
-      for (let j = 0; j < 2; j++) {
-        const b = a + (j ? 0.55 : -0.55), e2 = limb(parts, e1, b, 0.55 + j * 0.2, 1.5, 0.24, bark[2]);
-        for (let q = 0; q < 2; q++) limb(parts, e2, b + (q ? 0.5 : -0.4), 0.45 + q * 0.35, 1.0, 0.12, bark[3]);
-      }
-    }
-  }
-  return mergeGeos(parts).scale(TREE_W, TREE_H, TREE_W);
-}
 function rockGeo(v) {
   const parts = [];
-  const n = 2 + ((v * 3) | 0);
+  const n = 3 + ((v * 2) | 0);   // v36: a cluster of three or four, a big one and its fellows, lighter grey (the reference's boulders)
   for (let i = 0; i < n; i++) {
-    const s = 0.72 + hash2(v * 40, i) * 0.95;
+    const s = i === 0 ? 1.35 : 0.6 + hash2(v * 40, i) * 0.7, a = i * 2.4 + v * 3, rr = i === 0 ? 0 : 0.55 + hash2(v * 13, i) * 0.4;
     parts.push({
       g: new THREE.DodecahedronGeometry(s * 0.62, 0),
-      m: M4((hash2(v * 13, i) - 0.5) * 1.3, s * 0.30, (hash2(v * 29, i) - 0.5) * 1.3, 1, 0.72, 1, hash2(v, i) * 3),
-      c: [0x8a8778, 0x9b9887, 0x767466][i % 3],
+      m: M4e(Math.cos(a) * rr, s * 0.26, Math.sin(a) * rr, 1, 0.78, 1.08, (hash2(v * 7, i) - 0.5) * 0.4, hash2(v, i) * 3, (hash2(v * 3, i) - 0.5) * 0.4),
+      c: [0xa6a59c, 0xb6b5aa, 0x939288, 0xa09e92][i % 4],
     });
   }
   return mergeGeos(parts);
 }
-function bushGeo(v) {
-  const parts = [];
-  const n = 4 + ((v * 3) | 0);
+/*───────────────────── v39 trees and bushes, after Khal's "Trees & Bushes" sheet ─────────────────────
+   Pines are built from layered tiers of folded blades (two triangles each, a lit half and a shaded half, so every
+   blade shows its fold), two rings a tier, half a step apart, so the tiers read as overlapping shingles. Broadleaves
+   carry a dome of small lumpy clumps on a thick flared trunk that forks into three or four limbs. The dead tree ends in
+   spikes. Bushes come in the sheet's four kinds: a low shrub, a round bush, tall scrub and a bush cluster.
+   All vertex-coloured, merged, instanced as before (one draw call per kind). */
+const TV = { needleL: 0x7aa544, needleD: 0x4a7a2c, heart: 0x2e5222, leafHi: 0xa2c24c, leafLo: 0x46722a, bark: 0x6a4a2c, barkD: 0x4a321c };
+// a pine tier: n folded blades round a centre at y = 1, tips drooping to y = -droop at radius 0.5
+function pineTier(n, droop, rot, cL, cD) {
+  const P = [], C = [], L = SC(cL), D = SC(cD), H = SC(TV.heart);
   for (let i = 0; i < n; i++) {
-    const s = 0.85 + hash2(v * 17, i) * 0.7;
-    parts.push({
-      g: GEO.sph,
-      m: M4((hash2(v * 7, i) - 0.5) * 2.0, 0.34 + hash2(v * 11, i) * 0.34, (hash2(v * 23, i) - 0.5) * 2.0,
-        s * 1.5, s * 0.95, s * 1.5, 0),
-      c: [0x2f5a1f, 0x376b26, 0x284d1a, 0x3d7429][i % 4],
-    });
+    const a = rot + i / n * 6.283, a0 = a - Math.PI / n, a1 = a + Math.PI / n, ri = 0.27;
+    const T = [Math.sin(a) * 0.5, -droop, Math.cos(a) * 0.5], N0 = [Math.sin(a0) * ri, 0.32, Math.cos(a0) * ri], N1 = [Math.sin(a1) * ri, 0.32, Math.cos(a1) * ri], top = [0, 1, 0];
+    const k = 0.9 + hash2(i * 3.1, rot * 7) * 0.22, l = L.clone().multiplyScalar(k), d = D.clone().multiplyScalar(k);
+    // the lit half and the shaded half of the blade, then a dark underside so it closes for shadows
+    for (const [p, c] of [[top, l], [N0, l], [T, l], [top, d], [T, d], [N1, d]]) { P.push(...p); C.push(c.r, c.g, c.b); }   // top faces only: the material casts shadows double-sided
+  }
+  // fix winding: the first two triangles of each blade face up, the underside down
+  for (let i = 0; i < P.length; i += 9) {
+    const ux = P[i + 3] - P[i], uy = P[i + 4] - P[i + 1], uz = P[i + 5] - P[i + 2], vx = P[i + 6] - P[i], vy = P[i + 7] - P[i + 1], vz = P[i + 8] - P[i + 2];
+    const ny = uz * vx - ux * vz, under = false;
+    if ((ny < 0) !== under) for (let j = 0; j < 3; j++) { let t = P[i + 3 + j]; P[i + 3 + j] = P[i + 6 + j]; P[i + 6 + j] = t; t = C[i + 3 + j]; C[i + 3 + j] = C[i + 6 + j]; C[i + 6 + j] = t; }
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(C, 3));
+  return g;
+}
+// lumpy faceted leaf clumps: an icosahedron with its twelve corners pushed in and out (three variants)
+GEO.clump = [0, 1, 2].map(v => {
+  const g = new THREE.IcosahedronGeometry(0.5, 0).toNonIndexed(), p = g.attributes.position, seen = new Map();
+  for (let i = 0; i < p.count; i++) {
+    const key = [p.getX(i), p.getY(i), p.getZ(i)].map(q => q.toFixed(3)).join();
+    let k = seen.get(key); if (k === undefined) { k = 0.78 + hash2(seen.size * 3.7 + v, v * 9.1 + seen.size) * 0.5; seen.set(key, k); }
+    p.setXYZ(i, p.getX(i) * k, p.getY(i) * k, p.getZ(i) * k);
+  }
+  g.computeVertexNormals(); return g;
+});
+GEO.spike = new THREE.CylinderGeometry(0.02, 0.5, 1, 5);   // a branch that ends in a point
+function treeGeo(kind) {
+  const parts = [], k = TREE_KINDS.indexOf(kind) + 1;
+  if (kind === 'pine' || kind === 'pineTall') {
+    // tall pine: nine tiers to a spire; young pine (the 'pine' kind): six, narrower and shorter
+    const tall = kind === 'pineTall', n = tall ? 9 : 6, top = tall ? 10.4 : 7.6, R0 = tall ? 3.6 : 2.7, y0 = tall ? 1.6 : 1.3;
+    treeBase(parts, k, TV.barkD, tall ? 0.6 : 0.48);
+    parts.push({ g: GEO.taper, m: M4(0, 1.3, 0, tall ? 0.75 : 0.6, 2.6, tall ? 0.75 : 0.6), c: TV.bark, grad: [TV.barkD, TV.bark, 0, 2.6] });
+    for (let i = 0; i < n; i++) {
+      const f = i / (n - 1), r = R0 * (1 - f * 0.8) + 0.35, h = 1.55 - f * 0.45, y = y0 + f * (top - y0 - 2.2);
+      const lit = i % 2 ? TV.needleL : 0x76a142;
+      parts.push({ g: pineTier(9, 0.42, i * 0.61 + k, lit, TV.needleD), m: M4(0, y, 0, r * 2, h, r * 2), vc: true });
+      parts.push({ g: pineTier(9, 0.36, i * 0.61 + k + 0.35, lit, TV.needleD), m: M4(0, y + h * 0.28, 0, r * 1.7, h * 0.9, r * 1.7), vc: true });
+    }
+    parts.push({ g: pineTier(7, 0.3, k, 0x7aa446, TV.needleD), m: M4(0, top - 1.7, 0, 1.4, 1.9, 1.4), vc: true });   // the spire
+  } else if (kind === 'broad' || kind === 'broadBig') {
+    const big = kind === 'broadBig', h = big ? 2.9 : 2.5, sc = big ? 1.2 : 1;
+    treeBase(parts, k, TV.barkD, 0.85);
+    parts.push({ g: GEO.taper, m: M4(0, h / 2, 0, 1.2, h, 1.2), c: TV.bark, grad: [TV.barkD, TV.bark, 0, h] });
+    const tips = [];
+    for (let i = 0; i < 4; i++) {                             // a fork into four limbs, each bending twice
+      const a = i * 1.57 + k * 0.6 + hash2(k, i) * 0.4;
+      const e1 = limb(parts, [Math.sin(a) * 0.2, h - 0.3, Math.cos(a) * 0.2], a, 0.5 + hash2(i, k) * 0.2, 1.6 * sc, 0.55, i % 2 ? TV.bark : TV.barkD);
+      const e2 = limb(parts, e1, a + 0.35, 0.35 + hash2(k * 3, i) * 0.3, 1.4 * sc, 0.34, TV.bark);
+      limb(parts, e1, a - 0.6, 0.9, 0.9 * sc, 0.18, TV.barkD);
+      tips.push(e2);
+    }
+    // the crown: a dome of small lumpy clumps, darker underneath, yellow-green on top, and a dark heart
+    const lo = h + 0.4, hi = h + 5.0 * sc, cy = h + 2.9 * sc;
+    parts.push({ g: GEO.clump[0], m: M4(0, cy - 0.2, 0, 4.2 * sc, 3.3 * sc, 4.2 * sc), c: 0x36602a });
+    const N = 24;
+    for (let i = 0; i < N; i++) {
+      const u = (i + 0.5) / N, phi = Math.acos(1 - u * 1.55), th = i * 2.399 + k;   // a golden spiral over the upper dome
+      const rx = 2.35 * sc, ry = 1.9 * sc, x = Math.sin(phi) * Math.cos(th) * rx, y = Math.cos(phi) * ry, z = Math.sin(phi) * Math.sin(th) * rx;
+      const s = (1.15 + hash2(i, k) * 0.45) * sc;
+      parts.push({ g: GEO.clump[i % 3], m: M4(x, cy + y, z, s, s * 0.85, s, hash2(z, i) * 3), grad: [TV.leafLo, TV.leafHi, lo, hi] });
+    }
+    for (const [x, y, z] of tips) parts.push({ g: GEO.clump[1], m: M4(x * 1.1, y + 0.3, z * 1.1, 1.3 * sc, 1.1 * sc, 1.3 * sc), grad: [TV.leafLo, TV.leafHi, lo, hi] });
+  } else {
+    // bare: a thick trunk that forks, and forks again, every branch ending in a spike
+    treeBase(parts, k, TV.barkD, 0.8);
+    const h = 3.2, c1 = 0x5c4128, c2 = 0x4c3420;
+    parts.push({ g: GEO.taper, m: M4(0, h / 2, 0, 1.0, h, 1.0), c: c1, grad: [c2, c1, 0, h] });
+    for (let i = 0; i < 3; i++) {
+      const a = i * 2.09 + 0.4, e1 = limb(parts, [0, h - 0.2, 0], a, 0.42, 2.2, 0.48, c1);
+      for (let j = 0; j < 2; j++) {
+        const b = a + (j ? 0.6 : -0.6), e2 = limb(parts, e1, b, 0.5 + j * 0.2, 1.7, 0.26, c2);
+        for (let q = 0; q < 2; q++) limb(parts, e2, b + (q ? 0.55 : -0.45), 0.4 + q * 0.4, 1.3, 0.14, c1, GEO.spike);
+        limb(parts, e1, b + 1.4, 1.0, 0.9, 0.12, c2, GEO.spike);
+      }
+      limb(parts, e1, a, 0.1, 1.6, 0.2, c1, GEO.spike);
+    }
+  }
+  return mergeGeos(parts).scale(TREE_W, TREE_H, TREE_W);
+}
+// the sheet's four bushes. They keep v31's sway (swayMat), and the obstacle (radius 1.8·s, concealment) is unchanged.
+const BUSH_KINDS = ['low', 'round', 'scrub', 'cluster'];
+function bushGeo(v) {
+  const kind = BUSH_KINDS[v], parts = [], g0 = 0.05, gr = (lo, hi) => ({ grad: [0x4a7a2c, 0x86b044, lo, hi] });
+  const stem = (x, z, h, r, a, t) => limb(parts, [x, 0, z], a, t, h, r, 0x5a3f24);
+  const blades = n => { for (let i = 0; i < n; i++) { const a = i * 2.4 + v, r = 0.9 + hash2(i, v) * 0.8, h = 0.3 + hash2(v, i) * 0.25; parts.push({ g: GEO.cone, m: M4(Math.sin(a) * r, h / 2, Math.cos(a) * r, 0.12, h, 0.12, a, (hash2(i, 7) - 0.5) * 0.6), c: [0x6a9a34, 0x7fa83c, 0x58862c][i % 3] }); } };
+  const stone = (x, z, s) => parts.push({ g: GEO.ico, m: M4(x, s * 0.25, z, s, s * 0.7, s * 0.9, x), c: 0x8b8a82 });
+  if (kind === 'low') {           // a wide low mound of small clumps
+    for (let i = 0; i < 4; i++) stem(Math.cos(i * 1.6) * 0.4, Math.sin(i * 1.6) * 0.4, 0.5, 0.1, i * 1.6, 0.9);
+    for (let i = 0; i < 11; i++) {
+      const a = i * 2.39, r = i === 0 ? 0 : 0.5 + (i % 3) * 0.42, s = 0.75 + hash2(i, 3) * 0.3;
+      parts.push({ g: GEO.clump[i % 3], m: M4(Math.cos(a) * r * 1.3, 0.45 + (i === 0 ? 0.25 : 0) - r * 0.08, Math.sin(a) * r, s, s * 0.8, s, a), ...gr(0, 1.1) });
+    }
+    blades(6); stone(1.4, 0.5, 0.25);
+  } else if (kind === 'round') {  // a dome on short stems
+    for (let i = 0; i < 3; i++) stem(Math.cos(i * 2.1) * 0.2, Math.sin(i * 2.1) * 0.2, 0.7, 0.13, i * 2.1, 0.5);
+    for (let i = 0; i < 12; i++) {
+      const u = (i + 0.5) / 12, phi = Math.acos(1 - u * 1.7), th = i * 2.399, x = Math.sin(phi) * Math.cos(th) * 0.95, y = Math.cos(phi) * 0.75, z = Math.sin(phi) * Math.sin(th) * 0.95;
+      parts.push({ g: GEO.clump[i % 3], m: M4(x, 1.0 + y, z, 0.78, 0.68, 0.78, th), ...gr(0.4, 1.9) });
+    }
+    parts.push({ g: GEO.clump[0], m: M4(0, 1.0, 0, 1.6, 1.2, 1.6), c: 0x3c6a26 });
+    blades(5); stone(-1.0, 0.6, 0.22);
+  } else if (kind === 'scrub') {  // tall open scrub: branching stems with leaf clusters at the tips
+    for (let i = 0; i < 6; i++) {
+      const a = i * 1.05 + 0.3, t = 0.18 + (i % 3) * 0.12, e = stem(Math.cos(a) * 0.15, Math.sin(a) * 0.15, 1.0 + (i % 2) * 0.35, 0.09, a, t);
+      const e2 = limb(parts, e, a + 0.5, t + 0.25, 0.7, 0.06, 0x5a3f24);
+      for (const [p, s] of [[e, 0.78], [e2, 0.72]]) parts.push({ g: GEO.clump[i % 3], m: M4(p[0], p[1] + 0.15, p[2], s, s * 0.9, s, i), ...gr(0.5, 2.1) });
+      parts.push({ g: GEO.clump[(i + 1) % 3], m: M4(e[0] * 0.6, e[1] * 0.62, e[2] * 0.6, 0.62, 0.55, 0.62, i), ...gr(0.5, 2.1) });
+    }
+    blades(6); stone(0.9, -0.8, 0.2);
+  } else {                        // a cluster: one big dome and its smaller fellows
+    for (const [x, z, s] of [[0, 0, 1.55], [1.1, 0.5, 0.95], [-1.05, 0.35, 1.0], [0.4, -0.95, 0.85], [-0.6, -0.8, 0.75]]) {
+      stem(x, z, s * 0.4, 0.1, x, 0.2);
+      for (let i = 0; i < 4; i++) { const a = i * 1.57 + x, r = s * 0.32; parts.push({ g: GEO.clump[i % 3], m: M4(x + Math.cos(a) * r, s * 0.62, z + Math.sin(a) * r, s * 0.62, s * 0.55, s * 0.62, a), ...gr(0, 2.0) }); }
+      parts.push({ g: GEO.clump[(x * 7 | 0) & 1], m: M4(x, s * 0.82, z, s * 0.8, s * 0.7, s * 0.8, z), ...gr(0, 2.0) });
+    }
+    blades(7); stone(1.6, -0.4, 0.26);
   }
   return mergeGeos(parts);
 }
@@ -2712,8 +3327,9 @@ const propMat = new THREE.MeshPhongMaterial({ vertexColors: true, flatShading: t
 const metalMat = new THREE.MeshPhongMaterial({ vertexColors: true, flatShading: true, shininess: 40, specular: SC(0x55554a) });
 // v31: foliage gets its own program, with wind sway (see lookInject)
 const swayMat = propMat.clone(); swayMat.userData = { sway: true }; swayMat.customProgramCacheKey = () => 'sway';
+swayMat.shadowSide = THREE.DoubleSide;   // v39: the pine tiers are top faces only, so they cast from both sides
 const INST = {};
-for (const [key, maker, count] of [['tree', k => treeGeo(TREE_KINDS[k]), TREE_KINDS.length], ['rock', v => rockGeo((v + 0.5) / 3), 3], ['bush', v => bushGeo((v + 0.5) / 3), 3]]) {
+for (const [key, maker, count] of [['tree', k => treeGeo(TREE_KINDS[k]), TREE_KINDS.length], ['rock', v => rockGeo((v + 0.5) / 3), 3], ['bush', v => bushGeo(v), BUSH_KINDS.length]]) {
   INST[key] = [];
   for (let v = 0; v < count; v++) {
     const im = new THREE.InstancedMesh(maker(v), key === 'rock' ? propMat : swayMat, INST_MAX);
@@ -2993,6 +3609,189 @@ function inSearchlight(x, z) {
 }
 // v14: the camp hut of Night Wire, for every house: a concrete-block plinth, plank walls with battens, a low
 // tin A-roof with ribs and a ridge cap, shuttered windows, a stovepipe, sandbags and drums by the door.
+/*───────────────────── v38 practical lights ─────────────────────
+   The reference is lit by a cold sky and ONE warm lamp over a door. Every enterable building and every house gets a
+   lamp over its door (bracket, enamel shade, a bulb drawn unlit so it glows), and on a grey, wet, dawn, dusk or night
+   op it is on:
+   · a soft additive glow round the bulb and a warm pool on the ground under it (all lamps; one merged mesh);
+   · in the rain, a long broken streak of its light reflected down the wet mud and the ruts toward the camera —
+     the camera always looks north, so the streak is baked per lamp at load, its strength taken from how wet the
+     ground under it is (mud, rut water, puddles; never the grass);
+   · ONE real PointLight, moved to the lit lamp nearest the middle of the screen, so the door, the walls, the men
+     and the wet ground there take the warm light properly (Phong specular on the wet tin and mud included);
+   · a few windows lit warm from inside (not on the camera-side wall, which fades when you go in).
+   Muzzle flashes keep their own light; NUM_POINT_LIGHTS goes 1 → 2 for every program, compiled once at load. */
+let lamps = [];
+const lampsOn = () => !!(night || weatherFog || ['dawn', 'dusk', 'overcast', 'heavy', 'storm'].includes(lightName));
+const LAMP = { col: 0xffb062, I: 2.4, dist: 11 };
+const lampLight = new THREE.PointLight(0xffffff, 0, LAMP.dist, 2); lampLight.color = SC(LAMP.col); scene.add(lampLight);
+const glowQ = { on: false, p: [], c: [] };   // the lit panes of the building being built
+const litGlassMat = new THREE.MeshBasicMaterial({ vertexColors: true });
+litGlassMat.userData = { lookRim: false, lookAO: false, lookCloud: false };
+function litPane(cx, cz, N, a, e, y0, y1) {
+  const top = SC(0xffd08a).multiplyScalar(0.95), bot = SC(0xd88a3a).multiplyScalar(0.75);
+  vcQ(glowQ, fp(cx, cz, N, a, y0, 0.09), fp(cx, cz, N, e, y0, 0.09), fp(cx, cz, N, e, y1, 0.09), fp(cx, cz, N, a, y1, 0.09), bot, bot, top, top);
+}
+function glowMesh() { if (!glowQ.p.length) return null; const m = new THREE.Mesh(mergeGeos([vcPart(glowQ)]), litGlassMat); glowQ.p = []; glowQ.c = []; return m; }
+// the fixture: a bracket off the wall, a dark green enamel shade, the bulb (drawn later, unlit). (cx, cz, N): the face
+function lampFixture(parts, cx, cz, N, t, y) {
+  fbox(parts, cx, cz, N, t, y + 0.12, 0.2, 0.06, 0.06, 0.4, 0x2a2a28);
+  fbox(parts, cx, cz, N, t, y + 0.02, 0.02, 0.12, 0.3, 0.04, 0x2a2a28);
+  const P = fp(cx, cz, N, t, y - 0.02, 0.42);
+  parts.push({ g: GEO.cone, m: M4e(P[0], P[1], P[2], 0.42, 0.2, 0.42, Math.PI, 0, 0), c: 0x2e3e2c });
+  return fp(cx, cz, N, t, y - 0.1, 0.42);
+}
+
+/*───────────────────── v37 building kit: planks, stone, four-pane windows, braced doors, corrugated gables ─────────────
+   After Khal's reference: a timber barn in vertical boards over a stone plinth, a corrugated tin gable roof with deep
+   eaves, gutters and downpipes, framed four-pane windows, ledged-and-braced double doors. All geometry with vertex
+   colours, merged into the building's existing meshes (no new draw calls), so the roof still fades as one when a man
+   goes in. A face is described by its outward normal N (one of ±x, ±z); its along-wall axis is T = U × N. */
+const BK = { pw: 0.3, seam: 0.035, stone: [0x8a877e, 0x9a968b, 0x77746c, 0x857f72], mortar: 0x4c4a44, frame: 0x3e3020, glass: 0x1a242c,
+             tin: [0x4d5356, 0x53585a, 0x4f5452, 0x565a5b], rust: 0x5e4c40, galv: 0x50555a };
+const vcCol = new THREE.Color();
+function vcQ(Q, a, b, c, d, ca, cb, cc, cd) {   // two triangles a-b-c, a-c-d, colours per corner (linear)
+  for (const [p, k] of [[a, ca], [b, cb], [c, cc], [a, ca], [c, cc], [d, cd]]) { Q.p.push(p[0], p[1], p[2]); Q.c.push(k.r, k.g, k.b); }
+}
+function vcT(Q, a, b, c, ca, cb, cc) { for (const [p, k] of [[a, ca], [b, cb], [c, cc]]) { Q.p.push(p[0], p[1], p[2]); Q.c.push(k.r, k.g, k.b); } }
+function vcPart(Q) {
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(Q.p, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(Q.c, 3));
+  return { g, m: new THREE.Matrix4(), vc: true };
+}
+const faceT = N => [N[2], 0, -N[0]];
+// a board from p0 to p1 (w across, h thick), for braces and barge boards
+const _ba = new THREE.Vector3(), _bb = new THREE.Vector3(), _bq2 = new THREE.Quaternion(), _bz = new THREE.Vector3(0, 0, 1);
+function boxAlong(parts, p0, p1, w, h, c, up) {
+  _ba.set(p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]); const L = _ba.length(); _ba.normalize();
+  _bq2.setFromUnitVectors(_bz, _ba);
+  if (up) { const r = new THREE.Vector3(1, 0, 0).applyQuaternion(_bq2), want = new THREE.Vector3(up[0], up[1], up[2]).cross(_ba).normalize(), ang = Math.atan2(new THREE.Vector3().crossVectors(r, want).dot(_ba), r.dot(want)); _bq2.premultiply(new THREE.Quaternion().setFromAxisAngle(_ba, ang)); }
+  parts.push({ g: GEO.box, m: new THREE.Matrix4().compose(new THREE.Vector3((p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2, (p0[2] + p1[2]) / 2), _bq2.clone(), new THREE.Vector3(w, h, L)), c });
+}
+// a point on a face: centre (cx, cz) on the face plane, t along it, y up, n out
+const fp = (cx, cz, N, t, y, n) => { const T = faceT(N); return [cx + T[0] * t + N[0] * (n || 0), y, cz + T[2] * t + N[2] * (n || 0)]; };
+// an axis-aligned box on a face: along t, up y, out n (its centre), sizes along / up / out
+function fbox(parts, cx, cz, N, t, y, n, sa, sh, so, c, ry) {
+  const P = fp(cx, cz, N, t, y, n), alongX = Math.abs(N[2]) > 0.5;
+  parts.push({ g: GEO.box, m: alongX ? M4(P[0], P[1], P[2], sa, sh, so, ry || 0) : M4(P[0], P[1], P[2], so, sh, sa, ry || 0), c });
+}
+// vertical boards from t0 to t1, y0 to y1 (y1 may be a function of t, for a gable), a hand's breadth proud of the wall
+function plankFace(Q, cx, cz, N, t0, t1, y0, y1, base, seed) {
+  const yt = typeof y1 === 'function' ? y1 : () => y1, b = SC(base);
+  for (let t = t0; t < t1 - 0.02; t += BK.pw) {
+    const a = t + BK.seam / 2, e = Math.min(t1, t + BK.pw) - BK.seam / 2; if (e <= a) continue;
+    const h = hash2(t * 3.7 + seed, seed * 1.3), k = 0.86 + h * 0.26, grey = hash2(seed, t * 1.9) < 0.18;
+    const top = vcCol.copy(b).multiplyScalar(k); if (grey) top.lerp(SC(0x7c7a70), 0.3);
+    const lo = top.clone().multiplyScalar(0.72);   // darker and wetter toward the foot
+    const ya = Math.max(y0, yt(a)), ye = Math.max(y0, yt(e));
+    vcQ(Q, fp(cx, cz, N, a, y0, 0), fp(cx, cz, N, e, y0, 0), fp(cx, cz, N, e, ye, 0), fp(cx, cz, N, a, ya, 0), lo, lo, top, top);
+  }
+}
+// two courses of dressed stone with dark joints
+function stoneFace(Q, cx, cz, N, t0, t1, y0, y1, seed) {
+  const H = (y1 - y0) / 2;
+  for (let r = 0; r < 2; r++) {
+    let t = t0 - (r ? 0.22 : 0);
+    while (t < t1) {
+      const L = 0.38 + hash2(t * 2.3 + seed, r + seed) * 0.42, a = Math.max(t0, t) + 0.018, e = Math.min(t1, t + L) - 0.018;
+      if (e > a + 0.05) {
+        const c = vcCol.copy(SC(BK.stone[(hash2(t * 5.1, r * 3 + seed) * 4) | 0])).multiplyScalar(0.9 + hash2(t, r + 7) * 0.2), cl = c.clone().multiplyScalar(0.82);
+        const yb = y0 + r * H + 0.018, yt = y0 + (r + 1) * H - 0.018;
+        vcQ(Q, fp(cx, cz, N, a, yb, 0), fp(cx, cz, N, e, yb, 0), fp(cx, cz, N, e, yt, 0.01), fp(cx, cz, N, a, yt, 0.01), cl, cl, c, c);
+      }
+      t += L;
+    }
+  }
+}
+// a framed four-pane window with a sill, centred at t on the face
+function window4(parts, Q, cx, cz, N, t, yc, w, h) {
+  fbox(parts, cx, cz, N, t, yc, 0.03, w + 0.16, h + 0.16, 0.1, BK.frame);
+  fbox(parts, cx, cz, N, t, yc - h / 2 - 0.12, 0.08, w + 0.34, 0.08, 0.2, 0x5a4a34);       // sill
+  const g = SC(BK.glass), g2 = SC(0x3a4a54);
+  for (const [sa, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+    const a = t + (sa < 0 ? -w / 2 + 0.03 : 0.03), e = t + (sa < 0 ? -0.03 : w / 2 - 0.03), y0 = yc + (sy < 0 ? -h / 2 + 0.03 : 0.03), y1 = yc + (sy < 0 ? -0.03 : h / 2 - 0.03);
+    vcQ(Q, fp(cx, cz, N, a, y0, 0.085), fp(cx, cz, N, e, y0, 0.085), fp(cx, cz, N, e, y1, 0.085), fp(cx, cz, N, a, y1, 0.085), g, g, g2, g);   // a glint in one corner of each pane
+    if (glowQ.on) litPane(cx, cz, N, a, e, y0, y1);   // v38: a lamp lit inside
+  }
+}
+// a ledged and braced door leaf, folded back flat against the wall, spanning t0..t1
+function doorLeaf(parts, Q, cx, cz, N, t0, t1, h, base, seed) {
+  plankFace(Q, cx, cz, N, t0, t1, 0.06, h, base, seed);
+  const tm = (t0 + t1) / 2, wl = Math.abs(t1 - t0);
+  for (const y of [0.35, h / 2, h - 0.3]) fbox(parts, cx, cz, N, tm, y, 0.04, wl - 0.08, 0.16, 0.05, 0x4a3a26);
+  // the brace, a diagonal between the ledges
+  const lo = seed > 0.5 ? t0 : t1, hi = seed > 0.5 ? t1 : t0, sg = Math.sign(hi - lo);
+  boxAlong(parts, fp(cx, cz, N, lo + sg * 0.12, 0.42, 0.05), fp(cx, cz, N, hi - sg * 0.12, h - 0.38, 0.05), 0.15, 0.05, 0x4a3a26, N);
+  fbox(parts, cx, cz, N, t0 + (t1 > t0 ? 0.25 : -0.25), h * 0.55, 0.08, 0.05, 0.22, 0.05, 0x2a2a28);   // a handle
+}
+/* a corrugated tin gable roof over a box w (x) by d (z), eaves at height e, ridge along the longer side.
+   Returns the parts for the roof mesh (tin, ridge cap, gable boards, gutters, downpipes, a vent).
+   The tin is a zig-zag sheet (the period grows with the roof, so a big one stays affordable), sheet by sheet in
+   slightly different greys, the odd rusty one, a darker lapped seam down the slope. */
+function gableRoof(w, d, e, o) {
+  o = o || {};
+  const along = w >= d, L = along ? w : d, S = along ? d : w, ov = o.ov || 0.5, ovg = o.ovg || 0.35;
+  const rh = o.rh || Math.max(1.1, Math.min(3.4, S * 0.2)), k = rh / (S / 2), half = S / 2 + ov, yE = e - ov * k, yR = e + rh;
+  const P = (a, l, y) => along ? [a, y, l] : [l, y, a];   // a along the ridge, l across it
+  const Q = { p: [], c: [] }, parts = [], seed = o.seed || 0.5;
+  const per = Math.max(0.2, (L + ovg * 2) / 130), amp = 0.035 * Math.min(1.6, per / 0.2), A0 = -L / 2 - ovg, A1 = L / 2 + ovg;
+  const sheetW = 0.9, tinsC = BK.tin.map(SC), rust = SC(BK.rust);
+  for (const side of [-1, 1]) {
+    const nl = side, dir = side;   // the slope goes from the ridge (l = 0) down to the eave (l = side * half)
+    for (let a = A0; a < A1 - 1e-6; a += per) {
+      const a1 = Math.min(A1, a + per / 2), a2 = Math.min(A1, a + per);
+      const sh = Math.floor((a - A0) / sheetW), h = hash2(sh * 1.7 + seed, side + seed * 3);
+      const base = h < 0.035 ? rust : tinsC[(h * 4 * 7 | 0) % 4], top = vcCol.copy(base).multiplyScalar(0.96 + h * 0.08).clone(), eave = top.clone().multiplyScalar(0.8);
+      if (h > 0.035 && hash2(sh, seed * 5 + side) < 0.12) top.lerp(rust, 0.25);   // a streak of rust from the odd nail
+      // three rows down the slope: ridge to the lap, the lap (a darker band), the lap to the eave
+      const rows = [0, 0.48, 0.53, 1], cols = [top, top.clone().multiplyScalar(0.9), top.clone().multiplyScalar(0.78), eave];
+      for (let r = 0; r + 1 < rows.length; r++) {
+        const l0 = dir * half * rows[r], l1 = dir * half * rows[r + 1], y0 = yR - (yR - yE) * rows[r], y1 = yR - (yR - yE) * rows[r + 1];
+        const c0 = cols[r], c1 = cols[r + 1];
+        // the trough (a..a1) then the crest (a1..a2), raised along the sheet's normal (mostly up)
+        const lift = amp;
+        const pA0 = P(a, l0, y0), pA1 = P(a, l1, y1), pM0 = P(a1, l0, y0 + lift), pM1 = P(a1, l1, y1 + lift), pB0 = P(a2, l0, y0), pB1 = P(a2, l1, y1);
+        if (side > 0) { vcQ(Q, pA0, pA1, pM1, pM0, c0, c1, c1, c0); vcQ(Q, pM0, pM1, pB1, pB0, c0, c1, c1, c0); }
+        else { vcQ(Q, pA0, pM0, pM1, pA1, c0, c0, c1, c1); vcQ(Q, pM0, pB0, pB1, pM1, c0, c0, c1, c1); }
+      }
+    }
+  }
+  // fix the winding so every face points up (the zig-zag's two sides are ambiguous by hand)
+  for (let i = 0; i < Q.p.length; i += 9) {
+    const ax = Q.p[i], ay = Q.p[i + 1], az = Q.p[i + 2], ux = Q.p[i + 3] - ax, uy = Q.p[i + 4] - ay, uz = Q.p[i + 5] - az, vx = Q.p[i + 6] - ax, vy = Q.p[i + 7] - ay, vz = Q.p[i + 8] - az;
+    if (uz * vx - ux * vz < 0) for (let j = 0; j < 3; j++) { const t = Q.p[i + 3 + j]; Q.p[i + 3 + j] = Q.p[i + 6 + j]; Q.p[i + 6 + j] = t; const c = Q.c[i + 3 + j]; Q.c[i + 3 + j] = Q.c[i + 6 + j]; Q.c[i + 6 + j] = c; }
+  }
+  // gable ends: boards under the roof's triangle, both ends
+  const G = { p: [], c: [] };
+  for (const end of [-1, 1]) {
+    const N = along ? [end, 0, 0] : [0, 0, end], ca = along ? end * L / 2 : 0, cz = along ? 0 : end * L / 2;
+    const cxF = along ? ca : 0, czF = along ? 0 : cz, sgnT = faceT(N)[along ? 2 : 0];
+    plankFace(G, cxF + N[0] * 0.02, czF + N[2] * 0.02, N, -S / 2, S / 2, e - 0.02, t => e + rh * (1 - Math.abs(t) / (S / 2)) - 0.08, o.wall || 0x7a6a44, seed * 7 + end);
+    // barge boards along the rake, ridge to eave
+    for (const sgn of [-1, 1]) boxAlong(parts, fp(cxF, czF, N, 0, yR + 0.04, ovg), fp(cxF, czF, N, sgn * half, yE - 0.04, ovg), 0.22, 0.07, 0x4a3a26, N);
+  }
+  parts.push(vcPart(Q), vcPart(G));
+  // ridge cap, gutters, downpipes, a vent
+  const cap = P(0, 0, yR + 0.05); parts.push({ g: GEO.box, m: along ? M4(cap[0], cap[1], cap[2], L + ovg * 2, 0.12, 0.42) : M4(cap[0], cap[1], cap[2], 0.42, 0.12, L + ovg * 2), c: 0x3e4244 });
+  for (const side of [-1, 1]) {
+    const gp = P(0, side * (half + 0.05), yE - 0.06);
+    parts.push({ g: GEO.box, m: along ? M4(gp[0], gp[1], gp[2], L + ovg * 2, 0.13, 0.15) : M4(gp[0], gp[1], gp[2], 0.15, 0.13, L + ovg * 2), c: BK.galv });
+    if (!o.noPipes) for (const end of [-1, 1]) {
+      const dp = P(end * (L / 2 - 0.25), side * (S / 2 + 0.16), 0);
+      parts.push({ g: GEO.box, m: M4(dp[0], (yE - 0.06) / 2, dp[2], 0.11, yE - 0.06, 0.11), c: BK.galv });
+      const sw = P(end * (L / 2 - 0.25), side * (S / 2 + ov * 0.5 + 0.1), yE - 0.12);
+      parts.push({ g: GEO.box, m: along ? M4(sw[0], sw[1], sw[2], 0.11, 0.1, ov * 0.85) : M4(sw[0], sw[1], sw[2], ov * 0.85, 0.1, 0.11), c: BK.galv });
+      const sh = P(end * (L / 2 - 0.25), side * (S / 2 + 0.3), 0.09);
+      parts.push({ g: GEO.box, m: along ? M4(sh[0], sh[1], sh[2], 0.14, 0.08, 0.35) : M4(sh[0], sh[1], sh[2], 0.35, 0.08, 0.14), c: BK.galv });
+    }
+  }
+  if (!o.noVent) {
+    const vp = P(L * 0.18 * (seed > 0.5 ? 1 : -1), 0, yR + 0.25);
+    parts.push({ g: GEO.box, m: M4(vp[0], vp[1], vp[2], 0.9, 0.5, 0.9), c: 0x8a9294 });
+    parts.push({ g: GEO.box, m: M4(vp[0], vp[1] + 0.3, vp[2], 1.15, 0.08, 1.15), c: 0x6a7274 });
+  }
+  return { parts, rh, yE, yR, half };
+}
+
 function mkHouse(x, z, w, d) {
   const H = 2.7, seed = hash2(x * 0.37, z * 0.53);
   const plank = [0x7a6a44, 0x84714a, 0x6e6040][(seed * 3) | 0], batten = 0x55462c;
@@ -3000,29 +3799,17 @@ function mkHouse(x, z, w, d) {
   const parts = [], tins = [];
   const along = w >= d, span = along ? d : w, len = along ? w : d;
   parts.push({ g: GEO.box, m: M4(0, 0.15, 0, w + 0.3, 0.3, d + 0.3), c: block });
-  parts.push({ g: GEO.box, m: M4(0, H / 2 + 0.2, 0, w, H - 0.1, d), c: plank });
-  // battens over the plank joints, every face
-  for (const [fx, fz, flen, horiz] of [[0, d / 2, w, true], [0, -d / 2, w, true], [w / 2, 0, d, false], [-w / 2, 0, d, false]]) {
-    const nb = Math.floor(flen / 0.6);
-    for (let i = 1; i < nb; i++) {
-      const t = -flen / 2 + i * (flen / nb);
-      parts.push({ g: GEO.box, m: M4(horiz ? t : fx + Math.sign(fx) * 0.03, H / 2 + 0.2, horiz ? fz + Math.sign(fz) * 0.03 : t, horiz ? 0.07 : 0.06, H - 0.1, horiz ? 0.06 : 0.07), c: batten });
-    }
+  parts.push({ g: GEO.box, m: M4(0, H / 2 + 0.2, 0, w, H - 0.1, d), c: (plank & 0xfefefe) >> 1 });
+  // v37: vertical boards on every face (the dark box shows in the joints), corner posts, a corrugated gable over it all
+  const Q = { p: [], c: [] };
+  for (const N of [[0, 0, 1], [0, 0, -1], [1, 0, 0], [-1, 0, 0]]) {
+    const len = N[2] ? w : d, off = (N[2] ? d : w) / 2 + 0.012;
+    plankFace(Q, N[0] * off, N[2] * off, N, -len / 2, len / 2, 0.3, H + 0.14, plank, seed * 17 + N[0] * 3 + N[2] * 5);
   }
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) parts.push({ g: GEO.box, m: M4(sx * (w / 2), H / 2 + 0.2, sz * (d / 2), 0.2, H - 0.1, 0.2), c: batten });
-  // the roof: a low tin A, ribs running down each slope, a ridge cap, gable boards
-  const rh = 0.75 + span * 0.07, ov = 0.45, half = span / 2 + ov, slope = Math.hypot(half, rh), ang = Math.atan2(rh, half);
-  if (along) tins.push({ g: GEO.prism, m: M4(0, H + 0.12, 0, d + ov * 2, rh, w + ov * 2, Math.PI / 2), c: tin });
-  else tins.push({ g: GEO.prism, m: M4(0, H + 0.12, 0, w + ov * 2, rh, d + ov * 2, 0), c: tin });
-  const nr = Math.floor((len + ov * 2) / 0.55);
-  for (let i = 0; i <= nr; i++) {
-    const t = -(len + ov * 2) / 2 + i * ((len + ov * 2) / nr);
-    for (const sgn of [-1, 1]) {
-      const lat = sgn * half / 2, yy = H + 0.12 + rh / 2 + 0.02;
-      tins.push({ g: GEO.box, m: along ? RM4(t, yy, lat, 0.05, 0.04, slope, sgn * ang) : RM4(lat, yy, t, slope, 0.04, 0.05, 0, 0, -sgn * ang), c: rib });
-    }
-  }
-  tins.push({ g: GEO.box, m: M4(0, H + 0.14 + rh, 0, along ? len + ov * 2 : 0.3, 0.1, along ? 0.3 : len + ov * 2), c: rib });
+  const R = gableRoof(w, d, H + 0.15, { seed, wall: plank, rh: 0.75 + span * 0.07, ov: 0.45, ovg: 0.3, noVent: true });
+  tins.push(...R.parts);
+  const rh = R.rh;
   // door, on the camera side, with frame, step, and a lamp bracket
   const dx = (seed - 0.5) * w * 0.4;
   parts.push({ g: GEO.box, m: M4(dx, 1.15, d / 2 + 0.05, 1.15, 2.1, 0.08), c: batten });
@@ -3031,14 +3818,15 @@ function mkHouse(x, z, w, d) {
   parts.push({ g: GEO.box, m: M4(dx, 0.12, d / 2 + 0.45, 1.3, 0.24, 0.6), c: block });
   // shuttered windows: a dark pane, a frame, one shutter hanging open
   const win = (px, pz, ry) => {
-    const cx_ = Math.cos(ry), sz_ = Math.sin(ry);
-    parts.push({ g: GEO.box, m: M4(px, 1.65, pz, 0.95, 0.75, 0.08, ry), c: batten });
-    parts.push({ g: GEO.box, m: M4(px + sz_ * 0.02, 1.65, pz + cx_ * 0.02, 0.72, 0.55, 0.06, ry), c: dark });
-    parts.push({ g: GEO.box, m: M4(px + sz_ * 0.2 + cx_ * 0.62, 1.65, pz + cx_ * 0.2 - sz_ * 0.62, 0.42, 0.62, 0.05, ry + 0.6), c: plank });
+    const N = [Math.round(Math.sin(ry)), 0, Math.round(Math.cos(ry))], T = faceT(N), t = px * T[0] + pz * T[2];
+    const fx = N[0] ? px : 0, fz = N[2] ? pz : 0;
+    glowQ.on = lampsOn() && hash2(px * 3.1 + x, pz * 1.7 + z) < 0.5;   // v38
+    window4(parts, Q, fx, fz, N, t, 1.65, 0.8, 0.7);
+    glowQ.on = false;
+    // one shutter hanging open beside it
+    const sp = fp(fx, fz, N, t + 0.72, 1.65, 0.2);
+    parts.push({ g: GEO.box, m: M4(sp[0], sp[1], sp[2], N[2] ? 0.42 : 0.05, 0.78, N[2] ? 0.05 : 0.42, 0.6 * (N[2] || N[0])), c: plank });
   };
-  win(dx + (dx > 0 ? -1 : 1) * Math.min(w * 0.3, 1.9), d / 2 + 0.03, 0);
-  win(-dx * 0.5, -d / 2 - 0.03, Math.PI);
-  win(w / 2 + 0.03, 0, Math.PI / 2); win(-w / 2 - 0.03, 0, -Math.PI / 2);
   // stovepipe through the roof
   parts.push({ g: GEO.cyl, m: M4(-w * 0.28, H + rh * 0.6 + 0.4, -d * 0.18, 0.2, rh + 1.2, 0.2), c: 0x3a3c40 });
   parts.push({ g: GEO.cyl, m: M4(-w * 0.28, H + rh * 0.6 + 1.05, -d * 0.18, 0.32, 0.08, 0.32), c: 0x2a2c30 });
@@ -3049,10 +3837,15 @@ function mkHouse(x, z, w, d) {
   for (const [ox, oz, c] of [[w / 2 - 0.35, d / 2 + 0.3, 0x4a5a3a], [w / 2 - 0.85, d / 2 + 0.28, 0x6a3a2a]]) {
     parts.push({ g: GEO.cyl, m: M4(ox, 0.45, oz, 0.56, 0.9, 0.56), c }); parts.push({ g: GEO.cyl, m: M4(ox, 0.9, oz, 0.5, 0.03, 0.5), c: 0x2a2a28 });
   }
+  // v38: a lamp over the door
+  const hb = lampFixture(parts, 0, d / 2 + 0.06, [0, 0, 1], dx, 2.5);
+  parts.push(vcPart(Q));
   const m = new THREE.Mesh(mergeGeos(parts), propMat), t = new THREE.Mesh(mergeGeos(tins), metalMat);
+  { const gm = glowMesh(); if (gm) m.add(gm); }
   m.castShadow = true; m.receiveShadow = true; t.castShadow = true; t.receiveShadow = true; m.add(t);
   m.position.set(x + w / 2, groundY(x + w / 2, z + d / 2) - 0.1, z + d / 2);
   propRoot.add(m);
+  lamps.push({ x: hb[0] + m.position.x, y: hb[1] + m.position.y, z: hb[2] + m.position.z, nx: 0, nz: 1 });
   return { type: 'house', x, z, w, d, cx: x + w / 2, cz: z + d / 2, mesh: m, tall: true, cover: true };
 }
 // a plank causeway sitting on the un-carved strip between two halves of a river.
@@ -4199,6 +4992,434 @@ const buildRoot = new THREE.Group(); scene.add(buildRoot);
 let builds = [];
 const WALL_T = 0.55, WALL_H = 3.0;
 
+/*───────────────────── v39 structures kit, after Khal's "Structures & Village" sheet ─────────────────────
+   Four procedural canvas textures, drawn once at load: rendered stone (cream render with patches fallen away to show
+   the stone), rubble stone, clay roof tiles and cobbles. Textured parts are UV-mapped by box projection in metres
+   (mergeUV), so a texel is the same size on every wall. Static props (farmhouses, ruins, barns, lampposts, garden walls)
+   are batched per material into one mesh each for the whole op (TB, flushTexBatch): a village of a dozen houses is
+   five draw calls. Enterable buildings keep their own meshes, because their roofs and near walls fade. */
+let _tsd = 7;
+const trnd = () => (_tsd = (_tsd * 16807) % 2147483647) / 2147483647;
+function canvasTex(N, draw) {
+  const cv = document.createElement('canvas'); cv.width = cv.height = N; const x = cv.getContext('2d'); _tsd = 7 + N; draw(x, N);
+  const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.encoding = THREE.sRGBEncoding;
+  t.anisotropy = Math.min(4, R.capabilities.getMaxAnisotropy()); t.minFilter = THREE.LinearMipmapLinearFilter; t.generateMipmaps = true; return t;
+}
+const shade = (hex, k) => { const r = Math.min(255, (hex >> 16 & 255) * k), g = Math.min(255, (hex >> 8 & 255) * k), b = Math.min(255, (hex & 255) * k); return `rgb(${r | 0},${g | 0},${b | 0})`; };
+// irregular stones in courses (used by the rubble texture and the exposed patches in the render)
+function drawStones(x, X0, Y0, W, H, cols, mortar, rh0, rh1) {
+  x.fillStyle = mortar; x.fillRect(X0, Y0, W, H);
+  for (let y = Y0; y < Y0 + H;) {
+    const rh = rh0 + trnd() * (rh1 - rh0);
+    for (let sx = X0 - trnd() * 40; sx < X0 + W;) {
+      const sw = rh * (1.1 + trnd() * 1.4), c = cols[(trnd() * cols.length) | 0], k = 0.88 + trnd() * 0.24, j = () => (trnd() - 0.5) * rh * 0.18;
+      x.beginPath(); x.moveTo(sx + 3 + j(), y + 3 + j()); x.lineTo(sx + sw - 3 + j(), y + 3 + j()); x.lineTo(sx + sw - 2 + j(), y + rh - 3 + j()); x.lineTo(sx + 3 + j(), y + rh - 2 + j()); x.closePath();
+      x.fillStyle = shade(c, k); x.fill();
+      x.strokeStyle = shade(c, k * 1.18); x.lineWidth = 2; x.beginPath(); x.moveTo(sx + 4, y + 4); x.lineTo(sx + sw - 4, y + 4); x.stroke();          // a lit top edge
+      x.strokeStyle = shade(c, k * 0.7); x.beginPath(); x.moveTo(sx + 4, y + rh - 3); x.lineTo(sx + sw - 4, y + rh - 3); x.stroke();              // a shaded foot
+      sx += sw;
+    }
+    y += rh;
+  }
+}
+const TEX = {
+  // clay tiles, 2 m square: staggered courses running across, rows downslope (v), each tile lighter at its head
+  tile: canvasTex(256, (x, N) => {
+    const rows = 9, cols = 8, rh = N / rows, cw = N / cols, P = [0xb0532f, 0xc0643a, 0xa24a2a, 0xb85d34, 0x9a4a2e, 0xc86e42, 0xa85838];
+    x.fillStyle = '#4a2416'; x.fillRect(0, 0, N, N);
+    for (let r = 0; r < rows; r++) for (let c = -1; c <= cols; c++) {
+      const X = c * cw + (r % 2) * cw / 2, Y = r * rh, base = P[(trnd() * P.length) | 0], k = 0.86 + trnd() * 0.26;
+      const g = x.createLinearGradient(0, Y, 0, Y + rh); g.addColorStop(0, shade(base, k * 1.12)); g.addColorStop(0.75, shade(base, k)); g.addColorStop(1, shade(base, k * 0.78));
+      x.fillStyle = g; x.beginPath(); x.moveTo(X + 1.5, Y); x.lineTo(X + cw - 1.5, Y); x.lineTo(X + cw - 1.5, Y + rh - 6); x.quadraticCurveTo(X + cw - 1.5, Y + rh - 1, X + cw - 6, Y + rh - 1); x.lineTo(X + 6, Y + rh - 1); x.quadraticCurveTo(X + 1.5, Y + rh - 1, X + 1.5, Y + rh - 6); x.closePath(); x.fill();
+      x.fillStyle = 'rgba(40,16,8,0.35)'; x.fillRect(X + 1.5, Y, cw - 3, 2);                                   // the shadow of the course above
+    }
+    for (let i = 0; i < 70; i++) { const lx = trnd() * N, ly = trnd() * N, r = 1 + trnd() * 4; x.fillStyle = trnd() < 0.5 ? 'rgba(170,170,90,0.35)' : 'rgba(90,110,60,0.3)'; x.beginPath(); x.arc(lx, ly, r, 0, 6.283); x.fill(); }   // lichen
+  }),
+  // cream render over stone, 4 m square: mottled, streaked, with patches fallen away to show the stone and a crack or two
+  plaster: canvasTex(512, (x, N) => {
+    x.fillStyle = '#d6c8aa'; x.fillRect(0, 0, N, N);
+    for (let i = 0; i < 900; i++) { const r = 4 + trnd() * 26; x.fillStyle = trnd() < 0.5 ? `rgba(255,248,226,${0.04 + trnd() * 0.06})` : `rgba(120,100,70,${0.03 + trnd() * 0.05})`; x.beginPath(); x.arc(trnd() * N, trnd() * N, r, 0, 6.283); x.fill(); }
+    for (let i = 0; i < 6; i++) {
+      const cx = trnd() * N, cy = trnd() * N, R0 = 18 + trnd() * 34;
+      x.save(); x.beginPath();
+      for (let k = 0; k <= 14; k++) { const a = k / 14 * 6.283, r = R0 * (0.6 + trnd() * 0.55); x[k ? 'lineTo' : 'moveTo'](cx + Math.cos(a) * r * 1.4, cy + Math.sin(a) * r); }
+      x.closePath(); x.clip();
+      drawStones(x, cx - R0 * 1.6, cy - R0 * 1.2, R0 * 3.2, R0 * 2.4, [0xa89a80, 0x9a8c74, 0xb5a88e, 0x8e8270], '#76695a', 14, 22);
+      x.restore();
+      x.strokeStyle = 'rgba(150,130,100,0.6)'; x.lineWidth = 2; x.stroke();
+    }
+    for (let i = 0; i < 40; i++) { const sx = trnd() * N, sy = trnd() * N * 0.4; x.fillStyle = 'rgba(90,80,60,0.05)'; x.fillRect(sx, sy, 3 + trnd() * 6, N * (0.3 + trnd() * 0.5)); }   // rain streaks
+    x.strokeStyle = 'rgba(80,66,48,0.5)'; x.lineWidth = 1.2;
+    for (let i = 0; i < 5; i++) { let px = trnd() * N, py = trnd() * N; x.beginPath(); x.moveTo(px, py); for (let k = 0; k < 6; k++) { px += (trnd() - 0.5) * 24; py += 6 + trnd() * 14; x.lineTo(px, py); } x.stroke(); }
+  }),
+  // rubble stone for plinths, chimneys, garden walls, ruins and quoins, 3 m square
+  stone: canvasTex(512, (x, N) => {
+    drawStones(x, 0, 0, N, N, [0xa8a294, 0x9a958a, 0xb4ae9e, 0x8c877c, 0xa69c88, 0x958a76], '#5e584e', 26, 44);
+    for (let i = 0; i < 60; i++) { x.fillStyle = `rgba(80,110,50,${0.08 + trnd() * 0.1})`; x.beginPath(); x.arc(trnd() * N, trnd() * N, 3 + trnd() * 10, 0, 6.283); x.fill(); }
+  }),
+  // cobbles (setts), 1.8 m square
+  cobble: canvasTex(256, (x, N) => {
+    x.fillStyle = '#34322c'; x.fillRect(0, 0, N, N);
+    const rows = 12, rh = N / rows;
+    for (let r = 0; r < rows; r++) for (let sx = -(r % 2) * rh * 0.6; sx < N;) {
+      const sw = rh * (0.95 + trnd() * 0.5), base = [0x8a867c, 0x7d7a72, 0x9a968c, 0x86807a, 0x928a7e][(trnd() * 5) | 0], k = 0.85 + trnd() * 0.3, Y = r * rh;
+      const g = x.createRadialGradient(sx + sw * 0.4, Y + rh * 0.35, 1, sx + sw / 2, Y + rh / 2, sw * 0.7); g.addColorStop(0, shade(base, k * 1.2)); g.addColorStop(1, shade(base, k * 0.7));
+      x.fillStyle = g; x.beginPath(); const rr = rh * 0.3, X0 = sx + 1.5, Y0 = Y + 1.5, W = sw - 3, H = rh - 3;
+      x.moveTo(X0 + rr, Y0); x.arcTo(X0 + W, Y0, X0 + W, Y0 + H, rr); x.arcTo(X0 + W, Y0 + H, X0, Y0 + H, rr); x.arcTo(X0, Y0 + H, X0, Y0, rr); x.arcTo(X0, Y0, X0 + W, Y0, rr); x.fill();
+      sx += sw;
+    }
+  }),
+};
+const TEXSZ = { tile: 2.0, plaster: 4.0, stone: 3.0, cobble: 1.8 };
+const TEXMAT = {};
+for (const k in TEX) { const m = new THREE.MeshPhongMaterial({ map: TEX[k], vertexColors: true, flatShading: true, shininess: k === 'tile' ? 12 : 5, specular: SC(0x18150f) }); TEXMAT[k] = m; }
+TEXMAT.cobble.polygonOffset = true; TEXMAT.cobble.polygonOffsetFactor = -1; TEXMAT.cobble.polygonOffsetUnits = -4;   // v40: the streets lie on the ground
+function wetTextures() {   // called per op: wet tiles and cobbles shine
+  TEXMAT.tile.shininess = weatherRain ? 60 : 12; TEXMAT.tile.specular = SC(weatherRain ? 0x5a4a40 : 0x18150f);
+  TEXMAT.cobble.shininess = weatherRain ? 50 : 8; TEXMAT.cobble.specular = SC(weatherRain ? 0x4a4e52 : 0x18150f);
+}
+/* merge parts into one textured geometry. A part: { g, m, c, burn: [y0, y1] (scorched toward y1), dirt: true (darker at
+   the foot), uv: true (keep the part's own uv, in metres) }. Otherwise the uv is a box projection in metres / size. */
+const _ua = new THREE.Vector3(), _ub = new THREE.Vector3(), _uc = new THREE.Vector3(), _un = new THREE.Vector3(), _ue = new THREE.Vector3(), _uf = new THREE.Vector3(), _ucol = new THREE.Color();
+function mergeUV(parts, sz) {
+  const P = [], N = [], U = [], C = [];
+  for (const p of parts) {
+    const g = p.g.index ? p.g.toNonIndexed() : p.g.clone(); if (p.m) g.applyMatrix4(p.m);
+    const pa = g.attributes.position, ua = p.uv && g.attributes.uv, ca = p.vc && g.attributes.color, base = SC(p.c === undefined ? 0xffffff : p.c);
+    for (let i = 0; i + 2 < pa.count; i += 3) {
+      _ua.fromBufferAttribute(pa, i); _ub.fromBufferAttribute(pa, i + 1); _uc.fromBufferAttribute(pa, i + 2);
+      _ue.subVectors(_ub, _ua); _uf.subVectors(_uc, _ua); _un.crossVectors(_ue, _uf).normalize();
+      const ax = Math.abs(_un.x), ay = Math.abs(_un.y), az = Math.abs(_un.z);
+      [_ua, _ub, _uc].forEach((v, k) => {
+        let u, w;
+        if (ua) { u = ua.getX(i + k); w = ua.getY(i + k); }
+        else if (ay >= ax && ay >= az) { u = v.x; w = v.z; } else if (ax >= az) { u = v.z; w = v.y; } else { u = v.x; w = v.y; }
+        P.push(v.x, v.y, v.z); N.push(_un.x, _un.y, _un.z); U.push(u / sz, w / sz);
+        if (ca) _ucol.fromBufferAttribute(ca, i + k); else _ucol.copy(base);
+        if (p.dirt) _ucol.multiplyScalar(0.72 + 0.28 * Math.max(0, Math.min(1, v.y / 1.3)));
+        if (p.burn) { const f = Math.max(0, Math.min(1, (v.y - p.burn[0]) / (p.burn[1] - p.burn[0]))); _ucol.multiplyScalar(1 - 0.72 * f * f); }
+        C.push(_ucol.r, _ucol.g, _ucol.b);
+      });
+    }
+    g.dispose();
+  }
+  const out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); out.setAttribute('normal', new THREE.Float32BufferAttribute(N, 3));
+  out.setAttribute('uv', new THREE.Float32BufferAttribute(U, 2)); out.setAttribute('color', new THREE.Float32BufferAttribute(C, 3));
+  out.computeBoundingSphere(); return out;
+}
+// quads with their own uv (metres) and colours: Q = { p, uv, c }
+function uvQ(Q, a, b, c, d, ua, ub, uc, ud, ca, cb, cc, cd) {
+  ca = ca || 0xffffff; cb = cb || ca; cc = cc || ca; cd = cd || ca;
+  for (const [p, u, k] of [[a, ua, ca], [b, ub, cb], [c, uc, cc], [a, ua, ca], [c, uc, cc], [d, ud, cd]]) { Q.p.push(p[0], p[1], p[2]); Q.uv.push(u[0], u[1]); const col = SC(k); Q.c.push(col.r, col.g, col.b); }
+}
+function uvPart(Q) {
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(Q.p, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(Q.uv, 2)); g.setAttribute('color', new THREE.Float32BufferAttribute(Q.c, 3));
+  return { g, uv: true, vc: true };
+}
+// the per-op static batch: world-space geometries per material, merged into one mesh each after the obstacles are placed
+const TB = { plaster: [], stone: [], tile: [], vc: [], glow: [] };
+let tbMeshes = [];
+function tbAdd(kind, geo, x, y, z) { geo.translate(x, y, z); TB[kind].push(geo); }
+function concatGeos(list) {
+  const names = Object.keys(list[0].attributes), out = new THREE.BufferGeometry();
+  for (const n of names) {
+    const it = list[0].attributes[n].itemSize; let len = 0; for (const g of list) len += g.attributes[n] ? g.attributes[n].count * it : 0;
+    const arr = new Float32Array(len); let o = 0;
+    for (const g of list) { const a = g.attributes[n]; if (!a) continue; arr.set(a.array, o); o += a.array.length; }
+    out.setAttribute(n, new THREE.BufferAttribute(arr, it));
+  }
+  out.computeBoundingSphere(); return out;
+}
+function flushTexBatch() {
+  for (const k in TB) {
+    if (!TB[k].length) continue;
+    const g = concatGeos(TB[k]); for (const q of TB[k]) q.dispose(); TB[k] = [];
+    const m = new THREE.Mesh(g, k === 'vc' ? propMat : k === 'glow' ? litGlassMat : TEXMAT[k]);
+    m.castShadow = k !== 'glow'; m.receiveShadow = true; propRoot.add(m); tbMeshes.push(m);
+  }
+}
+function clearTexBatch() { for (const m of tbMeshes) { propRoot.remove(m); m.geometry.dispose(); } tbMeshes = []; for (const k in TB) TB[k] = []; }
+
+/* a clay-tile gable roof over a box w (x) by d (z), eaves at e. o: along (ridge along x; default the longer side),
+   rh (rise; default a steep 0.42 of the span), ov (eaves overhang), ovg (gable overhang), chimney (-1 / 1: which gable
+   end), gables (false: leave the gable triangles to the caller), seed.
+   Returns { tile, plaster, stone, vc } part lists and the heights. */
+function tileRoof(w, d, e, o) {
+  o = o || {};
+  const along = o.along !== undefined ? o.along : w >= d, L = along ? w : d, S = along ? d : w, ov = o.ov !== undefined ? o.ov : 0.35, ovg = o.ovg !== undefined ? o.ovg : 0.28;
+  const rh = o.rh || S * 0.42, k = rh / (S / 2), half = S / 2 + ov, yE = e - ov * k, yR = e + rh, sl = Math.hypot(half, yR - yE);
+  const P = (a, l, y) => along ? [a, y, l] : [l, y, a];
+  const T = { p: [], uv: [], c: [] }, U = { p: [], uv: [], c: [] }, A0 = -L / 2 - ovg, A1 = L / 2 + ovg, out = { tile: [], plaster: [], stone: [], vc: [], rh, yR, yE, half };
+  for (const side of [-1, 1]) {
+    const r0 = P(A0, 0, yR), r1 = P(A1, 0, yR), e1 = P(A1, side * half, yE), e0 = P(A0, side * half, yE);
+    const sh = 0xffffff, lo = 0xc8c0b8;   // a touch darker toward the eaves
+    const q = side > 0 ? [r0, e0, e1, r1, [A0, 0], [A0, sl], [A1, sl], [A1, 0]] : [r1, e1, e0, r0, [A1, 0], [A1, sl], [A0, sl], [A0, 0]];
+    if (along === (side < 0)) uvQ(T, q[0], q[3], q[2], q[1], q[4], q[7], q[6], q[5], sh, sh, lo, lo); else uvQ(T, q[0], q[1], q[2], q[3], q[4], q[5], q[6], q[7], sh, lo, lo, sh);
+    // the underside, so the roof closes for the shadow map and from low angles
+    const d0 = [r0[0], r0[1] - 0.12, r0[2]], d1 = [r1[0], r1[1] - 0.12, r1[2]], f1 = [e1[0], e1[1] - 0.12, e1[2]], f0 = [e0[0], e0[1] - 0.12, e0[2]];
+    if (along === (side < 0)) uvQ(U, d0, f0, f1, d1, [0, 0], [0, 1], [1, 1], [1, 0], 0x3a2a20); else uvQ(U, d0, d1, f1, f0, [0, 0], [1, 0], [1, 1], [0, 1], 0x3a2a20);
+    // the eaves' edge, gutter and the verge boards
+    const gp = P(0, side * (half + 0.04), yE - 0.07);
+    out.vc.push({ g: GEO.box, m: along ? M4(gp[0], gp[1], gp[2], L + ovg * 2, 0.14, 0.16) : M4(gp[0], gp[1], gp[2], 0.16, 0.14, L + ovg * 2), c: 0x5a3a28 });
+    for (const end of [-1, 1]) boxAlong(out.vc, P(end * (L / 2 + ovg), 0, yR + 0.02), P(end * (L / 2 + ovg), side * half, yE + 0.02), 0.08, 0.16, 0x4a3020, along ? [end, 0, 0] : [0, 0, end]);
+  }
+  // fix the winding of the tiles so they face up, the underside down
+  for (const [Q, up] of [[T, true], [U, false]]) for (let i = 0; i < Q.p.length; i += 9) {
+    const ux = Q.p[i + 3] - Q.p[i], uz = Q.p[i + 5] - Q.p[i + 2], vx = Q.p[i + 6] - Q.p[i], vz = Q.p[i + 8] - Q.p[i + 2];
+    const ny = uz * vx - ux * vz;
+    if ((ny < 0) === up) for (let j = 0; j < 3; j++) { let t = Q.p[i + 3 + j]; Q.p[i + 3 + j] = Q.p[i + 6 + j]; Q.p[i + 6 + j] = t; t = Q.c[i + 3 + j]; Q.c[i + 3 + j] = Q.c[i + 6 + j]; Q.c[i + 6 + j] = t; if (j < 2) { const ti = i / 3 * 2; t = Q.uv[ti + 2 + j]; Q.uv[ti + 2 + j] = Q.uv[ti + 4 + j]; Q.uv[ti + 4 + j] = t; } }
+  }
+  out.tile.push(uvPart(T)); out.vc.push(vcPartUV(U));
+  // half-round ridge tiles
+  const rc = P(0, 0, yR + 0.04);
+  out.vc.push({ g: GEO.cyl, m: along ? M4e(rc[0], rc[1], rc[2], 0.3, L + ovg * 2 + 0.1, 0.3, 0, 0, Math.PI / 2) : M4e(rc[0], rc[1], rc[2], 0.3, L + ovg * 2 + 0.1, 0.3, Math.PI / 2, 0, 0), c: 0x8e4426 });
+  // the gable triangles
+  if (o.gables !== false) for (const end of [-1, 1]) {
+    const G = new THREE.BufferGeometry(), a = end * L / 2, p0 = P(a, -S / 2, e - 0.02), p1 = P(a, S / 2, e - 0.02), p2 = P(a, 0, yR - 0.1);
+    G.setAttribute('position', new THREE.Float32BufferAttribute([...p0, ...p1, ...p2, ...p0, ...p2, ...p1], 3));
+    out.plaster.push({ g: G, dirt: false });
+  }
+  // a chimney on the ridge at one gable end, two pots on it
+  if (o.chimney) {
+    const cp = P(o.chimney * (L / 2 - 0.55), 0, 0), ch = yR + 1.1, base = yR - 1.6;
+    out.stone.push({ g: GEO.box, m: M4(cp[0], (ch + base) / 2, cp[2], 0.95, ch - base, 0.75) });
+    out.vc.push({ g: GEO.box, m: M4(cp[0], ch + 0.06, cp[2], 1.1, 0.14, 0.9), c: 0x8a857a });
+    for (const s of [-1, 1]) {
+      const pp = along ? [cp[0], cp[2] + s * 0.2] : [cp[0] + s * 0.2, cp[2]];
+      out.vc.push({ g: GEO.cyl, m: M4(pp[0], ch + 0.36, pp[1], 0.24, 0.48, 0.24), c: 0xa84e2c });
+      out.vc.push({ g: GEO.cyl, m: M4(pp[0], ch + 0.62, pp[1], 0.3, 0.06, 0.3), c: 0x8e3e22 });
+    }
+  }
+  return out;
+}
+function vcPartUV(Q) { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(Q.p, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(Q.c, 3)); return { g, m: new THREE.Matrix4(), vc: true }; }
+// stone quoins at the four corners of a w × d box, from y0 to y1, alternating long and short
+function quoins(list, w, d, y0, y1) {
+  const n = Math.floor((y1 - y0) / 0.42);
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) for (let i = 0; i < n; i++) {
+    const y = y0 + (i + 0.5) * (y1 - y0) / n, lx = i % 2 ? 0.42 : 0.72, lz = i % 2 ? 0.72 : 0.42;
+    list.push({ g: GEO.box, m: M4(sx * (w / 2 - lx / 2 + 0.04), y, sz * (d / 2 - lz / 2 + 0.04), lx, (y1 - y0) / n - 0.04, lz) });
+  }
+}
+// a window in a rendered wall: pale stone surround and sill, dark glass with a white cross, brown shutters folded open
+function farmWindow(vc, Q, cx, cz, N, t, yc, w, h, o) {
+  o = o || {};
+  fbox(vc, cx, cz, N, t, yc, 0.02, w + 0.3, h + 0.3, 0.06, o.hole ? 0x4e4a42 : 0xc4bcaa);                 // the surround (sooted round a burnt-out hole)
+  fbox(vc, cx, cz, N, t, yc - h / 2 - 0.12, 0.08, w + 0.42, 0.1, 0.2, o.hole ? 0x5e5a50 : 0xb4ac9a);       // sill
+  if (o.hole) { fbox(vc, cx, cz, N, t, yc, 0.05, w, h, 0.04, 0x141210); }             // a burnt-out hole
+  else {
+    glowQ.on = !!o.lit; window4(vc, Q, cx, cz, N, t, yc, w - 0.1, h - 0.1); glowQ.on = false;
+    fbox(vc, cx, cz, N, t, yc, 0.1, 0.05, h - 0.12, 0.03, 0xd8d2c4); fbox(vc, cx, cz, N, t, yc, 0.1, w - 0.12, 0.05, 0.03, 0xd8d2c4);   // the white cross
+  }
+  const sc = o.shutter || 0x5a3a22;
+  for (const s of [-1, 1]) {
+    if (o.hole && s > 0) { const P = fp(cx, cz, N, t + w / 2 + 0.35, yc - 0.15, 0.12); vc.push({ g: GEO.box, m: M4e(P[0], P[1], P[2], Math.abs(N[2]) > 0.5 ? w / 2 : 0.05, h, Math.abs(N[2]) > 0.5 ? 0.05 : w / 2, 0.15, 0, 0.35), c: 0x2a1e16 }); continue; }
+    fbox(vc, cx, cz, N, t + s * (w / 2 + 0.22 + w / 4), yc, 0.06, w / 2, h + 0.05, 0.05, sc);
+    for (const yy of [-h / 3, 0, h / 3]) fbox(vc, cx, cz, N, t + s * (w / 2 + 0.22 + w / 4), yc + yy, 0.09, w / 2 - 0.06, 0.06, 0.02, 0x3e2816);   // its slats
+  }
+  if (o.box) {   // a window box of flowers
+    fbox(vc, cx, cz, N, t, yc - h / 2 - 0.05, 0.22, w + 0.1, 0.18, 0.22, 0x6a4a2c);
+    for (let i = 0; i < 4; i++) { const P = fp(cx, cz, N, t - w / 2 + 0.15 + i * (w - 0.3) / 3, yc - h / 2 + 0.12, 0.24); vc.push({ g: GEO.clump[i % 3], m: M4(P[0], P[1], P[2], 0.28, 0.24, 0.28, i), c: i % 2 ? 0xc83a3a : 0x5a8a2e }); }
+  }
+}
+// a planked door with a stone surround and a step
+function farmDoor(vc, Q, cx, cz, N, t, w, h, col) {
+  fbox(vc, cx, cz, N, t, h / 2 + 0.05, 0.02, w + 0.36, h + 0.3, 0.06, 0xc4bcaa);
+  plankFace(Q, cx + N[0] * 0.06, cz + N[2] * 0.06, N, t - w / 2, t + w / 2, 0.12, h, col || 0x5a3e24, cx * 1.3 + t);
+  for (const y of [0.4, h - 0.4]) fbox(vc, cx, cz, N, t, y, 0.09, w - 0.06, 0.12, 0.04, 0x3e2a18);
+  fbox(vc, cx, cz, N, t + w * 0.32, h * 0.5, 0.11, 0.06, 0.06, 0.06, 0x1e1e1c);
+  fbox(vc, cx, cz, N, t, 0.08, 0.35, w + 0.5, 0.16, 0.6, 0xa8a090);
+}
+function barrel(vc, x, z, s) {
+  s = s || 1;
+  vc.push({ g: GEO.cyl, m: M4(x, 0.45 * s, z, 0.62 * s, 0.9 * s, 0.62 * s), c: 0x7a5434 });
+  for (const y of [0.15, 0.45, 0.75]) vc.push({ g: GEO.cyl, m: M4(x, y * s, z, 0.66 * s, 0.05, 0.66 * s), c: 0x2e2a26 });
+}
+function potPlant(vc, x, z, flower) {
+  vc.push({ g: GEO.cyl, m: M4(x, 0.18, z, 0.38, 0.36, 0.38), c: 0xa85a36 });
+  vc.push({ g: GEO.clump[(x * 3 | 0) & 1], m: M4(x, 0.5, z, 0.5, 0.45, 0.5, x), c: 0x4f7e2c });
+  if (flower) for (let i = 0; i < 3; i++) vc.push({ g: GEO.clump[i % 3], m: M4(x + Math.cos(i * 2.1) * 0.14, 0.66, z + Math.sin(i * 2.1) * 0.14, 0.13, 0.12, 0.13, i), c: flower });
+}
+function rubble(vc, tile, x0, z0, x1, z1, n, seed, y) {
+  for (let i = 0; i < n; i++) {
+    const x = x0 + hash2(i * 1.7, seed) * (x1 - x0), z = z0 + hash2(seed, i * 2.3) * (z1 - z0), r = hash2(i, seed * 3.1);
+    if (r < 0.55) { const s = 0.25 + hash2(x, z) * 0.45; vc.push({ g: GEO.clump[i % 3], m: M4(x, (y || 0) + s * 0.25, z, s * 1.2, s * 0.7, s, x), c: [0xb4ae9e, 0xa49c8a, 0xc8bca0, 0x8e887c][i % 4] }); }
+    else if (r < 0.8) vc.push({ g: GEO.box, m: M4e(x, (y || 0) + 0.06, z, 0.32, 0.04, 0.26, (r - 0.6) * 2, x * 3, (hash2(z, i) - 0.5)), c: [0xa84e2c, 0x8e4426, 0xb85d34][i % 3] });
+    else vc.push({ g: GEO.box, m: M4e(x, (y || 0) + 0.12, z, 0.16, 0.16, 1.4 + r, (hash2(i, x) - 0.5) * 0.4, x * 5, 0), c: 0x2a2018 });
+  }
+}
+
+/* the farmhouse: two storeys of cream render over a stone plinth, quoins, shuttered windows with a white cross, a planked
+   door in a stone surround with its step, a steep clay-tile roof, a chimney with two pots, gutters and a downpipe, and the
+   clutter of a lived-in house: barrels, pots, a bench. Burnt out (ruined): the walls stand to ragged tops, scorched, the
+   windows are black holes, the roof is charred rafters with a few tiles left, the floors are rubble round the walls and it
+   still smoulders. Door on +z (the camera side). Batched (TB), not its own mesh. */
+function mkFarmhouse(x, z, w, d, ruined) {
+  const cx = x + w / 2, cz = z + d / 2, gy = groundY(cx, cz) - 0.08, seed = hash2(x * 0.37, z * 0.53), H = 4.8;
+  const plaster = [], stone = [], vc = [], Q = { p: [], c: [] }, burn = ruined ? [1.2, H] : null;
+  // the walls
+  if (!ruined) plaster.push({ g: GEO.box, m: M4(0, H / 2, 0, w, H, d), dirt: true });
+  else {
+    // ragged tops: each face as columns of different heights, the gable ends highest
+    for (const N of [[0, 0, 1], [0, 0, -1], [1, 0, 0], [-1, 0, 0]]) {
+      const len = N[2] ? w : d, off = (N[2] ? d : w) / 2 - 0.25, nC = Math.ceil(len / 0.8);
+      for (let i = 0; i < nC; i++) {
+        const t0 = -len / 2 + i * len / nC, t1 = t0 + len / nC, tm = (t0 + t1) / 2, hh = Math.min(H, 1.6 + vnoise(tm * 0.6 + seed * 9, N[0] * 3 + N[2] * 5) * 3.6 + (N[0] ? 0.6 : 0));
+        const P = fp(N[0] * off, N[2] * off, N, tm, hh / 2, 0);
+        plaster.push({ g: GEO.box, m: Math.abs(N[2]) > 0.5 ? M4(P[0], P[1], P[2], t1 - t0 + 0.02, hh, 0.5) : M4(P[0], P[1], P[2], 0.5, hh, t1 - t0 + 0.02), dirt: true, burn: [hh * 0.35, hh] });
+      }
+    }
+  }
+  stone.push({ g: GEO.box, m: M4(0, 0.25, 0, w + 0.12, 0.5, d + 0.12) });
+  if (!ruined) quoins(stone, w, d, 0.5, H);
+  // the windows and the door
+  const lit = lampsOn() && !ruined, dtx = (seed - 0.5) * w * 0.25;
+  const front = [0, 0, 1], back = [0, 0, -1], east = [1, 0, 0], west = [-1, 0, 0];
+  const face = N => [N[0] * (w / 2 + 0.01), N[2] * (d / 2 + 0.01)];
+  const nf = Math.max(2, Math.floor(w / 2.6));
+  for (let i = 0; i < nf; i++) {
+    const t = ((i + 0.5) / nf - 0.5) * w * 0.86;
+    if (Math.abs(t - dtx) > 1.3) farmWindow(vc, Q, ...face(front), front, t, 1.65, 0.9, 1.15, { hole: ruined, lit: lit && hash2(i, seed) < 0.4 });
+    farmWindow(vc, Q, ...face(front), front, t, 3.6, 0.85, 1.05, { hole: ruined, lit: lit && hash2(seed, i) < 0.3, box: !ruined && i % 2 === 0 });
+    farmWindow(vc, Q, ...face(back), back, t, 3.6, 0.85, 1.05, { hole: ruined });
+  }
+  for (const N of [east, west]) { farmWindow(vc, Q, ...face(N), N, 0, 1.65, 0.85, 1.1, { hole: ruined }); if (d > 4.4) farmWindow(vc, Q, ...face(N), N, 0, 3.6, 0.8, 1.0, { hole: ruined }); }
+  if (!ruined) farmDoor(vc, Q, ...face(front), front, dtx, 1.05, 2.2);
+  else { fbox(vc, ...face(front), front, dtx, 1.15, 0.02, 1.4, 2.4, 0.06, 0x8a8478); fbox(vc, ...face(front), front, dtx, 1.1, 0.05, 1.05, 2.2, 0.04, 0x141210); }
+  // the roof
+  const R = tileRoof(w, d, H, { chimney: seed > 0.5 ? 1 : -1, seed, gables: !ruined });
+  if (!ruined) { plaster.push(...R.plaster); stone.push(...R.stone); vc.push(...R.vc); }
+  else {
+    stone.push(...R.stone); vc.push(...R.vc.filter((p, i) => i > R.vc.length - 6));   // the chimney stands; the rest went with the roof
+    // charred rafters at 0.7 m, some broken short, a ridge beam broken in the middle
+    const along = w >= d, L = along ? w : d, S = along ? d : w, Pp = (a, l, y) => along ? [a, y, l] : [l, y, a];
+    for (let a = -L / 2 + 0.3; a < L / 2; a += 0.7) for (const side of [-1, 1]) {
+      const r = hash2(a * 3.1, side + seed); if (r < 0.3) continue;
+      const f = r < 0.55 ? 0.45 + r * 0.6 : 1;
+      boxAlong(vc, Pp(a, side * S / 2, H - 0.1), Pp(a, side * S / 2 * (1 - f), H - 0.1 + R.rh * f), 0.12, 0.16, 0x1e1812, [0, 1, 0]);
+    }
+    boxAlong(vc, Pp(-L / 2, 0, H + R.rh - 0.1), Pp(-0.4, 0, H + R.rh - 0.25), 0.18, 0.2, 0x1e1812, [0, 1, 0]);
+    boxAlong(vc, Pp(L / 2, 0, H + R.rh - 0.1), Pp(0.9, 0, H + R.rh - 0.6), 0.18, 0.2, 0x1e1812, [0, 1, 0]);
+    // a few tiles left on the rafters
+    const TQ = { p: [], uv: [], c: [] };
+    for (let i = 0; i < 3; i++) {
+      const a0 = -L / 2 + 0.3 + hash2(i, seed) * (L - 2.2), side = i % 2 ? 1 : -1, l0 = side * S / 2 * 0.95, l1 = side * S / 2 * 0.45, y0 = H, y1 = H + R.rh * 0.5;
+      const p = [Pp(a0, l1, y1 + 0.04), Pp(a0 + 1.5, l1, y1 + 0.04), Pp(a0 + 1.5, l0, y0 + 0.04), Pp(a0, l0, y0 + 0.04)];
+      uvQ(TQ, p[0], p[3], p[2], p[1], [a0, 0], [a0, 1.4], [a0 + 1.5, 1.4], [a0 + 1.5, 0], 0x6a5a50); uvQ(TQ, p[0], p[1], p[2], p[3], [a0, 0], [a0 + 1.5, 0], [a0 + 1.5, 1.4], [a0, 1.4], 0x6a5a50);
+    }
+    R.tile = [uvPart(TQ)];
+    rubble(vc, null, -w / 2 - 1.6, d / 2 + 0.1, w / 2 + 1.4, d / 2 + 1.5, 26, seed);
+    rubble(vc, null, w / 2 + 0.1, -d / 2, w / 2 + 1.5, d / 2, 18, seed + 3);
+    rubble(vc, null, -w / 2 + 0.6, -d / 2 + 0.6, w / 2 - 0.6, d / 2 - 0.6, 30, seed + 7, 0.2);   // the floors, fallen in
+    addSmoker(cx + w * 0.2, cz, { life: 1e9, rate: 0.9, size: 1.1, col: 0x3a3632, a: 0.32, rise: 1.2 });
+  }
+  if (!ruined) {
+    // gutters and a downpipe, barrels, pots and a bench by the door
+    const dp = [w / 2 - 0.25, d / 2 + 0.12];
+    vc.push({ g: GEO.box, m: M4(dp[0], (H - 0.1) / 2, dp[1], 0.11, H - 0.1, 0.11), c: BK.galv });
+    barrel(vc, dtx + 1.5, d / 2 + 0.55); barrel(vc, w / 2 + 0.55, d / 2 - 0.4, 0.9);
+    potPlant(vc, dtx - 1.0, d / 2 + 0.4, 0xd8392c); potPlant(vc, dtx - 1.45, d / 2 + 0.45, 0xf4f0e6); potPlant(vc, -w / 2 - 0.4, d / 2 + 0.2);
+    vc.push({ g: GEO.box, m: M4(dtx + 2.6, 0.45, d / 2 + 0.45, 1.3, 0.08, 0.38), c: 0x6a4a2c }); for (const s of [-1, 1]) vc.push({ g: GEO.box, m: M4(dtx + 2.6 + s * 0.55, 0.22, d / 2 + 0.45, 0.08, 0.44, 0.34), c: 0x5a3e24 });
+  }
+  if (Q.p.length) vc.push(vcPart(Q));
+  tbAdd('plaster', mergeUV(plaster, TEXSZ.plaster), cx, gy, cz); tbAdd('stone', mergeUV(stone, TEXSZ.stone), cx, gy, cz);
+  if (R.tile.length) tbAdd('tile', mergeUV(R.tile, TEXSZ.tile), cx, gy, cz);
+  tbAdd('vc', mergeGeos(vc), cx, gy, cz);
+  { const gm = glowMesh(); if (gm) { tbAdd('glow', gm.geometry, cx, gy, cz); } }
+  return { type: 'house', x, z, w, d, cx, cz, tall: true, cover: true, h: ruined ? 3.5 : H };
+}
+
+/* the barn: timber boards over a stone plinth with stone corner piers, a steep clay-tile roof with its gable to the camera,
+   a little cross-gable over the double doors with the hayloft opening under it, and a lean-to on one side with a log pile. */
+function mkBarn(x, z, w, d) {
+  const lean = Math.min(2.6, w * 0.3), bw = w - lean, cx = x + bw / 2, cz = z + d / 2, gy = groundY(x + w / 2, cz) - 0.08, seed = hash2(x * 0.71, z * 0.29), H = 3.6;
+  const stone = [], vc = [], tile = [], Q = { p: [], c: [] }, wood = [0x6a5032, 0x74583a, 0x5e462c][(seed * 3) | 0];
+  vc.push({ g: GEO.box, m: M4(0, H / 2, 0, bw - 0.1, H, d - 0.1), c: (wood & 0xfefefe) >> 1 });
+  for (const N of [[0, 0, 1], [0, 0, -1], [1, 0, 0], [-1, 0, 0]]) {
+    const len = N[2] ? bw : d, off = (N[2] ? d : bw) / 2 - 0.04;
+    plankFace(Q, N[0] * off, N[2] * off, N, -len / 2 + 0.35, len / 2 - 0.35, 0.6, H, wood, seed * 13 + N[0] + N[2] * 3);
+  }
+  stone.push({ g: GEO.box, m: M4(0, 0.3, 0, bw + 0.1, 0.6, d + 0.1) });
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) stone.push({ g: GEO.box, m: M4(sx * (bw / 2 - 0.3), H / 2, sz * (d / 2 - 0.3), 0.75, H, 0.75) });
+  // the main roof, ridge running away from the camera, its gable boarded with the hayloft opening in it
+  const R = tileRoof(bw, d, H, { along: false, gables: false, seed });
+  tile.push(...R.tile); vc.push(...R.vc);
+  for (const end of [-1, 1]) plankFace(Q, 0, end * (d / 2 - 0.02), [0, 0, end], -bw / 2, bw / 2, H - 0.04, t => H + R.rh * (1 - Math.abs(t) / (bw / 2)) - 0.12, wood, seed * 5 + end);
+  fbox(vc, 0, d / 2 + 0.02, [0, 0, 1], 0, H + 0.7, 0.04, 1.1, 0.95, 0.06, 0x14110c);
+  fbox(vc, 0, d / 2 + 0.02, [0, 0, 1], 0, H + 0.7, 0.07, 1.35, 1.2, 0.04, 0x3e2c1c);
+  // a small cross-gable over the doors
+  const CG = tileRoof(2.6, 1.6, H - 0.15, { along: true, gables: false, rh: 0.7, ov: 0.2, ovg: 0.1 });
+  for (const p of CG.tile) { p.g.translate(0, 0, d / 2 + 0.55); tile.push(p); }
+  for (const p of CG.vc) vc.push({ ...p, m: new THREE.Matrix4().makeTranslation(0, 0, d / 2 + 0.55).multiply(p.m || new THREE.Matrix4()) });
+  // ledged and braced double doors, shut
+  doorLeaf(vc, Q, 0, d / 2 + 0.03, [0, 0, 1], -1.25, 0, H - 0.75, 0x5e4228, 0.3);
+  doorLeaf(vc, Q, 0, d / 2 + 0.03, [0, 0, 1], 0, 1.25, H - 0.75, 0x5e4228, 0.7);
+  fbox(vc, 0, d / 2 + 0.02, [0, 0, 1], 0, (H - 0.75) / 2, 0.02, 2.8, H - 0.6, 0.05, 0x3a2a1a);
+  // a dark little window on the side
+  fbox(vc, bw / 2 + 0.02, 0, [1, 0, 0], 0, 2.1, 0.03, 0.8, 0.7, 0.05, 0x14110c);
+  // the lean-to: posts, a mono-pitch tile roof, logs stacked under it
+  const lx = bw / 2 + lean / 2, LT = { p: [], uv: [], c: [] }, y0 = H - 0.4, y1 = H - 1.3;
+  for (const s of [-1, 1]) vc.push({ g: GEO.box, m: M4(bw / 2 + lean - 0.15, y1 / 2, s * (d / 2 - 0.25), 0.16, y1, 0.16), c: 0x4a3420 });
+  const a = [bw / 2, y0, -d / 2 - 0.2], b = [bw / 2, y0, d / 2 + 0.2], c2 = [bw / 2 + lean + 0.2, y1, d / 2 + 0.2], d2 = [bw / 2 + lean + 0.2, y1, -d / 2 - 0.2], sl = Math.hypot(lean + 0.2, y0 - y1);
+  uvQ(LT, a, b, c2, d2, [-d / 2, 0], [d / 2, 0], [d / 2, sl], [-d / 2, sl], 0xffffff, 0xffffff, 0xd0c8c0, 0xd0c8c0); uvQ(LT, a, d2, c2, b, [-d / 2, 0], [-d / 2, sl], [d / 2, sl], [d / 2, 0], 0x3a2a20, 0x3a2a20, 0x3a2a20, 0x3a2a20);
+  tile.push(uvPart(LT));
+  for (let r = 0; r < 4; r++) for (let i = 0; i < 8 - r; i++) {
+    const zz = -d / 2 + 0.7 + (i + r * 0.5) * ((d - 1.4) / 8), yy = 0.22 + r * 0.38;
+    vc.push({ g: GEO.cyl, m: M4e(lx, yy, zz, 0.4, lean - 0.5, 0.4, 0, 0, Math.PI / 2), c: hash2(i, r) < 0.5 ? 0x8a6a44 : 0x7a5a38 });
+  }
+  if (Q.p.length) vc.push(vcPart(Q));
+  tbAdd('stone', mergeUV(stone, TEXSZ.stone), cx, gy, cz); tbAdd('tile', mergeUV(tile, TEXSZ.tile), cx, gy, cz); tbAdd('vc', mergeGeos(vc), cx, gy, cz);
+  return { type: 'house', x, z, w, d, cx: x + w / 2, cz, tall: true, cover: true, h: H };
+}
+
+// a cast-iron lamppost, in the sheet's three styles: a lantern on the post, a swan neck with the lantern hanging, a
+// heavier fluted post. Lit at dusk, in grey weather and at night through v38's lamp system (glow, pool, the light).
+function mkLamppost(x, z, style) {
+  const gy = groundY(x, z), vc = [], iron = 0x22272a, H = style === 2 ? 3.3 : 3.0;
+  vc.push({ g: GEO.cyl, m: M4(0, 0.15, 0, 0.5, 0.3, 0.5), c: iron }, { g: GEO.cyl, m: M4(0, 0.45, 0, 0.32, 0.4, 0.32), c: iron });
+  if (style === 2) { vc.push({ g: GEO.cyl, m: M4(0, 0.95, 0, 0.26, 0.7, 0.26), c: iron }); for (const y of [0.7, 1.25]) vc.push({ g: GEO.cyl, m: M4(0, y, 0, 0.32, 0.06, 0.32), c: iron }); }
+  vc.push({ g: GEO.cyl, m: M4(0, H / 2, 0, 0.12, H, 0.12), c: iron });
+  let lx = 0, ly = H + 0.35, lz = 0;
+  if (style === 1) {   // a swan neck: up, over and down
+    const pts = [[0, H - 0.1, 0], [0.1, H + 0.35, 0], [0.45, H + 0.5, 0], [0.8, H + 0.35, 0]];
+    for (let i = 0; i + 1 < pts.length; i++) boxAlong(vc, pts[i], pts[i + 1], 0.08, 0.08, iron, [0, 0, 1]);
+    lx = 0.8; ly = H - 0.1;
+    vc.push({ g: GEO.box, m: M4(0.8, H + 0.18, 0, 0.04, 0.3, 0.04), c: iron });
+  }
+  // the lantern: a tapered cage with glass, a cap and a finial
+  vc.push({ g: GEO.box, m: M4(lx, ly - 0.32, lz, 0.32, 0.06, 0.32), c: iron });
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) vc.push({ g: GEO.box, m: M4(lx + sx * 0.15, ly, lz + sz * 0.15, 0.03, 0.6, 0.03), c: iron });
+  vc.push({ g: GEO.cone, m: M4(lx, ly + 0.42, lz, 0.5, 0.26, 0.5, Math.PI / 4), c: iron }, { g: GEO.sph, m: M4(lx, ly + 0.6, lz, 0.08, 0.1, 0.08), c: iron });
+  const on = lampsOn();
+  const glass = mergeGeos([{ g: GEO.box, m: M4(lx, ly, lz, 0.27, 0.56, 0.27), c: on ? 0xffd890 : 0x2a3034 }]);
+  tbAdd('vc', mergeGeos(vc), x, gy, z);
+  if (on) tbAdd('glow', glass, x, gy, z); else tbAdd('vc', glass, x, gy, z);
+  lamps.push({ x: x + lx, y: gy + ly, z: z + lz, nx: 0, nz: 0, post: true });
+  return { type: 'lamp', x, z, radius: 0.3, tall: false };
+}
+// a garden wall of rubble stone with a coping, waist high: it stops you, it stops rounds below its top, it does not stop eyes
+function mkStoneWall(x, z, w, d) {
+  const along = w >= d, H = 1.05, cx = x + w / 2, cz = z + d / 2, gy = groundY(cx, cz) - 0.05, stone = [], vc = [];
+  stone.push({ g: GEO.box, m: M4(0, H / 2, 0, w, H, d), dirt: true });
+  vc.push({ g: GEO.box, m: M4(0, H + 0.06, 0, w + 0.08, 0.12, d + 0.08), c: 0x9a9488 });
+  // ivy and weeds along its foot
+  const L = along ? w : d;
+  for (let i = 0; i < L / 1.3; i++) { const t = -L / 2 + 0.5 + i * 1.3 + hash2(i, x) * 0.6, s = 0.35 + hash2(z, i) * 0.35; vc.push({ g: GEO.clump[i % 3], m: along ? M4(t, s * 0.4, (hash2(i, z) < 0.5 ? -1 : 1) * (d / 2 + 0.1), s, s * 0.8, s, i) : M4((hash2(i, z) < 0.5 ? -1 : 1) * (w / 2 + 0.1), s * 0.4, t, s, s * 0.8, s, i), c: [0x4a7a2c, 0x5a8a34, 0x3e6a26][i % 3] }); }
+  tbAdd('stone', mergeUV(stone, TEXSZ.stone), cx, gy, cz); tbAdd('vc', mergeGeos(vc), cx, gy, cz);
+  return { type: 'swall', x, z, w, d, cx, cz, tall: false, low: true, cover: true, h: H + 0.1 };
+}
+// a planter round a tree in the square: a low stone box (the tree is placed by the caller)
+function mkPlanter(x, z, s) {
+  const gy = groundY(x, z), stone = [], vc = [];
+  for (const [px, pz, sw, sd] of [[0, -s / 2, s, 0.4], [0, s / 2, s, 0.4], [-s / 2, 0, 0.4, s], [s / 2, 0, 0.4, s]]) stone.push({ g: GEO.box, m: M4(px, 0.35, pz, sw + 0.4, 0.7, sd) });
+  vc.push({ g: GEO.box, m: M4(0, 0.55, 0, s - 0.3, 0.1, s - 0.3), c: 0x4a3a28 });
+  for (let i = 0; i < 4; i++) { const a = i * 1.57 + 0.6; potPlant(vc, Math.cos(a) * s * 0.75, Math.sin(a) * s * 0.75, i % 2 ? 0xd8392c : 0xf4d03a); }
+  vc.push({ g: GEO.box, m: M4(0, 0.4, s / 2 + 0.9, 1.4, 0.08, 0.42), c: 0x6a4a2c }); for (const q of [-1, 1]) vc.push({ g: GEO.box, m: M4(q * 0.6, 0.2, s / 2 + 0.9, 0.08, 0.4, 0.36), c: 0x4a3420 });
+  tbAdd('stone', mergeUV(stone, TEXSZ.stone), x, gy, z); tbAdd('vc', mergeGeos(vc), x, gy, z);
+  return { type: 'planter', x: x - s / 2 - 0.2, z: z - s / 2 - 0.2, w: s + 0.4, d: s + 0.4, cx: x, cz: z, tall: false, low: true, cover: true, h: 0.75 };
+}
+
 function segsAroundDoor(a0, a1, d0, d1) {
   // one wall run, minus the doorway. The gap is wider than the visual door — the 2D
   // build's hard-won note: a flush door lets soldiers hit wall before they reach it.
@@ -4218,51 +5439,103 @@ function mkBuilding(b, into) {
   const rec = { x0: bx, z0: bz, x1: bx + bw, z1: bz + bd, y, roof: null, near: [], alpha: 1, group: new THREE.Group(), door: { x: (dx0 + dx1) / 2, z: (dz0 + dz1) / 2 } };
   // v14: every compound building in the camp's timber and tin, whatever the mission asked for
   const TIMBER = [0x7a6a44, 0x84714a, 0x6e6040, 0x7d6b48], TINS = [0x4f5a4e, 0x5a5e58, 0x5c5446];
-  const bseed = hash2(bx * 0.31, bz * 0.47), wallCol = TIMBER[(bseed * 4) | 0];
+  const stoneStyle = b.style === 'stone';   // v40: a village house — render, stone, clay tiles, windows you can shoot through
+  const bseed = hash2(bx * 0.31, bz * 0.47), wallCol = stoneStyle ? 0xcfc2a6 : TIMBER[(bseed * 4) | 0];
   const baseCol = ((wallCol & 0xfefefe) >> 1) + 0x1a1a18;
   const wallMat = mat(wallCol, { shininess: 8 });
   const g = rec.group;
   const cx = bx + bw / 2, cz = bz + bd / 2;
 
   const solid = [];                       // merged into one mesh at the end
+  const solidQ = { p: [], c: [] };        // v37: vertex-coloured boards, stone and glass for the far walls
+  const seamCol = ((wallCol & 0xfefefe) >> 1);   // v37: the wall behind the boards shows in the gaps between them
+  // v37: where the door leaves fold back against the wall, so no window lands under one
+  const leafZones = [];
+  const sPl = [], sSt = [], nPl = [], nVC = [], nQ = { p: [], c: [] };   // v40: stone style — far render, stone, near render, near details
+  const winList = [];
+  const stoneRun = (x, z, w, d, near) => {
+    const horiz = w > d, len = horiz ? w : d, a0 = horiz ? x : z;
+    const outer = horiz ? (z + d / 2 < cz ? -1 : 1) : (x + w / 2 < cx ? -1 : 1), N = horiz ? [0, 0, outer] : [outer, 0, 0];
+    const n = Math.floor(len / 2.6), wins = [];
+    for (let i = 0; i < n; i++) {
+      const wa = a0 + (i + 0.5) * len / n;
+      if (wa - a0 < 1.1 || a0 + len - wa < 1.1) continue;
+      if (leafZones.some(Z => Z.horiz === horiz && Z.outer === outer && wa > Z.a0 - 0.75 && wa < Z.a1 + 0.75)) continue;
+      wins.push(wa);
+    }
+    const pieces = []; let s0 = a0;
+    for (const wa of wins) { pieces.push([0, s0, wa - 0.55]); pieces.push([1, wa - 0.55, wa + 0.55]); s0 = wa + 0.55; }
+    pieces.push([0, s0, a0 + len]);
+    const PL = near ? nPl : sPl, VC = near ? nVC : solid, QQ = near ? nQ : solidQ;
+    for (const [isWin, pa, pb] of pieces) {
+      if (pb - pa < 0.04) continue;
+      const ox = horiz ? pa : x, oz = horiz ? z : pa, ow = horiz ? pb - pa : w, od = horiz ? d : pb - pa, px = ox + ow / 2 - cx, pz = oz + od / 2 - cz;
+      if (!isWin) {
+        into.push({ type: 'iwall', x: ox, z: oz, w: ow, d: od, cx: ox + ow / 2, cz: oz + od / 2, tall: true, cover: true });
+        PL.push({ g: GEO.box, m: M4(px, WALL_H / 2, pz, ow, WALL_H, od), dirt: true });
+      } else {
+        // a window you can fire through but not climb through: a low obstacle, the sill stops low rounds
+        const W = { type: 'window', x: ox, z: oz, w: ow, d: od, cx: ox + ow / 2, cz: oz + od / 2, tall: false, low: true, cover: true, h: 0.95, N };
+        into.push(W); winList.push(W);
+        PL.push({ g: GEO.box, m: M4(px, 0.475, pz, ow, 0.95, od), dirt: true }, { g: GEO.box, m: M4(px, (WALL_H + 2.05) / 2, pz, ow, WALL_H - 2.05, od) });
+        const t = horiz ? (px) * N[2] : -(pz) * N[0], fx = horiz ? 0 : px + N[0] * (od / 2 + 0.01), fz = horiz ? pz + N[2] * (od / 2 + 0.01) : 0;
+        const ffx = horiz ? 0 : (outer > 0 ? x + w : x) - cx, ffz = horiz ? (outer > 0 ? z + d : z) - cz : 0;
+        fbox(VC, ffx, ffz, N, t, 1.5, 0.02, 1.4, 1.4, 0.06, 0xc4bcaa);   // the surround …
+        fbox(VC, ffx, ffz, N, t, 1.5, -0.2, 1.1, 1.1, 0.5, 0x15130f);    // … the dark room behind it …
+        fbox(VC, ffx, ffz, N, t, 0.9, 0.1, 1.5, 0.12, 0.26, 0xb4ac9a);   // … the sill
+        for (const sg of [-1, 1]) { fbox(VC, ffx, ffz, N, t + sg * 1.12, 1.5, 0.06, 0.58, 1.2, 0.05, sg < 0 ? 0x3e5a3a : 0x5a3a22); fbox(VC, ffx, ffz, N, t + sg * 1.12, 1.5, 0.09, 0.5, 0.06, 0.02, 0x2a2018); }
+        if (hash2(wa0(t), bseed) < 0.3) fbox(VC, ffx, ffz, N, t, 1.18, 0.32, 1.0, 0.16, 0.2, 0x6a4a2c);   // the odd window box
+      }
+      PL === nPl ? sSt.push({ g: GEO.box, m: M4(px, 0.22, pz, ow + 0.1, 0.45, od + 0.1) }) : sSt.push({ g: GEO.box, m: M4(px, 0.22, pz, ow + 0.1, 0.45, od + 0.1) });
+    }
+  };
+  const wa0 = t => Math.round(t * 10) / 10;
   const addWall = (x, z, w, d, near, exterior) => {
+    if (stoneStyle && exterior) { stoneRun(x, z, w, d, near); return; }
     into.push({ type: 'iwall', x, z, w, d, cx: x + w / 2, cz: z + d / 2, tall: true, cover: true });
     const px = x + w / 2 - cx, pz = z + d / 2 - cz;
+    const col = exterior ? seamCol : wallCol;
+    const Q = near ? { p: [], c: [] } : solidQ, P = near ? [] : solid;
     if (near) {
-      const m = mesh(GEO.box, wallMat.clone(), w, WALL_H, d, px, WALL_H / 2, pz);
+      const m = mesh(GEO.box, mat(col, { shininess: 8 }).clone(), w, WALL_H, d, px, WALL_H / 2, pz);
       m.material.transparent = true;
       m.castShadow = true; m.receiveShadow = true;
       g.add(m); rec.near.push(m);
-      const strip = mesh(GEO.box, mat(baseCol, { shininess: 6 }).clone(), w + 0.12, 0.45, d + 0.12, px, 0.22, pz);
-      strip.material.transparent = true; g.add(strip); rec.near.push(strip);
+      P.push({ g: GEO.box, m: M4(px, 0.22, pz, w + 0.12, 0.45, d + 0.12), c: exterior ? BK.mortar : baseCol });
     } else {
-      solid.push({ g: GEO.box, m: M4(px, WALL_H / 2, pz, w, WALL_H, d), c: wallCol });
-      if (exterior) solid.push({ g: GEO.box, m: M4(px, 0.22, pz, w + 0.12, 0.45, d + 0.12), c: baseCol });
+      solid.push({ g: GEO.box, m: M4(px, WALL_H / 2, pz, w, WALL_H, d), c: col });
+      if (exterior) solid.push({ g: GEO.box, m: M4(px, 0.22, pz, w + 0.12, 0.45, d + 0.12), c: BK.mortar });
     }
-    // plank battens up the outer face (near walls fade with the roof, so theirs go in a mesh of their own)
     if (exterior) {
-      const horiz = w > d, len = horiz ? w : d, nb = Math.floor(len / 0.6), outer = horiz ? (pz < 0 ? -1 : 1) : (px < 0 ? -1 : 1), bt = [];
-      for (let i = 1; i < nb; i++) {
-        const t = -len / 2 + i * (len / nb);
-        bt.push({ g: GEO.box, m: M4(horiz ? px + t : px + outer * (d / 2 + 0.03), WALL_H / 2, horiz ? pz + outer * (d / 2 + 0.03) : pz + t, horiz ? 0.07 : 0.06, WALL_H, horiz ? 0.06 : 0.07), c: 0x55462c });
-      }
-      if (bt.length) {
-        if (near) { const bm = new THREE.Mesh(mergeGeos(bt), propMat.clone()); bm.material.transparent = true; g.add(bm); rec.near.push(bm); }
-        else solid.push(...bt);
-      }
-    }
-    // windows along exterior runs: a framed dark pane every ~3.2m on the outer face
-    if (exterior) {
-      const horiz = w > d, len = horiz ? w : d, n = Math.floor(len / 3.2);
-      const outer = horiz ? (pz < 0 ? -1 : 1) : (px < 0 ? -1 : 1);
+      // v37: vertical boards over a stone plinth, a wall plate under the eaves, framed four-pane windows
+      const horiz = w > d, len = horiz ? w : d, outer = horiz ? (pz < 0 ? -1 : 1) : (px < 0 ? -1 : 1);
+      const N = horiz ? [0, 0, outer] : [outer, 0, 0], th = horiz ? d : w;
+      const fx = px + N[0] * (th / 2 + 0.012), fz = pz + N[2] * (th / 2 + 0.012);
+      plankFace(Q, fx, fz, N, -len / 2, len / 2, 0.45, WALL_H, wallCol, bseed * 31 + px * 0.7 + pz * 1.3);
+      stoneFace(Q, px + N[0] * (th / 2 + 0.072), pz + N[2] * (th / 2 + 0.072), N, -len / 2 - 0.06, len / 2 + 0.06, 0, 0.47, bseed * 7 + px + pz);
+      fbox(P, fx, fz, N, 0, WALL_H - 0.12, 0.05, len, 0.2, 0.1, 0x4a3a26);
+      const n = Math.floor(len / 3.4);
       for (let i = 0; i < n; i++) {
-        const t = ((i + 0.5) / n - 0.5) * len;
-        const wx = horiz ? px + t : px + outer * (d / 2 + 0.05), wz = horiz ? pz + outer * (d / 2 + 0.05) : pz + t;
-        solid.push({ g: GEO.box, m: M4(wx, 1.9, wz, horiz ? 1.0 : 0.12, 0.9, horiz ? 0.12 : 1.0), c: 0x55462c });
-        solid.push({ g: GEO.box, m: M4(horiz ? wx : wx + outer * 0.03, 1.9, horiz ? wz + outer * 0.03 : wz, horiz ? 0.78 : 0.08, 0.68, horiz ? 0.08 : 0.78), c: 0x2e3a42 });
+        const t = ((i + 0.5) / n - 0.5) * len, wa = horiz ? x + w / 2 + N[2] * t : z + d / 2 - N[0] * t;
+        if (leafZones.some(Z => Z.horiz === horiz && Z.outer === outer && wa > Z.a0 - 0.8 && wa < Z.a1 + 0.8)) continue;
+        glowQ.on = !near && lampsOn() && hash2(wa * 1.3 + bseed, outer * 7.1) < 0.42;   // v38
+        window4(P, Q, fx, fz, N, t, 1.8, 1.0, 0.92);
+        glowQ.on = false;
       }
+    }
+    if (near && Q.p.length) {
+      const parts = [vcPart(Q), ...P];
+      const bm = new THREE.Mesh(mergeGeos(parts), propMat.clone()); bm.material.transparent = true; bm.castShadow = true; bm.receiveShadow = true; g.add(bm); rec.near.push(bm);
     }
   };
+  // the door leaves' zones first (they decide where the windows can go)
+  for (const [x0, z0, x1, z1, horiz] of [[bx, bz, bx + bw, bz + WALL_T, true], [bx, bz + bd - WALL_T, bx + bw, bz + bd, true], [bx, bz, bx + WALL_T, bz + bd, false], [bx + bw - WALL_T, bz, bx + bw, bz + bd, false]]) {
+    const hits = dx1 > x0 - 0.3 && dx0 < x1 + 0.3 && dz1 > z0 - 0.3 && dz0 < z1 + 0.3;
+    if (!hits) continue;
+    const g0 = horiz ? Math.max(dx0, x0) : Math.max(dz0, z0), g1 = horiz ? Math.min(dx1, x1) : Math.min(dz1, z1), lw = Math.min(2.4, (g1 - g0) / 2 + 0.1);
+    const outer = horiz ? ((z0 + z1) / 2 < cz ? -1 : 1) : ((x0 + x1) / 2 < cx ? -1 : 1);
+    leafZones.push({ horiz, outer, a0: g0 - lw - 0.15, a1: stoneStyle ? g1 + 0.3 : g1 + lw + 0.15, g0, g1, lw, x0, z0, x1, z1 });
+  }
   // four runs, each broken around the doorway if it lands on that side
   for (const [x0, z0, x1, z1, horiz, near] of [
     [bx, bz, bx + bw, bz + WALL_T, true, false],                       // far side (-z)
@@ -4281,15 +5554,38 @@ function mkBuilding(b, into) {
       // lintel and posts over the doorway
       const gx = (Math.max(dx0, x0) + Math.min(dx1, x1)) / 2 - cx, gz = (Math.max(dz0, z0) + Math.min(dz1, z1)) / 2 - cz;
       const gw = horiz ? Math.min(dx1, x1) - Math.max(dx0, x0) + 0.9 : x1 - x0, gd = horiz ? z1 - z0 : Math.min(dz1, z1) - Math.max(dz0, z0) + 0.9;
-      solid.push({ g: GEO.box, m: M4(horiz ? gx : gx, WALL_H - 0.35, gz, gw + (horiz ? 0.3 : 0.1), 0.7, gd + (horiz ? 0.1 : 0.3)), c: 0x5a4a3a });
-      for (const sgn of [-1, 1]) {
+      (stoneStyle ? sPl : solid).push({ g: GEO.box, m: M4(horiz ? gx : gx, WALL_H - 0.35, gz, gw + (horiz ? 0.3 : 0.1), 0.7, gd + (horiz ? 0.1 : 0.3)), c: 0x5a4a3a });
+      if (!stoneStyle) for (const sgn of [-1, 1]) {
         if (horiz) solid.push({ g: GEO.box, m: M4(gx + sgn * (gw / 2 - 0.1), (WALL_H - 0.7) / 2, gz, 0.2, WALL_H - 0.7, gd + 0.16), c: 0x5a4a3a });
         else solid.push({ g: GEO.box, m: M4(gx, (WALL_H - 0.7) / 2, gz + sgn * (gd / 2 - 0.1), gw + 0.16, WALL_H - 0.7, 0.2), c: 0x5a4a3a });
       }
     }
   }
-  // corner pilasters
-  for (const sx of [-1, 1]) for (const sz of [-1, 1])
+  // v37: ledged-and-braced double doors, folded back flat against the wall either side of the opening
+  for (const Z of leafZones) {
+    const N = Z.horiz ? [0, 0, Z.outer] : [Z.outer, 0, 0], near = Z.horiz && Z.outer > 0;
+    const fx = Z.horiz ? 0 : (Z.outer > 0 ? Z.x1 : Z.x0) - cx + N[0] * 0.04, fz = Z.horiz ? (Z.outer > 0 ? Z.z1 : Z.z0) - cz + N[2] * 0.04 : 0;
+    const toT = a => Z.horiz ? (a - cx) * N[2] : -(a - cz) * N[0];   // world along-coordinate → t on this face
+    const Q = near ? { p: [], c: [] } : solidQ, P = near ? [] : solid;
+    const ta = toT(Z.g0 - 0.12), tb = toT(Z.g0 - 0.12 - Z.lw), tc = toT(Z.g1 + 0.12), td = toT(Z.g1 + 0.12 + Z.lw);
+    if (stoneStyle) {   // v40: one painted leaf folded back, a pale stone surround, a step
+      const tm = toT((Z.g0 + Z.g1) / 2), gw = Z.g1 - Z.g0;
+      doorLeaf(P, Q, fx, fz, N, Math.min(ta, tb), Math.max(ta, tb), 2.2, [0x3e5a3a, 0x5a3e24, 0x3a4a5a][(bseed * 3) | 0], 0.3);
+      fbox(P, fx, fz, N, tm, 2.35, 0.03, gw + 0.6, 0.3, 0.08, 0xc4bcaa);
+      for (const sg of [-1, 1]) fbox(P, fx, fz, N, tm + sg * (gw / 2 + 0.15), 1.15, 0.03, 0.3, 2.3, 0.08, 0xc4bcaa);
+      fbox(P, fx, fz, N, tm, 0.06, 0.3, gw + 0.4, 0.12, 0.5, 0xa8a090);
+    } else {
+    doorLeaf(P, Q, fx, fz, N, Math.min(ta, tb), Math.max(ta, tb), WALL_H - 0.75, 0x6a5a3c, 0.3);
+    doorLeaf(P, Q, fx, fz, N, Math.min(tc, td), Math.max(tc, td), WALL_H - 0.75, 0x6a5a3c, 0.7);
+    }
+    if (near) { const bm = new THREE.Mesh(mergeGeos([vcPart(Q), ...P]), propMat.clone()); bm.material.transparent = true; bm.castShadow = true; bm.receiveShadow = true; g.add(bm); rec.near.push(bm); }
+    // v38: a lamp over the doorway, on the wall plate
+    const bulb = lampFixture(solid, fx + N[0] * 0.02, fz + N[2] * 0.02, N, toT((Z.g0 + Z.g1) / 2), WALL_H - 0.2);
+    lamps.push({ x: bulb[0] + cx, y: bulb[1] + y, z: bulb[2] + cz, nx: N[0], nz: N[2] });
+  }
+  // corner pilasters (v40: stone quoins on a village house)
+  if (stoneStyle) quoins(sSt, bw, bd, 0.45, WALL_H);
+  else for (const sx of [-1, 1]) for (const sz of [-1, 1])
     solid.push({ g: GEO.box, m: M4(sx * (bw / 2 - WALL_T / 2), WALL_H / 2 + 0.06, sz * (bd / 2 - WALL_T / 2), WALL_T + 0.3, WALL_H + 0.12, WALL_T + 0.3), c: baseCol });
   // interior partitions, normalised inside the footprint
   for (const iw of (b.walls || [])) {
@@ -4303,22 +5599,33 @@ function mkBuilding(b, into) {
     solid.push({ g: GEO.box, m: M4(-bw / 2 + i * 2.5, 0.035, 0, 0.07, 0.17, bd), c: 0x5c554a });
   for (let i = 1; i < Math.round(bd / 2.5); i++)
     solid.push({ g: GEO.box, m: M4(0, 0.035, -bd / 2 + i * 2.5, bw, 0.17, 0.07), c: 0x5c554a });
-  const body = new THREE.Mesh(mergeGeos(solid), propMat);
-  body.castShadow = true; body.receiveShadow = true; g.add(body);
-  // roof: slab, parapet, corrugation, skylights — one merged mesh so it fades as one
-  const roofCol = TINS[(bseed * 9 | 0) % 3], roofLight = ((roofCol & 0xfefefe) >> 1) + 0x484440;
-  const rp = [{ g: GEO.box, m: M4(0, WALL_H + 0.16, 0, bw + 0.5, 0.35, bd + 0.5), c: roofCol }];
-  const along = bw >= bd, nStrip = Math.floor((along ? bw : bd) / 1.1);
-  for (let i = 0; i < nStrip; i += 2) {
-    const t = ((i + 0.5) / nStrip - 0.5) * (along ? bw : bd);
-    rp.push({ g: GEO.box, m: M4(along ? t : 0, WALL_H + 0.36, along ? 0 : t, along ? 0.5 : bw - 0.6, 0.06, along ? bd - 0.6 : 0.5), c: roofLight });
+  if (solidQ.p.length) solid.push(vcPart(solidQ));
+  if (stoneStyle) {   // v40: the far walls, the stone and the body never fade, so they go into the op's static batch (no draw calls of their own)
+    if (sPl.length) tbAdd('plaster', mergeUV(sPl, TEXSZ.plaster), cx, y, cz);
+    if (sSt.length) tbAdd('stone', mergeUV(sSt, TEXSZ.stone), cx, y, cz);
+    if (nPl.length) { const mt = TEXMAT.plaster.clone(); mt.transparent = true; const m = new THREE.Mesh(mergeUV(nPl, TEXSZ.plaster), mt); m.castShadow = m.receiveShadow = true; g.add(m); rec.near.push(m); }
+    if (nVC.length || nQ.p.length) { if (nQ.p.length) nVC.push(vcPart(nQ)); const m = new THREE.Mesh(mergeGeos(nVC), propMat.clone()); m.material.transparent = true; m.castShadow = true; g.add(m); rec.near.push(m); }
+    rec.windows = winList;
   }
-  for (const [px, pz, sx, sz] of [[0, -bd / 2 - 0.1, bw + 0.5, 0.3], [0, bd / 2 + 0.1, bw + 0.5, 0.3], [-bw / 2 - 0.1, 0, 0.3, bd + 0.5], [bw / 2 + 0.1, 0, 0.3, bd + 0.5]])
-    rp.push({ g: GEO.box, m: M4(px, WALL_H + 0.5, pz, sx, 0.42, sz), c: baseCol });
-  for (const k of [-0.25, 0.25])
-    rp.push({ g: GEO.box, m: M4(along ? k * bw : 0, WALL_H + 0.52, along ? 0 : k * bd, 1.6, 0.4, 1.6), c: 0x8fa3ad });
-  const roofMat = propMat.clone(); roofMat.transparent = true;
-  const roof = new THREE.Mesh(mergeGeos(rp), roofMat);
+  if (stoneStyle) { tbAdd('vc', mergeGeos(solid), cx, y, cz); const gm = glowMesh(); if (gm) tbAdd('glow', gm.geometry, cx, y, cz); }
+  else {
+  const body = new THREE.Mesh(mergeGeos(solid), propMat);
+  { const gm = glowMesh(); if (gm) g.add(gm); }   // v38: the lit windows
+  body.castShadow = true; body.receiveShadow = true; g.add(body);
+  }
+  // v37: a corrugated tin gable with deep eaves, gutters, downpipes, gable boards and a vent — one merged mesh so it fades as one
+  let roof;
+  if (stoneStyle) {   // v40: a steep clay-tile roof with a chimney; tiles, gables and chimney are children, all fading together
+    const R = tileRoof(bw, bd, WALL_H + 0.02, { seed: bseed, chimney: bseed > 0.5 ? 1 : -1, rh: Math.min(bw, bd) * 0.36 });
+    // the gables in cream render and the chimney in stone as plain colours, merged with the rest: two meshes a roof, not four
+    const rv = [...R.vc, ...R.plaster.map(p => ({ g: p.g, m: new THREE.Matrix4(), c: 0xcbbd9e })), ...R.stone.map(p => ({ ...p, c: 0x8e887c }))];
+    const rm = propMat.clone(); rm.transparent = true; roof = new THREE.Mesh(mergeGeos(rv), rm);
+    { const mt = TEXMAT.tile.clone(); mt.transparent = true; const m = new THREE.Mesh(mergeUV(R.tile, TEXSZ.tile), mt); m.castShadow = true; m.receiveShadow = true; roof.add(m); }
+  } else {
+  const rp = gableRoof(bw, bd, WALL_H + 0.06, { seed: bseed, wall: wallCol }).parts;
+  const roofMat = propMat.clone(); roofMat.transparent = true; roofMat.shininess = weatherRain ? 70 : 22; roofMat.specular = SC(weatherRain ? 0x4a5258 : 0x2a2e30);   // v37: wet tin shines
+  roof = new THREE.Mesh(mergeGeos(rp), roofMat);
+  }
   roof.castShadow = true; g.add(roof);
   rec.roof = roof;
 
@@ -4377,7 +5684,7 @@ const MISSIONS = [
       ...[[.3, .5], [.28, .42], [.33, .34], [.36, .58], [.7, .52], [.72, .43], [.67, .34], [.64, .58], [.24, .62], [.77, .63]].map(([x, z]) => ({ t: 'bush', x, z })),
       ...[[.2, .6], [.8, .62], [.15, .45], [.86, .4], [.22, .28], [.8, .24], [.12, .72], [.9, .74]].map(([x, z]) => ({ t: 'tree', x, z })),
       { t: 'rock', x: .41, z: .56 }, { t: 'rock', x: .61, z: .6 },
-      { t: 'house', x: .62, z: .12, w: 6.5, d: 4.5 }, { t: 'crate', x: .58, z: .2 },
+      { t: 'house', style: 'farm', x: .62, z: .12, w: 6.5, d: 4.5 }, { t: 'crate', x: .58, z: .2 },
     ],
     spawnZ: .9, grenades: 6, reinf: 3, alertThreshold: .7,
   },
@@ -4513,7 +5820,7 @@ const MISSIONS = [
       { t: 'fence', x: .55, z: .1, w: .25, d: .006 }, { t: 'fence', x: .55, z: .1, w: .006, d: .14 }, { t: 'fence', x: .8, z: .1, w: .006, d: .14 },
       { t: 'fence', x: .55, z: .24, w: .11, d: .006 }, { t: 'fence', x: .71, z: .24, w: .09, d: .006 },
       { t: 'thicket', x: 0, z: .45, w: .45, d: .2 }, { t: 'thicket', x: .53, z: .45, w: .47, d: .2 },
-      { t: 'house', x: .2, z: .1, w: 6, d: 4.5 }, { t: 'crate', x: .58, z: .2 }, { t: 'crate', x: .77, z: .2 },
+      { t: 'house', style: 'farm', x: .2, z: .1, w: 6, d: 4.5 }, { t: 'crate', x: .58, z: .2 }, { t: 'crate', x: .77, z: .2 },
       { t: 'tank', kind: 'stug', x: .9, z: .17, a: -Math.PI / 2 }, { t: 'tank', kind: 'pz4', x: .42, z: .18, a: 0 },   // v24: armour waiting on the fuel
       ...[[.47, .75], [.52, .8], [.44, .86], [.3, .72], [.68, .74], [.4, .4], [.57, .42], [.15, .4], [.88, .4]].map(([x, z]) => ({ t: 'bush', x, z })),
       ...[[.2, .82], [.8, .84], [.1, .76], [.9, .72], [.35, .9], [.65, .92]].map(([x, z]) => ({ t: 'tree', x, z })),
@@ -4570,8 +5877,8 @@ const MISSIONS = [
       { x: .59, z: .31, dog: true, handler: 6, hp: 2, range: 7 },
     ],
     obstacles: [
-      { t: 'house', x: .38, z: .18, w: 45 * S, d: 32 * S },
-      { t: 'house', x: .56, z: .34, w: 45 * S, d: 32 * S },
+      { t: 'house', style: 'farm', x: .38, z: .18, w: 45 * S, d: 32 * S },
+      { t: 'house', style: 'ruin', x: .56, z: .34, w: 45 * S, d: 32 * S },
       { t: 'wall', x: .4, z: .5, w: 80 * S, d: 10 * S },
       { t: 'crate', x: .47, z: .26 }, { t: 'crate', x: .62, z: .46 },
       ...[[.04,.22],[.04,.42],[.04,.58],[.96,.22],[.96,.4],[.96,.55],[.14,.55],[.32,.62],[.52,.66],
@@ -4609,7 +5916,7 @@ const MISSIONS = [
       { t: 'wall', x: .22, z: .05, w: 35.0, d: 1.2 },
       { t: 'wall', x: .22, z: .4, w: 11.0, d: 1.2 },
       { t: 'wall', x: .66, z: .4, w: 10.5, d: 1.2 },
-      { t: 'house', x: .36, z: .07, w: 11.0, d: 6.0 },
+      { t: 'house', style: 'farm', x: .36, z: .07, w: 11.0, d: 6.0 },
       { t: 'tank', kind: 'pz4', x: .68, z: .12, a: 0 },   // v24: the commander's own tank, parked in the yard
       { t: 'tree', x: .06, z: .52 },
       { t: 'tree', x: .94, z: .52 },
@@ -4651,7 +5958,7 @@ const MISSIONS = [
     obstacles: [
       ...[[.3, .6], [.42, .56], [.55, .62], [.7, .58], [.85, .64], [.22, .74], [.6, .74], [.78, .78], [.18, .52]].map(([x, z]) => ({ t: 'bush', x, z })),
       ...[[.4, .7], [.65, .68], [.9, .76], [.08, .9], [.92, .9], [.3, .2], [.92, .34], [.4, .3]].map(([x, z]) => ({ t: 'tree', x, z })),
-      { t: 'rock', x: .35, z: .64 }, { t: 'rock', x: .5, z: .7 }, { t: 'rock', x: .75, z: .68 }, { t: 'house', x: .48, z: .8, w: 6, d: 4.5 },
+      { t: 'rock', x: .35, z: .64 }, { t: 'rock', x: .5, z: .7 }, { t: 'rock', x: .75, z: .68 }, { t: 'house', style: 'barn', x: .48, z: .8, w: 6.5, d: 5 },
       { t: 'crate', x: .56, z: .26 }, { t: 'crate', x: .72, z: .18 },
     ],
     spawnZ: .92, grenades: 8, reinf: 4, alertThreshold: .55,
@@ -4741,8 +6048,8 @@ const MISSIONS = [
       { t: 'wall', x: .6, z: .25, w: 9.0, d: 1.0 },
       { t: 'wall', x: .38, z: .08, w: 1.0, d: 8.0 },
       { t: 'wall', x: .6, z: .08, w: 1.0, d: 8.0 },
-      { t: 'house', x: .43, z: .04, w: 5.5, d: 4.0 },
-      { t: 'house', x: .43, z: .16, w: 5.5, d: 3.5 },
+      { t: 'house', style: 'ruin', x: .43, z: .04, w: 5.5, d: 4.0 },
+      { t: 'house', style: 'farm', x: .43, z: .16, w: 5.5, d: 3.5 },
       { t: 'tank', kind: 'stug', x: .38, z: .62, a: Math.PI, burnt: true }, { t: 'tank', kind: 'pz4', x: .66, z: .66, a: Math.PI / 2, burnt: true },   // v24: knocked out on the approach
       { t: 'tree', x: .1, z: .55 },
       { t: 'tree', x: .9, z: .55 },
@@ -4837,6 +6144,82 @@ const MISSIONS = [
     ],
     diff: 0.65, side: true,
     spawnZ: .95, grenades: 8, reinf: 4, alertThreshold: .5,
+  },
+  {
+    // v40: street fighting. A village in the bocage at dusk: a cobbled street up to a square, an anti-tank gun in the square,
+    // the town hall beyond it with the man who placed it. Houses you can enter, windows you can shoot through but not climb.
+    name: 'Street by Street', sniper: true, noTraffic: true,
+    roads: [],
+    streets: [{ pts: [[.5, 1.06], [.5, .58]], w: 6 }, { pts: [[.5, .40], [.5, .285]], w: 6 }, { pts: [[.62, .49], [1.06, .49]], w: 5 }],
+    squares: [{ x: .38, z: .40, w: .24, d: .18 }],
+    obj: 'Take the square, then the town hall',
+    sub: 'Sector 9 · Dusk · A village in the bocage',
+    brief: 'One street in, a barricade across it, a square at the top with an anti-tank gun that has already stopped two of our tanks, and the town hall behind ' +
+           'it where the officer who sited the gun is keeping his head down. The houses are full of them. You can go in through the doors and fire out through ' +
+           'the windows, and so can they: a man at a window is hard to hit and harder to see, and a garden wall stops a round below its top. Clear the street ' +
+           'house by house if you like, or go round the back gardens. Wreck or spike the gun, find the officer, and come back down the street. Chalky is with you.',
+    weather: null, scatter: 22, diff: 0.7, noExtras: false, charges: 1,
+    buildings: [
+      { style: 'stone', x: .35, z: .61, w: .11, d: .12, doorX: .455, doorZ: .70, doorW: .015, doorD: .025, walls: [{ x: .45, z: 0, w: .05, d: .5 }] },
+      { style: 'stone', x: .35, z: .77, w: .11, d: .11, doorX: .455, doorZ: .845, doorW: .015, doorD: .025, walls: [{ x: 0, z: .5, w: .5, d: .05 }] },
+      { style: 'stone', x: .54, z: .76, w: .11, d: .11, doorX: .535, doorZ: .835, doorW: .015, doorD: .025, walls: [{ x: .55, z: 0, w: .05, d: .5 }] },
+      { style: 'stone', x: .25, z: .41, w: .12, d: .13, doorX: .365, doorZ: .50, doorW: .015, doorD: .025, walls: [{ x: 0, z: .4, w: .55, d: .05 }] },
+      { style: 'stone', x: .40, z: .16, w: .20, d: .13, doorX: .485, doorZ: .285, doorW: .03, doorD: .015, walls: [{ x: .33, z: 0, w: .03, d: .55 }, { x: .66, z: 0, w: .03, d: .55 }] },
+    ],
+    targets: [{ t: 'gun', x: .45, z: .465, a: 0 }],
+    objectives: [{ t: 'destroy', what: 'gun', label: 'Wreck or spike the anti-tank gun in the square' }, { t: 'commander', label: 'The officer in the town hall' }, { t: 'extract', label: 'Back down the street' }],
+    extract: { x: .5, z: .95, r: 7 },
+    enemies: [
+      // the barricade across the street
+      { x: .50, z: .735, a: 0, range: 17, arc: Math.PI * .55, hp: 4, rapidFire: true },
+      { x: .476, z: .728, a: .2, range: 15, arc: Math.PI * .6, hp: 3 },
+      // men at the windows of the street houses
+      { x: .446, z: .653, a: Math.PI * .5, range: 16, arc: Math.PI * .55, hp: 3, hold: true },
+      { x: .446, z: .788, a: Math.PI * .5, range: 16, arc: Math.PI * .55, hp: 3, hold: true },
+      { x: .554, z: .778, a: -Math.PI * .5, range: 16, arc: Math.PI * .55, hp: 3, hold: true },
+      { x: .5, z: .62, a: 0, range: 15, arc: Math.PI * .6, hp: 3, patrol: [{ x: .49, z: .60 }, { x: .51, z: .70 }] },
+      // the square: the gun's crew, a grenadier by the planter, a man walking it, an MG in the café window
+      { x: .43, z: .45, a: 0, range: 15, arc: Math.PI * .6, hp: 3 },
+      { x: .475, z: .45, a: -.2, range: 15, arc: Math.PI * .6, hp: 3 },
+      { x: .585, z: .52, a: Math.PI * .2, range: 14, arc: Math.PI * .6, hp: 3, hasGrenade: true },
+      { x: .41, z: .56, a: Math.PI * .5, range: 14, arc: Math.PI * .6, hp: 3, patrol: [{ x: .40, z: .565 }, { x: .60, z: .565 }, { x: .60, z: .42 }] },
+      { x: .356, z: .453, a: Math.PI * .5, range: 17, arc: Math.PI * .5, hp: 4, rapidFire: true, hold: true },
+      // the town hall: the officer and two at his elbow, a man at the front window
+      { x: .50, z: .205, a: 0, range: 13, arc: Math.PI * .7, hp: 9, isCommander: true },
+      { x: .465, z: .245, a: .3, range: 13, arc: Math.PI * .7, hp: 3 },
+      { x: .535, z: .245, a: -.3, range: 13, arc: Math.PI * .7, hp: 3 },
+      { x: .44, z: .275, a: 0, range: 16, arc: Math.PI * .55, hp: 3, hold: true },
+      // the lane to the east
+      { x: .72, z: .49, a: -Math.PI * .5, range: 15, arc: Math.PI * .6, hp: 3, patrol: [{ x: .68, z: .49 }, { x: .92, z: .49 }] },
+    ],
+    obstacles: [
+      // the barricade: two lengths of rubble wall across the street with a gap in the middle
+      { t: 'swall', x: .468, z: .752, w: 1.8, d: .8 }, { t: 'swall', x: .514, z: .752, w: 1.8, d: .8 },
+      // farmhouses, barns and the burnt-out ones
+      { t: 'house', style: 'farm', x: .555, z: .62, w: 8.5, d: 6.5 },
+      { t: 'house', style: 'farm', x: .64, z: .355, w: 9, d: 6.5 },
+      { t: 'house', style: 'barn', x: .76, z: .32, w: 10, d: 8 },
+      { t: 'house', style: 'ruin', x: .66, z: .55, w: 8, d: 6 },
+      { t: 'house', style: 'ruin', x: .22, z: .64, w: 7, d: 6 },
+      { t: 'house', style: 'farm', x: .24, z: .19, w: 9, d: 7 },
+      { t: 'house', style: 'barn', x: .19, z: .82, w: 10, d: 8 },
+      { t: 'tank', kind: 'pz4', x: .82, z: .49, a: Math.PI / 2, burnt: true },
+      // the square: a plane tree in its planter, the lamps
+      { t: 'planter', x: .555, z: .46, s: 3 },
+      { t: 'lamp', x: .395, z: .415, style: 0 }, { t: 'lamp', x: .605, z: .415, style: 0 }, { t: 'lamp', x: .395, z: .565, style: 2 }, { t: 'lamp', x: .605, z: .565, style: 2 },
+      { t: 'lamp', x: .465, z: .66, style: 1 }, { t: 'lamp', x: .465, z: .90, style: 1 }, { t: 'lamp', x: .655, z: .465, style: 0 },
+      // garden walls behind the street houses and along the lane
+      { t: 'swall', x: .30, z: .74, w: 5.0, d: .6 }, { t: 'swall', x: .30, z: .89, w: 16, d: .6 },
+      { t: 'swall', x: .66, z: .66, w: .6, d: 9 }, { t: 'swall', x: .66, z: .75, w: 8, d: .6 },
+      { t: 'swall', x: .62, z: .525, w: 4, d: .6 }, { t: 'swall', x: .25, z: .56, w: 10, d: .6 },
+      { t: 'crate', x: .385, z: .55 }, { t: 'crate', x: .60, z: .43 },
+      // orchards and hedges round the edge
+      ...[[.08, .3], [.14, .42], [.08, .55], [.15, .7], [.06, .82], [.92, .2], [.95, .62], [.88, .72], [.94, .86], [.3, .07], [.7, .1], [.12, .14]].map(([x, z]) => ({ t: 'tree', x, z })),
+      ...[[.18, .5], [.3, .62], [.28, .78], [.7, .62], [.75, .8], [.66, .27], [.32, .3], [.84, .6], [.2, .93], [.8, .92]].map(([x, z]) => ({ t: 'bush', x, z })),
+      { t: 'rock', x: .72, z: .88 }, { t: 'rock', x: .3, z: .96 },
+    ],
+    side: true,
+    spawnZ: .93, grenades: 8, reinf: 4, alertThreshold: .5,
   },
 ];
 
@@ -5871,7 +7254,8 @@ function clearMission() {
   for (const b of bridges) { propRoot.remove(b); b.geometry.dispose(); }
   bridges = [];
   for (const b of builds) buildRoot.remove(b.group);
-  builds = [];
+  builds = []; lamps = [];   // v38
+  clearTexBatch();   // v39
   for (const s of shells) { fxRoot.remove(s.ring); fxRoot.remove(s.cross); }
   shells = [];
   for (const n of nadeMarks) fxRoot.remove(n.ring);
@@ -5900,6 +7284,7 @@ function scatterCover(M, n, seed) {
     if (waterFactor(x, z) > 0.02 || onBridge(x, z, 1.6)) continue;
     if (padBlend(x, z)) continue;                            // nothing sprouting indoors
     { const rd = roadDist(x, z); if (rd && rd.t < 1.1) continue; }   // nor in the road
+    if ((streets.length || squares.length) && onStreet(x, z, 1.5)) continue;   // v40: nor in the street
     if (blocked(x, z, 2.6)) continue;
     let clash = false;
     for (const e of ens) if (dst(e, { x, z }) < 3.4) { clash = true; break; }
@@ -5943,17 +7328,19 @@ function extendRoadsPastEdge(list) {
 const EGTRUNK = new THREE.CylinderGeometry(0.4, 0.5, 1, 5, 1, true), EGLEAF = new THREE.IcosahedronGeometry(0.5, 0);
 const EG = {
   // v23: the same drooping skirts and olive tips as the placed pines, top faces only (nobody sees under the wall)
+  // v39: the same folded-blade tiers and lumpy clumps as the placed trees, cheaper (top faces kept, fewer tiers)
   pine: (() => mergeGeos([
     { g: EGTRUNK, m: M4(0, 1.1, 0, 0.55, 2.2, 0.55), c: 0x55391f },
-    { g: GEO.skirtTop, m: M4(0, 2.4, 0, 6.4, 2.6, 6.4, 0.3), c: 0x2a5520, grad: [0x557828, 0x1f461a, 2.1, 3.3] },
-    { g: GEO.skirtTop, m: M4(0, 4.4, 0, 4.8, 2.4, 4.8, 0.9), c: 0x2a5520, grad: [0x4f7424, 0x1f461a, 4.1, 5.2] },
-    { g: GEO.skirtTop, m: M4(0, 6.3, 0, 3.0, 2.4, 3.0, 1.6), c: 0x2a5520, grad: [0x557828, 0x22491b, 6.0, 7.1] },
-    { g: GEO.cone, m: M4(0, 8.4, 0, 0.9, 1.6, 0.9, 1.6), c: 0x26501d }]).scale(TREE_W, TREE_H, TREE_W))(),
+    { g: pineTier(7, 0.4, 0.3, 0x7aa544, 0x4a7a2c), m: M4(0, 2.2, 0, 6.6, 2.4, 6.6), vc: true },
+    { g: pineTier(7, 0.38, 0.9, 0x76a142, 0x4a7a2c), m: M4(0, 4.1, 0, 5.0, 2.3, 5.0), vc: true },
+    { g: pineTier(7, 0.34, 1.6, 0x7aa544, 0x4a7a2c), m: M4(0, 5.9, 0, 3.2, 2.3, 3.2), vc: true },
+    { g: pineTier(6, 0.3, 2.2, 0x7aa446, 0x4a7a2c), m: M4(0, 7.6, 0, 1.6, 1.9, 1.6), vc: true }]).scale(TREE_W, TREE_H, TREE_W))(),
   leaf: (() => mergeGeos([
     { g: EGTRUNK, m: M4(0, 1.7, 0, 0.62, 3.4, 0.62), c: 0x5e4326 },
-    { g: EGLEAF, m: M4(0, 4.9, 0, 5.0, 3.8, 5.0, 0.4), c: 0x4a7a26, grad: [0x355f1c, 0x6f9832, 3.4, 6.6] },
-    { g: EGLEAF, m: M4(1.2, 4.4, 0.6, 3.0, 2.6, 3.0, 2.1), c: 0x4a7a26, grad: [0x355f1c, 0x6f9832, 3.4, 6.6] },
-    { g: EGLEAF, m: M4(0.6, 6.5, -0.3, 3.4, 2.6, 3.4, 1.3), c: 0x4a7a26, grad: [0x3e6a20, 0x86ab3a, 5.4, 7.6] }]).scale(TREE_W, TREE_H, TREE_W))(),
+    { g: GEO.clump[0], m: M4(0, 4.9, 0, 5.0, 3.8, 5.0, 0.4), grad: [0x46722a, 0x86ad3e, 3.4, 6.8] },
+    { g: GEO.clump[1], m: M4(1.3, 4.3, 0.6, 3.1, 2.6, 3.1, 2.1), grad: [0x46722a, 0x86ad3e, 3.4, 6.8] },
+    { g: GEO.clump[2], m: M4(-0.9, 4.6, -0.8, 2.8, 2.4, 2.8, 1.1), grad: [0x46722a, 0x86ad3e, 3.4, 6.8] },
+    { g: GEO.clump[2], m: M4(0.6, 6.5, -0.3, 3.4, 2.6, 3.4, 1.3), grad: [0x56862e, 0x9cbc46, 5.4, 7.8] }]).scale(TREE_W, TREE_H, TREE_W))(),
 };
 function clearBoundary() {
   for (const c of edgeRoot.children.slice()) { edgeRoot.remove(c); if (c.isInstancedMesh || c.userData.own) c.geometry.dispose(); }
@@ -6414,22 +7801,67 @@ const OBJ_LABEL = {
     return L.length > 1 ? `Destroy the ${nm}s (${n}/${L.length})` : `Destroy the ${nm}`; },
 };
 const propMatI = propMat.clone();
-const swayMatI = propMat.clone(); swayMatI.userData = { sway: true }; swayMatI.customProgramCacheKey = () => 'swayI';   // instanced + per-instance tint: r128 shares one program per material, so tinted instancing needs its own
+const swayMatI = propMat.clone(); swayMatI.userData = { sway: true }; swayMatI.customProgramCacheKey = () => 'swayI'; swayMatI.shadowSide = THREE.DoubleSide;   // instanced + per-instance tint: r128 shares one program per material, so tinted instancing needs its own
 const pbMat = propMat, pbScorch = new THREE.MeshPhongMaterial({ vertexColors: true, flatShading: true, shininess: 2, color: SC(0x4a4640) });
 function mkPillbox(T) {
   // facing: 0 south (+z), π north, ±π/2 east/west — kept to the four quarters so the obstacle stays a rectangle
   const fx = Math.round(Math.sin(T.a)), fz = Math.round(Math.cos(T.a)), yaw = Math.atan2(fx, fz);
-  const W = 4.6, D = 3.8, H = 2.0, conc = 0x9a978c, concD = 0x83807a, turf = [0x557a34, 0x4a6e2c, 0x5f8a3a];
-  const p = [
-    { g: GEO.box, m: M4(0, H / 2, 0, W, H, D), c: conc },
-    { g: GEO.box, m: M4(0, H + 0.18, 0, W + 0.5, 0.36, D + 0.5), c: concD },                    // roof slab
-    { g: GEO.box, m: M4(0, 1.16, D / 2 + 0.01, 2.8, 0.34, 0.06), c: 0x0b0b0a },                  // the slit
-    { g: GEO.box, m: M4(0, 1.42, D / 2 + 0.18, 3.2, 0.14, 0.36), c: concD },                     // lip over it
-    { g: GEO.box, m: M4(1.2, 0.75, -D / 2 - 0.01, 0.95, 1.5, 0.06), c: 0x2a221a },               // rear door
-    { g: GEO.box, m: M4(1.2, 0.06, -D / 2 - 0.45, 1.2, 0.12, 0.8), c: concD },
-  ];
-  for (let i = 0; i < 6; i++) p.push({ g: GEO.blob, m: M4((hash2(i, T.x) - 0.5) * (W - 0.6), H + 0.42, (hash2(T.z, i) - 0.5) * (D - 0.6), 1.9, 0.55, 1.6, i), c: turf[i % 3] });
-  for (const s of [-1, 1]) for (let i = 0; i < 4; i++) p.push({ g: GEO.box, m: M4(s * (W / 2 + 0.45), 0.22 + (i % 2) * 0.4, D / 2 - 0.4 - (i >> 1) * 0.9, 0.62, 0.4, 0.86), c: [0x8a7e5c, 0x948863][i % 2] });
+  /* v39, after the sheet: an octagonal concrete pillbox with battered walls and a chamfered roof slab, weathered in
+     patches, moss on the roof, a recessed slit under a lip in the front face, a door with three steps at the back,
+     weeds and stones round its foot. The obstacle (4.6 × 3.8) and the slit (front, at D/2) are as before. */
+  const W = 4.6, D = 3.8, H = 1.9, c = 0.95, hx = W / 2, hz = D / 2, seed = hash2(T.x, T.z);
+  const oct = (sx, sz, ins) => { const a = hx * sx - ins, b = hz * sz - ins, cc = c * Math.min(sx, sz); return [[-a + cc, b], [a - cc, b], [a, b - cc], [a, -b + cc], [a - cc, -b], [-a + cc, -b], [-a, -b + cc], [-a, b - cc]]; };
+  const base = oct(1, 1, 0), top = oct(1, 1, 0.12), rimO = oct(1, 1, -0.22), rimI = oct(1, 1, 0.55);
+  const Q = { p: [], c: [] }, p = [];
+  const conc = k => vcCol.copy(SC(0x9c998e)).multiplyScalar(k).clone();
+  const blot = (x, y, z) => 0.82 + vnoise(x * 1.7 + seed * 9, y * 1.9 + z * 1.3) * 0.26;
+  for (let i = 0; i < 8; i++) {
+    const j = (i + 1) % 8, A = base[i], B = base[j], C = top[j], Dd = top[i];
+    const a = [A[0], 0, A[1]], b = [B[0], 0, B[1]], cc = [C[0], H, C[1]], dd = [Dd[0], H, Dd[1]];
+    // the wall face in three bands, dirtier at the foot, blotched
+    for (let r = 0; r < 3; r++) {
+      const t0 = r / 3, t1 = (r + 1) / 3, L = (u, t) => u.map((q, k) => q + ([cc, dd][u === a ? 1 : 0][k] - q) * t);
+      const p0 = [a[0] + (dd[0] - a[0]) * t0, H * t0, a[2] + (dd[2] - a[2]) * t0], p1 = [b[0] + (cc[0] - b[0]) * t0, H * t0, b[2] + (cc[2] - b[2]) * t0];
+      const p2 = [b[0] + (cc[0] - b[0]) * t1, H * t1, b[2] + (cc[2] - b[2]) * t1], p3 = [a[0] + (dd[0] - a[0]) * t1, H * t1, a[2] + (dd[2] - a[2]) * t1];
+      const k0 = (0.72 + t0 * 0.3), k1 = (0.72 + t1 * 0.3);
+      vcQ(Q, p0, p1, p2, p3, conc(k0 * blot(...p0)), conc(k0 * blot(...p1)), conc(k1 * blot(...p2)), conc(k1 * blot(...p3)));
+    }
+    // the roof slab: the overhanging rim, its chamfer up to the flat top
+    const o0 = [rimO[i][0], H, rimO[i][1]], o1 = [rimO[j][0], H, rimO[j][1]], o2 = [rimO[j][0], H + 0.22, rimO[j][1]], o3 = [rimO[i][0], H + 0.22, rimO[i][1]];
+    const i0 = [rimI[i][0], H + 0.5, rimI[i][1]], i1 = [rimI[j][0], H + 0.5, rimI[j][1]];
+    vcQ(Q, o0, o1, o2, o3, conc(0.78), conc(0.78), conc(0.95), conc(0.95));
+    vcQ(Q, o3, o2, i1, i0, conc(blot(...o3)), conc(blot(...o2)), conc(1.05 * blot(...i1)), conc(1.05 * blot(...i0)));
+    vcQ(Q, o1, o0, dd, cc, conc(0.5), conc(0.5), conc(0.5), conc(0.5));   // the soffit
+  }
+  for (let i = 1; i < 7; i++) {   // the flat top, a fan
+    const a = [rimI[0][0], H + 0.5, rimI[0][1]], b = [rimI[i][0], H + 0.5, rimI[i][1]], cc = [rimI[i + 1][0], H + 0.5, rimI[i + 1][1]];
+    for (const [q, k] of [[a, 1], [b, 1], [cc, 1]]) { Q.p.push(...q); const col = conc(1.02 * blot(...q)); Q.c.push(col.r, col.g, col.b); }
+  }
+  // wind every face outward / upward (the octagon was built by hand)
+  for (let i = 0; i < Q.p.length; i += 9) {
+    const ax = Q.p[i], ay = Q.p[i + 1], az = Q.p[i + 2], ux = Q.p[i + 3] - ax, uy = Q.p[i + 4] - ay, uz = Q.p[i + 5] - az, vx = Q.p[i + 6] - ax, vy = Q.p[i + 7] - ay, vz = Q.p[i + 8] - az;
+    const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx, mx = (ax + Q.p[i + 3] + Q.p[i + 6]) / 3, mz = (az + Q.p[i + 5] + Q.p[i + 8]) / 3, my = (ay + Q.p[i + 4] + Q.p[i + 7]) / 3;
+    const soffit = my > H - 0.05 && my < H + 0.05 && Math.abs(ny) > Math.abs(nx) + Math.abs(nz);
+    const out = soffit ? ny < 0 : (Math.abs(ny) > 0.6 * Math.hypot(nx, nz) ? ny > 0 : nx * mx + nz * mz > 0);
+    if (!out) for (let j = 0; j < 3; j++) { let t = Q.p[i + 3 + j]; Q.p[i + 3 + j] = Q.p[i + 6 + j]; Q.p[i + 6 + j] = t; t = Q.c[i + 3 + j]; Q.c[i + 3 + j] = Q.c[i + 6 + j]; Q.c[i + 6 + j] = t; }
+  }
+  p.push(vcPart(Q));
+  // the slit: recessed, splayed, under a lip; the door and its steps at the back
+  p.push({ g: GEO.box, m: M4(0, 1.12, hz - 0.04, 2.5, 0.34, 0.12), c: 0x0b0b0a });
+  p.push({ g: GEO.box, m: M4(0, 1.36, hz + 0.08, 3.0, 0.14, 0.3), c: 0x8a877e });
+  for (const s of [-1, 1]) p.push({ g: GEO.box, m: M4(s * 1.32, 1.12, hz + 0.02, 0.14, 0.44, 0.22, s * 0.5), c: 0x7e7b72 });
+  p.push({ g: GEO.box, m: M4(0.55, 0.78, -hz - 0.02, 0.92, 1.45, 0.08), c: 0x3a2c1e });
+  for (let i = 0; i < 3; i++) p.push({ g: GEO.box, m: M4(0.55, 0.06 + i * 0.13 - 0.0, -hz - 0.3 - (2 - i) * 0.28, 1.25, 0.14 + i * 0.13, 0.32), c: [0x9a978c, 0x8e8b82, 0xa29f94][i] });
+  // cracks and stains on the faces, moss on the roof
+  for (let i = 0; i < 5; i++) { const a = hash2(i, seed) * 6.283, r = hx * 0.94; p.push({ g: GEO.box, m: M4e(Math.sin(a) * r, 0.5 + hash2(seed, i) * 1.1, Math.cos(a) * hz * 0.94, 0.04, 0.5 + hash2(i * 3, seed) * 0.5, 0.04, 0, a, (hash2(i, 9) - 0.5) * 0.8), c: 0x5a5852 }); }
+  for (let i = 0; i < 9; i++) p.push({ g: GEO.clump[i % 3], m: M4((hash2(i, T.x) - 0.5) * (W - 1.4), H + 0.52, (hash2(T.z, i) - 0.5) * (D - 1.4), 0.5 + hash2(i, 3) * 0.6, 0.14, 0.4 + hash2(3, i) * 0.5, i), c: [0x6a8a3a, 0x7e9a44, 0x5a7a30][i % 3] });
+  // weeds, a bush or two and stones round the foot
+  for (let i = 0; i < 16; i++) {
+    const a = i / 16 * 6.283 + hash2(i, seed) * 0.3, r = 1.05 + hash2(seed, i) * 0.25, x = Math.sin(a) * hx * r, z = Math.cos(a) * hz * r;
+    if (z > hz * 0.8 && Math.abs(x) < 1.6) continue;   // keep the slit clear
+    if (hash2(i, 5) < 0.6) { const s = 0.35 + hash2(i, 7) * 0.4; p.push({ g: GEO.clump[i % 3], m: M4(x, s * 0.35, z, s, s * 0.8, s, a), c: [0x4a7a2c, 0x5a8a34, 0x6a9a3a][i % 3] }); }
+    else { const s = 0.22 + hash2(i, 8) * 0.25; p.push({ g: GEO.clump[i % 3], m: M4(x, s * 0.25, z, s * 1.2, s * 0.7, s, a), c: 0x8b8a82 }); }
+  }
   const m = new THREE.Mesh(mergeGeos(p), pbMat); m.castShadow = true; m.receiveShadow = true;
   m.position.set(T.x, groundY(T.x, T.z) - 0.05, T.z); m.rotation.y = yaw; propRoot.add(m);
   const hw = fx ? D / 2 : W / 2, hd = fx ? W / 2 : D / 2;
@@ -6729,12 +8161,15 @@ function initMission(idx) {
     const TR = planThroughRoad(M); roadPath = TR ? TR.pts : null;
     if (TR && TR.road) list.push(TR.road);
     extendRoadsPastEdge([...list.map(r => r.pts), ...(roadPath ? [roadPath] : [])]);
+    setStreets(M);   // v40
     setRoads(list);
     planTunnels();
     buildRoadDelta();   // v34
   }
+  planAprons(M);   // v36
   rebuildTerrain();
   buildRoadStrips();
+  buildStreets();   // v40
   buildTufts();
   placeRiverRocks();
   buildWater();
@@ -6751,7 +8186,10 @@ function initMission(idx) {
     else if (o.t === 'bush') obs.push(mkBush(x, z, seed++));
     else if (o.t === 'crate') obs.push(mkCrate(x, z, seed++));
     else if (o.t === 'wall') obs.push(mkWall(x, z, o.w, o.d));
-    else if (o.t === 'house') obs.push(mkHouse(x, z, o.w, o.d));
+    else if (o.t === 'house') obs.push(o.style === 'farm' ? mkFarmhouse(x, z, o.w, o.d) : o.style === 'ruin' ? mkFarmhouse(x, z, o.w, o.d, true) : o.style === 'barn' ? mkBarn(x, z, o.w, o.d) : mkHouse(x, z, o.w, o.d));   // v39: styles
+    else if (o.t === 'lamp') obs.push(mkLamppost(x, z, o.style || 0));
+    else if (o.t === 'swall') obs.push(mkStoneWall(x, z, o.w, o.d));
+    else if (o.t === 'planter') { obs.push(mkPlanter(x, z, o.s || 3)); if (o.tree !== false) { const im = INST.tree[TREE_KINDS.indexOf('broadBig')]; _dummy.position.set(x, groundY(x, z) + 0.5, z); _dummy.rotation.set(0, 0.7, 0); _dummy.scale.setScalar(0.95); _dummy.updateMatrix(); const i = im.count++; im.setMatrixAt(i, _dummy.matrix); im.instanceMatrix.needsUpdate = true; regFade(im, i, x, z); obs.push({ type: 'tree', x, z, s: 0.95, rot: 0.7, radius: 0.55, h: 5, tall: true, cover: true, pass: false }); } }   // v40: a plane tree, always a broadleaf
     else if (o.t === 'fence') obs.push(mkFence(x, z, o.w * MW, o.d * MH));
     else if (o.t === 'gate') obs.push(mkGate(x, z, o.w * MW, o.d * MH));
     else if (o.t === 'tower') { const t = mkTower(x, z); t.light.baseYaw = o.yaw || 0; t.light.speed = o.speed || 0.33; obs.push(t); }
@@ -6762,6 +8200,7 @@ function initMission(idx) {
   flushThickets();
   obs.push(...mesaObstacles());
   for (const b of (M.buildings || [])) mkBuilding(b, obs);
+  flushTexBatch();   // v39: the static textured props, one mesh per material
   buildTargets(M);
   buildGrid();
   buildPuddles(M); buildFlowers(M);   // v34: after the obstacles, so neither lands under a hut
@@ -6809,6 +8248,7 @@ function initMission(idx) {
     if (u.dog) u.handlerIdx = e.handler;
     if (e.rim) { const R = obs.find(o => o.type === 'ridge' && inObsRect(o, u.x, u.z)); if (R) { u.elev = R.h; u.fixed = true; u.rimOn = R; } }
     if (e.tag) u.tag = e.tag;
+    if (e.hold) u.fixed = true;   // v40: a man at a window keeps to it
     if (!u.dog && !u.tower) u.visionRange *= 1 + 0.1 * diffD;   // the difficulty curve
     mkCone(u);
     ens.push(u);
@@ -6820,6 +8260,9 @@ function initMission(idx) {
   scatterCover(M, M.scatter || 45, idx * 977 + 13);
   buildGrid();
   bakeLookHeights(); bakeGroundAO();
+  buildGrass(M);   // v35: last, after the scatter cover, so nothing grows through a rock
+  buildPebbles(M);   // v36
+  buildLamps(M);   // v38
   if (M.hostage) hostage = mkHostage(M.hostage.x * MW, M.hostage.z * MH);
   for (const pr of (M.prisoners || [])) prisoners.push(mkHostage(pr.x * MW, pr.z * MH));
   buildPathGrid();
@@ -7180,6 +8623,7 @@ function stepFauna(dt) {
    edge, or one laid across the map where it clears the buildings, walls, wire and water, keeps
    off the drop zone, and passes as few sentries and trees as it can. */
 function planThroughRoad(M) {
+  if (M.noTraffic) return null;   // v40: no lorries through the village square
   for (const r of (M.roads || [])) {
     const a = r.pts[0], b = r.pts[r.pts.length - 1];
     if (Math.min(a[0], b[0]) <= 0.01 && Math.max(a[0], b[0]) >= 0.99) return { pts: r.pts.map(p => [p[0] * MW, p[1] * MH]) };
@@ -8104,6 +9548,8 @@ function update(dt) {
       const t = k / steps;
       if (t >= bestT) break;
       const o = blocked(px + (nx - px) * t, pz + (nz - pz) * t, 0.12);
+      // v39: a garden wall, a planter or a window sill stops a round that is lower than its top
+      if (o && o.low && !o.tall) { const by = by0 + (by1 - by0) * t; if (by < surfY(o.cx !== undefined ? o.cx : o.x, o.cz !== undefined ? o.cz : o.z) + (o.h || 1)) { bestT = t; hitUnit = null; hitWall = true; break; } continue; }
       if (o && o.tall) {
         // a round climbing to a tower clears the platform edge; a round at chest height hits the legs
         const by = by0 + (by1 - by0) * t, top = surfY(o.cx !== undefined ? o.cx : o.x, o.cz !== undefined ? o.cz : o.z) + (o.h || 3.2);
@@ -8167,9 +9613,8 @@ function update(dt) {
         if (s.x > b.x0 && s.x < b.x1 && s.z > b.z0 && s.z < b.z1) { inside = true; break; }
       }
       b.alpha += ((inside ? 0.10 : 1) - b.alpha) * Math.min(1, dt * 6);
-      b.roof.material.opacity = b.alpha;
+      b.roof.traverse(o => { if (o.material) o.material.opacity = b.alpha; o.castShadow = b.alpha > 0.55; });   // v40: a tiled roof is several meshes
       b.roof.visible = b.alpha > 0.03;
-      b.roof.castShadow = b.alpha > 0.55;      // let the daylight in once it fades
       const wa = inside ? 0.22 : 1;
       for (const m of b.near) { m.material.opacity = b.alpha * 0.6 + wa * 0.4; }
     }
@@ -8516,6 +9961,12 @@ function drawMinimap() {
     mmX.fillStyle = '#8a6a3c';
     mmX.fillRect((r.x0 / MW) * MM, (r.z0 / MH) * MM, ((r.x1 - r.x0) / MW) * MM, ((r.z1 - r.z0) / MH) * MM);
   }
+  if (streets.length || squares.length) {   // v40: the cobbles
+    mmX.fillStyle = '#7a776c';
+    for (const q of squares) mmX.fillRect((q.x0 / MW) * MM, (q.z0 / MH) * MM, ((q.x1 - q.x0) / MW) * MM, ((q.z1 - q.z0) / MH) * MM);
+    mmX.strokeStyle = '#7a776c'; mmX.lineCap = 'butt';
+    for (const r of streets) { mmX.lineWidth = r.w / MW * MM; mmX.beginPath(); r.pts.forEach(([x, z], i) => mmX[i ? 'lineTo' : 'moveTo'](x / MW * MM, z / MH * MM)); mmX.stroke(); }
+  }
   for (const o of obs) {
     const mx = ((o.cx !== undefined ? o.cx : o.x) / MW) * MM, mz = ((o.cz !== undefined ? o.cz : o.z) / MH) * MM;
     if (o.type === 'tree') { mmX.fillStyle = '#2c4d19'; mmX.beginPath(); mmX.arc(mx, mz, 1.6, 0, 6.3); mmX.fill(); }
@@ -8523,6 +9974,7 @@ function drawMinimap() {
     else if (o.type === 'rock' || o.type === 'crate') { mmX.fillStyle = '#6b6857'; mmX.fillRect(mx - 1.2, mz - 1.2, 2.4, 2.4); }
     else if (o.type === 'wall') { mmX.fillStyle = '#8a7f5e'; mmX.fillRect((o.x / MW) * MM, (o.z / MH) * MM, Math.max(1.6, (o.w / MW) * MM), Math.max(1.6, (o.d / MH) * MM)); }
     else if (o.type === 'house') { mmX.fillStyle = '#a2472f'; mmX.fillRect((o.x / MW) * MM, (o.z / MH) * MM, (o.w / MW) * MM, (o.d / MH) * MM); }
+    else if (o.type === 'swall') { mmX.fillStyle = '#9a9488'; mmX.fillRect((o.x / MW) * MM, (o.z / MH) * MM, Math.max(1.4, (o.w / MW) * MM), Math.max(1.4, (o.d / MH) * MM)); }
     else if (o.type === 'fence') { mmX.fillStyle = '#9aa0a8'; mmX.fillRect((o.x / MW) * MM, (o.z / MH) * MM, Math.max(1, (o.w / MW) * MM), Math.max(1, (o.d / MH) * MM)); }
     else if (o.type === 'tower') { mmX.fillStyle = '#c9a060'; mmX.fillRect((o.x / MW) * MM, (o.z / MH) * MM, (o.w / MW) * MM, (o.d / MH) * MM); }
     else if (o.type === 'thicket') { mmX.fillStyle = '#1c3310'; mmX.fillRect((o.x / MW) * MM, (o.z / MH) * MM, (o.w / MW) * MM, (o.d / MH) * MM); }
@@ -9286,6 +10738,8 @@ function drawOpPreview(cv, M) {
   for (const r of (M.water || [])) { x.fillStyle = '#2a6a86'; x.fillRect(r.x1 * S, r.z1 * S, (r.x2 - r.x1) * S, (r.z2 - r.z1) * S); }
   for (const r of (M.bridge || [])) { x.fillStyle = '#9a7648'; x.fillRect(r.x1 * S, r.z1 * S, (r.x2 - r.x1) * S, (r.z2 - r.z1) * S); }
   for (const q of (M.mesas || [])) { x.fillStyle = 'rgba(190,170,120,.35)'; x.fillRect(q.x * S, q.z * S, q.w * S, q.d * S); for (const r of (q.ramps || [])) { x.strokeStyle = '#d8c89a'; x.lineWidth = (r.w || 3.4) / 100 * S; x.beginPath(); x.moveTo(r.fx * S, r.fz * S); x.lineTo(r.tx * S, r.tz * S); x.stroke(); } }
+  x.fillStyle = '#7a776c'; for (const q of (M.squares || [])) x.fillRect(q.x * S, q.z * S, q.w * S, q.d * S);   // v40
+  x.strokeStyle = '#7a776c'; for (const r of (M.streets || [])) { x.lineWidth = r.w / MW * S; x.beginPath(); r.pts.forEach(([a, b], i) => x[i ? 'lineTo' : 'moveTo'](a * S, b * S)); x.stroke(); }
   for (const o of M.obstacles) {
     if (o.t === 'tree') { x.fillStyle = '#2a4a18'; x.fillRect(o.x * S - 1.5, o.z * S - 1.5, 3, 3); }
     else if (o.t === 'bush') { x.fillStyle = '#35521f'; x.fillRect(o.x * S - 1, o.z * S - 1, 2, 2); }
@@ -9345,6 +10799,7 @@ function showOps() {
     if ((M.obstacles || []).some(o => o.t === 'ridge')) extras.push('canyon');
     if ((M.obstacles || []).some(o => o.t === 'thicket')) extras.push('forest');
     if ((M.targets || []).some(t => t.t === 'gun')) extras.push('battery');
+    if (M.streets) extras.push('street fighting');
     if (M.side) extras.unshift('<span style="color:#c9a43a">side operation</span>');
     const info = document.createElement('div'); info.className = 'i';
     info.innerHTML = `<div class="n"><b>${M.side ? 'S' + (i - CAMPAIGN_END + 1) : String(i + 1).padStart(2, '0')}</b>${M.name}</div><div class="o">${M.obj}</div>` +
@@ -9564,6 +11019,7 @@ function setMusic(on) { musicOn = on; PF.set('gs_mus', on ? '1' : '0'); if (mixM
 function applyGfx() {
   sun.castShadow = !gfxLow;
   GFX_DET.value = gfxLow ? 0 : 1;
+  grassDirty = true;   // v35: low graphics halves the grass
   R.setPixelRatio(Math.min(devicePixelRatio, gfxLow ? 1 : DPR_MAX) * dprScale);
 }
 function setGfx(low) { gfxLow = low; PF.set('gs_gfx', low ? 'low' : 'high'); applyGfx(); }
@@ -9860,6 +11316,26 @@ window.GS = { MISSIONS, get roster() { return roster; }, get fallen() { return f
       im.setMatrixAt(im.count++, _dummy.matrix); im.instanceMatrix.needsUpdate = true; });
     return TREE_KINDS;
   },
+  // v39: every tree and bush kind in two rows in front of the squad (the sheet, for screenshots)
+  pbench(gap) {
+    const L = sol.find(s => !s.dead) || sol[0]; this.clearArea(26); const g = gap || 5.5;
+    TREE_KINDS.forEach((k, i) => { const im = INST.tree[i], x = L.x + (i - 2) * g, z = L.z - 12;
+      _dummy.position.set(x, groundY(x, z), z); _dummy.rotation.set(0, i, 0); _dummy.scale.setScalar(1); _dummy.updateMatrix(); im.setMatrixAt(im.count++, _dummy.matrix); im.instanceMatrix.needsUpdate = true; });
+    BUSH_KINDS.forEach((k, i) => { const im = INST.bush[i], x = L.x + (i - 1.5) * g * 0.8, z = L.z - 5;
+      _dummy.position.set(x, groundY(x, z) - 0.1, z); _dummy.rotation.set(0, i * 0.7, 0); _dummy.scale.setScalar(1); _dummy.updateMatrix(); im.setMatrixAt(im.count++, _dummy.matrix); im.instanceMatrix.needsUpdate = true; });
+    grassOn = false; grassDirty = true;
+    return [TREE_KINDS, BUSH_KINDS];
+  },
+  // v39: the structures in a row in front of the squad (screenshots)
+  sbench(which) {
+    const L = sol.find(s => !s.dead) || sol[0]; this.clearArea(34); const x0 = L.x, z0 = L.z;
+    const add = o => { obs.push(o); return o; };
+    if (!which || which === 'farm') { add(mkFarmhouse(x0 - 15, z0 - 16, 8.5, 6)); add(mkFarmhouse(x0 - 3, z0 - 16, 8.5, 6, true)); add(mkBarn(x0 + 8, z0 - 16, 9, 7)); }
+    for (let i = 0; i < 3; i++) add(mkLamppost(x0 - 6 + i * 3, z0 - 6, i));
+    add(mkStoneWall(x0 + 3, z0 - 7, 7, 0.6)); add(mkPlanter(x0 + 8, z0 - 4, 3));
+    flushTexBatch(); buildGrid(); buildLamps(MISSIONS[missionIdx]); grassDirty = true;
+    return obs.length;
+  },
   zoom(z) { camZoom = z; return camZoom; },
   tgts() { return targets.map(T => ({ k: T.kind, x: +T.x.toFixed(1), z: +T.z.toFixed(1), sx: T.sx, sz: T.sz, fx: T.fx, fz: T.fz, dead: !!T.dead })); },
   nade(x, z) { setProne(false); throwGrenade(x, z); return grn.length && { tx: grn[grn.length - 1].tx, tz: grn[grn.length - 1].tz, ey: grn[grn.length - 1].ey }; },
@@ -9937,6 +11413,13 @@ window.GS = { MISSIONS, get roster() { return roster; }, get fallen() { return f
   end(won) { endMission(!!won); return outcome; },
   win() { reinfSent = true; ens.forEach(e => { if (!e.dead) killUnit(e, 'shot'); }); },
   wipe() { sol.forEach(s => { if (!s.dead) killUnit(s, 'shot'); }); },
+  grass(on) { if (on !== undefined) { grassOn = !!on; grassDirty = true; } return { on: grassOn, chunks: grassChunks ? grassChunks.length : 0, n: Object.fromEntries(Object.entries(GRASS_IM).map(([k, m]) => [k, m.count])) }; },
+  mud(x, z) { return { mud: +mudAt(x, z).toFixed(2), aprons: aprons.map(A => [+A.x.toFixed(1), +A.z.toFixed(1), A.r]), pebbles: pebMesh.count, ruts: rutMesh ? rutMesh.geometry.attributes.position.count / 3 : 0, puddles: puddles.length }; },
+  lamps() { return { on: lampsOn(), n: lamps.length, active: lampActive && [+lampActive.x.toFixed(1), +lampActive.z.toFixed(1)], I: +lampLight.intensity.toFixed(2) }; },
+  obsNear(x, z, r) { return obs.filter(o => { const ox = o.cx !== undefined ? o.cx : o.x, oz = o.cz !== undefined ? o.cz : o.z; return Math.hypot(ox - x, oz - z) < r + Math.max(o.w || 0, o.d || 0) / 2; }).map(o => [o.type, +o.x.toFixed(2), +o.z.toFixed(2), o.w && +o.w.toFixed(2), o.d && +o.d.toFixed(2), o.radius, !!o.tall]); },
+  los(x1, z1, x2, z2) { return hasLOS(x1, z1, x2, z2); },
+  foes() { return ens.map((e, i) => [i, +e.x.toFixed(1), +e.z.toFixed(1), e.state, e.dead, e.hp, !!e.fixed]); },
+  wins() { return builds.map(b => (b.windows || []).map(w => [+w.cx.toFixed(1), +w.cz.toFixed(1), w.N[0], w.N[2]])); },
   hurt(n) { sol.filter(s => !s.dead).slice(-n).forEach(s => killUnit(s, 'shot')); } };
 </script>
 </body>
