@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="theme-color" content="#0d1408">
 <title>Grunt Squad — Khalifa Games</title>
-<meta name="description" content="A top-down tactical stealth shooter in the Cannon Fodder tradition. Four grunts, sixteen operations, no install.">
+<meta name="description" content="A top-down tactical stealth shooter in the Cannon Fodder tradition. Four grunts, seventeen operations, no install.">
 <meta property="og:title" content="Grunt Squad — war, but badly organised">
-<meta property="og:description" content="Four grunts, sixteen operations. Crawl past the sentries, post a grenade through the slit, get home.">
+<meta property="og:description" content="Four grunts, seventeen operations. Crawl past the sentries, post a grenade through the slit, get home.">
 <meta property="og:image" content="https://khalifa.games/grunt-squad/title.png">
 <meta property="og:url" content="https://khalifa.games/grunt-squad/">
 <meta name="twitter:card" content="summary_large_image">
@@ -359,7 +359,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
     <button id="tset">SETTINGS <small>sound · music · graphics</small></button>
   </div>
   <div class="foot">© GAMELAB · NO GRUNTS WERE CONSULTED</div>
-  <div id="tver">v41</div>
+  <div id="tver">v44</div>
 </div>
 
 <div id="ops" class="screen">
@@ -1197,7 +1197,8 @@ scene.add(gnd);
    1 edge). Nothing else in the game reads them — they are scenery with a purpose: they
    lead your eye from the spawn to the objective. */
 let roads = [];
-function setRoads(list) { roads = list || []; if (roadDelta) { roadDelta.fill(0); roadFoot.fill(0); } }
+function setRoads(list) { roads = list || []; for (const r of roads) if (r.kind !== 'road' && !r._tw) { r.w *= TRACK_W; r._tw = 1; }   // v42
+  if (roadDelta) { roadDelta.fill(0); roadFoot.fill(0); } }
 /* v34: road relief, baked to a 0.4 m grid over the map (and a margin) so groundY stays cheap.
    A road sits on a low cambered bank, 0.2 m up with a crown, its shoulders running out to 1.6 half-widths.
    A track is worn in: 5 cm down overall, two ruts 10 cm deeper, a little grass crown between them.
@@ -1236,6 +1237,7 @@ function buildRoadDelta() {
       else { if (v < roadDelta[k]) roadDelta[k] = v; roadFoot[k] = 1; }
     }
   }
+  railDelta();        // v43
   markStreetFoot();   // v40
 }
 function roadDeltaAt(x, z) {
@@ -1274,6 +1276,7 @@ function roadDist(x, z, vis) {
       if (d < 1.15 && (!best || d < best.t)) best = { t: d, kind: r.kind, w: r.w };
     }
   }
+  if (railLine) { const d = segDist(railLine.pts, x, z) / RAIL.hw; if (d < 1.15 && (!best || d < best.t)) best = { t: d, kind: 'rail', w: RAIL.hw * 2 }; }   // v43
   return best;
 }
 
@@ -1283,23 +1286,29 @@ function roadDist(x, z, vis) {
    A track: packed earth, two darker ruts, grass up the crown. No paint anywhere — this is 1944. */
 const roadRoot = new THREE.Group(); scene.add(roadRoot);
 const roadMat = new THREE.MeshPhongMaterial({ vertexColors: true, flatShading: true, shininess: 3, specular: SC(0x0c0c0c), polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 });
+let tarMat = null;   // v42: roadMat carries the track texture, tarMat the tarmac (maps set lazily: RTEX is declared further down the file)
 function buildRoadStrips() {
   for (const m of roadRoot.children.slice()) { roadRoot.remove(m); m.geometry.dispose(); }
   const c = new THREE.Color();
+  if (!roadMat.map) { roadMat.map = RTEX.track; roadMat.needsUpdate = true; tarMat = roadMat.clone(); tarMat.map = RTEX.tar; }
+  const tracks = roads.filter(o => o.kind !== 'road');
   roads.forEach((r, ri) => {
     const hw = r.w / 2, road = r.kind === 'road', lift = 0.012 + ri * 0.005;   // v26: the ground is sunk beneath, so the strip lies on groundY
-    // columns across: [offset, colour picker]
-    // v34: a road on its bank (grass shoulders, a gravel edge, worn wheel lines); a track with its ruts sampled where they bottom out
+    // columns across: [offset, kind]. v42: each kind has its band in the texture (RT_U); outer columns keep the ground's colours
     const cols = road
       ? [[-hw * 1.58, 'bank'], [-hw * 1.25, 'bank'], [-(hw + 0.18), 'verge'], [-hw + 0.12, 'edge'], [-hw * 0.62, 'wear'], [-hw * 0.2, 'tar'], [hw * 0.2, 'tar'], [hw * 0.62, 'wear'], [hw - 0.12, 'edge'], [hw + 0.18, 'verge'], [hw * 1.25, 'bank'], [hw * 1.58, 'bank']]
-      : [[-hw * 1.16, 'fray'], [-hw * 0.88, 'dirt'], [-hw * 0.62, 'rut'], [-hw * 0.38, 'dirt'], [-hw * 0.12, 'crown'], [hw * 0.12, 'crown'], [hw * 0.38, 'dirt'], [hw * 0.62, 'rut'], [hw * 0.88, 'dirt'], [hw * 1.16, 'fray']];
+      : [[-hw * 1.16, 'fray'], [-hw * 0.88, 'dirt'], [-hw * 0.62, 'rut'], [-hw * 0.38, 'dirtI'], [-hw * 0.12, 'crown'], [hw * 0.12, 'crown'], [hw * 0.38, 'dirtI'], [hw * 0.62, 'rut'], [hw * 0.88, 'dirt'], [hw * 1.16, 'fray']];
+    const UT = road ? RT_U.road : RT_U.track;
+    const colU = cols.map(([off, kind], j) => { const u = UT[kind === 'bank' && (j === 0 || j === cols.length - 1) ? 'bankO' : kind]; return off < 0 ? u : 1 - u; });
     // densify the centre line
-    const P = [];
+    const P = [], S = [];
     for (let i = 0; i + 1 < r.pts.length; i++) {
       const [ax, az] = r.pts[i], [bx, bz] = r.pts[i + 1], L = Math.hypot(bx - ax, bz - az), n = Math.max(1, Math.ceil(L / 0.7));
       for (let k = 0; k < n; k++) P.push([ax + (bx - ax) * k / n, az + (bz - az) * k / n]);
     }
     P.push(r.pts[r.pts.length - 1]);
+    for (let i = 0; i < P.length; i++) S.push(i ? S[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]) : hash2(ri * 3.1, 7.7) * 40);
+    const VL = road ? RTEX_L.tar : RTEX_L.track;
     const rows = [];
     for (let i = 0; i < P.length; i++) {
       const a = P[Math.max(0, i - 1)], b = P[Math.min(P.length - 1, i + 1)], dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz) || 1, nx = -dz / l, nz = dx / l;
@@ -1308,43 +1317,49 @@ function buildRoadStrips() {
       const tn = r.tun ? tunAt(x, z) : null;
       // v31: a track stops at the edge of a road it crosses (the two strips fought where they overlapped)
       if (r.kind !== 'road' && roads.some(o => o !== r && o.kind === 'road' && segDist(o.pts, x, z) < o.w / 2 * 1.5)) { rows.push(null); continue; }
+      if (railDist(x, z) < RAIL.hw * 1.3) { rows.push(null); continue; }   // v43: roads and tracks stop at the railway (a level crossing carries them over)
       if ((tn && tn.side < tn.T.hw + 0.4) || waterFactor(x, z) > 0.04 || onBridge(x, z, 0.3) || x < -60 || x > MW + 60 || z < -60 || z > MH + 60) { rows.push(null); continue; }
       rows.push(cols.map(([off, kind], j) => {
         const outer = j === 0 || j === cols.length - 1;
         const fr = outer ? (hash2(x * 1.7 + j, z * 1.3) - 0.3) * (road ? 0.35 : 0.5) : kind === 'edge' ? (hash2(x * 2.9, z * 1.1 + j) - 0.5) * 0.18 : 0, o = off + Math.sign(off) * fr;
-        const px = x + nx * o, pz = z + nz * o, h = hash2(px * 2.3, pz * 1.9), patch = vnoise(px * 0.32 + 11, pz * 0.32 - 5), along = vnoise(px * 0.09 + pz * 0.09, 3.7);
-        if (kind === 'tar' || kind === 'wear' || kind === 'edge') {
-          c.copy(LP.tar).lerp(LP.tarD, h * 0.45 + along * 0.25);
-          if (patch > 0.72) c.lerp(LP.grav, 0.24); else if (patch < 0.22) c.multiplyScalar(0.86);   // repairs, and older patches
-          if (kind === 'wear') c.multiplyScalar(0.84);                                               // where the wheels run
-          if (kind === 'edge') c.lerp(LP.grav, 0.35 + h * 0.25);                                     // the crumbling edge
-          if (weatherRain) c.multiplyScalar(0.8);                                                    // wet
+        const px = x + nx * o, pz = z + nz * o, h = hash2(px * 2.3, pz * 1.9), along = vnoise(px * 0.09 + pz * 0.09, 3.7), patch = vnoise(px * 0.21 + 11, pz * 0.21 - 5);
+        if (kind === 'bank') { c.copy(outer ? LP.mid : LP.lush).lerp(LP.dry, 0.2 + h * 0.3); if (!outer) c.lerp(LP.verge, 0.15); }
+        else if (kind === 'fray') { terrCol(px, pz, groundY(px, pz), 1, hash2(px * 1.7, pz * 1.3), c); const rt = (v, t) => 0.45 + 0.55 * Math.max(0.35, Math.min(2.2, v / t)); c.setRGB(rt(c.r, 0.41), rt(c.g, 0.27), rt(c.b, 0.13)); if (weatherRain) c.multiplyScalar(0.8); }   // v42: the ragged edge leans to the ground's colour, over the texture
+        else {
+          // v42: inside the strip the texture does the work; the vertex colour only shades it
+          const n = 0.86 + along * 0.14 + patch * 0.1 + (h - 0.5) * 0.05; c.setRGB(n, n, n);
+          if (road) {
+            // dirt carried onto the tar where a track comes in (the sheet's dirt-to-tarmac junctions)
+            let k = 0; for (const t of tracks) { const d = segDist(t.pts, px, pz) - t.w * 0.5; if (d < 3.5) k = Math.max(k, 1 - Math.max(0, d) / 3.5); }
+            if (k > 0) { k = Math.min(1, k * (0.75 + h * 0.4)); c.r *= 1 + 0.42 * k; c.g *= 1 + 0.2 * k; c.b *= 1 - 0.05 * k; }
+            if (weatherRain) c.multiplyScalar(kind === 'verge' ? 0.84 : 0.74);
+          } else {
+            const m = Math.min(1, Math.max(0, mudAt(px, pz) - 0.55) * 1.6 + (weatherRain ? 0.3 : 0));   // a trodden apron or the wet: darker, browner
+            c.r *= 1 - 0.22 * m; c.g *= 1 - 0.3 * m; c.b *= 1 - 0.38 * m;
+            if (weatherRain) { c.multiplyScalar(0.8); if (kind === 'rut') { c.multiplyScalar(0.72); c.b *= 1.08; } }
+            if (kind === 'crown') c.g *= 1.04;
+          }
         }
-        else if (kind === 'bank') { c.copy(outer ? LP.mid : LP.lush).lerp(LP.dry, 0.2 + h * 0.3); if (!outer) c.lerp(LP.verge, 0.15); }
-        else if (kind === 'verge') c.copy(LP.verge).lerp(LP.grav, h * 0.4).lerp(LP.dirtD, along * 0.3);
-        else if (kind === 'fray') { if (road) c.copy(LP.verge).lerp(LP.dry, 0.35 + h * 0.3); else terrCol(px, pz, groundY(px, pz), 1, hash2(px * 1.7, pz * 1.3), c); }   // v36: the strip's ragged edge takes the ground's own colour, so it melts into the churned verge
-        else if (kind === 'rut') { c.copy(LP.rut).lerp(LP.dirtD, h * 0.4); if (weatherRain) c.copy(LP.mudWet).lerp(LP.rut, 0.3); }
-        else if (kind === 'crown') { c.copy(LP.dirt).lerp(LP.mid, 0.45 + h * 0.2); if (weatherRain) c.lerp(LP.mudWet, 0.25); }
-        else { c.copy(LP.dirt).lerp(LP.dirtD, h * 0.5); if (!road) c.lerp(mudCol(px, pz, h, _mc), weatherRain ? 0.7 : 0.4); }   // v36: packed mud, not sand
-        if (kind !== 'fray' || road) c.multiplyScalar(0.94 + hash2(px * 5.1, pz * 4.3) * 0.12);
-        return [px, groundY(px, pz) + lift, pz, c.r, c.g, c.b];
+        if (kind === 'bank') c.multiplyScalar(0.94 + hash2(px * 5.1, pz * 4.3) * 0.12);
+        return [px, groundY(px, pz) + lift, pz, c.r, c.g, c.b, colU[j], S[i] / VL];
       }));
     }
-    const pos = [], col = [];
+    const pos = [], col = [], uv = [];
     for (let i = 0; i + 1 < rows.length; i++) {
       const A = rows[i], B = rows[i + 1]; if (!A || !B) continue;
       for (let j = 0; j + 1 < cols.length; j++) {
-        for (const v of [A[j], B[j], A[j + 1], A[j + 1], B[j], B[j + 1]]) { pos.push(v[0], v[1], v[2]); col.push(v[3], v[4], v[5]); }
+        for (const v of [A[j], B[j], A[j + 1], A[j + 1], B[j], B[j + 1]]) { pos.push(v[0], v[1], v[2]); col.push(v[3], v[4], v[5]); uv.push(v[6], v[7]); }
       }
     }
     if (!pos.length) return;
-    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
     g.computeVertexNormals();
     // wind upward: if the first face points down, flip them all
     if (g.attributes.normal.getY(0) < 0) { for (let i = 0; i < pos.length; i += 9) for (let k = 0; k < 3; k++) { const t = pos[i + 3 + k]; pos[i + 3 + k] = pos[i + 6 + k]; pos[i + 6 + k] = t; }
       for (let i = 0; i < col.length; i += 9) for (let k = 0; k < 3; k++) { const t = col[i + 3 + k]; col[i + 3 + k] = col[i + 6 + k]; col[i + 6 + k] = t; }
-      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.computeVertexNormals(); }
-    const mt = ri ? roadMat.clone() : roadMat; if (ri) mt.polygonOffsetUnits = -4 - ri * 3;   // a later road wins where two cross
+      for (let i = 0; i < uv.length; i += 6) for (let k = 0; k < 2; k++) { const t = uv[i + 2 + k]; uv[i + 2 + k] = uv[i + 4 + k]; uv[i + 4 + k] = t; }
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.computeVertexNormals(); }
+    const base = road ? tarMat : roadMat, mt = ri ? base.clone() : base; if (ri) mt.polygonOffsetUnits = -4 - ri * 3;   // a later road wins where two cross
     mt.shininess = weatherRain ? 34 : 3; mt.specular = SC(weatherRain ? 0x2c3236 : 0x0c0c0c);   // v36: wet mud and tar shine
     const m = new THREE.Mesh(g, mt); m.receiveShadow = true; m.renderOrder = 0; roadRoot.add(m);
   });
@@ -1536,8 +1551,8 @@ function terrCol(cx, cz, cy, ny, h, c) {
     if (cy < sy0) c.lerp(LP.sub, cl((sy0 - cy) * 0.9, 0, 0.7));
   } else {
     const rd = roadDist(cx, cz);
-    if (rd && rd.t < (rd.kind === 'road' ? 1.12 : 1)) {
-      if (rd.kind === 'road') {
+    if (rd && rd.t < (rd.kind !== 'track' ? 1.12 : 1)) {
+      if (rd.kind !== 'track') {
         if (rd.t > 0.8) { c.copy(LP.verge).lerp(LP.dirtD, h * 0.5); w2 = 1; }
         else {
           const patch = vnoise(cx * 0.32 + 11, cz * 0.32 - 5);
@@ -3900,6 +3915,74 @@ function mkBridge(r) {
   return g;
 }
 
+/* v44: a steel truss railway bridge, after the "Map edges & river bridges" sheet: two riveted Pratt trusses on a plate-girder
+   deck, cross-bracing overhead, sleepers and rails across it, dressed-stone abutments on each bank. Built along x (a river
+   running north-south) or z, from the bridge zone. Visual only: the deck is walkable as any bridge is; the trusses don't
+   stop rounds. Blown, it breaks its back into the river (destroyTarget), and takes any train on it. */
+function mkRailBridge(r) {
+  const alongX = (r.x1 - r.x0) >= (r.z1 - r.z0), span = alongX ? r.x1 - r.x0 : r.z1 - r.z0, cx = (r.x0 + r.x1) / 2, cz = (r.z0 + r.z1) / 2;
+  const S = 0x3e4347, SL = 0x50565a, SD = 0x2c3033, ST = [0x9a968c, 0x8b877d, 0xa29e93], p = [];
+  // in local space the span runs along x; rotated at the end if the line runs along z
+  const B = (x, y, z, sx, sy, sz, c, rz) => p.push({ g: GEO.box, m: M4(x, y, z, sx, sy, sz, 0, rz || 0), c });
+  const L = span + 1.2, H = 3.6, TW = 2.05;
+  // plate girders and the deck
+  for (const sz of [-1, 1]) { B(0, -0.45, sz * 1.25, L, 0.9, 0.22, S); B(0, -0.02, sz * 1.25, L, 0.08, 0.36, SL); }
+  for (let x = -L / 2 + 0.4; x <= L / 2 - 0.3; x += 1.2) B(x, -0.35, 0, 0.2, 0.5, 2.5, SD);
+  for (let x = -L / 2 + 0.3; x <= L / 2 - 0.2; x += 0.68) B(x, 0.06, 0, 0.24, 0.12, 2.5, [0x4a3a2a, 0x54402c, 0x3e3226][(hash2(x, cz) * 3) | 0]);
+  for (const sz of [-1, 1]) { B(0, 0.185, sz * RAIL.gauge, L, 0.13, 0.09, 0x5a4a3c); B(0, 0.26, sz * RAIL.gauge, L, 0.03, 0.075, 0xa4a6a6); }
+  // the trusses: bottom chord, top chord (ends sloped down), verticals, diagonals, all in dark steel with lighter flanges
+  const n = Math.max(4, Math.round(span / 1.9)), dx = L / n;
+  for (const sz of [-1, 1]) {
+    const z = sz * TW;
+    B(0, 0.25, z, L, 0.32, 0.3, S); B(0, 0.43, z, L, 0.05, 0.36, SL);
+    const x0 = -L / 2 + dx, x1 = L / 2 - dx;
+    B(0, H, z, x1 - x0, 0.34, 0.34, S); B(0, H + 0.19, z, x1 - x0, 0.05, 0.4, SL);
+    for (const e of [-1, 1]) { const ex = e * (L / 2 - dx / 2), len = Math.hypot(dx, H - 0.25); B(ex, (H + 0.25) / 2, z, 0.3, len, 0.3, S, e * Math.atan2(dx, H - 0.25)); }
+    for (let i = 1; i < n; i++) B(-L / 2 + i * dx, (H + 0.25) / 2, z, 0.2, H - 0.25, 0.24, S);
+    for (let i = 1; i < n - 1; i++) { const xm = -L / 2 + (i + 0.5) * dx, len = Math.hypot(dx, H - 0.25), e = xm < 0 ? 1 : -1; B(xm, (H + 0.25) / 2, z, 0.14, len, 0.18, SD, e * Math.atan2(dx, H - 0.25)); }
+    for (let i = 0; i <= n; i++) B(-L / 2 + i * dx, 0.25, z + sz * 0.17, 0.32, 0.36, 0.04, SL);   // gusset plates
+  }
+  // overhead: cross girders and X bracing between the top chords
+  for (let i = 1; i < n; i++) B(-L / 2 + i * dx, H, 0, 0.18, 0.22, TW * 2, S);
+  for (let i = 1; i < n - 1; i++) { const xm = -L / 2 + (i + 0.5) * dx, len = Math.hypot(dx, TW * 2); for (const e of [-1, 1]) p.push({ g: GEO.box, m: M4(xm, H + 0.05, 0, 0.1, 0.08, len, e * Math.atan2(dx, TW * 2)), c: SD }); }
+  // abutments: dressed stone in courses, stepped wing walls, a coping
+  for (const e of [-1, 1]) {
+    const ax = e * (span / 2 + 0.2);
+    for (let k = 0; k < 4; k++) B(ax, -0.4 - k * 0.7, 0, 1.6 + k * 0.15, 0.68, 5.2 + k * 0.2, ST[k % 3]);
+    B(ax, 0.1, 0, 1.75, 0.2, 5.4, 0xaaa69a);
+    for (const sz of [-1, 1]) for (let k = 0; k < 3; k++) B(ax + e * (0.9 + k * 0.6), -0.2 - k * 0.45, sz * 2.75, 0.6, 1.0, 0.7, ST[(k + 1) % 3]);
+  }
+  const g = new THREE.Mesh(mergeGeos(p), propMat);
+  g.castShadow = true; g.receiveShadow = true;
+  g.position.set(cx, baseY(cx, cz), cz); if (!alongX) g.rotation.y = Math.PI / 2;
+  propRoot.add(g);
+  return g;
+}
+// where along a train's path a point lies (metres)
+function pathS(t, x, z) {
+  let best = 0, bd = 1e9;
+  for (let i = 0; i + 1 < t.pts.length; i++) {
+    const [ax, az] = t.pts[i], [bx, bz] = t.pts[i + 1], ux = bx - ax, uz = bz - az, l2 = ux * ux + uz * uz, k = l2 ? clamp(((x - ax) * ux + (z - az) * uz) / l2, 0, 1) : 0;
+    const d = Math.hypot(ax + ux * k - x, az + uz * k - z); if (d < bd) { bd = d; best = t.cum[i] + k * (t.cum[i + 1] - t.cum[i]); }
+  }
+  return best;
+}
+// the bridge has gone: cars on it fall into the river; a train short of it stops at the gap; one past it carries on
+function railBridgeDown(zone) {
+  railDead = true;
+  const cxz = [(zone.x0 + zone.x1) / 2, (zone.z0 + zone.z1) / 2];
+  let fell = false;
+  for (const t of trains) {
+    const bs = pathS(t, cxz[0], cxz[1]), on = t.cars.filter(c => c.vis && inRect(zone, c.x, c.z, 3));
+    if (on.length) {
+      fell = true; t.dead = true; t.speed = 0;
+      for (const car of on) { car.mesh.position.y -= 2.6; car.mesh.rotation.z = (hash2(car.x, 3) - 0.5) * 0.9; car.mesh.rotation.x = (hash2(car.z, 5) - 0.5) * 0.5; car.mesh.material = wreckMat; addSmoker(car.x, car.z, { life: 50, rate: 3, size: 1.6, col: 0x2e2c2a, a: 0.6, rise: 2.4, burst: 6 }); spawnParts(car.x, groundY(car.x, car.z) + 0.5, car.z, 30, 0xd8e8f0, 9, 0.2, 1.2, 8); }
+      for (const car of t.cars) if (!on.includes(car)) car.mesh.material = wreckMat;
+      kills += 6; stats.kills += 6;
+    } else if (t.s - t.cars[0].off < bs) { t.stopAt = bs - 10; }   // short of it: the driver brakes for the gap
+  }
+  if (fell) { bigMoment(1.3); showToast('THE TRAIN WENT WITH IT', 'into the river, the lot of it'); }
+}
 // v14: a supply dump in the camp style — a crate stack, a cluster of oil drums, or a sandbag nest
 function mkCrate(x, z, seed) {
   const kind = (hash2(seed, 31) * 3) | 0, parts = [];
@@ -5103,6 +5186,102 @@ const TEXSZ = { tile: 2.0, plaster: 4.0, stone: 3.0, cobble: 3.0 };
 const TEXMAT = {};
 for (const k in TEX) { const m = new THREE.MeshPhongMaterial({ map: TEX[k], vertexColors: true, flatShading: true, shininess: k === 'tile' ? 12 : 5, specular: SC(0x18150f) }); TEXMAT[k] = m; }
 TEXMAT.cobble.polygonOffset = true; TEXMAT.cobble.polygonOffsetFactor = -1; TEXMAT.cobble.polygonOffsetUnits = -4;   // v40: the streets lie on the ground
+/* v42: textures for the roads and tracks, after Khal's "Dirt tracks" and "Roads & track junctions" sheets. Each is painted
+   ACROSS its whole width (u 0..1, clamped) and repeats ALONG it (v = metres / RTEX_L). The outermost texels are white, so
+   the strip's outer columns show their own vertex colours (the grass or the ground they melt into); inside, the texture
+   carries the look and the vertex colours only shade it (wear, wet, mud). Bands are fixed in u; each strip column is
+   given the u of its band (RT_U), so the look is the same on a narrow lane and a wide road. */
+const ROAD_PAINT = false;            // white edge lines and centre dashes. Off: Khal chose no lane paint for 1944 (v23)
+const TRACK_W = 1.15;                // v42: tracks are a little wider (the reference's are)
+const RTEX_L = { tar: 10, track: 8 };
+const RT_U = {
+  road: { bankO: -0.3, bank: -0.06, verge: 0.06, edge: 0.135, wear: 0.3, tar: 0.42 },
+  track: { fray: 0.0, dirt: 0.1, rut: 0.22, dirtI: 0.33, crown: 0.44 },
+};
+function stripTex(W, H, seed, draw) {
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const x = cv.getContext('2d'); _tsd = seed; draw(x, W, H);
+  const t = new THREE.CanvasTexture(cv); t.wrapS = THREE.ClampToEdgeWrapping; t.wrapT = THREE.RepeatWrapping; t.encoding = THREE.sRGBEncoding;
+  t.anisotropy = Math.min(8, R.capabilities.getMaxAnisotropy()); t.minFilter = THREE.LinearMipmapLinearFilter; t.generateMipmaps = true; return t;
+}
+// draw f(dy) three times so anything crossing the top or bottom edge comes back on the other (the texture repeats along v)
+const wrapV = (H, f) => { for (const dy of [-H, 0, H]) f(dy); };
+const RTEX = {
+  track: stripTex(256, 512, 911, (x, W, H) => {
+    const U = u => u * W;
+    // packed earth, light tan, mottled
+    x.fillStyle = '#ab8d64'; x.fillRect(0, 0, W, H);
+    for (let i = 0; i < 1400; i++) { const px = trnd() * W, py = trnd() * H, r = 1 + trnd() * 5; x.fillStyle = trnd() < 0.5 ? `rgba(200,176,136,${0.08 + trnd() * 0.12})` : `rgba(110,86,58,${0.08 + trnd() * 0.12})`; wrapV(H, dy => { x.beginPath(); x.arc(px, py + dy, r, 0, 6.283); x.fill(); }); }
+    // the ruts: two worn bands, darker and smoother, combed along by tyres, a lighter lip each side
+    for (const c of [0.22, 0.78]) {
+      const g = x.createLinearGradient(U(c - 0.11), 0, U(c + 0.11), 0);
+      g.addColorStop(0, 'rgba(214,190,150,0)'); g.addColorStop(0.1, 'rgba(206,182,142,0.45)'); g.addColorStop(0.25, 'rgba(132,104,72,0.42)'); g.addColorStop(0.5, 'rgba(118,92,62,0.5)'); g.addColorStop(0.75, 'rgba(132,104,72,0.42)'); g.addColorStop(0.9, 'rgba(206,182,142,0.45)'); g.addColorStop(1, 'rgba(214,190,150,0)');
+      x.fillStyle = g; x.fillRect(U(c - 0.11), 0, U(0.22), H);
+      for (let i = 0; i < 46; i++) {   // tread lines, wandering a little (periodic in v so the repeat is seamless)
+        const ox = U(c + (trnd() - 0.5) * 0.15), amp = 1 + trnd() * 3, k = 1 + ((trnd() * 3) | 0), ph = trnd() * 6.283;
+        x.strokeStyle = trnd() < 0.5 ? `rgba(80,60,40,${0.08 + trnd() * 0.12})` : `rgba(190,166,128,${0.1 + trnd() * 0.14})`; x.lineWidth = 0.8 + trnd() * 1.6;
+        x.beginPath(); for (let y = 0; y <= H; y += 8) x[y ? 'lineTo' : 'moveTo'](ox + Math.sin(y / H * 6.283 * k + ph) * amp, y); x.stroke();
+      }
+    }
+    // the crown: grass on the dirt, thickest in the middle
+    for (let i = 0; i < 2600; i++) {
+      const u = 0.5 + (trnd() - 0.5) * 0.3 * (0.6 + trnd() * 0.6), d = Math.abs(u - 0.5) / 0.15; if (trnd() < d * d) continue;
+      const px = U(u), py = trnd() * H, L = 3 + trnd() * 7, a = (trnd() - 0.5) * 1.1;
+      x.strokeStyle = ['#5f7f34', '#73923e', '#4d6c2c', '#8a9a48', '#6a8a3a'][(trnd() * 5) | 0]; x.lineWidth = 1 + trnd();
+      wrapV(H, dy => { x.beginPath(); x.moveTo(px, py + dy); x.lineTo(px + Math.sin(a) * L, py + dy - Math.cos(a) * L); x.stroke(); });
+    }
+    // stones and grit on the shoulders and the crown edge
+    for (let i = 0; i < 520; i++) {
+      const side = trnd() < 0.5, u = side ? 0.03 + trnd() * 0.13 : 0.84 + trnd() * 0.13, uu = trnd() < 0.2 ? 0.3 + trnd() * 0.4 : u;
+      const px = U(uu), py = trnd() * H, r = 0.8 + trnd() * (trnd() < 0.1 ? 4.5 : 2), g = 120 + trnd() * 70 | 0;
+      wrapV(H, dy => { x.fillStyle = `rgb(${g},${g - 4},${g - 12})`; x.beginPath(); x.ellipse(px, py + dy, r * 1.2, r, trnd() * 3, 0, 6.283); x.fill(); x.fillStyle = 'rgba(255,255,240,0.25)'; x.beginPath(); x.arc(px - r * 0.3, py + dy - r * 0.3, r * 0.4, 0, 6.283); x.fill(); });
+    }
+    // the edges: grass tufts reaching in, then white (the strip's own outer colours take over)
+    for (const s of [0, 1]) for (let i = 0; i < 700; i++) {   // the verge edge: grass reaching in over the dirt
+      const u = trnd() * 0.07, px = s ? W - U(u) : U(u), py = trnd() * H, L = 3 + trnd() * 7, a = (trnd() - 0.5) * 1.2;
+      if (trnd() > 1 - u / 0.08) continue;
+      x.strokeStyle = ['#5f7f34', '#73923e', '#4d6c2c', '#8a9a48'][(trnd() * 4) | 0]; x.lineWidth = 1 + trnd();
+      wrapV(H, dy => { x.beginPath(); x.moveTo(px, py + dy); x.lineTo(px + Math.sin(a) * L, py + dy - Math.cos(a) * L); x.stroke(); });
+    }
+  }),
+  tar: stripTex(256, 512, 733, (x, W, H) => {
+    const U = u => u * W;
+    // the gravel verge, under everything
+    x.fillStyle = '#9a8f7c'; x.fillRect(0, 0, W, H);
+    for (let i = 0; i < 2600; i++) { const px = trnd() * W, py = trnd() * H, g = 110 + trnd() * 90 | 0; x.fillStyle = `rgb(${g},${g - 6},${g - 16})`; x.fillRect(px, py, 1 + trnd() * 2.5, 1 + trnd() * 2); }
+    // the tar: a ragged, crumbling edge, chunks broken off into the gravel
+    x.fillStyle = '#56544e';
+    x.beginPath(); x.moveTo(U(0.5), 0);
+    for (let y = 0; y <= H; y += 4) x.lineTo(U(0.135 + (vnoise(y * 0.06, 2.1) - 0.5) * 0.05 + (trnd() - 0.5) * 0.008), y);
+    for (let y = H; y >= 0; y -= 4) x.lineTo(U(0.865 + (vnoise(y * 0.06, 7.7) - 0.5) * 0.05 + (trnd() - 0.5) * 0.008), y);
+    x.closePath(); x.fill();
+    for (let i = 0; i < 60; i++) { const s = trnd() < 0.5, px = U(s ? 0.09 + trnd() * 0.04 : 0.87 + trnd() * 0.04), py = trnd() * H, r = 1.5 + trnd() * 4; x.fillStyle = '#5a5852'; wrapV(H, dy => { x.beginPath(); x.moveTo(px - r, py + dy); x.lineTo(px + r * 0.6, py + dy - r); x.lineTo(px + r, py + dy + r * 0.4); x.lineTo(px - r * 0.4, py + dy + r); x.fill(); }); }
+    // aggregate: a fine grain of light and dark stone
+    for (let i = 0; i < 9000; i++) { const px = U(0.12 + trnd() * 0.76), py = trnd() * H; x.fillStyle = trnd() < 0.55 ? `rgba(150,146,136,${0.2 + trnd() * 0.3})` : `rgba(30,30,28,${0.2 + trnd() * 0.3})`; x.fillRect(px, py, 1, 1); }
+    // mottling and old patched repairs, each its own tone with a sealed seam
+    for (let i = 0; i < 220; i++) { const px = U(0.16 + trnd() * 0.68), py = trnd() * H, r = 4 + trnd() * 16; x.fillStyle = trnd() < 0.5 ? 'rgba(120,118,110,0.06)' : 'rgba(20,20,18,0.07)'; wrapV(H, dy => { x.beginPath(); x.arc(px, py + dy, r, 0, 6.283); x.fill(); }); }
+    for (let i = 0; i < 5; i++) {
+      const u0 = 0.17 + trnd() * 0.45, w = 0.12 + trnd() * 0.22, py = trnd() * H, h = 30 + trnd() * 70, tone = trnd() < 0.5 ? '#4a4844' : '#625f58';
+      wrapV(H, dy => { x.fillStyle = tone; x.fillRect(U(u0), py + dy, U(Math.min(w, 0.83 - u0)), h); x.strokeStyle = 'rgba(25,24,22,0.7)'; x.lineWidth = 1.5; x.strokeRect(U(u0), py + dy, U(Math.min(w, 0.83 - u0)), h); });
+      for (let k = 0; k < 500; k++) { const px = U(u0) + trnd() * U(Math.min(w, 0.83 - u0)), qy = py + trnd() * h; x.fillStyle = trnd() < 0.5 ? 'rgba(160,156,146,0.35)' : 'rgba(25,25,22,0.35)'; x.fillRect(px, qy % H, 1, 1); }
+    }
+    // the wheel tracks, polished darker
+    for (const c of [0.3, 0.7]) { const g = x.createLinearGradient(U(c - 0.09), 0, U(c + 0.09), 0); g.addColorStop(0, 'rgba(30,30,28,0)'); g.addColorStop(0.5, 'rgba(30,30,28,0.22)'); g.addColorStop(1, 'rgba(30,30,28,0)'); x.fillStyle = g; x.fillRect(U(c - 0.09), 0, U(0.18), H); }
+    // cracks: wandering lines, mostly along, the odd one across; and crazing near the edges
+    for (let i = 0; i < 26; i++) {
+      let px = U(0.16 + trnd() * 0.68), py = trnd() * H; const across = trnd() < 0.25, n = 6 + (trnd() * 14 | 0), path = [[px, py]];
+      for (let k = 0; k < n; k++) { if (across) { px += 4 + trnd() * 8; py += (trnd() - 0.5) * 7; } else { px += (trnd() - 0.5) * 6; py += 5 + trnd() * 10; } px = Math.max(U(0.15), Math.min(U(0.85), px)); path.push([px, py]); }
+      x.strokeStyle = `rgba(22,21,19,${0.5 + trnd() * 0.3})`; x.lineWidth = 0.8 + trnd() * 0.8;
+      wrapV(H, dy => { x.beginPath(); path.forEach(([a, b], k) => x[k ? 'lineTo' : 'moveTo'](a, b + dy)); x.stroke(); });
+    }
+    for (let i = 0; i < 70; i++) { const s = trnd() < 0.5, px = U(s ? 0.15 + trnd() * 0.06 : 0.79 + trnd() * 0.06), py = trnd() * H; x.strokeStyle = 'rgba(22,21,19,0.45)'; x.lineWidth = 0.7; wrapV(H, dy => { x.beginPath(); x.moveTo(px, py + dy); x.lineTo(px + (trnd() - 0.5) * 10, py + dy + (trnd() - 0.5) * 10); x.stroke(); }); }
+    if (ROAD_PAINT) {
+      x.fillStyle = 'rgba(232,228,214,0.85)'; x.fillRect(U(0.17), 0, 3, H); x.fillRect(U(0.83) - 3, 0, 3, H);
+      for (const y0 of [0, H / 2]) x.fillRect(U(0.5) - 2, y0 + H * 0.06, 4, H * 0.3);
+    }
+    // the outer edges go white, so the bank's own grass colours show past the gravel
+    for (const s of [0, 1]) { const g = x.createLinearGradient(s ? W : 0, 0, s ? W - U(0.05) : U(0.05), 0); g.addColorStop(0, '#fff'); g.addColorStop(0.4, 'rgba(255,255,255,0.85)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(s ? W - U(0.05) : 0, 0, U(0.05), H); x.fillStyle = '#fff'; x.fillRect(s ? W - 2 : 0, 0, 2, H); }
+  }),
+};
 function wetTextures() {   // called per op: wet tiles and cobbles shine
   TEXMAT.tile.shininess = weatherRain ? 60 : 12; TEXMAT.tile.specular = SC(weatherRain ? 0x5a4a40 : 0x18150f);
   TEXMAT.cobble.shininess = weatherRain ? 50 : 8; TEXMAT.cobble.specular = SC(weatherRain ? 0x4a4e52 : 0x18150f);
@@ -6048,7 +6227,7 @@ const MISSIONS = [
     spawnZ: .95, grenades: 6, reinf: 0, alertThreshold: .6, noExtras: true,
   },
   {
-    name: 'Final Push', sniper: true,
+    name: 'Final Push', sniper: true, rail: true,
     roads: [{ k: 'road', w: 3.8, pts: [[.5, 1.0], [.5, .60], [.5, .30]] }],
     obj: 'Kill the General',
     sub: 'Sector 0 · Fog · Everything at once',
@@ -6180,7 +6359,7 @@ const MISSIONS = [
   {
     // v40: street fighting. A village in the bocage at dusk: a cobbled street up to a square, an anti-tank gun in the square,
     // the town hall beyond it with the man who placed it. Houses you can enter, windows you can shoot through but not climb.
-    name: 'Street by Street', sniper: true, noTraffic: true,
+    name: 'Street by Street', side: true, sniper: true, noTraffic: true,
     roads: [],
     streets: [{ pts: [[.5, 1.06], [.5, .58]], w: 6 }, { pts: [[.5, .40], [.5, .285]], w: 6 }, { pts: [[.62, .49], [1.06, .49]], w: 5 }],
     squares: [{ x: .38, z: .40, w: .24, d: .18 }],
@@ -6252,7 +6431,41 @@ const MISSIONS = [
     ],
     side: true,
     spawnZ: .93, grenades: 8, reinf: 4, alertThreshold: .5,
+  },  {
+    // v44: a railway op. A steel truss bridge carries the line over a river; an armoured train uses it. Blow the bridge —
+    // and if the train is on it when it goes, so much the better.
+    name: 'The Iron Bridge', side: true, noTraffic: true, rail: true,
+    railPts: [[-.1, .40], [1.1, .40]],
+    roads: [{ k: 'track', pts: [[.5, 1.0], [.5, .82], [.53, .64], [.55, .54]] }],
+    obj: 'Drop the rail bridge',
+    sub: 'Sector 14 · Dusk · Rain · The line south',
+    brief: 'The armoured train that has been shooting up our positions all week comes and goes over this bridge: steel, riveted, built to last. ' +
+           'A pillbox and a sentry hold our end of it, and there is a gun on the far bank. Two charges: one on the deck or right at the foot ' +
+           'of it brings it down. The train runs through every minute or so and its machine-gunners look out of both sides, so keep off the bank ' +
+           'when it passes, and keep off the line altogether. If the train happens to be on the bridge when it goes, nobody here will complain.',
+    weather: 'rain', light: 'dusk', scatter: 40, diff: 0.45, noExtras: true, charges: 2,
+    water: [{ x1: .62, z1: 0, x2: .72, z2: 1 }],
+    bridge: [{ x1: .612, z1: .372, x2: .728, z2: .428, rail: true }],
+    targets: [{ t: 'bridge', b: 0 }, { t: 'pillbox', x: .565, z: .475, a: 0 }],
+    objectives: [{ t: 'destroy', what: 'bridge', label: 'Blow the rail bridge: a charge on the deck or at its foot' }, { t: 'extract', label: 'Back to our lines' }], extract: { x: .5, z: .95, r: 7 },
+    enemies: [
+      { x: .595, z: .445, a: Math.PI * .2, range: 15, arc: Math.PI * .6, hp: 3 },
+      { x: .78, z: .47, a: -Math.PI * .5, range: 24, arc: Math.PI * .45, hp: 3, rapidFire: true },
+      { x: .77, z: .33, a: -Math.PI * .65, range: 15, arc: Math.PI * .6, hp: 3 },
+      { x: .58, z: .64, a: 0, range: 15, arc: Math.PI * .6, hp: 3, patrol: [{ x: .58, z: .6 }, { x: .58, z: .82 }] },
+      { x: .44, z: .33, a: Math.PI * .5, range: 15, arc: Math.PI * .6, hp: 3, patrol: [{ x: .42, z: .33 }, { x: .58, z: .33 }] },
+      { x: .3, z: .52, a: Math.PI * .1, range: 15, arc: Math.PI * .6, hp: 3, patrol: [{ x: .25, z: .52 }, { x: .45, z: .5 }] },
+    ],
+    obstacles: [
+      { t: 'thicket', x: .04, z: .12, w: .2, d: .2 },
+      { t: 'crate', x: .53, z: .45 }, { t: 'crate', x: .6, z: .5 },
+      ...[[.36, .6], [.42, .66], [.62, .7], [.66, .78], [.3, .72], [.45, .78], [.56, .56], [.38, .47], [.8, .55], [.86, .3]].map(([x, z]) => ({ t: 'bush', x, z })),
+      ...[[.1, .6], [.16, .78], [.85, .66], [.9, .48], [.25, .3], [.33, .2], [.8, .2], [.88, .12], [.5, .2], [.2, .45]].map(([x, z]) => ({ t: 'tree', x, z })),
+      { t: 'rock', x: .5, z: .58 }, { t: 'rock', x: .4, z: .56 }, { t: 'rock', x: .58, z: .3 },
+    ],
+    spawnZ: .9, grenades: 6, reinf: 4, alertThreshold: .6,
   },
+
 ];
 
 /* ── the difficulty curve (v17). Ops 1–3 teach; from op 4 every operation is harder than the last, with
@@ -6633,6 +6846,7 @@ function angDiff(a, b) { let d = a - b; while (d > Math.PI) d -= Math.PI * 2; wh
 /*───────────────────── collision / LOS / concealment ─────────────────────*/
 function blocked(x, z, pad) {
   const p = pad === undefined ? 0.42 : pad;
+  if (trainsLive) { const t = trainHit(x, z, p); if (t) return t; }   // v43: a passing train
   const list = near(x, z);
   for (let i = 0; i < list.length; i++) {
     const o = list[i];
@@ -6645,6 +6859,7 @@ function blocked(x, z, pad) {
 const inObsRect = (o, x, z) => x > o.x - 0.5 && x < o.x + o.w + 0.5 && z > o.z - 0.5 && z < o.z + o.d + 0.5;
 function hasLOS(x1, z1, x2, z2, elev, fromGround) {
   if (elev && fromGround === undefined) { const dd = Math.hypot(x2 - x1, z2 - z1); if (dd < 2.6) return true; }
+  if (trainsLive && trainBlocksLine(x1, z1, x2, z2)) return false;   // v43: nobody sees through a train
   const d = Math.hypot(x2 - x1, z2 - z1), steps = Math.ceil(d / 1.1);
   if (elev) {   // one end is on a tower: scatter cover is below the line; only buildings on the ground half block
     for (let i = 1; i < steps; i++) {
@@ -7114,6 +7329,7 @@ function explode(gx, gz, fromX, fromZ, inside) {
   for (const s of sol) { if (!s.dead && dst({ x: gx, z: gz }, s) < B * 0.62) damage(s, s.prone ? 1 : 2, 'ownblast'); }
   globalAlert = 2;
   for (const v of vehs) if (!v.dead && !v.inTun && Math.hypot(v.x - gx, v.z - gz) < 4.5) wreckVehicle(v);
+  if (trainsLive && trainHit(gx, gz, 1.5)) showToast('NO EFFECT', 'a grenade won\'t stop an armoured train — a charge under it will');   // v43
   noiseEvent(gx, gz, 44, 0.9);
 }
 /*───────────────────── artillery ─────────────────────*/
@@ -7379,7 +7595,7 @@ function clearBoundary() {
   portals = [];
 }
 // a road leaves the map through a tunnel in a rocky ridge; P is the crossing on the edge, n points into the map
-function mkPortal(cx, cz, nx, nz) {
+function mkPortal(cx, cz, nx, nz, rail) {
   const px = cx - nx * 5, pz = cz - nz * 5, yaw = Math.atan2(nx, nz);
   // v23, after the sheet's road tunnel: a dressed-stone arch in a hill of rock columns, turf and pines on top
   const base = Math.min(groundY(px, pz), groundY(cx, cz)) - 0.3, cy = Math.cos(yaw), sy = Math.sin(yaw);
@@ -7414,6 +7630,7 @@ function mkPortal(cx, cz, nx, nz) {
     const [wx, wz] = toW((hash2(i, cx) - 0.5) * 28, -2.5 - hash2(cz, i) * 6.5);
     looseTree(i % 2 ? 'pine' : 'pineTall', wx, base + HILL + 0.15, wz, 0.8 + hash2(wx, wz) * 0.3);
   }
+  if (rail) { portals.push({ x: px, z: pz, cx, cz, nx, nz, pole: null, lift: 0, rail: true }); return; }   // v43: a railway tunnel has no barrier
   // the barrier: a red and white pole across the road in front of the portal, lifting for traffic
   const bar = new THREE.Group(), bp = [{ g: GEO.box, m: M4(0, 0.55, 0, 0.35, 1.1, 0.35), c: 0x3a3c40 }];
   for (let i = 0; i < 6; i++) bp.push({ g: GEO.box, m: M4(0.45 + i * 0.82, 0, 0, 0.82, 0.16, 0.16), c: i % 2 ? 0xe8e4d8 : 0xb8332a });
@@ -7428,16 +7645,17 @@ function mkPortal(cx, cz, nx, nz) {
 function buildBoundary() {
   clearBoundary();
   // where each road crosses the far edge or a flank: one portal per crossing
-  const cross = [];
-  for (const r of roads) for (let i = 0; i + 1 < r.pts.length; i++) {
+  const cross = [], lines = roads.map(r => ({ pts: r.pts, rail: false }));
+  if (railLine) lines.push({ pts: railLine.pts, rail: true });   // v43
+  for (const r of lines) for (let i = 0; i + 1 < r.pts.length; i++) {
     const [ax, az] = r.pts[i], [bx, bz] = r.pts[i + 1];
     const test = (t, nx, nz) => { if (t < 0 || t > 1) return; const x = ax + (bx - ax) * t, z = az + (bz - az) * t;
       if (x < -0.1 || x > MW + 0.1 || z < -0.1 || z > MH + 0.1) return;
-      if (!cross.some(c => Math.hypot(c.x - x, c.z - z) < 10)) cross.push({ x, z, nx, nz }); };
+      if (!cross.some(c => Math.hypot(c.x - x, c.z - z) < 10)) cross.push({ x, z, nx, nz, rail: r.rail }); };
     if (ax !== bx) { test((0 - ax) / (bx - ax), 1, 0); test((MW - ax) / (bx - ax), -1, 0); }
     if (az !== bz) test((0 - az) / (bz - az), 0, 1);
   }
-  for (const c of cross) mkPortal(c.x, c.z, c.nx, c.nz);
+  for (const c of cross) mkPortal(c.x, c.z, c.nx, c.nz, c.rail);
   const nearPortal = (x, z) => portals.some(q => { const dx = x - q.cx, dz = z - q.cz, along = Math.abs(dx * q.nz - dz * q.nx), depth = -(dx * q.nx + dz * q.nz); return along < 16 && depth < 14 && depth > -3; });
   const wet = (x, z) => waterZones.some(r => inRect(r, x, z, 2.6));
   // the forest wall: dense on the far side and both flanks, thinning only for water and the portals
@@ -7475,6 +7693,7 @@ function buildBoundary() {
 }
 function stepBoundary(dt) {
   for (const q of portals) {
+    if (!q.pole) continue;
     const want = vehs.some(v => !v.dead && !v.parked && Math.hypot(v.x - q.x, v.z - q.z) < 16) ? 1 : 0;
     q.lift += clamp(want - q.lift, -dt * 1.2, dt * 1.2);
     q.pole.rotation.z = q.lift * 1.35;
@@ -8039,7 +8258,8 @@ function destroyTarget(T, how) {
   } else if (T.kind === 'bridge') {
     bridgeZones = bridgeZones.filter(r => r !== T.zone);
     T.mesh.rotation.z = 0.35; T.mesh.position.y -= 1.6;
-    buildRoadDelta(); rebuildTerrain(); buildRoadStrips(); buildWater(); buildGrid(); buildPathGrid(); bakeLookHeights();   // v28: the road goes with the bridge
+    buildRoadDelta(); rebuildTerrain(); buildRoadStrips(); buildRailStrip(); buildWater(); buildGrid(); buildPathGrid(); bakeLookHeights();   // v28: the road goes with the bridge
+    if (T.zone.rail) railBridgeDown(T.zone);   // v44
     spawnParts(T.x, groundY(T.x, T.z) + 1, T.z, 40, 0x8a6a3c, 10, 0.22, 1.2, 12);
     addSmoker(T.x, T.z, { life: 8, rate: 6, size: 2.4, col: 0x9a8c74, a: 0.45, burst: 10 });   // v31: dust off the timbers
     showToast('BRIDGE DOWN', 'nothing crosses here now');
@@ -8163,7 +8383,7 @@ function initMission(idx) {
   } else { SUN_OFF.set(38, 54, 26); ATMO.cloud.value = 0; windMag = 0.4; smokeTint.setRGB(0.6, 0.65, 0.8); }
 
   waterZones = (M.water || []).map(r => ({ x0: r.x1 * MW, z0: r.z1 * MH, x1: r.x2 * MW, z1: r.z2 * MH }));
-  bridgeZones = (M.bridge || []).map(r => ({ x0: r.x1 * MW, z0: r.z1 * MH, x1: r.x2 * MW, z1: r.z2 * MH }));
+  bridgeZones = (M.bridge || []).map(r => ({ x0: r.x1 * MW, z0: r.z1 * MH, x1: r.x2 * MW, z1: r.z2 * MH, rail: !!r.rail }));
   extendRiversToEdge();
   setupMesas(M);
   ridgeLifts = (M.obstacles || []).filter(o => o.t === 'ridge').map(o => ({ x0: o.x * MW, z0: o.z * MH, x1: (o.x + o.w) * MW, z1: (o.z + o.d) * MH, h: o.h || 5 }));
@@ -8190,8 +8410,9 @@ function initMission(idx) {
       } else list.push({ kind: 'track', w: 2.6, pts: [p0, [(sx + bend) * MW, ((sz + oz) / 2) * MH], end] });
     }
     // the through road for the traffic: the mission's own if one crosses the map, else one laid where it fits
-    const TR = planThroughRoad(M); roadPath = TR ? TR.pts : null;
-    if (TR && TR.road) list.push(TR.road);
+    const TR = planThroughRoad(M); roadPath = TR && !M.rail ? TR.pts : null;
+    if (TR && TR.road && !M.rail) list.push(TR.road);
+    setRailLine(M.railPts ? M.railPts.map(p => [p[0] * MW, p[1] * MH]) : M.rail && TR ? TR.pts : null);   // v43: on a railway op the through line is a railway, not a road (v44: or the op lays its own)
     extendRoadsPastEdge([...list.map(r => r.pts), ...(roadPath ? [roadPath] : [])]);
     setStreets(M);   // v40
     setRoads(list);
@@ -8201,11 +8422,12 @@ function initMission(idx) {
   planAprons(M);   // v36
   rebuildTerrain();
   buildRoadStrips();
+  buildRailStrip();   // v43
   buildStreets();   // v40
   buildTufts();
   placeRiverRocks();
   buildWater();
-  for (const r of bridgeZones) bridges.push(mkBridge(r));
+  for (const r of bridgeZones) bridges.push(r.rail ? mkRailBridge(r) : mkBridge(r));   // v44: a rail bridge where the line crosses
   buildBoundary();
   setupAtmo(M);   // v31: before the obstacles, so burnt hulks can light their smoke
 
@@ -8674,7 +8896,7 @@ function planThroughRoad(M) {
   const inR = (R, x, z, p) => x > R[0] - p && x < R[0] + R[2] + p && z > R[1] - p && z < R[1] + R[3] + p;
   let best = null;
   for (let zc = 0.1; zc <= 0.84; zc += 0.02) for (const ph of [0, 2.1, 4.2]) {
-    const amp = 0.035, fq = 1.3; let cost = 0;
+    const amp = M.rail ? 0 : 0.035, fq = 1.3; let cost = 0;   // v44: a railway runs dead straight across the map
     for (let xs = -0.04; xs <= 1.04; xs += 0.01) {
       const x = xs * MW, z = (zc + amp * Math.sin(xs * Math.PI * fq + ph)) * MH;
       if (rects.some(R => inR(R, x, z, 4)) || water.some(R => inR(R, x, z, 2))) { cost += 1000; continue; }
@@ -8690,6 +8912,320 @@ function planThroughRoad(M) {
   for (let i = 0; i <= 14; i++) { const xs = -0.1 + i * (1.2 / 14); pts.push([xs * MW, (best.zc + best.amp * Math.sin(xs * Math.PI * best.fq + best.ph)) * MH]); }
   return { pts, road: { kind: 'road', w: 4.0, pts } };
 }
+
+/*───────────────────── v43: railways and the armoured train ─────────────────────
+   After Khal's "Map edges & river bridges" and "Armoured train" sheets. On some ops (M.rail) the line that used to
+   carry the through road is a railway: a ballast bank with sleepers and rails, running out through tunnel portals at
+   both flanks (no barriers: nothing on the line stops for anyone). An armoured train comes through every minute or so,
+   whistling as it nears the portal:
+   · anyone on the line when it arrives is killed; while it passes it blocks movement, sight and rounds
+   · its MG car and guard wagon spot an upright man in the open (24 m) and fire bursts at whoever they can see
+   · grenades bounce off the armour; a demolition charge under it derails it — it stops, burns and stays as cover,
+     and no other train comes that op
+   The line is not a road: it is kept out of `roads` (no ruts, mud, puddles or traffic) and has its own strip, its own
+   relief pass in buildRoadDelta (a bank like a road's) and its own portals. roadDist() reports it as kind 'rail' so
+   scatter, trees and the forest wall keep off it. */
+const RAIL = { hw: 1.8, top: 0.27, speed: 9, gauge: 0.72, interval: [48, 75], first: [14, 26], sight: 22, ext: 75, spread: 0.17, burstGap: 2.0 };
+const railRoot = new THREE.Group(); scene.add(railRoot);
+let railLine = null, railPath = null, trains = [], trainT = 0, trainsLive = false, trainWarned = false, railDead = false, _losSkipTrain = null;
+function setRailLine(pts) {
+  railLine = pts ? { pts, w: RAIL.hw * 2 } : null; railPath = null;
+  if (!pts) return;
+  // the train runs on past the portals, out of sight inside the hill, so it can enter and leave whole
+  const P = pts.slice(), ext = (E, N) => { const dx = E[0] - N[0], dz = E[1] - N[1], l = Math.hypot(dx, dz) || 1; return [E[0] + dx / l * RAIL.ext, E[1] + dz / l * RAIL.ext]; };
+  P.unshift(ext(P[0], P[1])); P.push(ext(P[P.length - 1], P[P.length - 2]));
+  railPath = P;
+}
+const railDist = (x, z) => railLine ? segDist(railLine.pts, x, z) : 1e9;
+// the bank, in the same grid as the roads' relief (called from buildRoadDelta)
+function railDelta() {
+  if (!railLine) return;
+  const hw = RAIL.hw, reach = hw * 1.62, P = railLine.pts;
+  let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9;
+  for (const [x, z] of P) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); z0 = Math.min(z0, z); z1 = Math.max(z1, z); }
+  const i0 = Math.max(0, Math.floor((x0 - reach - RD_X0) / RD_S)), i1 = Math.min(RD_N - 1, Math.ceil((x1 + reach - RD_X0) / RD_S));
+  const j0 = Math.max(0, Math.floor((z0 - reach - RD_X0) / RD_S)), j1 = Math.min(RD_N - 1, Math.ceil((z1 + reach - RD_X0) / RD_S));
+  for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+    const x = RD_X0 + i * RD_S, z = RD_X0 + j * RD_S, d = segDist(P, x, z);
+    if (d > reach || waterFactor(x, z) > 0.02 || onBridge(x, z, 0.3)) continue;
+    const k = j * RD_N + i, v = roadProfile(true, d / hw);
+    roadDelta[k] = Math.max(roadDelta[k], v); roadFoot[k] = 1;
+  }
+}
+// ballast: grey-brown stone, darker and rust-stained between the rails, white at the very edge so the bank's grass shows
+RTEX.ballast = stripTex(256, 512, 517, (x, W, H) => {
+  const U = u => u * W;
+  x.fillStyle = '#8a8478'; x.fillRect(0, 0, W, H);
+  for (let i = 0; i < 11000; i++) { const px = trnd() * W, py = trnd() * H, g = 80 + trnd() * 110 | 0, r = 0.8 + trnd() * 1.8; x.fillStyle = `rgb(${g + 6},${g},${g - 8})`; x.beginPath(); x.arc(px, py, r, 0, 6.283); x.fill(); }
+  const g = x.createLinearGradient(U(0.28), 0, U(0.72), 0); g.addColorStop(0, 'rgba(70,52,36,0)'); g.addColorStop(0.2, 'rgba(70,52,36,0.35)'); g.addColorStop(0.5, 'rgba(50,40,30,0.45)'); g.addColorStop(0.8, 'rgba(70,52,36,0.35)'); g.addColorStop(1, 'rgba(70,52,36,0)');
+  x.fillStyle = g; x.fillRect(U(0.28), 0, U(0.44), H);
+  for (let i = 0; i < 300; i++) { const px = U(trnd() < 0.5 ? 0.02 + trnd() * 0.1 : 0.88 + trnd() * 0.1), py = trnd() * H, L = 3 + trnd() * 6, a = (trnd() - 0.5) * 1.2; x.strokeStyle = ['#5f7f34', '#73923e', '#4d6c2c'][(trnd() * 3) | 0]; x.lineWidth = 1 + trnd(); wrapV(H, dy => { x.beginPath(); x.moveTo(px, py + dy); x.lineTo(px + Math.sin(a) * L, py + dy - Math.cos(a) * L); x.stroke(); }); }   // weeds at the toe
+  for (const s of [0, 1]) { const gg = x.createLinearGradient(s ? W : 0, 0, s ? W - U(0.05) : U(0.05), 0); gg.addColorStop(0, '#fff'); gg.addColorStop(0.4, 'rgba(255,255,255,0.8)'); gg.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = gg; x.fillRect(s ? W - U(0.05) : 0, 0, U(0.05), H); x.fillStyle = '#fff'; x.fillRect(s ? W - 2 : 0, 0, 2, H); }
+});
+let railMat = null;
+function densifyLine(pts, step) {
+  const P = [];
+  for (let i = 0; i + 1 < pts.length; i++) { const [ax, az] = pts[i], [bx, bz] = pts[i + 1], L = Math.hypot(bx - ax, bz - az), n = Math.max(1, Math.ceil(L / step)); for (let k = 0; k < n; k++) P.push([ax + (bx - ax) * k / n, az + (bz - az) * k / n]); }
+  P.push(pts[pts.length - 1]); return P;
+}
+function buildRailStrip() {
+  for (const m of railRoot.children.slice()) { railRoot.remove(m); m.geometry.dispose(); }
+  if (!railLine) return;
+  if (!railMat) { railMat = roadMat.clone(); railMat.map = RTEX.ballast; railMat.polygonOffsetUnits = -7; }
+  railMat.shininess = weatherRain ? 22 : 3;
+  const hw = RAIL.hw, P = densifyLine(railLine.pts, 0.68), c = new THREE.Color();
+  const cols = [[-hw * 1.6, -0.3], [-hw * 1.22, -0.05], [-hw * 0.95, 0.1], [-hw * 0.5, 0.3], [0, 0.5], [hw * 0.5, 0.7], [hw * 0.95, 0.9], [hw * 1.22, 1.05], [hw * 1.6, 1.3]];
+  const ok = (x, z) => beyondEdge(x, z) < 9 && waterFactor(x, z) < 0.04 && !onBridge(x, z, 0.3);
+  const rows = [], frame = [];
+  let S = 0;
+  for (let i = 0; i < P.length; i++) {
+    const a = P[Math.max(0, i - 1)], b = P[Math.min(P.length - 1, i + 1)], dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz) || 1, nx = -dz / l, nz = dx / l;
+    const [x, z] = P[i]; if (i) S += Math.hypot(x - P[i - 1][0], z - P[i - 1][1]);
+    frame.push({ x, z, nx, nz, yaw: Math.atan2(dx, dz), ok: ok(x, z) });
+    if (!ok(x, z)) { rows.push(null); continue; }
+    rows.push(cols.map(([o, u], j) => {
+      const px = x + nx * o, pz = z + nz * o, h = hash2(px * 2.3, pz * 1.9), outer = j === 0 || j === cols.length - 1;
+      if (j === 0 || j === 1 || j === 7 || j === 8) { c.copy(outer ? LP.mid : LP.lush).lerp(LP.dry, 0.2 + h * 0.3); c.multiplyScalar(0.94 + h * 0.12); }
+      else { const n = 0.88 + vnoise(px * 0.1, pz * 0.1) * 0.14 + (h - 0.5) * 0.05; c.setRGB(n, n, n); if (weatherRain) c.multiplyScalar(0.8); }
+      return [px, groundY(px, pz) + 0.015, pz, c.r, c.g, c.b, u, S / 8];
+    }));
+  }
+  const pos = [], col = [], uv = [];
+  for (let i = 0; i + 1 < rows.length; i++) {
+    const A = rows[i], B = rows[i + 1]; if (!A || !B) continue;
+    for (let j = 0; j + 1 < cols.length; j++) for (const v of [A[j], A[j + 1], B[j], A[j + 1], B[j + 1], B[j]]) { pos.push(v[0], v[1], v[2]); col.push(v[3], v[4], v[5]); uv.push(v[6], v[7]); }
+  }
+  if (pos.length) {
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    g.computeVertexNormals();
+    if (g.attributes.normal.getY(0) < 0) {   // wind upward
+      for (let i = 0; i < pos.length; i += 9) for (let k = 0; k < 3; k++) { let t = pos[i + 3 + k]; pos[i + 3 + k] = pos[i + 6 + k]; pos[i + 6 + k] = t; t = col[i + 3 + k]; col[i + 3 + k] = col[i + 6 + k]; col[i + 6 + k] = t; }
+      for (let i = 0; i < uv.length; i += 6) for (let k = 0; k < 2; k++) { const t = uv[i + 2 + k]; uv[i + 2 + k] = uv[i + 4 + k]; uv[i + 4 + k] = t; }
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.computeVertexNormals();
+    }
+    const m = new THREE.Mesh(g, railMat); m.receiveShadow = true; railRoot.add(m);
+  }
+  // sleepers every 0.68 m, rails in 1.36 m lengths (a rust-brown web under a bright worn head)
+  const parts = [], SL = [0x4a3a2a, 0x54402c, 0x3e3226, 0x5a4632];
+  for (let i = 0; i < frame.length; i++) {
+    const f = frame[i]; if (!f.ok) continue;
+    const gy = groundY(f.x, f.z);
+    parts.push({ g: GEO.box, m: M4(f.x, gy + 0.06, f.z, 2.5, 0.12, 0.24, f.yaw), c: SL[(hash2(f.x, f.z) * 4) | 0] });
+    if (i % 2 === 0 && i + 2 < frame.length && frame[i + 2].ok) {
+      const g2 = frame[i + 2], mx = (f.x + g2.x) / 2, mz = (f.z + g2.z) / 2, L = Math.hypot(g2.x - f.x, g2.z - f.z) + 0.02, yaw = Math.atan2(g2.x - f.x, g2.z - f.z), ny = (gy + groundY(g2.x, g2.z)) / 2;
+      for (const sd of [-1, 1]) {
+        const rx = mx + f.nx * sd * RAIL.gauge, rz = mz + f.nz * sd * RAIL.gauge;
+        parts.push({ g: GEO.box, m: M4(rx, ny + 0.185, rz, 0.09, 0.13, L, yaw), c: 0x5a4a3c }, { g: GEO.box, m: M4(rx, ny + 0.26, rz, 0.075, 0.03, L, yaw), c: 0xa4a6a6 });
+      }
+    }
+  }
+  // a level crossing where a track meets the line: planks laid flush between and outside the rails
+  for (const r of roads) {
+    const T = densifyLine(r.pts, 0.4); let best = null;
+    for (const [x, z] of T) { const d = railDist(x, z); if (d < 0.6 && (!best || d < best.d)) best = { x, z, d }; }
+    if (!best || beyondEdge(best.x, best.z) > 0) continue;
+    let fi = 0, fd = 1e9; frame.forEach((f, i) => { const d = Math.hypot(f.x - best.x, f.z - best.z); if (d < fd) { fd = d; fi = i; } });
+    const f = frame[fi], gy = groundY(f.x, f.z), len = r.w + 0.8;
+    for (let o = -1.25; o <= 1.26; o += 0.25) {
+      if (Math.abs(Math.abs(o) - RAIL.gauge) < 0.1) continue;
+      parts.push({ g: GEO.box, m: M4(f.x + f.nx * o, gy + 0.24, f.z + f.nz * o, 0.23, 0.06, len, f.yaw), c: [0x7a6448, 0x6e5a40, 0x857052][(hash2(o * 7, fi) * 3) | 0] });
+    }
+  }
+  if (parts.length) { const m = new THREE.Mesh(mergeGeos(parts), propMat); m.receiveShadow = true; m.castShadow = true; railRoot.add(m); }
+}
+
+/* The armoured train, from the sheet: guard wagon, artillery car, MG car, locomotive, tender, command car. Every car faces
+   +z, stands with its wheels on y 0 (the rail head) and is one merged mesh. Panzer grey plate, chamfered ends, firing
+   slits, bogies with the wheels showing under the skirts. */
+const TC = { A: 0x5a5f62, AL: 0x6a6f72, AD: 0x45494b, slit: 0x141618, wheel: 0x2a2a28, coal: 0x1c1c1e, steel: 0x8a8c8c, rust: 0x5a4a3c };
+const TRAIN_CARS = { guard: 6.6, gun: 9.2, mg: 8.6, loco: 11.6, tender: 6.6, command: 9.6 };
+const trainGeoCache = {};
+function trainGeo(kind) {
+  if (trainGeoCache[kind]) return trainGeoCache[kind];
+  const L = TRAIN_CARS[kind], W = 2.9, p = [];
+  // underframe, bogies, wheels, buffers, the lower skirt
+  p.push({ g: GEO.box, m: M4(0, 0.98, 0, W - 0.3, 0.26, L - 0.2), c: TC.AD });
+  for (const bz of [-L / 2 + 1.7, L / 2 - 1.7]) {
+    p.push({ g: GEO.box, m: M4(0, 0.6, bz, W - 0.7, 0.32, 2.3), c: TC.AD });
+    for (const sx of [-1, 1]) for (const dz of [-0.65, 0.65]) p.push({ g: GEO.tyre, m: M4(sx * 0.72, 0.42, bz + dz, 0.84, 0.16, 0.84, 0, Math.PI / 2), c: TC.wheel }, { g: GEO.hub, m: M4(sx * 0.82, 0.42, bz + dz, 0.4, 0.04, 0.4, 0, Math.PI / 2), c: TC.steel });
+  }
+  for (const e of [-1, 1]) for (const sx of [-0.85, 0.85]) p.push({ g: GEO.cyl, m: M4e(sx, 1.0, e * (L / 2 + 0.12), 0.22, 0.36, 0.22, Math.PI / 2, 0, 0), c: TC.AD }, { g: GEO.box, m: M4(sx, 1.0, e * (L / 2 + 0.32), 0.36, 0.36, 0.06), c: TC.steel });
+  p.push({ g: slab(W / 2, 0.62, 1.32, -L / 2 + 0.3, L / 2 - 0.3, { tz0: -L / 2 + 0.15, tz1: L / 2 - 0.15 }), m: I4, c: TC.A });
+  // an armoured body: chamfered ends, sides leaning in a little, a lighter roof plate, firing slits along each side
+  const body = (h, z0, z1, ch, col) => {
+    const wt = W / 2 - 0.2;
+    p.push({ g: slab(W / 2, 1.3, 1.3 + h, z0, z1, { wt, tz0: z0 + ch, tz1: z1 - ch }), m: I4, c: col || TC.A });
+    p.push({ g: GEO.box, m: M4(0, 1.3 + h + 0.02, (z0 + z1) / 2, wt * 2 - 0.3, 0.05, z1 - z0 - ch * 2 - 0.3), c: TC.AL });
+    const y = 1.3 + h * 0.62, xw = W / 2 - 0.2 * 0.62 + 0.02;
+    for (let z = z0 + ch + 0.8; z < z1 - ch - 0.6; z += 1.6) for (const sx of [-1, 1]) p.push({ g: GEO.box, m: M4(sx * xw, y, z, 0.05, 0.13, 0.5), c: TC.slit });
+    for (let z = z0 + 1.2; z < z1 - 0.8; z += 2.2) for (const sx of [-1, 1]) p.push({ g: GEO.box, m: M4(sx * (W / 2 - 0.08), 1.3 + h * 0.5, z, 0.04, h * 0.9, 0.05), c: TC.AD });   // plate seams
+  };
+  const turret = (z, r, h, y, barrel) => {
+    p.push({ g: GEO.cyl, m: M4(0, y + h / 2, z, r * 2, h, r * 2), c: TC.A }, { g: GEO.cyl, m: M4(0, y + h + 0.04, z, r * 1.7, 0.08, r * 1.7), c: TC.AL });
+    if (barrel) p.push({ g: GEO.cyl, m: M4e(0, y + h * 0.55, z + r + barrel / 2, 0.1, barrel, 0.1, Math.PI / 2, 0, 0), c: TC.AD });
+  };
+  if (kind === 'guard') { body(2.0, -L / 2 + 0.3, L / 2 - 0.3, 0.7); turret(0.8, 0.6, 0.55, 3.3, 0.9); }
+  else if (kind === 'mg') {
+    body(2.2, -L / 2 + 0.3, L / 2 - 0.3, 0.7); turret(0, 0.65, 0.6, 3.5, 1.0);
+    for (const sx of [-1, 1]) for (const z of [-2.2, 2.2]) p.push({ g: GEO.box, m: M4(sx * 1.55, 2.3, z, 0.4, 0.75, 0.9), c: TC.AL }, { g: GEO.cyl, m: M4(sx * 2.05, 2.3, z, 0.09, 0.8, 0.09, 0, Math.PI / 2), c: TC.AD });
+  }
+  else if (kind === 'gun') {
+    body(1.5, -L / 2 + 0.3, L / 2 - 0.3, 0.6);
+    p.push({ g: slab(1.3, 2.8, 4.15, -2.6, 1.1, { wt: 1.0, tz0: -2.3, tz1: 0.5 }), m: I4, c: TC.A });
+    p.push({ g: GEO.cyl, m: M4(-0.5, 4.3, -1.4, 0.7, 0.35, 0.7), c: TC.AL });
+    { const ry = 0.6, bx = Math.sin(ry), bz = Math.cos(ry);   // laid a little off the line, so the gun reads from above
+      p.push({ g: GEO.cyl, m: M4e(bx * 3.6, 3.5, 0.4 + bz * 3.6, 0.24, 5.2, 0.24, Math.PI / 2, ry, 0), c: TC.AD }, { g: GEO.box, m: M4(bx * 6.25, 3.5, 0.4 + bz * 6.25, 0.38, 0.38, 0.42, ry), c: TC.AD }); }
+  }
+  else if (kind === 'command') {
+    body(2.3, -L / 2 + 0.3, L / 2 - 0.3, 0.8);
+    p.push({ g: new THREE.CylinderGeometry(0.5, 0.5, 1, 8), m: M4(0, 3.95, 0.4, 1.6, 0.75, 1.6), c: TC.A }, { g: new THREE.CylinderGeometry(0.42, 0.5, 1, 8), m: M4(0, 4.4, 0.4, 1.5, 0.18, 1.5), c: TC.AL });
+    p.push({ g: GEO.box, m: M4(0.9, 4.9, -2.6, 0.04, 2.6, 0.04), c: TC.AD }, { g: GEO.cyl, m: M4(-0.7, 3.8, -3.2, 0.22, 0.5, 0.22), c: TC.AD }, { g: GEO.cyl, m: M4(0.7, 3.8, 3.0, 0.22, 0.5, 0.22), c: TC.AD });
+  }
+  else if (kind === 'tender') {
+    body(1.9, -L / 2 + 0.3, L / 2 - 0.3, 0.5);
+    for (let i = 0; i < 7; i++) p.push({ g: GEO.clump[i % 3], m: M4((hash2(i, 3) - 0.5) * 1.3, 3.25, -L / 2 + 1.3 + i * 0.65, 1.0, 0.45, 0.9, i), c: TC.coal });
+    for (const y of [1.6, 2.0, 2.4, 2.8]) p.push({ g: GEO.box, m: M4(1.48, y, L / 2 - 0.8, 0.04, 0.05, 0.5), c: TC.AD });
+  }
+  else if (kind === 'loco') {
+    // the cab at the back, the armoured boiler casing forward, chimney and domes, a sloped plough at the front
+    body(2.6, -L / 2 + 0.3, -L / 2 + 3.6, 0.3);
+    p.push({ g: slab(1.3, 1.3, 2.95, -L / 2 + 3.5, L / 2 - 1.6, { wt: 0.85, tz1: L / 2 - 2.0 }), m: I4, c: TC.A });
+    for (let z = -L / 2 + 4.2; z < L / 2 - 2; z += 1.4) p.push({ g: GEO.box, m: M4(0, 2.97, z, 1.5, 0.04, 0.06), c: TC.AD });
+    p.push({ g: GEO.cyl, m: M4(0, 3.3, L / 2 - 2.6, 0.62, 0.8, 0.62), c: TC.AD }, { g: GEO.cyl, m: M4(0, 3.72, L / 2 - 2.6, 0.78, 0.1, 0.78), c: TC.AD });
+    p.push({ g: GEO.sph, m: M4(0, 3.0, 0.4, 0.95, 0.7, 1.1), c: TC.AL }, { g: GEO.sph, m: M4(0, 3.0, -1.4, 0.8, 0.6, 0.9), c: TC.AL });
+    p.push({ g: slab(1.4, 0.25, 2.1, L / 2 - 1.9, L / 2 + 0.25, { yft: 0.6, tz1: L / 2 - 0.9 }), m: I4, c: TC.AL });
+    for (const sx of [-1, 1]) p.push({ g: GEO.box, m: M4(sx * 1.2, 3.1, -L / 2 + 2.2, 0.05, 0.3, 0.9), c: TC.slit });
+  }
+  return (trainGeoCache[kind] = mergeGeos(p));
+}
+const TRAIN_ORDER = [['guard', 'gun', 'mg', 'loco', 'tender', 'command'], ['guard', 'mg', 'loco', 'tender', 'command'], ['mg', 'loco', 'tender', 'guard']];
+function spawnTrain() {
+  if (!railPath || railDead) return;
+  const fwd = Math.random() < 0.5, pts = fwd ? railPath : railPath.slice().reverse();
+  const cum = [0]; for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+  const order = TRAIN_ORDER[(Math.random() * TRAIN_ORDER.length) | 0], cars = []; let off = 0;
+  for (const kind of order) {
+    const len = TRAIN_CARS[kind]; off += len / 2;
+    const mesh = new THREE.Mesh(trainGeo(kind), propMat); mesh.castShadow = true; mesh.receiveShadow = true; propRoot.add(mesh);
+    cars.push({ kind, len, off, mesh, x: pts[0][0], z: pts[0][1], yaw: 0, vis: false, ob: { type: 'train', tall: true, h: 3.6, cx: 0, cz: 0 } });
+    off += len / 2 + 0.9;
+  }
+  const t = { pts, cum, total: cum[cum.length - 1], cars, len: off, s: 0, speed: RAIL.speed, spotted: false, burst: 0, fireT: 1, whistled: false, dead: false, chuffT: 0 };
+  trains.push(t); placeTrain(t);
+}
+function trainAt(t, s) {
+  const c = t.cum; s = clamp(s, 0, t.total);
+  let i = 1; while (i < c.length - 1 && c[i] < s) i++;
+  const a = t.pts[i - 1], b = t.pts[i], seg = c[i] - c[i - 1], k = seg > 0 ? (s - c[i - 1]) / seg : 0;
+  return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k];
+}
+function placeTrain(t) {
+  for (const car of t.cars) {
+    const sc = t.s - car.off, [fx, fz] = trainAt(t, sc + car.len * 0.35), [bx, bz] = trainAt(t, sc - car.len * 0.35);
+    car.x = (fx + bx) / 2; car.z = (fz + bz) / 2; car.yaw = Math.atan2(fx - bx, fz - bz);
+    car.mesh.position.set(car.x, groundY(car.x, car.z) + RAIL.top, car.z); car.mesh.rotation.y = car.yaw;
+    car.vis = car.mesh.visible = beyondEdge(car.x, car.z) < 5.4;   // hidden inside the hill past the portal mouth
+    car.ob.cx = car.x; car.ob.cz = car.z;
+  }
+}
+// is (x, z) inside a car's footprint (pad metres all round)? returns the car's obstacle stand-in
+function trainHit(x, z, pad) {
+  for (const t of trains) for (const car of t.cars) {
+    const rx = x - car.x, rz = z - car.z; if (rx * rx + rz * rz > 64) continue;
+    const c = Math.cos(car.yaw), s = Math.sin(car.yaw), lx = rx * c - rz * s, lz = rx * s + rz * c;
+    if (Math.abs(lx) < 1.5 + pad && Math.abs(lz) < car.len / 2 + pad) return car.ob;
+  }
+  return null;
+}
+// does the segment pass through a car (2D)? sampled every 0.6 m: cheap, and only while a train is on the map
+function trainBlocksLine(x1, z1, x2, z2) {
+  const d = Math.hypot(x2 - x1, z2 - z1), n = Math.ceil(d / 0.6);
+  for (const t of trains) for (const car of t.cars) {
+    if (!car.vis || car === _losSkipTrain) continue;
+    // reject cheaply: the car's centre far from the segment
+    const ux = x2 - x1, uz = z2 - z1, l2 = ux * ux + uz * uz, k = l2 ? clamp(((car.x - x1) * ux + (car.z - z1) * uz) / l2, 0, 1) : 0;
+    if (Math.hypot(x1 + ux * k - car.x, z1 + uz * k - car.z) > car.len / 2 + 1.6) continue;
+    const c = Math.cos(car.yaw), s = Math.sin(car.yaw);
+    for (let i = 1; i < n; i++) { const px = x1 + ux * i / n - car.x, pz = z1 + uz * i / n - car.z, lx = px * c - pz * s, lz = px * s + pz * c; if (Math.abs(lx) < 1.45 && Math.abs(lz) < car.len / 2) return true; }
+  }
+  return false;
+}
+// the MG car and the guard wagon shoot: a burst at whoever they can see
+function trainShoot(car, s) {
+  const dx = s.x - car.x, dz = s.z - car.z, side = Math.sign(dx * Math.cos(car.yaw) - dz * Math.sin(car.yaw)) || 1;
+  const mx = car.x + Math.cos(car.yaw) * side * 1.7, mz = car.z - Math.sin(car.yaw) * side * 1.7, my = groundY(car.x, car.z) + RAIL.top + 2.3;
+  const tx = s.x - mx, tz = s.z - mz, d = Math.hypot(tx, tz), a = Math.atan2(tx, tz) + (Math.random() - 0.5) * RAIL.spread * (s.prone ? 1.4 : 1), sp = 62;
+  const mesh_ = new THREE.Mesh(GEO.box, basic(0xff8a5a)); mesh_.scale.set(0.06, 0.06, 0.9); mesh_.position.set(mx, my, mz); mesh_.rotation.y = a; fxRoot.add(mesh_);
+  const ty = surfY(s.x, s.z) + (s.prone ? 0.3 : 1.0), vy = (ty - my) / (d / sp); mesh_.rotation.x = -Math.atan2(ty - my, d);
+  bul.push({ x: mx, y: my, z: mz, vx: Math.sin(a) * sp, vz: Math.cos(a) * sp, vy, y0: my, foe: true, life: 0.9, mesh: mesh_, owner: car.ob, rx: mesh_.rotation.x, dmg: 1 });
+  muzzleT = 0.05; muzzleLight.position.set(mx, my, mz); SFX.foeShot(mx, mz);
+  globalAlert = Math.min(globalAlert + 0.1, 2); noiseEvent(mx, mz, 30, 0.6);
+}
+SFX.whistle = (x, z) => { if (!AC) return; const { g, p } = place(x, z), v = 0.05 + 0.07 * g, t = AC.currentTime;
+  for (const [f, d] of [[523, 0], [659, 0.02], [784, 0.01]]) { tone('sine', f * 0.97, f, 1.5, v, mixSfx, p, t + d); tone('sine', f, f * 0.98, 0.9, v * 0.9, mixSfx, p, t + 1.75 + d); } };
+function stepTrains(dt) {
+  if (!railPath) { trainsLive = false; return; }
+  trainT -= dt;
+  if (trainT <= 0 && !trains.length && !railDead) { spawnTrain(); trainT = RAIL.interval[0] + Math.random() * (RAIL.interval[1] - RAIL.interval[0]); }
+  trainsLive = trains.length > 0;
+  for (let k = trains.length - 1; k >= 0; k--) {
+    const t = trains[k];
+    if (t.dead) { if (t.smoke) t.smoke.rate = 0; for (const car of t.cars) if (car.vis && Math.random() < dt * 3) spawnParts(car.x + (Math.random() - 0.5) * 2, groundY(car.x, car.z) + 3.2, car.z + (Math.random() - 0.5) * 2, 1, Math.random() < 0.3 ? 0xff8a3a : 0x2e2c2a, 1.6, 0.4, 2.2, -1); continue; }
+    if (t.stopAt !== undefined) { const left = t.stopAt - t.s; t.speed = Math.max(0, Math.min(t.speed, left * 0.9)); }   // v44: braking for a gap
+    t.s += t.speed * dt;
+    if (t.s - t.len > t.total) { for (const car of t.cars) propRoot.remove(car.mesh); if (t.smoke) t.smoke.life = 0; trains.splice(k, 1); continue; }
+    placeTrain(t);
+    const front = t.cars[0], loco = t.cars.find(c => c.kind === 'loco') || front;
+    if (!t.whistled && beyondEdge(front.x, front.z) < 34) {
+      t.whistled = true; SFX.whistle(clamp(front.x, 0, MW), clamp(front.z, 0, MH));
+      if (!trainWarned && phase === 'play') { trainWarned = true; showToast('TRAIN', 'an armoured train — keep off the line'); }
+    }
+    // smoke and the beat of the engine
+    if (!t.smoke) t.smoke = addSmoker(loco.x, loco.z, { life: 1e6, rate: 0, size: 1.3, col: 0x4a4846, a: 0.55, rise: 2.4, y: 0 });
+    t.smoke.x = loco.x + Math.sin(loco.yaw) * (loco.len / 2 - 2.6); t.smoke.z = loco.z + Math.cos(loco.yaw) * (loco.len / 2 - 2.6); t.smoke.y = groundY(loco.x, loco.z) + 4.2; t.smoke.rate = loco.vis ? 7 : 0;
+    t.chuffT -= dt;
+    if (t.chuffT <= 0 && AC && beyondEdge(loco.x, loco.z) < 30) { t.chuffT = 0.32; const { g, p } = place(loco.x, loco.z); nhit(380, 0.6, 0.11, 0.22 * g, mixSfx, p, AC.currentTime, 'bandpass'); thump(60, 40, 0.06, 0.08 * g, mixSfx, p, AC.currentTime); }
+    // under the wheels
+    for (const u of [...sol, ...ens]) { if (u.dead || u.elev) continue; if (trainHit(u.x, u.z, 0.15)) { spawnParts(u.x, groundY(u.x, u.z) + 0.6, u.z, 10, 0x8c2c22, 6, 0.12, 0.6); killUnit(u, 'runover'); if (!u.foe) showToast('KILLED', 'hit by the train'); } }
+    if (phase !== 'play') continue;
+    // the gunners look out
+    const gunners = t.cars.filter(c => c.vis && (c.kind === 'mg' || c.kind === 'guard'));
+    let target = null, td = 1e9;
+    for (const car of gunners) for (const s of sol) {
+      if (s.dead) continue;
+      const d = Math.hypot(s.x - car.x, s.z - car.z); if (d > RAIL.sight * (night ? 0.7 : 1) * (weatherFog ? 0.6 : 1)) continue;
+      if (!t.spotted && ((s.prone && d > 6) || (inCover(s.x, s.z) && d > 8))) continue;
+      _losSkipTrain = car; const see = hasLOS(car.x, car.z, s.x, s.z); _losSkipTrain = null;
+      if (!see) continue;
+      if (d < td) { td = d; target = { s, car }; }
+    }
+    if (target && !t.spotted) { t.spotted = true; spotted = true; globalAlert = Math.max(globalAlert, 1.4); noiseEvent(target.s.x, target.s.z, 40, 0.7); showToast('SPOTTED', 'the armoured train saw you'); }
+    t.fireT -= dt;
+    if (target && t.spotted && t.fireT <= 0) { trainShoot(target.car, target.s); t.burst++; if (t.burst >= 4) { t.burst = 0; t.fireT = RAIL.burstGap + Math.random() * 0.8; } else t.fireT = 0.14; }
+  }
+}
+// a demolition charge under a car derails the train: it stops where it is, burns, and stays as cover
+function derailNear(x, z, r) {
+  for (const t of trains) {
+    if (t.dead) continue;
+    if (!t.cars.some(car => car.vis && Math.hypot(car.x - x, car.z - z) < r + car.len / 2 * 0.6)) continue;
+    t.dead = true; t.speed = 0; railDead = true;
+    for (const car of t.cars) {
+      if (!car.vis) continue;
+      car.mesh.material = wreckMat; car.mesh.rotation.z = (hash2(car.x, car.z) - 0.5) * 0.18;
+      for (let o = -car.len / 2 + 1; o <= car.len / 2 - 1; o += 2) obs.push({ type: 'crate', x: car.x + Math.sin(car.yaw) * o, z: car.z + Math.cos(car.yaw) * o, radius: 1.5, mesh: null, tall: true, cover: true, h: 3.2 });
+      addSmoker(car.x, car.z, { life: 70, rate: 3, size: 1.6, col: 0x2e2c2a, a: 0.6, rise: 2.4, burst: 5 });
+      decal(car.x, car.z, 3.4, 0x1a1410, 0.6);
+    }
+    kills += 6; stats.kills += 6;
+    buildGrid(); buildPathGrid();
+    showToast('TRAIN DERAILED', 'the line is closed');
+    bigMoment(1);
+    return true;
+  }
+  return false;
+}
+function clearTrains() { for (const t of trains) for (const car of t.cars) propRoot.remove(car.mesh); trains = []; trainsLive = false; trainWarned = false; railDead = false; trainT = RAIL.first[0] + Math.random() * (RAIL.first[1] - RAIL.first[0]); }
 
 /*───────────────────── traffic: jeeps, lorries and motorcycles on the road ─────────────────────
    They drive the through road both ways and do not stop for anyone: stand in the road and you are
@@ -9031,6 +9567,7 @@ function wreckVehicle(v) {
 }
 function removeVehicle(v) { engineOff(v); propRoot.remove(v.mesh); }
 function clearTraffic() {
+  clearTrains();   // v43
   for (const v of vehs) removeVehicle(v);
   vehs = []; vehT = 8 + Math.random() * 10;
   if (spotter) { engineOff(spotter); scene.remove(spotter.mesh); spotter = null; }
@@ -9722,7 +10259,7 @@ function update(dt) {
   stepBarks(dt);
   stepMarks(dt);
   stepBirds(dt); stepTreeFade(dt);
-  stepFauna(dt); stepTraffic(dt); stepBoundary(dt); stepPlane(dt);
+  stepFauna(dt); stepTraffic(dt); stepTrains(dt); stepBoundary(dt); stepPlane(dt);
   rigBeginFrame();
   [...sol, ...ens].forEach(u => { if (!u.dead) animateUnit(u, dt); });
   updateBars();
@@ -9999,6 +10536,10 @@ function drawMinimap() {
     mmX.strokeStyle = '#7a776c'; mmX.lineCap = 'butt';
     for (const r of streets) { mmX.lineWidth = r.w / MW * MM; mmX.beginPath(); r.pts.forEach(([x, z], i) => mmX[i ? 'lineTo' : 'moveTo'](x / MW * MM, z / MH * MM)); mmX.stroke(); }
   }
+  if (railLine) {   // v43: the railway, and any train on it
+    mmX.strokeStyle = '#4a4640'; mmX.lineWidth = 2; mmX.setLineDash([3, 2]); mmX.beginPath(); railLine.pts.forEach(([x, z], i) => mmX[i ? 'lineTo' : 'moveTo'](x / MW * MM, z / MH * MM)); mmX.stroke(); mmX.setLineDash([]);
+    mmX.fillStyle = '#d8483a'; for (const t of trains) for (const car of t.cars) if (car.vis) { mmX.beginPath(); mmX.arc(car.x / MW * MM, car.z / MH * MM, 2.2, 0, 6.3); mmX.fill(); }
+  }
   for (const o of obs) {
     const mx = ((o.cx !== undefined ? o.cx : o.x) / MW) * MM, mz = ((o.cz !== undefined ? o.cz : o.z) / MH) * MM;
     if (o.type === 'tree') { mmX.fillStyle = '#2c4d19'; mmX.beginPath(); mmX.arc(mx, mz, 1.6, 0, 6.3); mmX.fill(); }
@@ -10149,6 +10690,7 @@ function detonateCharge(c) {
   SFX.boom(gx, gz); camShake = Math.min(camShake + 1.1, 1.4); hitStop = Math.max(hitStop, 0.09); flashScreen(0.7);
   muzzleT = 0.22; muzzleLight.position.set(gx, gy + 1.5, gz);
   const B = 7.5;
+  if (trainsLive) derailNear(gx, gz, 3.5);   // v43
   blastTargets(gx, gz, 'charge');
   for (const e of ens) { if (!e.dead && !e.inBox && dst({ x: gx, z: gz }, e) < B && !(e.tower && dst({ x: gx, z: gz }, e) > 3.2)) damage(e, dst({ x: gx, z: gz }, e) < B * 0.5 ? 6 : 3, 'blast'); }
   for (const s of sol) { if (!s.dead && dst({ x: gx, z: gz }, s) < B * 0.7) damage(s, s.prone ? 2 : 3, 'ownblast'); }
@@ -11403,6 +11945,13 @@ window.GS = { MISSIONS, get roster() { return roster; }, get fallen() { return f
              posH.length = 0; camTgt.set(x, 0, z); camPos.set(x, CAM_H * camZoom, z + CAM_Z * camZoom); },
   trees() { return obs.filter(o => o.type === 'tree').map(o => [+o.x.toFixed(1), +o.z.toFixed(1)]); },
   portals() { return portals.map(q => [+q.x.toFixed(1), +q.z.toFixed(1), q.nx, q.nz]); },
+  // v43: the railway. GS.train() sends one now; GS.trains() reports them; GS.rail() the line
+  blow(i) { const T = targets.filter(q => !q.dead)[i || 0]; if (!T) return null; destroyTarget(T, 'charge'); return T.kind; },
+  derail() { const t = trains[0]; if (!t) return false; const c = t.cars.find(q => q.vis); return c ? derailNear(c.x, c.z, 1) : false; },
+  train() { trainT = 0; trains.length || spawnTrain(); return trains.length; },
+  trains() { return trains.map(t => ({ s: +t.s.toFixed(1), dead: t.dead, spotted: t.spotted, cars: t.cars.map(c => [c.kind, +c.x.toFixed(1), +c.z.toFixed(1), c.vis]) })); },
+  rail() { return railLine ? { pts: railLine.pts.map(p => [+p[0].toFixed(1), +p[1].toFixed(1)]), portals: portals.filter(q => q.rail).length, dead: railDead } : null; },
+  tbench(z) { const k = Object.keys(TRAIN_CARS); let x = MW / 2 - 24; const out = []; for (const kind of k) { const m = new THREE.Mesh(trainGeo(kind), propMat); m.castShadow = true; const zz = z || MH * 0.7; m.position.set(x, groundY(x, zz), zz); m.rotation.y = Math.PI / 2; propRoot.add(m); out.push(kind); x += TRAIN_CARS[kind] + 1.2; } return out; },
   strike() { strike(); return flashT; },
   atmo() { return { light: lightName, cloud: ATMO.cloud.value, wind: [+windAng.toFixed(2), windMag], rain: weatherRain, mists: mists.map(P => [+P.x.toFixed(1), +P.z.toFixed(1), +P.r.toFixed(1)]), smoke: smoke.length, smokers: smokers.length }; },
   smoke(x, z) { return addSmoker(x, z, { life: 12, rate: 5, size: 2.0, col: 0x8a857c, a: 0.62, burst: 8 }) && smokers.length; },
