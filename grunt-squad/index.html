@@ -49,7 +49,11 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
 #hudrow b{color:var(--gogreen)}
 #hudrow .ttl{color:var(--khaki-d)}
 #objbar{position:absolute;left:12px;top:calc(27px + env(safe-area-inset-top));font-size:11.5px;letter-spacing:1px;color:#e8e2b8;display:none;text-shadow:0 1px 2px #000}
+#objbar{padding-left:52px;text-indent:-52px;max-width:calc(100vw - 172px)}#objbar .opt{text-indent:0;margin-left:0}   /* v47: wrapped lines clear the weapon bar and the minimap */
 #objbar span{color:var(--gogreen);font-weight:bold;letter-spacing:2px;margin-right:6px}
+#otime{position:fixed;right:8px;top:calc(204px + env(safe-area-inset-top));z-index:11;display:none;padding:3px 10px;border-radius:2px;font-size:12px;font-weight:bold;letter-spacing:2px;color:var(--amber);border:1px solid rgba(255,194,61,.5);background:rgba(6,12,4,.7)}#otime.hot{color:#ff8a5a;border-color:#ff8a5a}
+#objbar .opt{font-size:10.5px;color:#d8d0a4;margin-top:3px}#objbar .opt span{color:var(--amber)}#objbar .opt.done{opacity:.55}
+.bopt{margin-top:10px;color:#e8d89a}.bopt b{color:var(--amber);letter-spacing:2px;margin-right:6px}
 #mname{margin-left:auto;color:var(--khaki-d);font-size:11px;letter-spacing:2px;text-transform:uppercase}
 
 #minimap{position:fixed;right:8px;top:calc(48px + env(safe-area-inset-top));z-index:10;display:none;
@@ -359,7 +363,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
     <button id="tset">SETTINGS <small>sound · music · graphics</small></button>
   </div>
   <div class="foot">© GAMELAB · NO GRUNTS WERE CONSULTED</div>
-  <div id="tver">v44</div>
+  <div id="tver">v47</div>
 </div>
 
 <div id="ops" class="screen">
@@ -1213,8 +1217,8 @@ function roadProfile(road, t) {
     return 0;
   }
   if (t > 1.18) return 0;
-  const rut = Math.exp(-Math.pow((t - 0.62) / 0.17, 2)), dip = -0.05 * (1 - Math.pow(Math.min(1, t / 1.18), 2));
-  return dip - 0.1 * rut + 0.025 * Math.exp(-Math.pow(t / 0.22, 2));
+  const rut = Math.exp(-Math.pow((t - 0.6) / 0.21, 2)), dip = -0.04 * (1 - Math.pow(Math.min(1, t / 1.18), 2));   // v45: shallower, broader ruts (the sheet's)
+  return dip - 0.065 * rut + 0.03 * Math.exp(-Math.pow(t / 0.22, 2));
 }
 function buildRoadDelta() {
   if (!roadDelta) { roadDelta = new Float32Array(RD_N * RD_N); roadFoot = new Uint8Array(RD_N * RD_N); }
@@ -1290,7 +1294,7 @@ let tarMat = null;   // v42: roadMat carries the track texture, tarMat the tarma
 function buildRoadStrips() {
   for (const m of roadRoot.children.slice()) { roadRoot.remove(m); m.geometry.dispose(); }
   const c = new THREE.Color();
-  if (!roadMat.map) { roadMat.map = RTEX.track; roadMat.needsUpdate = true; tarMat = roadMat.clone(); tarMat.map = RTEX.tar; }
+  if (!roadMat.map) { roadMat.map = RTEX.track; tarMat = roadMat.clone(); tarMat.map = RTEX.tar; roadMat.flatShading = false; roadMat.needsUpdate = true; }   // v45: tracks are smooth-lit with up normals (the ruts read from the texture, not as dark facets)
   const tracks = roads.filter(o => o.kind !== 'road');
   roads.forEach((r, ri) => {
     const hw = r.w / 2, road = r.kind === 'road', lift = 0.012 + ri * 0.005;   // v26: the ground is sunk beneath, so the strip lies on groundY
@@ -1324,7 +1328,7 @@ function buildRoadStrips() {
         const fr = outer ? (hash2(x * 1.7 + j, z * 1.3) - 0.3) * (road ? 0.35 : 0.5) : kind === 'edge' ? (hash2(x * 2.9, z * 1.1 + j) - 0.5) * 0.18 : 0, o = off + Math.sign(off) * fr;
         const px = x + nx * o, pz = z + nz * o, h = hash2(px * 2.3, pz * 1.9), along = vnoise(px * 0.09 + pz * 0.09, 3.7), patch = vnoise(px * 0.21 + 11, pz * 0.21 - 5);
         if (kind === 'bank') { c.copy(outer ? LP.mid : LP.lush).lerp(LP.dry, 0.2 + h * 0.3); if (!outer) c.lerp(LP.verge, 0.15); }
-        else if (kind === 'fray') { terrCol(px, pz, groundY(px, pz), 1, hash2(px * 1.7, pz * 1.3), c); const rt = (v, t) => 0.45 + 0.55 * Math.max(0.35, Math.min(2.2, v / t)); c.setRGB(rt(c.r, 0.41), rt(c.g, 0.27), rt(c.b, 0.13)); if (weatherRain) c.multiplyScalar(0.8); }   // v42: the ragged edge leans to the ground's colour, over the texture
+        else if (kind === 'fray') { terrCol(px, pz, groundY(px, pz), 1, hash2(px * 1.7, pz * 1.3), c); const rt = (v, t) => 0.4 + 0.6 * Math.max(0.4, Math.min(2.0, v / t)); c.setRGB(rt(c.r, 0.159), rt(c.g, 0.254), rt(c.b, 0.042)); if (weatherRain) c.multiplyScalar(0.8); }   // v42: the ragged edge leans to the ground's colour, over the texture
         else {
           // v42: inside the strip the texture does the work; the vertex colour only shades it
           const n = 0.86 + along * 0.14 + patch * 0.1 + (h - 0.5) * 0.05; c.setRGB(n, n, n);
@@ -1359,6 +1363,7 @@ function buildRoadStrips() {
       for (let i = 0; i < col.length; i += 9) for (let k = 0; k < 3; k++) { const t = col[i + 3 + k]; col[i + 3 + k] = col[i + 6 + k]; col[i + 6 + k] = t; }
       for (let i = 0; i < uv.length; i += 6) for (let k = 0; k < 2; k++) { const t = uv[i + 2 + k]; uv[i + 2 + k] = uv[i + 4 + k]; uv[i + 4 + k] = t; }
       g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.computeVertexNormals(); }
+    if (!road) { const N = g.attributes.normal; for (let i = 0; i < N.count; i++) N.setXYZ(i, 0, 1, 0); N.needsUpdate = true; }
     const base = road ? tarMat : roadMat, mt = ri ? base.clone() : base; if (ri) mt.polygonOffsetUnits = -4 - ri * 3;   // a later road wins where two cross
     mt.shininess = weatherRain ? 34 : 3; mt.specular = SC(weatherRain ? 0x2c3236 : 0x0c0c0c);   // v36: wet mud and tar shine
     const m = new THREE.Mesh(g, mt); m.receiveShadow = true; m.renderOrder = 0; roadRoot.add(m);
@@ -3928,8 +3933,11 @@ function mkRailBridge(r) {
   // plate girders and the deck
   for (const sz of [-1, 1]) { B(0, -0.45, sz * 1.25, L, 0.9, 0.22, S); B(0, -0.02, sz * 1.25, L, 0.08, 0.36, SL); }
   for (let x = -L / 2 + 0.4; x <= L / 2 - 0.3; x += 1.2) B(x, -0.35, 0, 0.2, 0.5, 2.5, SD);
-  for (let x = -L / 2 + 0.3; x <= L / 2 - 0.2; x += 0.68) B(x, 0.06, 0, 0.24, 0.12, 2.5, [0x4a3a2a, 0x54402c, 0x3e3226][(hash2(x, cz) * 3) | 0]);
-  for (const sz of [-1, 1]) { B(0, 0.185, sz * RAIL.gauge, L, 0.13, 0.09, 0x5a4a3c); B(0, 0.26, sz * RAIL.gauge, L, 0.03, 0.075, 0xa4a6a6); }
+  // v45: the sleepers and rails run 2 m past each end onto the bank, on a bed of ballast, to meet the line's own
+  const LR = span + 4.0;
+  for (let x = -LR / 2 + 0.2; x <= LR / 2 - 0.1; x += 0.68) B(x, 0.06, 0, 0.24, 0.12, 2.5, [0x4a3a2a, 0x54402c, 0x3e3226][(hash2(x, cz) * 3) | 0]);
+  for (const sz of [-1, 1]) { B(0, 0.185, sz * RAIL.gauge, LR, 0.13, 0.09, 0x5a4a3c); B(0, 0.26, sz * RAIL.gauge, LR, 0.03, 0.075, 0xa4a6a6); }
+  for (const e of [-1, 1]) B(e * (span / 2 + 1.1), -0.12, 0, 2.4, 0.24, 3.4, 0x7e786c);
   // the trusses: bottom chord, top chord (ends sloped down), verticals, diagonals, all in dark steel with lighter flanges
   const n = Math.max(4, Math.round(span / 1.9)), dx = L / n;
   for (const sz of [-1, 1]) {
@@ -3954,7 +3962,8 @@ function mkRailBridge(r) {
   }
   const g = new THREE.Mesh(mergeGeos(p), propMat);
   g.castShadow = true; g.receiveShadow = true;
-  g.position.set(cx, baseY(cx, cz), cz); if (!alongX) g.rotation.y = Math.PI / 2;
+  r.deckY = groundY(cx, cz);   // v45: the deck sits at the rail bank's level, and the train rides at exactly this height on it
+  g.position.set(cx, r.deckY, cz); if (!alongX) g.rotation.y = Math.PI / 2;
   propRoot.add(g);
   return g;
 }
@@ -5196,7 +5205,7 @@ const TRACK_W = 1.15;                // v42: tracks are a little wider (the refe
 const RTEX_L = { tar: 10, track: 8 };
 const RT_U = {
   road: { bankO: -0.3, bank: -0.06, verge: 0.06, edge: 0.135, wear: 0.3, tar: 0.42 },
-  track: { fray: 0.0, dirt: 0.1, rut: 0.22, dirtI: 0.33, crown: 0.44 },
+  track: { fray: 0.0, dirt: 0.12, rut: 0.25, dirtI: 0.38, crown: 0.47 },
 };
 function stripTex(W, H, seed, draw) {
   const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const x = cv.getContext('2d'); _tsd = seed; draw(x, W, H);
@@ -5206,41 +5215,43 @@ function stripTex(W, H, seed, draw) {
 // draw f(dy) three times so anything crossing the top or bottom edge comes back on the other (the texture repeats along v)
 const wrapV = (H, f) => { for (const dy of [-H, 0, H]) f(dy); };
 const RTEX = {
+  // v45: rebuilt after the "Dirt tracks" sheet: two broad, light, compacted wheel ruts with tyre streaks, a grass strip
+  // down the middle, grassy verges with grey stones, a ragged dirt lip between. Edges wander on periodic noise (whole
+  // cycles per repeat), so the 8 m repeat is seamless.
   track: stripTex(256, 512, 911, (x, W, H) => {
-    const U = u => u * W;
-    // packed earth, light tan, mottled
-    x.fillStyle = '#ab8d64'; x.fillRect(0, 0, W, H);
-    for (let i = 0; i < 1400; i++) { const px = trnd() * W, py = trnd() * H, r = 1 + trnd() * 5; x.fillStyle = trnd() < 0.5 ? `rgba(200,176,136,${0.08 + trnd() * 0.12})` : `rgba(110,86,58,${0.08 + trnd() * 0.12})`; wrapV(H, dy => { x.beginPath(); x.arc(px, py + dy, r, 0, 6.283); x.fill(); }); }
-    // the ruts: two worn bands, darker and smoother, combed along by tyres, a lighter lip each side
-    for (const c of [0.22, 0.78]) {
-      const g = x.createLinearGradient(U(c - 0.11), 0, U(c + 0.11), 0);
-      g.addColorStop(0, 'rgba(214,190,150,0)'); g.addColorStop(0.1, 'rgba(206,182,142,0.45)'); g.addColorStop(0.25, 'rgba(132,104,72,0.42)'); g.addColorStop(0.5, 'rgba(118,92,62,0.5)'); g.addColorStop(0.75, 'rgba(132,104,72,0.42)'); g.addColorStop(0.9, 'rgba(206,182,142,0.45)'); g.addColorStop(1, 'rgba(214,190,150,0)');
-      x.fillStyle = g; x.fillRect(U(c - 0.11), 0, U(0.22), H);
-      for (let i = 0; i < 46; i++) {   // tread lines, wandering a little (periodic in v so the repeat is seamless)
-        const ox = U(c + (trnd() - 0.5) * 0.15), amp = 1 + trnd() * 3, k = 1 + ((trnd() * 3) | 0), ph = trnd() * 6.283;
-        x.strokeStyle = trnd() < 0.5 ? `rgba(80,60,40,${0.08 + trnd() * 0.12})` : `rgba(190,166,128,${0.1 + trnd() * 0.14})`; x.lineWidth = 0.8 + trnd() * 1.6;
-        x.beginPath(); for (let y = 0; y <= H; y += 8) x[y ? 'lineTo' : 'moveTo'](ox + Math.sin(y / H * 6.283 * k + ph) * amp, y); x.stroke();
-      }
+    const U = u => u * W, per = (y, s) => { let v = 0; for (const [n, a, p] of s) v += a * Math.sin(6.2832 * n * y / H + p); return v; };
+    const wob = () => [[1, 0.5 + trnd(), trnd() * 6.3], [3, 0.4 + trnd() * 0.5, trnd() * 6.3], [7, 0.25 + trnd() * 0.3, trnd() * 6.3], [13, 0.15, trnd() * 6.3]];
+    const grassBase = '#6f8a3a';
+    x.fillStyle = grassBase; x.fillRect(0, 0, W, H);
+    for (let i = 0; i < 900; i++) { const px = trnd() * W, py = trnd() * H, r = 2 + trnd() * 6; x.fillStyle = trnd() < 0.5 ? `rgba(140,170,70,${0.12 + trnd() * 0.12})` : `rgba(60,90,30,${0.12 + trnd() * 0.12})`; wrapV(H, dy => { x.beginPath(); x.arc(px, py + dy, r, 0, 6.283); x.fill(); }); }
+    // a dirt band from a0 to a1 (u), each edge wandering by amp (u)
+    const band = (a0, a1, amp, fill) => {
+      const s0 = wob(), s1 = wob(); x.fillStyle = fill; x.beginPath();
+      for (let y = 0; y <= H; y += 4) x[y ? 'lineTo' : 'moveTo'](U(a0 + per(y, s0) * amp / 2.4), y);
+      for (let y = H; y >= 0; y -= 4) x.lineTo(U(a1 + per(y, s1) * amp / 2.4), y);
+      x.closePath(); x.fill();
+    };
+    for (const m of [0, 1]) {
+      const f = u => m ? 1 - u : u, lo = (a, b) => m ? [f(b), f(a)] : [a, b];
+      const [l0, l1] = lo(0.095, 0.425); band(l0, l1, 0.035, '#a98a60');            // the dirt: lip, rut and the edge of the crown
+      const [r0, r1] = lo(0.15, 0.405); band(r0, r1, 0.02, '#c3a172');            // the rut: compacted, lighter
     }
-    // the crown: grass on the dirt, thickest in the middle
-    for (let i = 0; i < 2600; i++) {
-      const u = 0.5 + (trnd() - 0.5) * 0.3 * (0.6 + trnd() * 0.6), d = Math.abs(u - 0.5) / 0.15; if (trnd() < d * d) continue;
-      const px = U(u), py = trnd() * H, L = 3 + trnd() * 7, a = (trnd() - 0.5) * 1.1;
-      x.strokeStyle = ['#5f7f34', '#73923e', '#4d6c2c', '#8a9a48', '#6a8a3a'][(trnd() * 5) | 0]; x.lineWidth = 1 + trnd();
-      wrapV(H, dy => { x.beginPath(); x.moveTo(px, py + dy); x.lineTo(px + Math.sin(a) * L, py + dy - Math.cos(a) * L); x.stroke(); });
+    // grit and stones in the dirt, tyre streaks along the ruts
+    for (let i = 0; i < 2600; i++) { const u = trnd() < 0.5 ? 0.1 + trnd() * 0.32 : 0.58 + trnd() * 0.32, px = U(u), py = trnd() * H, g = 120 + trnd() * 80 | 0; x.fillStyle = `rgba(${g + 20},${g + 4},${g - 20},0.55)`; x.fillRect(px, py, 1 + trnd() * 1.5, 1 + trnd() * 1.5); }
+    for (const c of [0.278, 0.722]) for (let i = 0; i < 34; i++) {
+      const ox = U(c + (trnd() - 0.5) * 0.2), amp = 0.8 + trnd() * 2.2, k = 1 + ((trnd() * 4) | 0), ph = trnd() * 6.283;
+      x.strokeStyle = trnd() < 0.55 ? `rgba(120,92,60,${0.12 + trnd() * 0.16})` : `rgba(226,204,160,${0.12 + trnd() * 0.16})`; x.lineWidth = 0.8 + trnd() * 1.4;
+      x.beginPath(); for (let y = 0; y <= H; y += 6) x[y ? 'lineTo' : 'moveTo'](ox + Math.sin(y / H * 6.283 * k + ph) * amp, y); x.stroke();
     }
-    // stones and grit on the shoulders and the crown edge
-    for (let i = 0; i < 520; i++) {
-      const side = trnd() < 0.5, u = side ? 0.03 + trnd() * 0.13 : 0.84 + trnd() * 0.13, uu = trnd() < 0.2 ? 0.3 + trnd() * 0.4 : u;
-      const px = U(uu), py = trnd() * H, r = 0.8 + trnd() * (trnd() < 0.1 ? 4.5 : 2), g = 120 + trnd() * 70 | 0;
-      wrapV(H, dy => { x.fillStyle = `rgb(${g},${g - 4},${g - 12})`; x.beginPath(); x.ellipse(px, py + dy, r * 1.2, r, trnd() * 3, 0, 6.283); x.fill(); x.fillStyle = 'rgba(255,255,240,0.25)'; x.beginPath(); x.arc(px - r * 0.3, py + dy - r * 0.3, r * 0.4, 0, 6.283); x.fill(); });
-    }
-    // the edges: grass tufts reaching in, then white (the strip's own outer colours take over)
-    for (const s of [0, 1]) for (let i = 0; i < 700; i++) {   // the verge edge: grass reaching in over the dirt
-      const u = trnd() * 0.07, px = s ? W - U(u) : U(u), py = trnd() * H, L = 3 + trnd() * 7, a = (trnd() - 0.5) * 1.2;
-      if (trnd() > 1 - u / 0.08) continue;
-      x.strokeStyle = ['#5f7f34', '#73923e', '#4d6c2c', '#8a9a48'][(trnd() * 4) | 0]; x.lineWidth = 1 + trnd();
-      wrapV(H, dy => { x.beginPath(); x.moveTo(px, py + dy); x.lineTo(px + Math.sin(a) * L, py + dy - Math.cos(a) * L); x.stroke(); });
+    // grass: tufts thick on the verges and down the middle strip, a few straying into the ruts
+    const tuft = (px, py, n) => { for (let k = 0; k < n; k++) { const L = 4 + trnd() * 8, a = (trnd() - 0.5) * 1.3; x.strokeStyle = ['#5f7f34', '#7a9a40', '#4d6c2c', '#8aa448', '#6a8a3a'][(trnd() * 5) | 0]; x.lineWidth = 1 + trnd() * 1.2; wrapV(H, dy => { x.beginPath(); x.moveTo(px, py + dy); x.quadraticCurveTo(px + Math.sin(a) * L * 0.4, py + dy - L * 0.6, px + Math.sin(a) * L, py + dy - Math.cos(a) * L); x.stroke(); }); } };
+    for (let i = 0; i < 420; i++) { const s = trnd() < 0.5, u = s ? trnd() * 0.11 : 1 - trnd() * 0.11; tuft(U(u), trnd() * H, 3 + (trnd() * 4 | 0)); }
+    for (let i = 0; i < 330; i++) { const u = 0.5 + (trnd() - 0.5) * 0.17; tuft(U(u), trnd() * H, 2 + (trnd() * 4 | 0)); }
+    for (let i = 0; i < 40; i++) { const u = trnd() < 0.5 ? 0.17 + trnd() * 0.22 : 0.61 + trnd() * 0.22; tuft(U(u), trnd() * H, 1 + (trnd() * 2 | 0)); }
+    // grey stones on the verges and the lip, a highlight on each
+    for (let i = 0; i < 150; i++) {
+      const s = trnd() < 0.5, u = s ? 0.01 + trnd() * 0.12 : 0.87 + trnd() * 0.12, px = U(u), py = trnd() * H, r = 1.5 + trnd() * (trnd() < 0.2 ? 5 : 2.5), g = 130 + trnd() * 60 | 0, rot = trnd() * 3;
+      wrapV(H, dy => { x.fillStyle = 'rgba(30,30,25,0.35)'; x.beginPath(); x.ellipse(px + 1, py + dy + 1.2, r * 1.15, r * 0.9, rot, 0, 6.283); x.fill(); x.fillStyle = `rgb(${g},${g},${g - 6})`; x.beginPath(); x.ellipse(px, py + dy, r * 1.15, r * 0.9, rot, 0, 6.283); x.fill(); x.fillStyle = 'rgba(255,255,250,0.3)'; x.beginPath(); x.arc(px - r * 0.35, py + dy - r * 0.3, r * 0.4, 0, 6.283); x.fill(); });
     }
   }),
   tar: stripTex(256, 512, 733, (x, W, H) => {
@@ -5936,7 +5947,7 @@ const MISSIONS = [
     brief: 'One bridge, and their armour needs it tomorrow. Two men guard our end, a gun watches it from the far bank, and a patrol walks ' +
            'this side of the water. Get a charge onto the planks or right at the foot of them, then get clear: thirty seconds, and the river ' +
            'takes anyone still standing on it. Then back to our lines.',
-    weather: 'heavy', scatter: 46, diff: 0.2, noExtras: true, charges: 2,
+    weather: 'heavy', scatter: 46, diff: 0.15, noExtras: true, charges: 2,
     water: [{ x1: 0, z1: .42, x2: 1, z2: .5 }],
     bridge: [{ x1: .465, z1: .415, x2: .535, z2: .505 }],
     targets: [{ t: 'bridge', b: 0 }],
@@ -5964,11 +5975,11 @@ const MISSIONS = [
     brief: 'Everything you have done so far, at once. The only bridge is covered by a pillbox on the far bank; beyond it a radio post is ' +
            'calling in everything we do. Get across — flat on the planks they will not see you, but you cannot fight from there — deal with the ' +
            'pillbox or slip past it, then wreck the radio. A man standing over the set can smash it quietly in a few seconds. The pickup is on the far side.',
-    weather: null, scatter: 42, diff: 0.3, noExtras: true, charges: 1,
+    weather: null, scatter: 42, diff: 0.25, noExtras: true, charges: 1,
     water: [{ x1: 0, z1: .45, x2: 1, z2: .53 }],
     bridge: [{ x1: .305, z1: .445, x2: .375, z2: .535 }],
     targets: [{ t: 'pillbox', x: .34, z: .33, a: 0 }, { t: 'radio', x: .7, z: .2 }],
-    objectives: [{ t: 'destroy', what: 'radio' }, { t: 'extract', label: 'Get out: the pickup on the far side' }], extract: { x: .5, z: .05, r: 6 },
+    objectives: [{ t: 'destroy', what: 'radio' }, { t: 'hold', x: .34, z: .4, r: 7, time: 75, nWaves: 3, wave: 3, label: 'Hold the bridgehead until the relief is across', done: 'the relief is across the river' }, { t: 'extract', label: 'Get out: the pickup on the far side' }], extract: { x: .5, z: .05, r: 6 },   // v47: a hold
     enemies: [
       { x: .4, z: .42, a: Math.PI * .1, range: 15, arc: Math.PI * .6, hp: 3 },
       { x: .65, z: .24, a: -Math.PI * .5, range: 15, arc: Math.PI * .6, hp: 3 },
@@ -5985,14 +5996,16 @@ const MISSIONS = [
   },
   {
     name: 'The Thicket',
+    optional: [{ t: 'prisoner', x: .65, z: .35 }],   // v46: an optional objective
     obj: 'Ambush the patrol, then get out',
     sub: 'Sector 12 · Morning · Forest too thick to see through',
     brief: 'A forest so thick the only ways through are the rides cut between the stands. A four-man patrol walks a circuit of them, ' +
            'and they are the job: all four. Pick your ride, lie up where the path pinches, and let them walk into you — in here a man sees ' +
            'three metres of path and nothing else. They have a dog: lie up close and it will smell you. Two more watch the crossings. Then out through the narrow gap at the top.',
-    weather: null, scatter: 14, diff: 0.35, noExtras: true, mist: true,
+    weather: null, scatter: 14, diff: 0.3, noExtras: true, mist: true,
     objectives: [{ t: 'killTag', tag: 'patrol' }, { t: 'extract', label: 'Out through the narrow gap at the top' }], extract: { x: .57, z: .06, r: 4.5 },
     enemies: [
+      { x: .65, z: .3, a: 0, range: 14, arc: Math.PI * .6, hp: 3 },   // v46: guarding the optional objective
       ...[0, 1, 2, 3].map(i => ({ x: .41 + i * .035, z: .525, a: Math.PI * .5, range: 15, arc: Math.PI * .6, hp: 3, tag: 'patrol', rapidFire: i === 1,
         patrol: [{ x: .65, z: .525 }, { x: .65, z: .17 }, { x: .33, z: .17 }, { x: .33, z: .525 }, { x: .41, z: .525 }] })),
       { x: .415, z: .5, a: 0, range: 15, arc: Math.PI * .6, hp: 3 },
@@ -6010,13 +6023,14 @@ const MISSIONS = [
   },
   {
     name: 'The Convoy',
+    optional: [{ t: 'radio', x: .29, z: .155 }],   // v46: an optional objective
     roads: [{ k: 'road', w: 4.0, pts: [[0.0, .3], [.35, .3], [.65, .3], [1.0, .3]] }, { k: 'track', pts: [[.49, 1.0], [.49, .7], [.49, .3]] }],
     obj: 'Burn the fuel lorry, then get out',
     sub: 'Sector 6 · Dusk · Storm · Traffic on the road',
     brief: 'Their armour runs on what is in one fuel lorry, parked in a wired depot across the main road. Traffic comes and goes on that road ' +
            'and the crews look about them. A pillbox covers the road where the ride comes out of the trees; a pair walks the verge. Get a blast ' +
            'near the lorry — it does the rest, and it does not care whose men are standing beside it. Then back through the trees.',
-    weather: 'storm', scatter: 28, diff: 0.45, noExtras: true, charges: 1,
+    weather: 'storm', scatter: 28, diff: 0.38, noExtras: true, charges: 1,
     targets: [{ t: 'lorry', x: .7, z: .165, a: Math.PI * .5 }, { t: 'pillbox', x: .6, z: .37, a: 0 }],
     objectives: [{ t: 'destroy', what: 'lorry' }, { t: 'extract', label: 'Back through the trees to our lines' }], extract: { x: .49, z: .95, r: 7 },
     enemies: [
@@ -6040,14 +6054,16 @@ const MISSIONS = [
   },
   {
     name: 'The Canyon', sniper: true,
+    optional: [{ t: 'prisoner', x: .52, z: .25 }],   // v46: an optional objective
     obj: 'Get through the canyon',
     sub: 'Sector 14 · Noon · Rock walls, men on top',
     brief: 'The only way north is a dry canyon that doglegs twice. Men sit on the rims looking down; from up there they will make out a man ' +
            'crawling well before he would be seen on the flat, so move between the scrub, which hides you, and time your dashes to their ' +
            'heads turning. One walks the floor. At the top a checkpoint with a gun covers the mouth. Get past it to the pickup in the east.',
-    weather: null, scatter: 6, diff: 0.55, noExtras: true,
+    weather: null, scatter: 6, diff: 0.45, noExtras: true,
     objectives: [{ t: 'extract', label: 'Through the canyon and past the checkpoint to the pickup' }], extract: { x: .86, z: .04, r: 5 },
     enemies: [
+      { x: .52, z: .21, a: 0, range: 14, arc: Math.PI * .6, hp: 3 },   // v46: guarding the optional objective
       { x: .588, z: .74, a: -Math.PI * .5, range: 18, arc: Math.PI * .55, hp: 3, rim: true },
       { x: .332, z: .46, a: Math.PI * .5, range: 18, arc: Math.PI * .55, hp: 3, rim: true },
       { x: .508, z: .4, a: -Math.PI * .6, range: 18, arc: Math.PI * .55, hp: 3, rim: true },
@@ -6096,18 +6112,19 @@ const MISSIONS = [
           [.72,.58],[.86,.52],[.26,.72],[.62,.72],[.16,.2],[.86,.18]].map(([x, z]) => ({ t: 'tree', x, z })),
       ...[[.16,.36],[.84,.3],[.44,.55],[.64,.5]].map(([x, z]) => ({ t: 'rock', x, z })),
     ],
-    spawnZ: .9, grenades: 8, reinf: 5, alertThreshold: .6, diff: 0.55, pilot: true, hostage: { x: .47, z: .27 },
-    objectives: [{ t: 'rescue', label: 'Find the downed pilot' }, { t: 'extract', label: 'Get him back to our lines' }], extract: { x: .5, z: .95, r: 7 },
+    spawnZ: .9, grenades: 8, reinf: 5, alertThreshold: .6, diff: 0.5, pilot: true, hostage: { x: .47, z: .27 },
+    objectives: [{ t: 'rescue', unseen: true, label: 'Reach the pilot unseen — if they see you, they shoot him', fail: ['THEY SHOT THE PILOT', 'they saw you coming'] }, { t: 'extract', label: 'Get him back to our lines' }], extract: { x: .5, z: .95, r: 7 },   // v47: unseen
   },
   {
     name: 'HQ Assault', sniper: true,
+    optional: [{ t: 'radio', x: .09, z: .5 }],   // v46: an optional objective
     roads: [{ k: 'road', w: 3.8, pts: [[.5, 1.0], [.52, .62], [.5, .30]] }],
     obj: 'Eliminate the commander',
     sub: 'Sector 3 · Dawn · Fog',
     brief: 'A walled compound in thick fog, a full garrison, and an officer in the middle of it who is the only one that matters. He keeps two men at his elbow. Kill him and the rest is somebody else\'s problem. He has a peaked cap and a gold cone — you will know him. So will they, which is why he is not standing near the gate.',
     weather: 'fog', scatter: 48,
     win: 'commander',
-    objectives: [{ t: 'commander' }, { t: 'extract', label: 'Back out the way you came' }], extract: { x: .5, z: .95, r: 7 },
+    objectives: [{ t: 'commander', label: 'Kill the officer before his car comes', time: 360, clock: 'CAR', clockNote: 'his car comes for him', fail: ['HE GOT AWAY', 'his car came and he was in it'] }, { t: 'extract', label: 'Back out the way you came' }], extract: { x: .5, z: .95, r: 7 },   // v47: against the clock
     enemies: [
       { x: .2, z: .38, a: Math.PI * .3, range: 14.9, arc: Math.PI * .65, hp: 4, patrol: [{ x: .12, z: .32 }, { x: .28, z: .44 }] },
       { x: .8, z: .38, a: Math.PI * .7, range: 14.9, arc: Math.PI * .65, hp: 4, patrol: [{ x: .72, z: .32 }, { x: .88, z: .44 }] },
@@ -6154,7 +6171,7 @@ const MISSIONS = [
            'way up: a track cut into the cliff on the west. A pillbox sits near the top of it, facing out over the field — its back is to ' +
            'the path, and you will come up beside it. Wreck the guns with a grenade or spike them quietly, three seconds a gun. Once they ' +
            'stop, the pickup is at the far end of the plateau.',
-    weather: null, scatter: 36, diff: 0.6, noExtras: true, charges: 2, artillery: true, mist: true,
+    weather: null, scatter: 36, diff: 0.68, noExtras: true, charges: 2, artillery: true, mist: true,
     mesas: [{ x: 0, z: 0, w: 1, d: .44, h: 6, ramps: [{ fx: .14, fz: .68, tx: .14, tz: .4, w: 3.6 }] }],
     targets: [{ t: 'pillbox', x: .25, z: .36, a: 0 }, { t: 'gun', x: .5, z: .2, a: 0 }, { t: 'gun', x: .66, z: .14, a: 0 }, { t: 'gun', x: .82, z: .22, a: 0 }],
     objectives: [{ t: 'destroy', what: 'gun', label: 'Silence the guns' }, { t: 'extract', label: 'The pickup at the far end of the plateau' }], extract: { x: .93, z: .06, r: 5 },
@@ -6223,11 +6240,12 @@ const MISSIONS = [
       { x: .76, z: .40, a: Math.PI * 1.4, range: 13, arc: Math.PI * .7, hp: 3, patrol: [{ x: .76, z: .30 }, { x: .76, z: .58 }] },   // east, outside the wire
       { x: .22, z: .36, a: Math.PI * .5, range: 13, arc: Math.PI * .7, hp: 3, patrol: [{ x: .22, z: .30 }, { x: .22, z: .56 }] },    // west, outside the wire
     ],
-    diff: 0.7,
+    diff: 0.76,
     spawnZ: .95, grenades: 6, reinf: 0, alertThreshold: .6, noExtras: true,
   },
   {
     name: 'Final Push', sniper: true, rail: true,
+    optional: [{ t: 'radio', x: .12, z: .76 }, { t: 'prisoner', x: .88, z: .76 }],   // v46: an optional objective
     roads: [{ k: 'road', w: 3.8, pts: [[.5, 1.0], [.5, .60], [.5, .30]] }],
     obj: 'Kill the General',
     sub: 'Sector 0 · Fog · Everything at once',
@@ -6240,6 +6258,7 @@ const MISSIONS = [
     water: [{ x1: 0, z1: .35, x2: .3, z2: .5 }, { x1: .7, z1: .35, x2: 1, z2: .5 }],
     bridge: [{ x1: .3, z1: .35, x2: .38, z2: .5 }, { x1: .62, z1: .35, x2: .7, z2: .5 }],
     enemies: [
+      { x: .15, z: .8, a: 0, range: 15, arc: Math.PI * .6, hp: 3 }, { x: .85, z: .8, a: 0, range: 15, arc: Math.PI * .6, hp: 3 },   // v46: guarding the optional objective
       { x: .5, z: .19, a: Math.PI * .5, range: 21, arc: Math.PI * .9, hp: 8, rapidFire: true, isCommander: true },
       { x: .38, z: .2, a: Math.PI * .4, range: 20.7, arc: Math.PI * .6, hp: 4, rapidFire: true },
       { x: .62, z: .2, a: Math.PI * .6, range: 20.7, arc: Math.PI * .6, hp: 4 },   // v17: was a second machine gun
@@ -6277,8 +6296,8 @@ const MISSIONS = [
       { t: 'rock', x: .25, z: .55 },
       { t: 'rock', x: .75, z: .55 },
     ],
-    diff: 0.45,
-    spawnZ: .92, grenades: 8, reinf: 4, alertThreshold: .6,   // v17: was 8 at .35 — reinforcements arrived with the first shot
+    diff: 0.85,
+    spawnZ: .92, grenades: 8, reinf: 6, alertThreshold: .5,   // v17: was 8 at .35 — reinforcements arrived with the first shot
   },
   {
     name: 'Room Clearance',
@@ -6447,7 +6466,7 @@ const MISSIONS = [
     water: [{ x1: .62, z1: 0, x2: .72, z2: 1 }],
     bridge: [{ x1: .612, z1: .372, x2: .728, z2: .428, rail: true }],
     targets: [{ t: 'bridge', b: 0 }, { t: 'pillbox', x: .565, z: .475, a: 0 }],
-    objectives: [{ t: 'destroy', what: 'bridge', label: 'Blow the rail bridge: a charge on the deck or at its foot' }, { t: 'extract', label: 'Back to our lines' }], extract: { x: .5, z: .95, r: 7 },
+    objectives: [{ t: 'destroy', what: 'bridge', label: 'Drop the bridge before the ammunition train crosses', time: 180, race: 'train', clockNote: 'the ammunition train is due', fail: ['IT GOT THROUGH', 'the ammunition train is across the river'] }, { t: 'extract', label: 'Back to our lines' }], extract: { x: .5, z: .95, r: 7 },   // v47: race the train
     enemies: [
       { x: .595, z: .445, a: Math.PI * .2, range: 15, arc: Math.PI * .6, hp: 3 },
       { x: .78, z: .47, a: -Math.PI * .5, range: 24, arc: Math.PI * .45, hp: 3, rapidFire: true },
@@ -6718,6 +6737,7 @@ let kills = 0, phase = 'title', paused = false;
 let globalAlert = 0, missionTime = 0, grenCount = 8, startGren = 8, everSpotted = false, weapon = 'gun';
 let wavering = false;   // v20: the officer is dead and there is a way home — his men hold, they do not hunt
 let reinfSent = false, hitStop = 0, outcome = null, weatherFog = false;
+let reinfBlocked = false, optSteps = [], recruits = [];   // v46: optional objectives (a radio cut means no reinforcements; a freed man joins the squad)
 let bloodTimer = 0, squadProne = false, noiseTimer = 0, spotted = false;
 /* v32 squad split: two fireteams. Off, the squad is one snake as before. Split, team A (the first half of the
    line) and team B each have their own leader, trail, stance and suppression; orders go to the selected team,
@@ -8210,6 +8230,15 @@ function buildTargets(M) {
     else if (t.t === 'bridge') { const r = bridgeZones[t.b || 0]; T.zone = r; T.mesh = bridges[t.b || 0]; T.x = (r.x0 + r.x1) / 2; T.z = (r.z0 + r.z1) / 2; }
     targets.push(T);
   }
+  // v46: optional objectives. A radio becomes a target flagged optional; a prisoner waits to be freed
+  for (const h of recruits) { if (h.F) unitRoot.remove(h.F.root); if (h.ring) scene.remove(h.ring); }
+  recruits = []; optSteps = [];
+  for (const o of (M.optional || [])) {
+    const st = { ...o, done: false };
+    if (o.t === 'radio') { const T = { kind: 'radio', x: o.x * MW, z: o.z * MH, a: o.a || 0, dead: false, optional: true, opt: st }; mkRadio(T); targets.push(T); st.T = T; }
+    else if (o.t === 'prisoner') { const h = mkHostage(o.x * MW, o.z * MH); h.opt = st; recruits.push(h); st.h = h; }
+    optSteps.push(st);
+  }
   if (M.intel) { intel = { x: M.intel.x * MW, z: M.intel.z * MH }; mkIntel(intel); }
   if (M.extract) { extractPt = { x: M.extract.x * MW, z: M.extract.z * MH, r: M.extract.r || 6 }; mkExtract(extractPt); }
   objSteps = (M.objectives || [{ t: M.win === 'all' || !M.win ? 'kill' : M.win }]).map(s => ({ ...s }));
@@ -8246,7 +8275,8 @@ function destroyTarget(T, how) {
   } else if (T.kind === 'radio') {
     T.mast.rotation.z = 1.2; T.mast.position.y -= 0.4; T.ring.visible = false;
     spawnParts(T.x, groundY(T.x, T.z) + 0.8, T.z, 14, 0xfff0a0, 6, 0.06, 0.5, 8);
-    showToast('RADIO OUT', how === 'quiet' ? 'smashed, quietly' : 'nobody is calling anybody');
+    if (T.optional) { reinfBlocked = true; T.opt.done = true; showToast('RADIO CUT', 'nobody is coming to help them now'); }   // v46
+    else showToast('RADIO OUT', how === 'quiet' ? 'smashed, quietly' : 'nobody is calling anybody');
   } else if (T.kind === 'lorry') {
     lorryFireball(T); addSmoker(T.x, T.z, { life: 70, rate: 5, size: 2.2, col: 0x1e1d1c, a: 0.65, rise: 2.6, burst: 8 });   // v31
     showToast('FUEL LORRY GONE', 'they will be walking tomorrow');
@@ -8293,15 +8323,82 @@ const stepDone = s => {
     case 'commander': return !ens.some(e => !e.dead && e.cmd);
     case 'rescue': return !!(hostage && hostage.rescued);
     case 'liberate': return !ens.some(e => !e.dead && !e.dog) && prisoners.every(h => h.rescued);
-    case 'destroy': { const L = targets.filter(t => !s.what || t.kind === s.what); return L.length > 0 && L.every(t => t.dead); }
+    case 'destroy': { const L = targets.filter(t => !t.optional && (!s.what || t.kind === s.what)); return L.length > 0 && L.every(t => t.dead); }
     case 'take': return !!(intel && intel.taken);
     case 'free': return prisoners.length > 0 && prisoners.every(h => h.rescued);
     case 'killTag': { const L = ens.filter(e => e.tag === s.tag); return L.length > 0 && L.every(e => e.dead); }
+    case 'hold': return (s.held || 0) >= s.time;   // v47
     // the leader in the ring and the file close behind him (they walk in single file, so the last man trails by a few metres)
     case 'extract': { const live = sol.filter(q => !q.dead); return !!extractPt && live.length > 0 && Math.hypot(live[0].x - extractPt.x, live[0].z - extractPt.z) < extractPt.r && live.every(q => Math.hypot(q.x - extractPt.x, q.z - extractPt.z) < extractPt.r + 7) && !(hostage && hostage.rescued && Math.hypot(hostage.x - extractPt.x, hostage.z - extractPt.z) > extractPt.r + 7); }
   }
   return false;
 };
+function joinRecruit(h) {
+  h.opt.done = true; h.ring.visible = false; unitRoot.remove(h.F.root);
+  const name = reservePool.length ? reservePool.splice((Math.random() * reservePool.length) | 0, 1)[0] : 'Dixon';
+  const g = newGrunt(name, 0); if (!daily) roster.push(g);   // he stays: on the roster from now on (a reserve while four are fit)
+  const i = sol.filter(q => !q.sniper).length;
+  const u = mkUnit({ name, colour: P.friendly[i % P.friendly.length], hp: 3 + upgLvl('vest'), ref: g }, false);
+  const K = KIT.rifle; u.kit = 'rifle'; u.K = K; u.acc *= K.acc * (1 - 0.12 * upgLvl('range')); u.dressing = upgLvl('dress') > 0;
+  u.x = h.x; u.z = h.z; u.tx = u.x; u.tz = u.z; u.angle = u.aim = Math.PI; u.barOff = i * 0.17; u.team = 0;
+  applyTrait(u, traitOf(g));
+  const si = sol.findIndex(q => q.sniper); if (si >= 0) sol.splice(si, 0, u); else sol.push(u);
+  showToast('ONE MORE', `Pte. ${name} takes a rifle off a dead man and falls in`);
+  say(u, 'rescue'); updateHUD(); teamUI(); updObjBar();
+}
+const OPT_TXT = { radio: 'Cut the radio — no reinforcements', prisoner: 'Free the prisoner — he joins you' };
+/* v47: three new kinds of pressure on an objective step, all data-driven:
+   time: N        the step must be done within N seconds of it starting, or the op is lost (fail: [title, line]).
+                  race: 'train' — when the clock runs out an ammunition train comes through (from the west, whistling),
+                  and the op is lost only if it gets past the target. Blow the bridge with it on top and it goes too.
+   t: 'hold'      keep at least one man inside the ring (x, z, r) for time seconds; waves of reinforcements come at it.
+                  The clock only runs while someone is in the ring.
+   unseen: true   if the enemy sees you while this step is on, the op is lost (fail: [title, line]). */
+let failWhy = null, holdMark = null, objTimerEl = null;
+function objTimer(txt, hot) {
+  if (!objTimerEl) { objTimerEl = document.createElement('div'); objTimerEl.id = 'otime'; document.body.appendChild(objTimerEl); }
+  objTimerEl.style.display = txt ? 'block' : 'none'; if (txt) { objTimerEl.textContent = txt; objTimerEl.className = hot ? 'hot' : ''; }
+}
+const mmss = t => `${Math.floor(Math.max(0, t) / 60)}:${String(Math.floor(Math.max(0, t) % 60)).padStart(2, '0')}`;
+function failOp(why) { if (outcome) return; failWhy = why; endMission(false); }
+function stepObjRules(s, dt) {
+  if (!s.started) {
+    s.started = true; s.left = s.time; s.held = 0; s.waveT = 6; s.waves = 0; s.seen0 = everSpotted || spotted;
+    if (s.t === 'hold') {
+      if (!holdMark) { holdMark = new THREE.Mesh(new THREE.RingGeometry(0.93, 1, 48), basic(0xffc23d, { transparent: true, opacity: 0.7, depthWrite: false, side: THREE.DoubleSide }).clone()); holdMark.rotation.x = -Math.PI / 2; holdMark.renderOrder = 3; fxRoot.add(holdMark); }
+      const x = s.x * MW, z = s.z * MH; s.px = x; s.pz = z; holdMark.scale.setScalar(s.r); holdMark.position.set(x, groundY(x, z) + 0.09, z); holdMark.visible = true;
+      showToast('HOLD', s.label || 'hold this ground');
+    }
+    if (s.time && s.t !== 'hold') showToast('THE CLOCK IS RUNNING', `${mmss(s.time)} — ${s.clockNote || 'do it in time'}`);
+  }
+  if (s.unseen && !s.seen0 && (spotted || everSpotted)) { failOp(s.fail || ['SEEN', 'and that was the whole point']); return; }
+  if (s.t === 'hold') {
+    const inRing = sol.some(q => !q.dead && Math.hypot(q.x - s.px, q.z - s.pz) < s.r);
+    if (inRing) s.held += dt;
+    holdMark.material.opacity = inRing ? 0.75 : 0.35 + Math.abs(Math.sin(missionTime * 4)) * 0.4;
+    objTimer(`HOLD ${mmss(s.time - s.held)}`, !inRing);
+    s.waveT -= dt;
+    if (s.waveT <= 0 && s.waves < (s.nWaves || 3)) { s.waves++; s.waveT = s.time / (s.nWaves || 3); spawnReinforcements(s.wave || 3); }
+    if (s.held >= s.time) { holdMark.visible = false; objTimer(null); showToast('HELD', s.done || 'the relief is through'); }
+    return;
+  }
+  if (s.time) {
+    if (s.race === 'train') {
+      if (!s.train) {
+        s.left -= dt; objTimer(s.left > 0 ? `TRAIN ${mmss(s.left)}` : 'TRAIN DUE', s.left < 30);
+        trainHold = s.left < 50;   // the line is kept clear for it
+        if (s.left <= 0 && railDead) { s.train = { dead: true, cars: [] }; objTimer(null); showToast('THE LINE IS CUT', 'nothing is getting through now — the bridge still has to go'); }
+        else if (s.left <= 0 && !trains.some(t => !t.dead)) { s.train = spawnTrain({ fwd: true, ammo: true }) || { dead: true, cars: [] }; objTimer('TRAIN COMING', true); showToast('THE AMMUNITION TRAIN', 'it is coming — drop the bridge now'); }
+      } else {
+        const T = targets.find(q => q.kind === s.what && !q.optional);
+        if (T && !T.dead && !s.train.dead && s.train.cars[s.train.cars.length - 1].x > T.x + 10) failOp(s.fail || ['IT GOT THROUGH', 'the ammunition train is across']);
+      }
+    } else {
+      s.left -= dt; objTimer(`${s.clock || 'TIME'} ${mmss(s.left)}`, s.left < 30);
+      if (s.left <= 0) failOp(s.fail || ['TOO LATE', 'the moment has gone']);
+    }
+  }
+}
 let objBarHTML = '';
 function updObjBar() {
   const el = $('objbar'); if (!el) return;
@@ -8309,7 +8406,8 @@ function updObjBar() {
   if (!s) { el.style.display = 'none'; objBarHTML = ''; return; }
   // counts (patrol 2/4, prisoners 1/4, guns 1/3) refresh as they change; only touch the DOM when the text does
   const lab = (s.t === 'killTag' || s.t === 'free' || s.t === 'destroy') ? OBJ_LABEL[s.t](s) + (s.label && s.t !== 'destroy' ? '' : '') : (s.label || OBJ_LABEL[s.t](s));
-  const html = `<span>${objSteps.length > 1 ? `OBJECTIVE ${objIdx + 1}/${objSteps.length}` : 'OBJECTIVE'}</span> ${s.t === 'destroy' && s.label ? s.label + ' ' + (OBJ_LABEL.destroy(s).match(/\(\d+\/\d+\)/) || [''])[0] : lab}`;
+  const opt = optSteps.map(o => `<div class="opt${o.done ? ' done' : ''}"><span>OPTIONAL</span> ${o.label || OPT_TXT[o.t]}${o.done ? ' ✓' : ''}</div>`).join('');   // v46
+  const html = `<span>${objSteps.length > 1 ? `OBJECTIVE ${objIdx + 1}/${objSteps.length}` : 'OBJECTIVE'}</span> ${s.t === 'destroy' && s.label ? s.label + ' ' + (OBJ_LABEL.destroy(s).match(/\(\d+\/\d+\)/) || [''])[0] : lab}${opt}`;
   if (html !== objBarHTML) { objBarHTML = html; el.style.display = 'block'; el.innerHTML = html; }
 }
 function stepObjectives(dt) {
@@ -8340,8 +8438,11 @@ function stepObjectives(dt) {
     }
   }
   if (!s || outcome) return;
+  stepObjRules(s, dt);   // v47: clocks, holding a position, staying unseen
+  if (outcome) return;
   updObjBar();
   if (stepDone(s)) {
+    objTimer(null); if (holdMark) holdMark.visible = false;
     objIdx++;
     const n = objSteps[objIdx];
     if (!n) { endMission(true); return; }
@@ -8354,7 +8455,7 @@ function stepObjectives(dt) {
 function initMission(idx) {
   const M = MISSIONS[idx];
   clearMission();
-  kills = 0; globalAlert = 0; missionTime = 0; reinfSent = false; wavering = false; outcome = null;
+  kills = 0; globalAlert = 0; missionTime = 0; reinfSent = false; reinfBlocked = false; wavering = false; outcome = null;
   grenCount = startGren = M.grenades + upgLvl('webb'); everSpotted = false; weapon = 'gun'; setWeapon('gun');
   hitStop = 0; bloodTimer = 0; camShake = 0; squadProne = false; noiseTimer = 0; spotted = false;
   split = false; selTeam = 0; teamProne = [false, false, false]; teamSup = [null, null, null]; posH2 = []; pinShown = false;   // v32
@@ -8927,7 +9028,7 @@ function planThroughRoad(M) {
    scatter, trees and the forest wall keep off it. */
 const RAIL = { hw: 1.8, top: 0.27, speed: 9, gauge: 0.72, interval: [48, 75], first: [14, 26], sight: 22, ext: 75, spread: 0.17, burstGap: 2.0 };
 const railRoot = new THREE.Group(); scene.add(railRoot);
-let railLine = null, railPath = null, trains = [], trainT = 0, trainsLive = false, trainWarned = false, railDead = false, _losSkipTrain = null;
+let trainHold = false, railLine = null, railPath = null, trains = [], trainT = 0, trainsLive = false, trainWarned = false, railDead = false, _losSkipTrain = null;
 function setRailLine(pts) {
   railLine = pts ? { pts, w: RAIL.hw * 2 } : null; railPath = null;
   if (!pts) return;
@@ -8947,7 +9048,7 @@ function railDelta() {
   const j0 = Math.max(0, Math.floor((z0 - reach - RD_X0) / RD_S)), j1 = Math.min(RD_N - 1, Math.ceil((z1 + reach - RD_X0) / RD_S));
   for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
     const x = RD_X0 + i * RD_S, z = RD_X0 + j * RD_S, d = segDist(P, x, z);
-    if (d > reach || waterFactor(x, z) > 0.02 || onBridge(x, z, 0.3)) continue;
+    if (d > reach || waterFactor(x, z) > 0.02 || (onBridge(x, z, 0.3) && !bridgeZones.some(r => r.rail && inRect(r, x, z, 0.3)))) continue;   // v45: the rail bank's level carries on over a rail bridge
     const k = j * RD_N + i, v = roadProfile(true, d / hw);
     roadDelta[k] = Math.max(roadDelta[k], v); roadFoot[k] = 1;
   }
@@ -8971,11 +9072,11 @@ function densifyLine(pts, step) {
 function buildRailStrip() {
   for (const m of railRoot.children.slice()) { railRoot.remove(m); m.geometry.dispose(); }
   if (!railLine) return;
-  if (!railMat) { railMat = roadMat.clone(); railMat.map = RTEX.ballast; railMat.polygonOffsetUnits = -7; }
+  if (!railMat) { railMat = roadMat.clone(); railMat.map = RTEX.ballast; railMat.polygonOffsetUnits = -7; railMat.flatShading = true; }
   railMat.shininess = weatherRain ? 22 : 3;
   const hw = RAIL.hw, P = densifyLine(railLine.pts, 0.68), c = new THREE.Color();
   const cols = [[-hw * 1.6, -0.3], [-hw * 1.22, -0.05], [-hw * 0.95, 0.1], [-hw * 0.5, 0.3], [0, 0.5], [hw * 0.5, 0.7], [hw * 0.95, 0.9], [hw * 1.22, 1.05], [hw * 1.6, 1.3]];
-  const ok = (x, z) => beyondEdge(x, z) < 9 && waterFactor(x, z) < 0.04 && !onBridge(x, z, 0.3);
+  const ok = (x, z) => beyondEdge(x, z) < 9 && waterFactor(x, z) < 0.04 && !onBridge(x, z, 0.3) && !bridgeZones.some(r => r.rail && inRect(r, x, z, 2.0));   // v45: a rail bridge's own rails run 2 m onto each bank
   const rows = [], frame = [];
   let S = 0;
   for (let i = 0; i < P.length; i++) {
@@ -9099,9 +9200,10 @@ function trainGeo(kind) {
   return (trainGeoCache[kind] = mergeGeos(p));
 }
 const TRAIN_ORDER = [['guard', 'gun', 'mg', 'loco', 'tender', 'command'], ['guard', 'mg', 'loco', 'tender', 'command'], ['mg', 'loco', 'tender', 'guard']];
-function spawnTrain() {
+function spawnTrain(o) {
+  o = o || {};
   if (!railPath || railDead) return;
-  const fwd = Math.random() < 0.5, pts = fwd ? railPath : railPath.slice().reverse();
+  const fwd = o.fwd !== undefined ? o.fwd : Math.random() < 0.5, pts = fwd ? railPath : railPath.slice().reverse();
   const cum = [0]; for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
   const order = TRAIN_ORDER[(Math.random() * TRAIN_ORDER.length) | 0], cars = []; let off = 0;
   for (const kind of order) {
@@ -9110,8 +9212,8 @@ function spawnTrain() {
     cars.push({ kind, len, off, mesh, x: pts[0][0], z: pts[0][1], yaw: 0, vis: false, ob: { type: 'train', tall: true, h: 3.6, cx: 0, cz: 0 } });
     off += len / 2 + 0.9;
   }
-  const t = { pts, cum, total: cum[cum.length - 1], cars, len: off, s: 0, speed: RAIL.speed, spotted: false, burst: 0, fireT: 1, whistled: false, dead: false, chuffT: 0 };
-  trains.push(t); placeTrain(t);
+  const t = { pts, cum, total: cum[cum.length - 1], cars, len: off, s: 0, speed: RAIL.speed, spotted: false, burst: 0, fireT: 1, whistled: false, dead: false, chuffT: 0, ammo: !!o.ammo };
+  trains.push(t); placeTrain(t); return t;
 }
 function trainAt(t, s) {
   const c = t.cum; s = clamp(s, 0, t.total);
@@ -9123,7 +9225,8 @@ function placeTrain(t) {
   for (const car of t.cars) {
     const sc = t.s - car.off, [fx, fz] = trainAt(t, sc + car.len * 0.35), [bx, bz] = trainAt(t, sc - car.len * 0.35);
     car.x = (fx + bx) / 2; car.z = (fz + bz) / 2; car.yaw = Math.atan2(fx - bx, fz - bz);
-    car.mesh.position.set(car.x, groundY(car.x, car.z) + RAIL.top, car.z); car.mesh.rotation.y = car.yaw;
+    const brz = bridgeZones.find(r => r.rail && r.deckY !== undefined && inRect(r, car.x, car.z, 2.0));   // v45: on a rail bridge, ride on its deck
+    car.mesh.position.set(car.x, (brz ? brz.deckY : groundY(car.x, car.z)) + RAIL.top, car.z); car.mesh.rotation.y = car.yaw;
     car.vis = car.mesh.visible = beyondEdge(car.x, car.z) < 5.4;   // hidden inside the hill past the portal mouth
     car.ob.cx = car.x; car.ob.cz = car.z;
   }
@@ -9166,7 +9269,7 @@ SFX.whistle = (x, z) => { if (!AC) return; const { g, p } = place(x, z), v = 0.0
 function stepTrains(dt) {
   if (!railPath) { trainsLive = false; return; }
   trainT -= dt;
-  if (trainT <= 0 && !trains.length && !railDead) { spawnTrain(); trainT = RAIL.interval[0] + Math.random() * (RAIL.interval[1] - RAIL.interval[0]); }
+  if (trainT <= 0 && !trains.length && !railDead && !trainHold) { spawnTrain(); trainT = RAIL.interval[0] + Math.random() * (RAIL.interval[1] - RAIL.interval[0]); }
   trainsLive = trains.length > 0;
   for (let k = trains.length - 1; k >= 0; k--) {
     const t = trains[k];
@@ -9225,7 +9328,8 @@ function derailNear(x, z, r) {
   }
   return false;
 }
-function clearTrains() { for (const t of trains) for (const car of t.cars) propRoot.remove(car.mesh); trains = []; trainsLive = false; trainWarned = false; railDead = false; trainT = RAIL.first[0] + Math.random() * (RAIL.first[1] - RAIL.first[0]); }
+function clearTrains() {
+  trainHold = false; for (const t of trains) for (const car of t.cars) propRoot.remove(car.mesh); trains = []; trainsLive = false; trainWarned = false; railDead = false; trainT = RAIL.first[0] + Math.random() * (RAIL.first[1] - RAIL.first[0]); }
 
 /*───────────────────── traffic: jeeps, lorries and motorcycles on the road ─────────────────────
    They drive the through road both ways and do not stop for anyone: stand in the road and you are
@@ -10072,7 +10176,8 @@ function update(dt) {
   else if (anySee) globalAlert = Math.min(globalAlert + dt * 0.22, 1.0);
   if (M.truck) {
     // the clock starts the first time the camp is alarmed; a truck with six men arrives when it runs out
-    if (truckT < 0 && (spotted || globalAlert > 0.9)) { truckT = truckTotal; showToast('THEY ARE ON THE RADIO', `truck in ${Math.floor(truckTotal / 60)} minutes`); $('truck').style.display = 'block'; }
+    if (truckT < 0 && !reinfBlocked && (spotted || globalAlert > 0.9)) { truckT = truckTotal; showToast('THEY ARE ON THE RADIO', `truck in ${Math.floor(truckTotal / 60)} minutes`); $('truck').style.display = 'block'; }
+    if (truckT > 0 && !truck && reinfBlocked) { truckT = -1; $('truck').style.display = 'none'; showToast('TRUCK CALLED OFF', 'they never got the message through'); }
     if (truckT > 0 && !truck) {
       truckT -= dt;
       const m = Math.floor(truckT / 60), sec = Math.floor(truckT % 60);
@@ -10080,7 +10185,7 @@ function update(dt) {
       if (truckT <= 0) sendTruck();
     }
     if (truck) stepTruck(dt);
-  } else if (!reinfSent && globalAlert >= (M.alertThreshold || 0.7) + 0.95) {
+  } else if (!reinfSent && !reinfBlocked && globalAlert >= (M.alertThreshold || 0.7) + 0.95) {
     reinfSent = true;
     spawnReinforcements(Math.max(2, Math.round((M.reinf || 4) * 0.6)) + Math.round(2 * diffD));
   }
@@ -10189,6 +10294,13 @@ function update(dt) {
     }
   }
 
+  // v46: an optional prisoner — one of ours, in their hands. Reach him and he picks up a rifle and joins the squad
+  for (const h of recruits) {
+    if (h.opt.done) continue;
+    const gy = groundY(h.x, h.z);
+    h.F.root.position.set(h.x, gy, h.z); h.F.root.rotation.y = Math.PI; h.ring.position.set(h.x, gy + 0.07, h.z); h.ring.scale.setScalar(1 + Math.sin(missionTime * 3) * 0.09);
+    if (sol.some(s => !s.dead && !s.sniper && dst(s, h) < 1.9)) joinRecruit(h);
+  }
   for (const h of prisoners) {
     const gy = groundY(h.x, h.z);
     if (!h.rescued) {
@@ -10975,6 +11087,7 @@ function showBrief() {
   $('bsub').textContent = M.sub;
   $('bobj').textContent = M.obj;
   $('btxt').textContent = M.brief;
+  if (M.optional && M.optional.length) { const d = document.createElement('div'); d.className = 'bopt'; d.innerHTML = '<b>OPTIONAL</b> ' + M.optional.map(o => o.label || OPT_TXT[o.t]).join(' · '); $('btxt').appendChild(d); }   // v46
   $('bopp').textContent = `${missionEnemies(M).length + (M.targets || []).filter(t => t.t === 'pillbox').length * 2} identified. Reinforcements likely if the noise gets out of hand.`;
   const c = $('bcrew'); c.innerHTML = '';
   const crew = activeRoster();
@@ -11011,7 +11124,7 @@ let introT = 0, introDur = 3.6;
 const introA = new THREE.Vector3(), introB = new THREE.Vector3(), introLA = new THREE.Vector3(), introLB = new THREE.Vector3();
 function objectivePoint() {
   const cmd = ens.find(e => e.cmd);
-  const T0 = targets.find(t => !t.dead); if (T0) return { x: T0.x, z: T0.z };
+  const T0 = targets.find(t => !t.dead && !t.optional); if (T0) return { x: T0.x, z: T0.z };   // v46: the flyover shows the main job, not the optional radio
   if (intel && !intel.taken) return { x: intel.x, z: intel.z };
   if (objective === 'extract' && extractPt) return { x: extractPt.x, z: extractPt.z };
   if (objective === 'commander' && cmd) return { x: cmd.x, z: cmd.z };
@@ -11078,7 +11191,8 @@ function endMission(won) {
   // the last shot lands in slow motion, with the band under water
   slowT = won ? 1.35 : 1.0; muffleMusic(1);
   const wt = WIN_TOAST[objective] || WIN_TOAST.all;
-  setTimeout(() => showToast(won ? wt[0] : 'SQUAD LOST', won ? wt[1] : 'the war continues without you'), 500);
+  const fw = failWhy; failWhy = null; objTimer(null);
+  setTimeout(() => showToast(won ? wt[0] : fw ? fw[0] : 'SQUAD LOST', won ? wt[1] : fw ? fw[1] : 'the war continues without you'), 500);
   if (won) { const w = sol.find(s => !s.dead); if (w) setTimeout(() => say(w, 'win'), 1200); }
   setTimeout(() => fadeTo(() => showDebrief(won)), 3000);
 }
@@ -11946,6 +12060,9 @@ window.GS = { MISSIONS, get roster() { return roster; }, get fallen() { return f
   trees() { return obs.filter(o => o.type === 'tree').map(o => [+o.x.toFixed(1), +o.z.toFixed(1)]); },
   portals() { return portals.map(q => [+q.x.toFixed(1), +q.z.toFixed(1), q.nx, q.nz]); },
   // v43: the railway. GS.train() sends one now; GS.trains() reports them; GS.rail() the line
+  opt() { return { steps: optSteps.map(o => [o.t, o.done]), reinfBlocked, squad: sol.filter(q => !q.dead).map(q => q.name), roster: roster.length }; },
+  alarm() { globalAlert = 2; spotted = true; return globalAlert; },
+  objs() { return { idx: objIdx, steps: objSteps.map(o => ({ t: o.t, started: o.started, left: o.left, held: o.held, seen0: o.seen0, unseen: o.unseen })), everSpotted, spotted }; },
   blow(i) { const T = targets.filter(q => !q.dead)[i || 0]; if (!T) return null; destroyTarget(T, 'charge'); return T.kind; },
   derail() { const t = trains[0]; if (!t) return false; const c = t.cars.find(q => q.vis); return c ? derailNear(c.x, c.z, 1) : false; },
   train() { trainT = 0; trains.length || spawnTrain(); return trains.length; },
