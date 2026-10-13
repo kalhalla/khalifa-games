@@ -363,7 +363,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
     <button id="tset">SETTINGS <small>sound · music · graphics</small></button>
   </div>
   <div class="foot">© GAMELAB · NO GRUNTS WERE CONSULTED</div>
-  <div id="tver">v49</div>
+  <div id="tver">v50</div>
 </div>
 
 <div id="ops" class="screen">
@@ -1052,7 +1052,7 @@ function roadFloorY(x, z) { return tunnels.length && tunAt(x, z) ? groundY(x, z)
 // groundY() stays the single source of truth for everything that stands on the map.
 let waterZones = [], bridgeZones = [];
 let mesas = [];   // v19: raised plateaus, each with its ramps (see the terrain kit)
-const WATER_DEPTH = 2.0, WATER_DROP = 0.7;     // bed carve, and surface below the bank (v23: 0.52 → 0.7, so a cut earth bank shows)
+const WATER_DEPTH = 2.4, WATER_DROP = 1.15;   // v50: the river lies lower in the land (was 2.0 / 0.7), about a metre of water mid-stream     // bed carve, and surface below the bank (v23: 0.52 → 0.7, so a cut earth bank shows)
 
 function inRect(r, x, z, pad) {
   const p = pad || 0;
@@ -1078,11 +1078,11 @@ function waterFactor(x, z, vis) {   // v49: vis = the river as drawn (it runs on
   let best = 0;
   for (let i = 0; i < waterZones.length; i++) {
     const r = waterZones[i];
-    if (x < r.x0 - 2 || x > r.x1 + 2 || z < r.z0 - 2 || z > r.z1 + 2) continue;
+    if (x < r.x0 - 2.3 || x > r.x1 + 2.3 || z < r.z0 - 2.3 || z > r.z1 + 2.3) continue;
     // v23: the bank wanders. It only ever moves outward from the rect (up to 0.75 m), never in, so the
     // water you can see is never dry land you can drown on; the lethal test (inDeepWater) still uses the rect.
     const inset = Math.min(x - r.x0, r.x1 - x, z - r.z0, r.z1 - z) + bankWobble(x, z);
-    const f = Math.max(0, Math.min(1, (inset + 0.8) / 1.6));
+    const f = Math.max(0, Math.min(1, (inset + 1.3) / 2.6));   // v50: a sloping bank 1.3 m wide down to the water (was 0.8)
     if (f > best) best = f;
   }
   if (best > 0 && !vis && onBridge(x, z, 0.75)) return 0;
@@ -1146,7 +1146,7 @@ gndGeo.setAttribute('aog', new THREE.BufferAttribute(new Float32Array(gndGeo.att
    mud round buildings, tan dirt on tracks, gravel on roads, a grey-green riverbed */
 const LP = { lush: SC(0x5c8c34), mid: SC(0x6a9840), deep: SC(0x4c7c2e), dry: SC(0x9a9a4a),
              meadow: SC(0x93ad46), moss: SC(0x3c6630), olive: SC(0x707c3a), sea: SC(0x4c7e52), clover: SC(0x7caa5a), straw: SC(0xb0a462), mud: SC(0x5e4630), mudWet: SC(0x3e2e22),
-             dirt: SC(0xa08660), dirtD: SC(0x8a7250), grav: SC(0x9c968a), bed: SC(0x8a8462), bedD: SC(0x6c6e56), sub: SC(0x4e5c4c),
+             dirt: SC(0xa08660), dirtD: SC(0x8a7250), grav: SC(0x9c968a), bed: SC(0x948c6a), bedD: SC(0x7e7a62), sub: SC(0x6e7262),
              // v23, after the prop sheet: cut earth on steep banks and cliffs, pebble beaches, period roads
              earth: SC(0x7a5434), earthD: SC(0x5c3e26), peb: SC(0x8e897b), pebD: SC(0x726d62),
              tar: SC(0x55534d), tarD: SC(0x46443f), verge: SC(0xa58a5e), rut: SC(0x7e6646) };
@@ -1542,7 +1542,7 @@ function terrCol(cx, cz, cy, ny, h, c) {
   let w0 = 0, w1 = 0, w2 = 0, w3 = 0;                  // splat weights: grass, mud, dirt, gravel
   const wf = waterFactor(cx, cz, true), pd = padBlend(cx, cz);   // v49: the bed under a bridge is coloured as bed
   const sy0 = baseY(cx, cz) - WATER_DROP;
-  if (ny < 0.72 && !(pd && pd.f > 0.5) && (wf > 0.02 ? cy > sy0 - 0.65 : true)) {
+  if (ny < 0.72 && !(pd && pd.f > 0.5) && wf <= 0.02) {   // v50: a river bank is mud and stones (below), not banded earth
     // a cut bank or cliff face: earth in bands, darker toward its foot
     const band = vnoise(cy * 2.2, (cx + cz) * 0.3);
     c.copy(LP.earth).lerp(LP.earthD, band * 0.6 + (1 - ny) * 0.3); w1 = 1;
@@ -1553,9 +1553,12 @@ function terrCol(cx, cz, cy, ny, h, c) {
     mudCol(cx, cz, h, c); w1 = 1;    // trodden mud round a building (v36: wet in the rain)
   } else if (wf > 0.02) {
     // the bank goes to wet mud, the bed to grey-green silt that darkens with depth
-    if (wf < 0.28) { c.copy(LP.mudWet).lerp(LP.mud, h * 0.4); w1 = 1; }
+    if (cy > sy0 - 0.05) {   // v50: the bank above the water: mud, wetter and darker toward the waterline, flecked with grit
+      const k = cl((cy - sy0) / 1.1, 0, 1); c.copy(LP.mudWet).lerp(LP.mud, 0.25 + k * 0.6 + h * 0.15); if (h > 0.78) c.lerp(LP.peb, 0.55); w1 = 0.7; w3 = 0.6;
+    }
+    else if (wf < 0.28) { c.copy(LP.mudWet).lerp(LP.mud, h * 0.4); w1 = 1; }
     else { c.copy(LP.bed).lerp(LP.bedD, cl((wf - 0.28) * 1.4, 0, 1)); w3 = 1; }
-    if (cy < sy0) c.lerp(LP.sub, cl((sy0 - cy) * 0.6, 0, 0.5));
+    if (cy < sy0) c.lerp(LP.sub, cl((sy0 - cy) * 0.4, 0, 0.35));
   } else {
     const rd = roadDist(cx, cz);
     if (rd && rd.t < (rd.kind !== 'track' ? 1.12 : 1)) {
@@ -1737,11 +1740,73 @@ function placeRiverRocks() {
         im.setMatrixAt(im.count++, d.matrix); riverRocks.push({ x, z, r: sc * 0.5 });
       }
     }
+    // v50: the odd big stone half out of the water at the bank's foot, and one or two up on the bank (no wake: riverRocks only counts stones in the stream)
+    for (const side of [0, 1]) for (let t = a0 + 2; t < a1 - 2; t += 5.5) {
+      if (hash2(t * 0.7, side + 11) > 0.45) continue;
+      const out = -0.15 - hash2(t, side + 5) * 0.9, x = alongX ? t + hash2(t, 2) * 2 : (side ? r.x1 - out : r.x0 + out), z = alongX ? (side ? r.z1 - out : r.z0 + out) : t + hash2(t, 2) * 2;
+      if (onBridge(x, z, 3)) continue;
+      const sc = 0.7 + hash2(x, z * 2) * 0.7, im = RROCK[(Math.abs(x * 5 + z) | 0) % 3];
+      if (im.count >= RROCK_MAX) continue;
+      d.position.set(x, terrainVisY(x, z) - 0.15 * sc, z); d.rotation.set(0, hash2(x, z) * 6.3, 0); d.scale.set(sc, sc * 0.9, sc); d.updateMatrix();
+      im.setMatrixAt(im.count++, d.matrix);
+    }
   }
   for (const im of RROCK) im.instanceMatrix.needsUpdate = true;
 }
+/* v50: moving water. A second sheet over each river, a few centimetres above the surface, white where the water breaks:
+   foam streaks drifting downstream, and for each of the larger stones in the stream a churning collar, a widening wake
+   of broken water behind it and two counter-rotating eddies in its lee. All in the fragment shader (uRock: up to 24
+   stones per river, 14 on a phone), faded out where the water is shallow so none of it lies on the bank. */
+const FOAM_MAX = MOBILE ? 14 : 24;
+function foamMat(rocks, dir, spd) {
+  const m = new THREE.MeshBasicMaterial({ color: 0xf2f7f8, transparent: true, depthWrite: false, opacity: 1 });
+  const u = { uRock: { value: [] }, uN: { value: 0 }, uDir: { value: new THREE.Vector2(dir[0], dir[1]) }, uSpd: { value: spd } };
+  for (let i = 0; i < FOAM_MAX; i++) u.uRock.value.push(new THREE.Vector3(1e4, 1e4, 0.1));
+  rocks.slice(0, FOAM_MAX).forEach((q, i) => u.uRock.value[i].set(q.x, q.z, q.r));
+  u.uN.value = Math.min(FOAM_MAX, rocks.length);
+  m.onBeforeCompile = sh => {
+    sh.uniforms.uT = waterU; Object.assign(sh.uniforms, u);
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aDep;\nvarying float vDep;\nvarying vec2 vWp;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\n  vDep = aDep; vWp = (modelMatrix * vec4(transformed, 1.0)).xz;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
+uniform float uT; uniform vec3 uRock[${FOAM_MAX}]; uniform int uN; uniform vec2 uDir; uniform float uSpd;
+varying float vDep; varying vec2 vWp;
+float fh(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float fn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(fh(i), fh(i + vec2(1.0, 0.0)), f.x), mix(fh(i + vec2(0.0, 1.0)), fh(i + vec2(1.0, 1.0)), f.x), f.y); }`)
+      .replace('#include <map_fragment>', `#include <map_fragment>
+  {
+    vec2 p = vWp, fd = uDir, pr = vec2(-fd.y, fd.x);
+    float a = dot(p, fd), b = dot(p, pr), t = uT, foam = 0.0;
+    float s = fn(vec2(a * 0.45 - t * uSpd * 0.5, b * 2.6)) * fn(vec2(a * 0.95 - t * uSpd * 0.95 + 7.3, b * 1.4 + 2.1));
+    foam += smoothstep(0.4, 0.62, s) * 0.42;
+    for (int i = 0; i < ${FOAM_MAX}; i++) {
+      if (i >= uN) break;
+      vec3 R = uRock[i]; vec2 d = p - R.xy; float r = R.z, fi = float(i);
+      float al = dot(d, fd), la = dot(d, pr), dist = length(d) - r;
+      if (dist > r * 9.0 + 2.0) continue;
+      float ring = (1.0 - smoothstep(0.0, 0.22 + r * 0.25 + 0.08 * sin(t * 4.0 + fi * 1.7), dist)) * step(-0.03, dist);
+      ring *= 0.55 + 0.45 * fn(vec2(atan(d.y, d.x) * 2.5 + t * 2.4, fi * 3.1));
+      float wide = r * 0.8 + max(al, 0.0) * 0.24;
+      float wk = step(0.0, al) * (1.0 - smoothstep(wide * 0.45, wide, abs(la))) * exp(-al / (r * 7.0 + 0.5));
+      wk *= smoothstep(0.32, 0.72, fn(vec2(al * 1.7 - t * uSpd * 1.9, la * 3.4 + fi * 5.0)));
+      float ed = 0.0;
+      for (int k = 0; k < 2; k++) {
+        float sd = k == 0 ? -1.0 : 1.0;
+        vec2 q = p - (R.xy + fd * (r * 1.8 + 0.2) + pr * (sd * r * 0.85));
+        float rq = length(q), ang = atan(q.y, q.x);
+        float sw = sin(ang * 2.0 + rq * 6.0 / max(r, 0.2) - t * 3.2 * sd);
+        ed += smoothstep(0.7, 0.95, sw) * (1.0 - smoothstep(r * 0.35, r * 1.05 + 0.15, rq));
+      }
+      foam += ring * 0.9 + wk * 0.75 + ed * 0.5;
+    }
+    diffuseColor.a *= clamp(foam, 0.0, 0.88) * smoothstep(0.04, 0.22, vDep);
+  }`);
+  };
+  m.customProgramCacheKey = () => 'gsFoam' + FOAM_MAX;
+  return m;
+}
 function buildWater() {
-  for (const m of waterMeshes) { waterRoot.remove(m); m.geometry.dispose(); }
+  for (const m of waterMeshes) { waterRoot.remove(m); m.geometry.dispose(); if (m.userData.ownMat) m.material.dispose(); }
   waterMeshes.length = 0;
   // v23: the sheet's clear blue, foam on the banks and round every rock, pale flow lines down the channel
   const deep = SC(0x2a6a9a), mid = SC(0x3c86b8), shal = SC(0x6ab2d6), foam = SC(0xeef5f6), _w = new THREE.Color();
@@ -1750,7 +1815,7 @@ function buildWater() {
     const g = new THREE.PlaneGeometry(w, d, Math.max(2, Math.round(w / cell)), Math.max(2, Math.round(d / cell)));
     g.rotateX(-Math.PI / 2);
     g.translate((r.x0 + r.x1) / 2, 0, (r.z0 + r.z1) / 2);
-    const pa = g.attributes.position, col = new Float32Array(pa.count * 4);
+    const pa = g.attributes.position, col = new Float32Array(pa.count * 4), depA = new Float32Array(pa.count);
     const ex0 = r.x0 - 1.2 + 0.01, ex1 = r.x1 + 1.2 - 0.01, ez0 = r.z0 - 1.2 + 0.01, ez1 = r.z1 + 1.2 - 0.01;
     for (let i = 0; i < pa.count; i++) {
       let x = pa.getX(i), z = pa.getZ(i);
@@ -1758,19 +1823,24 @@ function buildWater() {
       const sy = baseY(x, z) - WATER_DROP, dep = sy - terrainVisY(x, z);   // v49: depth to the drawn bed (it carries on under a bridge)
       const c = _w.copy(dep < 0.07 ? foam : dep < 0.5 ? shal : dep < 1.0 ? mid : deep);   // foam on the wet edge
       let fo = 0;
-      for (const q of riverRocks) { const e = Math.hypot(x - q.x, z - q.z) - q.r; if (e < 0.55) fo = Math.max(fo, e < 0.12 ? 0.85 : 0.4 * (0.55 - e) / 0.43); }
+      for (const q of riverRocks) { const e = Math.hypot(x - q.x, z - q.z) - q.r; if (e < 0.3) fo = Math.max(fo, e < 0.08 ? 0.5 : 0.25 * (0.3 - e) / 0.22); }   // v50: a faint static collar; the moving foam sheet does the rest
       { const a = w >= d ? x : z, b = w >= d ? z : x, st = vnoise(a * 0.22 + 4, b * 1.7 + 2);   // flow lines run with the river
         if (st > 0.72 && dep > 0.3) fo = Math.max(fo, Math.min(0.32, (st - 0.72) * 1.6)); }
       if (fo > 0) c.lerp(foam, Math.min(1, fo));
       // v48: clear water — the bed, the stones and the bridge's trestles show through; it thickens with depth, foam stays white
-      const al = Math.min(0.42, 0.12 + Math.max(0, dep) * 0.15) * (1 - Math.min(1, fo)) + Math.min(1, fo) * 0.9;
-      pa.setXYZ(i, x, sy, z); col[i * 4] = c.r; col[i * 4 + 1] = c.g; col[i * 4 + 2] = c.b; col[i * 4 + 3] = dep < 0.07 ? 0.85 : al;
+      const al = Math.min(0.34, 0.1 + Math.max(0, dep) * 0.1) * (1 - Math.min(1, fo)) + Math.min(1, fo) * 0.9;
+      depA[i] = dep; pa.setXYZ(i, x, sy, z); col[i * 4] = c.r; col[i * 4 + 1] = c.g; col[i * 4 + 2] = c.b; col[i * 4 + 3] = dep < 0.07 ? 0.85 : al;
     }
     g.setAttribute('color', new THREE.BufferAttribute(col, 4)); g.computeVertexNormals();
     const m = new THREE.Mesh(g, waterMat);
     m.renderOrder = 1;
     waterRoot.add(m);
     waterMeshes.push(m);
+    // v50: the moving foam over it
+    { const fg = g.clone(); fg.translate(0, 0.045, 0); fg.setAttribute('aDep', new THREE.BufferAttribute(depA, 1)); fg.deleteAttribute('color');
+      const rk = riverRocks.filter(q => inRect(r, q.x, q.z, 1)).sort((p, q) => q.r - p.r);
+      const fm = new THREE.Mesh(fg, foamMat(rk, w >= d ? [1, 0] : [0, 1], /heavy|storm/.test((MISSIONS[missionIdx] && MISSIONS[missionIdx].weather) || '') ? 2.3 : 1.4)); fm.userData.ownMat = true; fm.renderOrder = 1.2; fm.frustumCulled = false;
+      waterRoot.add(fm); waterMeshes.push(fm); }
   }
 }
 function animateWater(t) { waterU.value = t; }
@@ -2906,7 +2976,7 @@ function stepGrass(dt) {
 /* v36: pebbles and loose stones — along the churned verges of every track, in the mud aprons, round the foot of
    every boulder cluster, a few at a road's edge and a scatter in the grass. One InstancedMesh of a jittered octahedron
    (8 faceted triangles each), placed once per op over the whole map; at 1100 it costs ~9k triangles. */
-const PEB_N = MOBILE ? 550 : 1100;
+const PEB_N = MOBILE ? 850 : 1700;   // v50: +300/600 for the river banks
 const pebGeo = (() => {
   const v = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]].map((q, i) => q.map((c, j) => c * (0.75 + hash2(i * 3.1, j * 1.7) * 0.5)));
   const F = [[0, 2, 4], [4, 2, 1], [1, 2, 5], [5, 2, 0], [4, 3, 0], [1, 3, 4], [5, 3, 1], [0, 3, 5]], P = [];
@@ -2920,8 +2990,9 @@ pebMesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(PEB_
 pebMesh.frustumCulled = false; pebMesh.count = 0; pebMesh.receiveShadow = true; scene.add(pebMesh);
 function buildPebbles(M) {
   const cols = [0x8e8b80, 0xa29f95, 0x77746b, 0x6e6458, 0xb0ada2].map(h => SC(h)), c = new THREE.Color(), d = new THREE.Object3D(), pts = [];
-  const put = (x, z, big) => {
+  const put = (x, z, big, bank) => {
     if (pts.length >= PEB_N || x < -1 || x > MW + 1 || z < -1 || z > MH + 1) return;
+    if (bank) { if (terrainVisY(x, z) < baseY(x, z) - WATER_DROP - 0.04 || onBridge(x, z, 1.2)) return; pts.push([x, z, big]); return; }   // v50: on the bank, down to the waterline
     if (waterFactor(x, z, true) > 0.02 || padBlend(x, z) && padBlend(x, z).f > 0.6 || blocked(x, z, 0.05)) return;
     if (roadFootAt(x, z) && (streets.length || squares.length) && onStreet(x, z, 0)) return;   // v40
     pts.push([x, z, big]);
@@ -2938,6 +3009,16 @@ function buildPebbles(M) {
       }
     }
   });
+  // v50: the river banks, mud strewn with small stones and the odd bigger one
+  for (const r of waterZones) {
+    const alongX = r.x1 - r.x0 >= r.z1 - r.z0, a0 = Math.max(alongX ? r.x0 : r.z0, -1), a1 = Math.min(alongX ? r.x1 : r.z1, (alongX ? MW : MH) + 1);
+    for (const side of [0, 1]) for (let t = a0; t < a1; t += 0.32) {
+      const hh = hash2(t * 2.3, side + r.x0), out = -0.05 - hash2(t * 1.7, side * 3 + r.z0) * 1.25;   // metres outside the rect edge
+      if (hh < 0.25) continue;
+      const x = alongX ? t : (side ? r.x1 - out : r.x0 + out), z = alongX ? (side ? r.z1 - out : r.z0 + out) : t;
+      put(x, z, hash2(x * 3.3, z * 1.9) < 0.1, true);
+    }
+  }
   // in the aprons
   for (const A of aprons) for (let k = 0; k < 26; k++) { const a = hash2(A.x + k, A.z) * 6.283, rr = Math.sqrt(hash2(k, A.x * 0.3)) * A.r * 1.1; put(A.x + Math.cos(a) * rr, A.z + Math.sin(a) * rr, hash2(k * 3, A.z) < 0.15); }
   // round the foot of every boulder cluster
@@ -3896,7 +3977,7 @@ function mkBridge(r) {
   // v49: a wider spread of plank tones, so each plank reads on a phone
   const TW = [0xa8844e, 0x8a6a3c, 0x6c5232, 0x9a7a48, 0x8c8478, 0x7a5c33, 0xb08c58], DK = 0x5c4423, DD = 0x45331c, ST = [0x9a968c, 0x8b877d, 0xa29e93];
   const B = (x, y, z, sx, sy, sz, c, ry, rz) => p.push({ g: GEO.box, m: M4(x, y, z, sx, sy, sz, ry || 0, rz || 0), c });
-  const W = w + 0.3, L = span + 1.0, hw = W / 2;
+  const W = w + 0.3, L = span + 2.6, hw = W / 2;   // v50: long enough to land on top of the lower, wider banks
   // stringers and the deck: planks across the span with a finger's gap, each its own tone and a touch out of line
   for (const x of [-hw * 0.7, 0, hw * 0.7]) B(x, -0.12, 0, 0.22, 0.3, L, DD);
   const n = Math.round(L / 0.34);   // v49: 28 cm planks with a 6 cm gap you can see the water through
@@ -3948,7 +4029,7 @@ function mkRailBridge(r) {
   const LR = span + 4.0;
   for (let x = -LR / 2 + 0.2; x <= LR / 2 - 0.1; x += 0.68) B(x, 0.06, 0, 0.24, 0.12, 2.5, [0x4a3a2a, 0x54402c, 0x3e3226][(hash2(x, cz) * 3) | 0]);
   for (const sz of [-1, 1]) { B(0, 0.185, sz * RAIL.gauge, LR, 0.13, 0.09, 0x5a4a3c); B(0, 0.26, sz * RAIL.gauge, LR, 0.03, 0.075, 0xa4a6a6); }
-  for (const e of [-1, 1]) B(e * (span / 2 + 1.1), -0.12, 0, 2.4, 0.24, 3.4, 0x7e786c);
+  for (const e of [-1, 1]) { B(e * (span / 2 + 1.1), -0.12, 0, 2.4, 0.24, 3.4, 0x7e786c); for (let k = 0; k < 3; k++) B(e * (span / 2 + 1.45), -0.55 - k * 0.6, 0, 1.3, 0.58, 4.6 - k * 0.3, ST[(k + 2) % 3]); }   // v50: footings down the lower bank
   // the trusses: bottom chord, top chord (ends sloped down), verticals, diagonals, all in dark steel with lighter flanges
   const n = Math.max(4, Math.round(span / 1.9)), dx = L / n;
   for (const sz of [-1, 1]) {
