@@ -408,7 +408,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
     <button id="tset">SETTINGS <small>sound · music · graphics</small></button>
   </div>
   <div class="foot">© GAMELAB · NO GRUNTS WERE CONSULTED</div>
-  <div id="tver">v53</div>
+  <div id="tver">v54</div>
 </div>
 
 <div id="ops" class="screen">
@@ -5031,23 +5031,30 @@ const BAR_BACK = basic(0x0e1509, { transparent: true, opacity: 0.62, depthWrite:
 const BAR_FILL = { transparent: true, opacity: 1, depthWrite: false, depthTest: false };
 const BAR_HP = [basic(0x8ee04a, BAR_FILL), basic(0xffc23d, BAR_FILL), basic(0xd8483a, BAR_FILL)];
 const BAR_ALERT = [basic(0x63e8ff, BAR_FILL), basic(0xffc23d, BAR_FILL), basic(0xff5a45, BAR_FILL)];
+// v54: every bar is an instance of two InstancedMeshes (backs, then fills), rewritten each frame by updateBars:
+// two draw calls for the lot, where v53 drew two quads a man and four a German, one call each
+const BARI_N = 192;
+const BARI_FILLG = QUAD_L.clone();
+BARI_FILLG.setAttribute('color', new THREE.BufferAttribute(new Float32Array(BARI_FILLG.attributes.position.count * 3).fill(1), 3));   // r128 only applies instanceColor under USE_COLOR
+const BARI = {
+  back: new THREE.InstancedMesh(QUAD, BAR_BACK, BARI_N),
+  fill: new THREE.InstancedMesh(BARI_FILLG, new THREE.MeshBasicMaterial({ ...BAR_FILL, vertexColors: true }), BARI_N),
+};
+BARI.fill.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(BARI_N * 3).fill(1), 3);   // before the first render, or it draws black
+for (const k of ['back', 'fill']) { const m = BARI[k]; m.count = 0; m.frustumCulled = false; m.renderOrder = k === 'back' ? 20 : 21; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); barRoot.add(m); }
+const BAR_HPC = BAR_HP.map(m => m.color), BAR_ALERTC = BAR_ALERT.map(m => m.color);
+const _bbm = new THREE.Matrix4(), _bbp = new THREE.Vector3(), _bbs = new THREE.Vector3(), _bbo = new THREE.Vector3();
+function barQuad(k, x, y, sx, sy, col) {
+  const m = BARI[k]; if (m.count >= BARI_N) return;
+  _bbo.set(x, y, 0).applyQuaternion(camera.quaternion).add(_bbp);
+  _bbm.compose(_bbo, camera.quaternion, _bbs.set(sx, sy, 1));
+  m.setMatrixAt(m.count, _bbm);
+  if (col) m.setColorAt(m.count, col);
+  m.count++;
+}
 function mkBar(foe) {
-  const g = new THREE.Group();
-  const W = foe ? 0.58 : 0.64, H = 0.085;
-  const back = new THREE.Mesh(QUAD, BAR_BACK);
-  back.scale.set(W + 0.055, H + 0.05, 1); back.renderOrder = 20; g.add(back);
-  const fill = new THREE.Mesh(QUAD_L, BAR_HP[0]);
-  fill.position.x = -W / 2; fill.scale.set(W, H, 1); fill.renderOrder = 21; g.add(fill);
-  let alert = null;
-  if (foe) {
-    const ab = new THREE.Mesh(QUAD, BAR_BACK);
-    ab.scale.set(W + 0.055, 0.062, 1); ab.position.y = 0.125; ab.renderOrder = 20; g.add(ab);
-    alert = new THREE.Mesh(QUAD_L, BAR_ALERT[0]);
-    alert.position.set(-W / 2, 0.125, 0); alert.scale.set(0.001, 0.038, 1); alert.renderOrder = 21; g.add(alert);
-  }
-  g.visible = false;
-  barRoot.add(g);
-  return { g, fill, alert, W };
+  // the record keeps a stand-in group so the code that hides a bar (u.bar.g.visible) or drops it (barRoot.remove) still works
+  return { g: new THREE.Group(), fill: {}, alert: foe ? {} : null, W: foe ? 0.58 : 0.64 };
 }
 
 /*───────────────────── birds: perched in the trees, gone at the first shot ─────────────────────*/
@@ -5168,19 +5175,49 @@ function mkUnit(cfg, isFoe) {
   return u;
 }
 
+// v54: the cones are drawn by two merged meshes (every fill, every outline) rebuilt each frame by updateCones; each enemy keeps
+// stand-in cone objects, out of the scene, that the AI still moves, tints and hides exactly as before. Two calls in place of two a man.
 function mkCone(u) {
   const CONE_BASE = u.cmd ? 0xffd24a : 0x63e8ff;
   const g = new THREE.CircleGeometry(u.visionRange, 26, -u.visionArc / 2, u.visionArc);
-  const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({
-    transparent: true, opacity: 0.075, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending
-  }));
+  const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.075 }));
   m.material.color = SC(CONE_BASE);
-  m.rotation.x = -Math.PI / 2; m.renderOrder = 3; scene.add(m); u.cone = m;
+  m.rotation.x = -Math.PI / 2; m.userData.tri = g.toNonIndexed().attributes.position.array; u.cone = m;
   const eg = new THREE.EdgesGeometry(g);
   const line = new THREE.LineSegments(eg, new THREE.LineBasicMaterial({ transparent: true, opacity: 0.28 }));
   line.material.color = SC(CONE_BASE);
-  line.rotation.x = -Math.PI / 2; line.renderOrder = 3; scene.add(line); u.coneLine = line;
+  line.rotation.x = -Math.PI / 2; line.userData.tri = eg.attributes.position.array; u.coneLine = line;
 }
+const coneFill = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, vertexColors: true }));
+const coneLines = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ transparent: true, vertexColors: true }));
+coneFill.renderOrder = 3; coneLines.renderOrder = 3.001; coneFill.frustumCulled = coneLines.frustumCulled = false;
+coneFill.userData.cap = coneLines.userData.cap = 0;
+scene.add(coneFill, coneLines);
+const _cv = new THREE.Vector3();
+function coneMerge(o, key) {
+  let n = 0;
+  for (const e of ens) { const c = e[key]; if (c && c.visible) n += c.userData.tri.length / 3; }
+  if (n > o.userData.cap) {   // grow (only ever up): RGBA colours, so each cone keeps its own opacity
+    const cap = Math.max(n, o.userData.cap * 2, 1024), g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(cap * 3), 3).setUsage(THREE.DynamicDrawUsage));
+    g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(cap * 4), 4).setUsage(THREE.DynamicDrawUsage));
+    o.geometry.dispose(); o.geometry = g; o.userData.cap = cap;
+  }
+  const P = o.geometry.attributes.position, C = o.geometry.attributes.color;
+  let k = 0;
+  for (const e of ens) {
+    const c = e[key]; if (!c || !c.visible) continue;
+    c.updateMatrix();
+    const t = c.userData.tri, col = c.material.color, a = c.material.opacity;
+    for (let i = 0; i < t.length; i += 3, k++) {
+      _cv.set(t[i], t[i + 1], t[i + 2]).applyMatrix4(c.matrix);
+      P.setXYZ(k, _cv.x, _cv.y, _cv.z); C.setXYZW(k, col.r, col.g, col.b, a);
+    }
+  }
+  o.geometry.setDrawRange(0, k); o.visible = k > 0;
+  P.needsUpdate = C.needsUpdate = true;
+}
+function updateCones() { coneMerge(coneFill, 'cone'); coneMerge(coneLines, 'coneLine'); }
 
 // leader marker
 const leadRing = new THREE.Mesh(new THREE.RingGeometry(0.52, 0.66, 22), basic(0x9ede5a, { transparent: true, opacity: 0.7, depthWrite: false, side: THREE.DoubleSide }));
@@ -5809,6 +5846,8 @@ function mkBuilding(b, into) {
   const leafZones = [];
   const sPl = [], sSt = [], nPl = [], nVC = [], nQ = { p: [], c: [] };   // v40: stone style — far render, stone, near render, near details
   const winList = [];
+  // v54: everything on the camera side that fades (walls, boards, plinth, door leaves) collects here and becomes one mesh a building
+  const nearP = stoneStyle ? nVC : [], nearQ = stoneStyle ? nQ : { p: [], c: [] };
   const stoneRun = (x, z, w, d, near) => {
     const horiz = w > d, len = horiz ? w : d, a0 = horiz ? x : z;
     const outer = horiz ? (z + d / 2 < cz ? -1 : 1) : (x + w / 2 < cx ? -1 : 1), N = horiz ? [0, 0, outer] : [outer, 0, 0];
@@ -5854,12 +5893,9 @@ function mkBuilding(b, into) {
     into.push({ type: 'iwall', x, z, w, d, cx: x + w / 2, cz: z + d / 2, tall: true, cover: true });
     const px = x + w / 2 - cx, pz = z + d / 2 - cz;
     const col = exterior ? seamCol : wallCol;
-    const Q = near ? { p: [], c: [] } : solidQ, P = near ? [] : solid;
+    const Q = near ? nearQ : solidQ, P = near ? nearP : solid;
     if (near) {
-      const m = mesh(GEO.box, mat(col, { shininess: 8 }).clone(), w, WALL_H, d, px, WALL_H / 2, pz);
-      m.material.transparent = true;
-      m.castShadow = true; m.receiveShadow = true;
-      g.add(m); rec.near.push(m);
+      P.push({ g: GEO.box, m: M4(px, WALL_H / 2, pz, w, WALL_H, d), c: col });
       P.push({ g: GEO.box, m: M4(px, 0.22, pz, w + 0.12, 0.45, d + 0.12), c: exterior ? BK.mortar : baseCol });
     } else {
       solid.push({ g: GEO.box, m: M4(px, WALL_H / 2, pz, w, WALL_H, d), c: col });
@@ -5881,10 +5917,6 @@ function mkBuilding(b, into) {
         window4(P, Q, fx, fz, N, t, 1.8, 1.0, 0.92);
         glowQ.on = false;
       }
-    }
-    if (near && Q.p.length) {
-      const parts = [vcPart(Q), ...P];
-      const bm = new THREE.Mesh(mergeGeos(parts), propMat.clone()); bm.material.transparent = true; bm.castShadow = true; bm.receiveShadow = true; g.add(bm); rec.near.push(bm);
     }
   };
   // the door leaves' zones first (they decide where the windows can go)
@@ -5925,7 +5957,7 @@ function mkBuilding(b, into) {
     const N = Z.horiz ? [0, 0, Z.outer] : [Z.outer, 0, 0], near = Z.horiz && Z.outer > 0;
     const fx = Z.horiz ? 0 : (Z.outer > 0 ? Z.x1 : Z.x0) - cx + N[0] * 0.04, fz = Z.horiz ? (Z.outer > 0 ? Z.z1 : Z.z0) - cz + N[2] * 0.04 : 0;
     const toT = a => Z.horiz ? (a - cx) * N[2] : -(a - cz) * N[0];   // world along-coordinate → t on this face
-    const Q = near ? { p: [], c: [] } : solidQ, P = near ? [] : solid;
+    const Q = near ? nearQ : solidQ, P = near ? nearP : solid;
     const ta = toT(Z.g0 - 0.12), tb = toT(Z.g0 - 0.12 - Z.lw), tc = toT(Z.g1 + 0.12), td = toT(Z.g1 + 0.12 + Z.lw);
     if (stoneStyle) {   // v40: one painted leaf folded back, a pale stone surround, a step
       const tm = toT((Z.g0 + Z.g1) / 2), gw = Z.g1 - Z.g0;
@@ -5937,7 +5969,6 @@ function mkBuilding(b, into) {
     doorLeaf(P, Q, fx, fz, N, Math.min(ta, tb), Math.max(ta, tb), WALL_H - 0.75, 0x6a5a3c, 0.3);
     doorLeaf(P, Q, fx, fz, N, Math.min(tc, td), Math.max(tc, td), WALL_H - 0.75, 0x6a5a3c, 0.7);
     }
-    if (near) { const bm = new THREE.Mesh(mergeGeos([vcPart(Q), ...P]), propMat.clone()); bm.material.transparent = true; bm.castShadow = true; bm.receiveShadow = true; g.add(bm); rec.near.push(bm); }
     // v38: a lamp over the doorway, on the wall plate
     const bulb = lampFixture(solid, fx + N[0] * 0.02, fz + N[2] * 0.02, N, toT((Z.g0 + Z.g1) / 2), WALL_H - 0.2);
     lamps.push({ x: bulb[0] + cx, y: bulb[1] + y, z: bulb[2] + cz, nx: N[0], nz: N[2] });
@@ -5963,8 +5994,12 @@ function mkBuilding(b, into) {
     if (sPl.length) tbAdd('plaster', mergeUV(sPl, TEXSZ.plaster), cx, y, cz);
     if (sSt.length) tbAdd('stone', mergeUV(sSt, TEXSZ.stone), cx, y, cz);
     if (nPl.length) { const mt = TEXMAT.plaster.clone(); mt.transparent = true; const m = new THREE.Mesh(mergeUV(nPl, TEXSZ.plaster), mt); m.castShadow = m.receiveShadow = true; g.add(m); rec.near.push(m); }
-    if (nVC.length || nQ.p.length) { if (nQ.p.length) nVC.push(vcPart(nQ)); const m = new THREE.Mesh(mergeGeos(nVC), propMat.clone()); m.material.transparent = true; m.castShadow = true; g.add(m); rec.near.push(m); }
+    if (nVC.length || nQ.p.length) { if (nQ.p.length) nVC.push(vcPart(nQ)); const m = new THREE.Mesh(mergeGeos(nVC), propMat.clone()); m.material.transparent = true; m.castShadow = true; m.receiveShadow = true; g.add(m); rec.near.push(m); }
     rec.windows = winList;
+  }
+  if (!stoneStyle && (nearP.length || nearQ.p.length)) {
+    if (nearQ.p.length) nearP.push(vcPart(nearQ));
+    const m = new THREE.Mesh(mergeGeos(nearP), propMat.clone()); m.material.transparent = true; m.castShadow = true; m.receiveShadow = true; g.add(m); rec.near.push(m);
   }
   if (stoneStyle) { tbAdd('vc', mergeGeos(solid), cx, y, cz); const gm = glowMesh(); if (gm) tbAdd('glow', gm.geometry, cx, y, cz); }
   else {
@@ -7675,7 +7710,6 @@ function clearMission() {
     unitRoot.remove(u.mesh);
     if (u.F.rifle && u.F.rifle.parent === unitRoot) unitRoot.remove(u.F.rifle);
     if (u.bar) barRoot.remove(u.bar.g);
-    if (u.cone) { scene.remove(u.cone); scene.remove(u.coneLine); }
   }
   for (const b of bul) fxRoot.remove(b.mesh);
   for (const g of grn) fxRoot.remove(g.mesh);
@@ -10722,26 +10756,26 @@ function stepDeath(u, dt) {
 
 /*───────────────────── health / awareness bars ─────────────────────*/
 function updateBars() {
-  if (window.__nobars) return;
-  for (const u of [...sol, ...ens]) {
+  BARI.back.count = BARI.fill.count = 0;
+  if (!window.__nobars) for (const u of [...sol, ...ens]) {
     const B = u.bar;
     if (!B) continue;
     if (u.dead) { B.g.visible = false; continue; }
     const show = u.friendly || u.visible !== false;
     B.g.visible = show;
     if (!show) continue;
-    B.g.position.set(u.x, groundY(u.x, u.z) + (u.elev || 0) + (u.prone ? 0.8 : 1.62 * (u.F && u.F.sc ? u.F.sc / RS : 1) + (u.F && u.F.kL < 1 ? 0.06 : 0)) + (u.barOff || 0), u.z);   // v29: over each man's own head
-    B.g.quaternion.copy(camera.quaternion);
-    const f = clamp(u.hp / u.maxHp, 0, 1);
-    B.fill.scale.x = Math.max(0.001, B.W * f);
-    B.fill.material = BAR_HP[f > 0.6 ? 0 : f > 0.3 ? 1 : 2];
+    _bbp.set(u.x, groundY(u.x, u.z) + (u.elev || 0) + (u.prone ? 0.8 : 1.62 * (u.F && u.F.sc ? u.F.sc / RS : 1) + (u.F && u.F.kL < 1 ? 0.06 : 0)) + (u.barOff || 0), u.z);   // v29: over each man's own head
+    const W = B.W, H = 0.085, f = clamp(u.hp / u.maxHp, 0, 1);
+    barQuad('back', 0, 0, W + 0.055, H + 0.05);
+    barQuad('fill', -W / 2, 0, Math.max(0.001, W * f), H, BAR_HPC[f > 0.6 ? 0 : f > 0.3 ? 1 : 2]);
     if (B.alert) {
       const a = clamp(u.alert, 0, 1);
-      B.alert.scale.x = Math.max(0.001, B.W * a);
-      B.alert.material = BAR_ALERT[u.state === 'engage' ? 2 : a > 0.35 ? 1 : 0];
-      B.alert.visible = a > 0.03;
+      barQuad('back', 0, 0.125, W + 0.055, 0.062);
+      if (a > 0.03) barQuad('fill', -W / 2, 0.125, Math.max(0.001, W * a), 0.038, BAR_ALERTC[u.state === 'engage' ? 2 : a > 0.35 ? 1 : 0]);
     }
   }
+  for (const k of ['back', 'fill']) { BARI[k].instanceMatrix.needsUpdate = true; }
+  BARI.fill.instanceColor.needsUpdate = true;
 }
 
 /*───────────────────── camera ─────────────────────*/
@@ -12038,6 +12072,7 @@ function frame(t) {
       if (!u.dead) { u.mesh.position.set(u.x, groundY(u.x, u.z), u.z); u.mesh.rotation.y = u.angle; }
     }
   }
+  updateCones();   // v54
   R.render(scene, camera);
 }
 
