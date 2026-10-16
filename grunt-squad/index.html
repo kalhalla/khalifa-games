@@ -410,7 +410,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
     <button id="tset">SETTINGS <small>sound · music · graphics</small></button>
   </div>
   <div class="foot">© GAMELAB · NO GRUNTS WERE CONSULTED</div>
-  <div id="tver">v60</div>
+  <div id="tver">v61</div>
 </div>
 
 <div id="ops" class="screen">
@@ -7066,7 +7066,9 @@ function teamUI() {
   for (const s of sol) {
     if (!s.F || !s.F.base) continue;
     if (!s.baseMat0) s.baseMat0 = s.F.base.material;
-    s.F.base.material = split ? teamMat[s.team || 0] : s.baseMat0;
+    // v61: Tug is team 2 (in neither half of a split), and teamMat[2] doesn't exist: his marker got an undefined material
+    // and every frame he was on screen threw inside the renderer (since v32). Any team without a colour keeps its own
+    s.F.base.material = (split && teamMat[s.team || 0]) || s.baseMat0;
   }
   if (phase === 'play') updateHUD();
   teamMat[0].opacity = split && selTeam === 0 ? 0.85 : 0.45; teamMat[1].opacity = split && selTeam === 1 ? 0.85 : 0.45;
