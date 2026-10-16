@@ -28,3 +28,15 @@ Recorded basses and pad
   and copied an octave up.
 - pad/: Sonic Pi sample tbd_pad_3, donated by The Black Dog under CC0, tuned
   to D and copied an octave up and down.
+
+Strings, harp and guitar
+
+- strings/, pizz/: Versilian Studios Chamber Orchestra 2 Community Edition
+  (VSCO 2 CE, github.com/sgossner/VSCO-2-CE), CC0 - Violin Section sustain
+  with vibrato and pizzicato. Mapped by measured pitch (the files sound an
+  octave above their labels).
+- harp/: VSCO 2 CE Harp, CC0.
+- gtrfx/: Sonic Pi samples guit_em9, guit_e_fifths, guit_e_slide,
+  guit_harmonics (CC0, via freesound.org).
+- guitar/: not a recording. A plucked nylon-string guitar modelled with
+  Karplus-Strong synthesis and a small body resonance, made for MU-S1K.
