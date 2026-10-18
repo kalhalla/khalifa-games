@@ -411,7 +411,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
     <button id="tset">SETTINGS <small>sound · music · graphics</small></button>
   </div>
   <div class="foot">© GAMELAB · NO GRUNTS WERE CONSULTED</div>
-  <div id="tver">v74</div>
+  <div id="tver">v75</div>
 </div>
 
 <div id="ops" class="screen">
@@ -1138,7 +1138,7 @@ function riverInset(x, z) {
   let best = -99;
   for (const r of waterZones) {
     if (x < r.x0 - 4 || x > r.x1 + 4 || z < r.z0 - 4 || z > r.z1 + 4) continue;
-    best = Math.max(best, Math.min(x - r.x0, r.x1 - x, z - r.z0, r.z1 - z) + bankWobble(x, z));
+    best = Math.max(best, Math.min(x - r.x0, r.x1 - x, z - r.z0, r.z1 - z) + (r.quay ? 0 : bankWobble(x, z)));
   }
   return best;
 }
@@ -1151,8 +1151,8 @@ function waterFactor(x, z, vis) {   // v49: vis = the river as drawn (it runs on
     if (x < r.x0 - 2.3 || x > r.x1 + 2.3 || z < r.z0 - 2.3 || z > r.z1 + 2.3) continue;
     // v23: the bank wanders. It only ever moves outward from the rect (up to 0.75 m), never in, so the
     // water you can see is never dry land you can drown on; the lethal test (inDeepWater) still uses the rect.
-    const inset = Math.min(x - r.x0, r.x1 - x, z - r.z0, r.z1 - z) + bankWobble(x, z);
-    const f = Math.max(0, Math.min(1, (inset + 1.3) / 2.6));   // v50: a sloping bank 1.3 m wide down to the water (was 0.8)
+    const inset = Math.min(x - r.x0, r.x1 - x, z - r.z0, r.z1 - z) + (r.quay ? 0 : bankWobble(x, z));
+    const f = r.quay ? Math.max(0, Math.min(1, inset / 0.7)) : Math.max(0, Math.min(1, (inset + 1.3) / 2.6));   // v75: a quay drops sheer   // v50: a sloping bank 1.3 m wide down to the water (was 0.8)
     if (f > best) best = f;
   }
   if (best > 0 && !vis && onBridge(x, z, 0.75)) return 0;
@@ -1804,7 +1804,7 @@ waterMat.onBeforeCompile = sh => {
     .replace('#include <begin_vertex>', '#include <begin_vertex>\n  transformed.y += sin(position.x * 1.6 - uT * 2.4 + position.z * 0.7) * 0.05 + sin(position.z * 2.6 + uT * 1.7 - position.x * 0.4) * 0.035;');
   lookInject(sh, waterMat);
 };
-waterMat.userData = { lookRim: false, lookAO: false };
+waterMat.userData = { lookRim: false, lookAO: false, snowK: 0 };   // v75: snowK here (it was set above, then lost: the fjord came out white)
 /* v23 river rocks, after the prop sheet: mossy boulders in clusters along the shallows, foam round each.
    They stand in water that is already lethal, so they are scenery only: no collision, no cover. */
 const RROCK_MAX = 160, riverRocks = [];
@@ -1823,6 +1823,7 @@ function placeRiverRocks() {
   riverRocks.length = 0; for (const im of RROCK) im.count = 0;
   const d = new THREE.Object3D();
   for (const r of waterZones) {
+    if (r.still) continue;   // v75: no stream stones in a fjord
     const alongX = r.x1 - r.x0 >= r.z1 - r.z0;
     const a0 = Math.max(alongX ? r.x0 : r.z0, -18), a1 = Math.min(alongX ? r.x1 : r.z1, (alongX ? MW : MH) + 18);
     for (const side of [0, 1]) for (let t = a0 + 1; t < a1 - 1; t += 1.7) {
@@ -1907,7 +1908,7 @@ function buildWater() {
   for (const m of waterMeshes) { waterRoot.remove(m); m.geometry.dispose(); if (m.userData.ownMat) m.material.dispose(); }
   waterMeshes.length = 0;
   // v23: the sheet's clear blue, foam on the banks and round every rock, pale flow lines down the channel
-  const deep = SC(0x2a6a9a), mid = SC(0x3c86b8), shal = SC(0x6ab2d6), foam = SC(0xeef5f6), _w = new THREE.Color();
+  const deep = SC(0x2a6a9a), mid = SC(0x3c86b8), shal = SC(0x6ab2d6), foam = SC(0xeef5f6), _w = new THREE.Color(), _w2 = new THREE.Color();
   for (const r of waterZones) {
     const w = r.x1 - r.x0 + 2.4, d = r.z1 - r.z0 + 2.4, cell = 0.9;
     const g = new THREE.PlaneGeometry(w, d, Math.max(2, Math.round(w / cell)), Math.max(2, Math.round(d / cell)));
@@ -1927,13 +1928,20 @@ function buildWater() {
       if (fo > 0) c.lerp(foam, Math.min(1, fo));
       // v48: clear water — the bed, the stones and the bridge's trestles show through; it thickens with depth, foam stays white
       const al = Math.min(0.34, 0.1 + Math.max(0, dep) * 0.1) * (1 - Math.min(1, fo)) + Math.min(1, fo) * 0.9;
-      depA[i] = dep; pa.setXYZ(i, x, sy, z); col[i * 4] = c.r; col[i * 4 + 1] = c.g; col[i * 4 + 2] = c.b; col[i * 4 + 3] = dep < 0.07 ? 0.85 : al;
+      if (SNOW && dep >= 0.07) c.lerp(_w2.copy(SC(r.still ? 0x15232b : 0x1d3240)), r.still ? 0.88 : 0.78);   // v75: a winter fjord is dark and deep, not clear over a snowy bed
+      depA[i] = dep; pa.setXYZ(i, x, sy, z); col[i * 4] = c.r; col[i * 4 + 1] = c.g; col[i * 4 + 2] = c.b; col[i * 4 + 3] = dep < 0.07 ? 0.85 : SNOW ? 0.9 : al;
     }
     g.setAttribute('color', new THREE.BufferAttribute(col, 4)); g.computeVertexNormals();
     const m = new THREE.Mesh(g, waterMat);
     m.renderOrder = 1;
     waterRoot.add(m);
     waterMeshes.push(m);
+    if (r.still) {   // v75: a fjord does not run: no foam sheet; ice instead, and the quay wall along its edge
+      const M = MISSIONS[missionIdx];
+      for (const im of buildFloes(r, M)) { waterRoot.add(im); waterMeshes.push(im); }
+      if (r.quay) { const q = mkQuayWall(r, M); waterRoot.add(q); waterMeshes.push(q); }
+      continue;
+    }
     // v50: the moving foam over it
     { const fg = g.clone(); fg.translate(0, 0.045, 0); fg.setAttribute('aDep', new THREE.BufferAttribute(depA, 1)); fg.deleteAttribute('color');
       const rk = riverRocks.filter(q => inRect(r, q.x, q.z, 1)).sort((p, q) => q.r - p.r);
@@ -7150,6 +7158,56 @@ const MISSIONS = [
     ],
     spawnZ: .9, grenades: 6, reinf: 4, alertThreshold: .6,
   },
+  {
+    // v75: Norway, op 1 (notes/norway-theatre.md, N1). A dawn landing at a snowy fishing village, drawn from the Lofoten raid
+    // of March 1941. Snow and tracks are the point: every step is written down, their patrol reads it, the quay road and the
+    // jetty don't take a print. A side op until the Norway campaign exists.
+    name: 'Landfall', side: true, snow: 1, noTraffic: true,
+    obj: 'Burn the oil, take the code box, back to the boat',
+    sub: "Lofoten · Dawn · Light snow · Norway", drawn: "Drawn from the commando raid on the Lofoten Islands, March 1941.",
+    brief: "The Navy has put you ashore in a Norwegian fishing village at dawn, which the Navy calls a pleasant morning's work. The garrison is asleep. Keep it that way. Three tanks of fish oil keep the German war effort lubricated and smell appalling: set them alight, a charge or a grenade beside each will do. A trawler at the quay has a box of code wheels aboard that the boffins want more than they want you. Then back down the jetty to the boat. It is snowing, lightly, and every step you take is written in it. Their patrol can read. The road along the quay and the jetty take no prints.",
+    weather: 'snow', scatter: 12, diff: 0.3, charges: 3,
+    roads: [{ k: 'road', w: 4.4, pts: [[0.0, .765], [.3, .765], [.7, .765], [1.0, .765]] }, { k: 'track', pts: [[.5, .765], [.5, .6], [.47, .48], [.46, .385]] }],
+    // v75: the fjord is still and the quay is stone; the jetty runs out on pilings; the landing boat ties up at its end
+    water: [{ x1: 0, z1: .86, x2: 1, z2: 1.02, still: true, quay: true, ladders: [.44, .7], steps: .4 }],
+    bridge: [{ x1: .485, z1: .845, x2: .515, z2: .955, jetty: true }],
+    landing: true,
+    targets: [{ t: 'otank', x: .14, z: .42 }, { t: 'otank', x: .245, z: .4 }, { t: 'otank', x: .14, z: .53 }],
+    intel: { x: .834, z: .896, box: true },
+    objectives: [{ t: 'destroy', what: 'lorry', label: 'Burn the fish-oil tanks' }, { t: 'take', label: 'Take the code box off the trawler' }, { t: 'extract', label: 'Back down the jetty to the boat' }],
+    extract: { x: .533, z: .92, r: 4.5 },
+    optional: [{ t: 'prisoner', x: .71, z: .61, label: 'A Norwegian volunteer: bring him out' }],
+    enemies: [
+      { x: .2, z: .565, a: 0, range: 12, arc: Math.PI * .6, hp: 3 },
+      { x: .505, z: .405, a: 0, range: 14, arc: Math.PI * .55, hp: 3 },
+      { x: .737, z: .8865, a: -Math.PI * .5, range: 11, arc: Math.PI * .5, hp: 3 },
+      { x: .3, z: .745, a: Math.PI * .5, range: 13, arc: Math.PI * .6, hp: 3, patrol: [{ x: .26, z: .745 }, { x: .7, z: .745 }] },
+      { x: .56, z: .47, a: Math.PI * .5, range: 12, arc: Math.PI * .6, hp: 3, patrol: [{ x: .56, z: .47 }, { x: .8, z: .5 }, { x: .8, z: .66 }, { x: .56, z: .64 }] },
+      { x: .66, z: .605, a: -Math.PI * .25, range: 12, arc: Math.PI * .55, hp: 3 },
+    ],
+    obstacles: [
+      // cliffs on three sides, the village in the bowl between them and the fjord
+      { t: 'ridge', x: -.1, z: -.12, w: 1.2, d: .2, h: 7 }, { t: 'ridge', x: -.12, z: .06, w: .16, d: .66, h: 6 }, { t: 'ridge', x: .96, z: .06, w: .16, d: .66, h: 6 },
+      { t: 'house', style: 'billet', x: .41, z: .3, w: 10, d: 6.5 }, { t: 'house', style: 'white', x: .6, z: .52, w: 8, d: 6 },
+      { t: 'house', style: 'shed', x: .22, z: .47, w: 8, d: 6 },
+      { t: 'house', style: 'rorbu', x: .05, z: .795, w: 6.5, d: 4.8 }, { t: 'house', style: 'rorbu', x: .16, z: .795, w: 6, d: 4.8 },
+      { t: 'house', style: 'rorbu', x: .27, z: .795, w: 6.5, d: 4.8 }, { t: 'house', style: 'rorbu', x: .6, z: .795, w: 7, d: 4.8 },
+      // the oil works' wire, with a gate on the road side and one to the village
+      { t: 'fence', x: .07, z: .33, w: .26, d: .01 }, { t: 'fence', x: .07, z: .33, w: .01, d: .27 }, { t: 'fence', x: .33, z: .33, w: .01, d: .11 },
+      { t: 'fence', x: .33, z: .5, w: .01, d: .1 }, { t: 'fence', x: .07, z: .6, w: .1, d: .01 }, { t: 'fence', x: .23, z: .6, w: .11, d: .01 },
+      { t: 'rack', x: .12, z: .68, len: 8 }, { t: 'rack', x: .25, z: .7, len: 7 }, { t: 'rack', x: .66, z: .7, len: 8 }, { t: 'rack', x: .84, z: .6, len: 7, alongZ: true },
+      { t: 'trawler', x: .8, z: .8865, a: Math.PI / 2 }, { t: 'boat', x: .533, z: .92, a: Math.PI },
+      ...[[.15, .735], [.4, .735], [.6, .735], [.86, .735], [.513, .945], [.72, .835]].map(([x, z]) => ({ t: 'lamp', x, z })),
+      { t: 'crate', x: .7, z: .835 }, { t: 'crate', x: .745, z: .83 }, { t: 'crate', x: .9, z: .835 }, { t: 'crate', x: .3, z: .5 },
+      { t: 'drums', x: .68, z: .815 }, { t: 'drums', x: .93, z: .82 }, { t: 'drums', x: .3, z: .44 }, { t: 'drums', x: .1, z: .47 }, { t: 'drums', x: .2, z: .36 },
+      ...[[.06, .14], [.12, .2], [.22, .16], [.3, .12], [.36, .2], [.58, .14], [.64, .2], [.72, .12], [.8, .18], [.88, .14], [.92, .24], [.9, .36], [.92, .46], [.06, .66], [.93, .7], [.38, .27], [.56, .27]]
+        .map(([x, z], i) => ({ t: 'tree', x, z, kind: i % 3 ? 'pine' : 'pineTall' })),
+      ...[[.42, .62], [.72, .44], [.86, .42], [.36, .66], [.56, .7], [.44, .45]].map(([x, z]) => ({ t: 'tree', x, z, kind: 'bare' })),
+      ...[[.04, .74], [.95, .76], [.97, .82], [.02, .82], [.36, .4], [.76, .3], [.66, .4]].map(([x, z]) => ({ t: 'rock', x, z })),
+      { t: 'bush', x: .4, z: .7 }, { t: 'bush', x: .78, z: .72 },
+    ],
+    spawnZ: .92, grenades: 6, reinf: 3, alertThreshold: .6,
+  },
 
 ];
 
@@ -7690,7 +7748,8 @@ function nearWater(x, z) {
   for (let i = 0; i < waterZones.length; i++) if (inRect(waterZones[i], x, z, 0.8)) { wet = true; break; }
   if (!wet) return false;
   for (const r of bridgeZones) {
-    const along = bridgeAlong(r), m = 0.85;
+    if (r.deck) { if (inRect(r, x, z, 0.2)) return false; continue; }   // v75: a boat's deck is safe all over; its sides are the rails
+    const along = bridgeAlong(r), m = r.jetty ? 0.45 : 0.85;   // v75: a jetty is narrow, and a boat ties up alongside it
     if (along ? (x > r.x0 + m && x < r.x1 - m && z > r.z0 - 1 && z < r.z1 + 1) : (z > r.z0 + m && z < r.z1 - m && x > r.x0 - 1 && x < r.x1 + 1)) return false;
   }
   return true;
@@ -8947,7 +9006,11 @@ function mkRadio(T) {
   return null;   // a table and a set: nothing to collide with (a man standing over it must be able to walk off again)
 }
 function mkIntel(I) {
-  const p = [
+  const p = I.box ? [   // v75: the code box, yellow, stencilled, rope handles
+    { g: GEO.box, m: M4(0, 0.3, 0, 0.95, 0.6, 0.62), c: 0xc9a227 }, { g: GEO.box, m: M4(0, 0.62, 0, 1.0, 0.06, 0.66), c: 0xa88a20 },
+    { g: GEO.box, m: M4(0, 0.36, 0.315, 0.5, 0.12, 0.01), c: 0x1a1a1a }, { g: GEO.box, m: M4(-0.2, 0.2, 0.315, 0.12, 0.08, 0.01), c: 0x1a1a1a },
+    ...[-1, 1].map(s => ({ g: GEO.box, m: M4(s * 0.5, 0.42, 0, 0.04, 0.06, 0.3), c: 0x8a7a52 })),
+  ] : [
     { g: GEO.box, m: M4(0, 0.72, 0, 1.1, 0.07, 0.7), c: 0x6b5236 },
     ...[[-0.48, -0.28], [0.48, -0.28], [-0.48, 0.28], [0.48, 0.28]].map(([x, z]) => ({ g: GEO.box, m: M4(x, 0.36, z, 0.07, 0.72, 0.07), c: 0x5a442c })),
     { g: GEO.box, m: M4(-0.15, 0.78, 0, 0.34, 0.05, 0.26, 0.2), c: 0xece6cc }, { g: GEO.box, m: M4(0.2, 0.79, 0.05, 0.3, 0.06, 0.24, -0.15), c: 0xc9b98a },
@@ -8969,6 +9032,363 @@ function mkExtract(E) {
 
 // v19: a fuel lorry parked at a depot. Any blast close to it and it goes up — a fireball that kills whoever
 // is standing near it, theirs or yours.
+// v75: a riveted fish-oil tank on a concrete base, a ladder up its side, a pipe out to the quay and a drum or two
+const OTANK_BODY = new THREE.CylinderGeometry(0.5, 0.5, 1, 16);   // unit diameter, like GEO.cyl
+function mkOilTank(T) {
+  const p = [{ g: GEO.box, m: M4(0, 0.15, 0, 5.4, 0.3, 5.4), c: 0x8c877c },
+    { g: OTANK_BODY, m: M4(0, 2.0, 0, 4.4, 3.4, 4.4), c: 0x6f5a3e }, { g: OTANK_BODY, m: M4(0, 3.78, 0, 4.5, 0.18, 4.5), c: 0x4e4232 },
+    { g: GEO.cone, m: M4(0, 4.15, 0, 4.4, 0.6, 4.4), c: 0x5c4c36 }];
+  for (const y of [1.1, 2.0, 2.9]) p.push({ g: OTANK_BODY, m: M4(0, y, 0, 4.46, 0.06, 4.46), c: 0x4a3c2a });   // the riveted seams
+  for (const s of [-0.22, 0.22]) p.push({ g: GEO.box, m: M4(2.28, 2.0, s, 0.06, 3.8, 0.06), c: 0x2e2a26 });
+  for (let i = 0; i < 8; i++) p.push({ g: GEO.box, m: M4(2.28, 0.4 + i * 0.45, 0, 0.06, 0.05, 0.5), c: 0x2e2a26 });
+  p.push({ g: GEO.cyl, m: M4(0, 0.5, 2.6, 0.22, 0.22, 2.4, 0, 0), c: 0x3a3632 });
+  for (let i = 0; i < 2; i++) p.push({ g: GEO.cyl, m: M4(-2.6 + i * 0.7, 0.45, 2.2, 0.62, 0.9, 0.62), c: 0x6b4a2a });
+  const m = new THREE.Mesh(mergeGeos(p), propMat); m.castShadow = true; m.receiveShadow = true;
+  m.position.set(T.x, groundY(T.x, T.z), T.z); propRoot.add(m);
+  Object.assign(T, { fx: 1, fz: 0, yaw: 0, mesh: m, burnT: 0 });
+  return { type: 'lorry', x: T.x - 2.4, z: T.z - 2.4, w: 4.8, d: 4.8, tall: true, cover: true, cx: T.x, cz: T.z };
+}
+/* v75: Landfall's harbour, after Khal's sheets (assets/norway): an armed trawler at the quay, the landing boat, the
+   jetty on its pilings, the quay wall, red rorbu cabins, a white house, the yellow billet, the factory shed, fish racks.
+   A boat's deck is a bridge zone (walkable, no drowning) at bank height; its hull hangs below into the water. */
+function rotRect(x, z, a, lx0, lz0, lx1, lz1) {
+  const c = Math.cos(a), s = Math.sin(a); let x0 = 1e9, z0 = 1e9, x1 = -1e9, z1 = -1e9;
+  for (const [lx, lz] of [[lx0, lz0], [lx1, lz0], [lx0, lz1], [lx1, lz1]]) { const wx = x + lx * c + lz * s, wz = z - lx * s + lz * c; x0 = Math.min(x0, wx); x1 = Math.max(x1, wx); z0 = Math.min(z0, wz); z1 = Math.max(z1, wz); }
+  return { x0, z0, x1, z1 };
+}
+// the hull's red boot-top: the band of a hexa hull between heights ya and yb, a hair proud of it
+function bootTop(b, t, ya, yb, c) {
+  const L = y => { const k = (y - b.y) / (t.yb - b.y); return { xb: b.xb + (t.xb - b.xb) * k + 0.03, xf: b.xf + (t.xf - b.xf) * k + 0.03, zb: b.zb + (t.zb - b.zb) * k - 0.03, zf: b.zf + (t.zf - b.zf) * k + 0.03 }; };
+  const A = L(ya), B = L(yb);
+  return { g: hexa({ ...A, y: ya }, { ...B, yb, yf: yb }), m: new THREE.Matrix4(), c };
+}
+function mkTrawler(x, z, a) {
+  // a steam trawler taken up as an armed patrol boat: black hull, red boot-top, cream wheelhouse, a gun on the bow
+  const p = [], hull = 0x1c2023, cream = 0xd8cfb4, grey = 0x5a5f5a, dark = 0x15171a, wood = 0x6a5a44;
+  const HB = { xb: 1.3, xf: 0.25, y: -1.9, zb: -7.2, zf: 6.4 }, HT = { xb: 2.3, xf: 0.45, yb: 0, yf: 0, zb: -7.8, zf: 8.0 };
+  p.push({ g: hexa(HB, HT), m: new THREE.Matrix4(), c: hull }, bootTop(HB, HT, -1.3, -0.95, 0x8a2a1e));
+  p.push({ g: hexa({ xb: 2.15, xf: 0.35, y: 0, zb: -7.65, zf: 7.7 }, { xb: 2.15, xf: 0.35, yb: 0.04, yf: 0.04, zb: -7.65, zf: 7.7 }), m: new THREE.Matrix4(), c: 0x6e604a });   // the deck
+  for (const s of [-1, 1]) {   // bulwarks, rising to the bow, with a wooden rail along the top
+    boxAlong(p, [s * 2.24, 0.36, -7.75], [s * 0.45, 0.5, 7.95], 0.1, 0.72, hull, [0, 1, 0]);
+    boxAlong(p, [s * 2.24, 0.74, -7.75], [s * 0.45, 0.88, 7.95], 0.17, 0.06, wood, [0, 1, 0]);
+    for (const lz of [-5.6, -3.2, 3.6, 5.6]) p.push({ g: GEO.cyl, m: M4e(s * (2.3 - (lz + 7.8) * 0.11), -0.45, lz, 0.55, 0.2, 0.55, 0, 0, Math.PI / 2), c: 0x111214 });   // tyre fenders
+  }
+  p.push({ g: GEO.box, m: M4(0, 0.36, -7.78, 4.5, 0.72, 0.1), c: hull });
+  // wheelhouse: cream, a band of windows all round, a dark roof with a searchlight; lifebelts on the sides
+  p.push({ g: GEO.box, m: M4(0, 1.15, -1.1, 2.8, 2.3, 3.0), c: cream });
+  p.push({ g: GEO.box, m: M4(0, 1.65, 0.42, 2.4, 0.55, 0.05), c: dark }, { g: GEO.box, m: M4(0, 1.65, -2.62, 2.0, 0.5, 0.05), c: dark });
+  for (const s of [-1, 1]) {
+    p.push({ g: GEO.box, m: M4(s * 1.42, 1.65, -0.6, 0.05, 0.55, 1.7), c: dark }, { g: GEO.box, m: M4(s * 1.42, 0.95, -2.0, 0.05, 1.7, 0.75), c: 0x8a7e66 });
+    p.push({ g: GEO.cyl, m: M4e(s * 1.44, 1.05, -1.0, 0.62, 0.1, 0.62, 0, 0, Math.PI / 2), c: 0xe9e4d8 }, { g: GEO.cyl, m: M4e(s * 1.45, 1.05, -1.0, 0.36, 0.11, 0.36, 0, 0, Math.PI / 2), c: 0x1c2023 });
+    for (const q of [0.2, -0.2]) p.push({ g: GEO.box, m: M4(s * 1.46, 1.05 + q, -1.0 + q, 0.06, 0.12, 0.12), c: 0xa82a20 });
+  }
+  for (const lx of [-0.4, 0.4]) p.push({ g: GEO.box, m: M4(lx, 1.65, 0.45, 0.06, 0.6, 0.06), c: cream });
+  p.push({ g: GEO.box, m: M4(0, 2.38, -1.1, 3.25, 0.16, 3.45), c: 0x3a3632 });
+  p.push({ g: GEO.cyl, m: M4(0.6, 2.62, -0.2, 0.36, 0.32, 0.36), c: 0x2a2c2e }, { g: GEO.cyl, m: M4e(0.6, 2.66, 0.0, 0.3, 0.12, 0.3, Math.PI / 2, 0, 0), c: 0xc8c4b0 });
+  // funnel with a red band, the engine casing behind it, a ventilator
+  p.push({ g: GEO.box, m: M4(0, 0.45, -4.4, 2.0, 0.9, 2.4), c: 0x8a7e66 });
+  p.push({ g: GEO.cyl, m: M4(0, 2.4, -3.6, 0.95, 2.8, 0.95), c: 0x1a1a1a }, { g: GEO.cyl, m: M4(0, 3.05, -3.6, 0.98, 0.4, 0.98), c: 0x9a2a1e }, { g: GEO.cyl, m: M4(0, 3.82, -3.6, 1.0, 0.06, 1.0), c: 0x111111 });
+  p.push({ g: GEO.cyl, m: M4(-0.8, 1.4, -5.2, 0.24, 1.2, 0.24), c: cream }, { g: GEO.cyl, m: M4e(-0.8, 2.05, -5.05, 0.42, 0.4, 0.42, Math.PI / 2, 0, 0), c: cream });
+  // masts, a derrick and the rigging
+  p.push({ g: GEO.cyl, m: M4(0, 3.6, 4.2, 0.22, 7.2, 0.22), c: 0x4a3e2e }, { g: GEO.box, m: M4(0, 5.9, 4.2, 1.7, 0.1, 0.12), c: 0x4a3e2e });
+  p.push({ g: GEO.cyl, m: M4(0, 2.8, -6.3, 0.17, 5.6, 0.17), c: 0x4a3e2e });
+  boxAlong(p, [0, 1.3, 4.0], [0, 3.6, 6.5], 0.11, 0.11, 0x4a3e2e);
+  const rope = (q0, q1) => boxAlong(p, q0, q1, 0.03, 0.03, 0x2a2622);
+  rope([0, 7.1, 4.2], [0, 0.85, 7.95]); rope([0, 7.1, 4.2], [0, 2.46, -0.2]); rope([0, 7.0, 4.2], [0, 5.5, -6.3]); rope([0, 5.5, -6.3], [0, 0.75, -7.75]);
+  for (const s of [-1, 1]) { rope([s * 0.1, 6.9, 4.2], [s * 1.95, 0.8, 3.4]); rope([s * 0.1, 5.4, -6.3], [s * 2.15, 0.8, -6.8]); }
+  // the gun on the bow, a 20 mm behind a shield on a pedestal, and its ready-use locker
+  p.push({ g: GEO.cyl, m: M4(0, 0.42, 6.1, 0.55, 0.8, 0.55), c: grey }, { g: GEO.box, m: M4(0, 0.98, 6.1, 0.42, 0.36, 0.9), c: grey });
+  p.push({ g: GEO.cyl, m: M4e(0, 1.02, 7.0, 0.1, 1.5, 0.1, Math.PI / 2, 0, 0), c: 0x3a3e3a }, { g: GEO.box, m: M4(0, 1.12, 6.45, 1.15, 0.72, 0.06, 0, 0), c: grey });
+  p.push({ g: GEO.box, m: M4(1.1, 0.3, 4.9, 0.7, 0.5, 0.5), c: grey });
+  // winch, hatch under a tarpaulin, a heap of net at the stern, a fish box or two
+  p.push({ g: GEO.box, m: M4(0, 0.25, 2.6, 1.6, 0.5, 0.7), c: 0x3a3c3e }, { g: GEO.cyl, m: M4e(0, 0.62, 2.6, 0.6, 1.4, 0.6, 0, 0, Math.PI / 2), c: 0x2a2c2e });
+  p.push({ g: GEO.box, m: M4(0, 0.22, 1.3, 1.7, 0.44, 1.5), c: 0x4c5640 });
+  p.push({ g: GEO.sph, m: M4(0.6, 0.22, -6.8, 1.9, 0.55, 1.3), c: 0x4e5238 }, { g: GEO.sph, m: M4(-0.5, 0.18, -6.6, 1.2, 0.4, 1.0), c: 0x5e4a32 });
+  for (const [lx, lz] of [[-1.5, 3.5], [-1.5, 2.9], [1.5, -0.2]]) p.push({ g: GEO.box, m: M4(lx, 0.22, lz, 0.6, 0.4, 0.5), c: 0x7a6040 });
+  // the gangway over the rail to the quay (local +x is the quay side), with a rope rail on posts
+  p.push({ g: GEO.box, m: M4(2.35, 0.95, 2.2, 1.9, 0.08, 0.8), c: 0x7a6a50 });
+  for (const s of [-1, 1]) { p.push({ g: GEO.box, m: M4(2.35, 1.0, 2.2 + s * 0.42, 1.9, 0.1, 0.06), c: 0x5a4a36 }); for (const lx of [1.5, 3.2]) p.push({ g: GEO.box, m: M4(lx, 1.45, 2.2 + s * 0.42, 0.05, 0.9, 0.05), c: 0x5a4a36 }); rope([1.5, 1.85, 2.2 + s * 0.42], [3.2, 1.85, 2.2 + s * 0.42]); }
+  const m = new THREE.Mesh(mergeGeos(p), propMat); m.castShadow = true; m.receiveShadow = true;
+  m.position.set(x, baseY(x, z) - 0.04, z); m.rotation.y = a; propRoot.add(m);
+  // the deck is walkable (the code box is aboard); the wheelhouse, funnel and casing are solid
+  const D = rotRect(x, z, a, -2.1, -7.6, 2.1, 7.6); bridgeZones.push({ ...D, deck: true });
+  bridgeZones.push({ ...rotRect(x, z, a, 1.9, 1.7, 3.6, 2.7), deck: true });   // the gangway, across to the quay
+  const W = rotRect(x, z, a, -1.45, -5.6, 1.45, 0.45);
+  return { type: 'wheelhouse', x: W.x0, z: W.z0, w: W.x1 - W.x0, d: W.z1 - W.z0, cx: (W.x0 + W.x1) / 2, cz: (W.z0 + W.z1) / 2, mesh: m, tall: true, cover: true };
+}
+// the landing boat: a grey assault landing craft, open well, armoured sides, the ramp up at the bow, a coxswain's shelter aft
+function mkLandingBoat(x, z, a) {
+  const p = [], hull = 0x56605f, dk = 0x3a4240;
+  const HB = { xb: 1.25, xf: 1.1, y: -1.6, zb: -4.75, zf: 4.4 }, HT = { xb: 1.62, xf: 1.52, yb: 0, yf: 0, zb: -5.0, zf: 4.85 };
+  p.push({ g: hexa(HB, HT), m: new THREE.Matrix4(), c: hull }, bootTop(HB, HT, -1.3, -0.95, 0x7a2a22));
+  p.push({ g: GEO.box, m: M4(0, 0.03, -0.1, 2.85, 0.05, 9.0), c: 0x5e5244 });
+  for (let lz = -4.3; lz < 4.4; lz += 0.6) p.push({ g: GEO.box, m: M4(0, 0.06, lz, 2.7, 0.02, 0.08), c: 0x4a4034 });   // duckboards
+  for (const s of [-1, 1]) {
+    p.push({ g: GEO.box, m: M4(s * 1.52, 0.5, -0.1, 0.14, 1.0, 9.6), c: hull }, { g: GEO.box, m: M4(s * 1.52, 1.02, -0.1, 0.24, 0.06, 9.6), c: dk });
+    for (const lz of [-2.5, 0, 2.5]) p.push({ g: GEO.cyl, m: M4e(s * 1.66, 0.2, lz, 0.45, 0.16, 0.45, 0, 0, Math.PI / 2), c: 0x111214 });
+  }
+  p.push({ g: GEO.box, m: M4(0, 0.62, 4.85, 3.0, 1.25, 0.16), c: dk }, { g: GEO.box, m: M4(0, 1.27, 4.85, 3.05, 0.08, 0.24), c: hull });
+  for (const lx of [-0.9, 0, 0.9]) p.push({ g: GEO.box, m: M4(lx, 0.62, 4.95, 0.1, 1.15, 0.05), c: hull });
+  p.push({ g: GEO.box, m: M4(0.55, 0.78, -4.25, 1.5, 1.55, 1.3), c: hull }, { g: GEO.box, m: M4(0.55, 1.28, -3.59, 1.1, 0.14, 0.04), c: 0x111214 }, { g: GEO.box, m: M4(0.55, 1.58, -4.25, 1.6, 0.06, 1.4), c: dk });
+  p.push({ g: GEO.box, m: M4(-0.7, 0.18, -4.3, 1.0, 0.3, 1.1), c: dk });
+  // the white ensign on a staff at the stern
+  p.push({ g: GEO.cyl, m: M4(-1.2, 1.1, -4.85, 0.06, 2.2, 0.06), c: 0x3a3632 });
+  p.push({ g: GEO.box, m: M4(-1.2, 1.95, -5.35, 0.03, 0.5, 0.9), c: 0xe8e6de }, { g: GEO.box, m: M4(-1.2, 1.95, -5.35, 0.04, 0.09, 0.9), c: 0xb02a24 }, { g: GEO.box, m: M4(-1.2, 1.95, -5.35, 0.04, 0.5, 0.09), c: 0xb02a24 });
+  p.push({ g: GEO.box, m: M4(-1.2, 2.08, -5.58, 0.045, 0.24, 0.44), c: 0x23305a });
+  const m = new THREE.Mesh(mergeGeos(p), propMat); m.castShadow = true; m.receiveShadow = true;
+  m.position.set(x, baseY(x, z), z); m.rotation.y = a; propRoot.add(m);
+  const D = rotRect(x, z, a, -1.5, -4.7, 1.5, 4.7); bridgeZones.push({ ...D, deck: true });
+  const R = rotRect(x, z, a, -1.7, -5.0, 1.7, 4.9);
+  return { type: 'boat', pass: true, landBoat: true, x: R.x0, z: R.z0, w: R.x1 - R.x0, d: R.z1 - R.z0, cx: x, cz: z, mesh: m, tall: false, cover: false };
+}
+// a timber jetty on its pilings: planks across the run, three stringers, pilings in pairs with cross braces, bollards and a ladder at the end
+function mkJetty(r) {
+  const p = [], alongZ = (r.z1 - r.z0) >= (r.x1 - r.x0), cx = (r.x0 + r.x1) / 2, cz = (r.z0 + r.z1) / 2, y0 = baseY(cx, cz);
+  const L = alongZ ? r.z1 - r.z0 : r.x1 - r.x0, W = alongZ ? r.x1 - r.x0 : r.z1 - r.z0;
+  const at = (a, l) => alongZ ? [l, a] : [a, l];
+  const hy = (a, l) => { const q = at(a, l); return baseY(cx + q[0], cz + q[1]) - y0; };
+  const box = (a, l, y, sa, sl, sh, c) => { const q = at(a, l); p.push({ g: GEO.box, m: alongZ ? M4(q[0], y, q[1], sl, sh, sa) : M4(q[0], y, q[1], sa, sh, sl), c }); };
+  const PL = [0x6e6354, 0x7b6e5a, 0x625849, 0x857864, 0x5a5246];
+  for (let a = -L / 2 + 0.15; a < L / 2; a += 0.3) box(a, 0, hy(a, 0) - 0.06, 0.26, W, 0.1, PL[(hash2(a * 3.1, cx) * 5) | 0]);
+  for (let a = -L / 2; a < L / 2 - 0.1; a += 2.4) {
+    const a1 = Math.min(L / 2, a + 2.4), am = (a + a1) / 2, yt = hy(am, 0);
+    for (const l of [-W / 2 + 0.3, 0, W / 2 - 0.3]) box(am, l, yt - 0.24, a1 - a, 0.2, 0.26, 0x4a4236);
+    for (const s of [-1, 1]) box(am, s * (W / 2 - 0.08), yt + 0.04, a1 - a, 0.16, 0.12, 0x4f463a);   // kerb timbers
+  }
+  const bed = -WATER_DEPTH - 0.6;
+  for (let a = -L / 2 + 1.2; a <= L / 2 + 0.01; a += 2.4) {
+    const yt = hy(a, 0);
+    for (const s of [-1, 1]) { const q = at(a, s * (W / 2 + 0.06)); p.push({ g: GEO.cyl, m: M4(q[0], (bed + yt + 0.2) / 2, q[1], 0.34, yt + 0.2 - bed, 0.34), c: 0x3e3830 }); }
+    const A = at(a, -W / 2), B = at(a, W / 2);
+    boxAlong(p, [A[0], yt - 0.45, A[1]], [B[0], yt - 1.5, B[1]], 0.12, 0.12, 0x4a4236);
+    boxAlong(p, [A[0], yt - 1.5, A[1]], [B[0], yt - 0.45, B[1]], 0.12, 0.12, 0x4a4236);
+  }
+  const e = L / 2 - 0.4, ye = hy(e, 0);
+  for (const s of [-1, 1]) { const q = at(e, s * (W / 2 - 0.35)); p.push({ g: GEO.cyl, m: M4(q[0], ye + 0.25, q[1], 0.3, 0.5, 0.3), c: 0x23272a }, { g: GEO.cyl, m: M4(q[0], ye + 0.52, q[1], 0.42, 0.08, 0.42), c: 0x23272a }); }
+  for (const s of [-1, 1]) { const q = at(L / 2 + 0.06, s * 0.28); p.push({ g: GEO.box, m: M4(q[0], ye - 0.6, q[1], 0.06, 2.0, 0.06), c: 0x2a2c2e }); }
+  for (let y = ye - 1.5; y < ye + 0.2; y += 0.3) { box(L / 2 + 0.06, 0, y, 0.05, 0.56, 0.05, 0x2a2c2e); }
+  { const q = at(e - 1.2, -W / 2 + 0.5); p.push({ g: GEO.cyl, m: M4(q[0], ye + 0.12, q[1], 0.7, 0.18, 0.7), c: 0x8a7a52 }, { g: GEO.cyl, m: M4(q[0], ye + 0.2, q[1], 0.3, 0.2, 0.3), c: 0x6e604a }); }   // a coil of rope
+  const m = new THREE.Mesh(mergeGeos(p), propMat); m.castShadow = true; m.receiveShadow = true;
+  m.position.set(cx, y0, cz); propRoot.add(m);
+  return m;
+}
+// the quay wall along a fjord's landward edge (z0): dressed granite in courses, wet and weedy at the waterline, a coping,
+// bollards, a flight of steps down to the water and an iron ladder or two
+function mkQuayWall(r, M) {
+  const Q = { p: [], c: [] }, p = [], z0 = r.z0, zf = z0 + 0.55, xa = Math.max(r.x0, -16), xb = Math.min(r.x1, MW + 16), CH = 0.42;
+  const top = x => baseY(x, z0) + 0.02;
+  const weed = SC(0x2c372e), back = SC(0x2e2c28);
+  for (let x = xa; x < xb; x += 2) { const e = Math.min(xb, x + 2); vcQ(Q, [x, top(x) - 3.2, zf - 0.02], [e, top(e) - 3.2, zf - 0.02], [e, top(e), zf - 0.02], [x, top(x), zf - 0.02], back, back, back, back); }
+  for (let row = 0; row < 8; row++) {
+    let x = xa - (row % 2) * 0.45;
+    while (x < xb) {
+      const len = 0.7 + hash2(x * 1.7, row * 3.3) * 0.65, a = Math.max(xa, x) + 0.03, e = Math.min(xb, x + len) - 0.03;
+      if (e > a + 0.1) {
+        const c = vcCol.copy(SC(BK.stone[(hash2(x * 5.1, row * 3) * 4) | 0])).multiplyScalar(0.86 + hash2(x, row + 7) * 0.2).clone();
+        const yta = top(a) - 0.03 - row * CH, yte = top(e) - 0.03 - row * CH, wl = baseY((a + e) / 2, z0) - WATER_DROP;
+        if (yta - CH < wl + 0.35) c.lerp(weed, row * CH > WATER_DROP + 0.2 ? 0.75 : 0.45);
+        const cl = c.clone().multiplyScalar(0.78);
+        vcQ(Q, [a, yta - CH + 0.06, zf], [e, yte - CH + 0.06, zf], [e, yte, zf + 0.025], [a, yta, zf + 0.025], cl, cl, c, c);
+      }
+      x += len;
+    }
+  }
+  p.push(vcPart(Q));
+  for (let x = xa; x < xb; x += 1.6) {   // the coping
+    const e = Math.min(xb, x + 1.6), xm = (x + e) / 2, yt = top(xm) + 0.05;
+    p.push({ g: GEO.box, m: M4(xm, yt - 0.14, z0 + 0.06, e - x - 0.04, 0.28, 1.12), c: hash2(x, 3) < 0.5 ? 0x9a968c : 0x8e8a80 });
+  }
+  const skip = x => onBridge(x, z0 + 1.0, 1.4) || (M.obstacles || []).some(o => (o.t === 'trawler' || o.t === 'boat') && Math.abs(o.x * MW - x) < 1.5);
+  for (let x = xa + 3; x < xb; x += 7.5) {
+    if (skip(x)) continue;
+    const y = top(x) + 0.05;
+    p.push({ g: GEO.cyl, m: M4(x, y + 0.24, z0 + 0.25, 0.36, 0.48, 0.36), c: 0x23272a }, { g: GEO.cyl, m: M4(x, y + 0.5, z0 + 0.25, 0.5, 0.1, 0.5), c: 0x23272a });
+  }
+  for (const lx of (r.ladders || [])) {
+    const x = lx * MW, y = top(x);
+    for (const s of [-1, 1]) p.push({ g: GEO.box, m: M4(x + s * 0.24, y - 1.3, zf + 0.08, 0.05, 2.9, 0.05), c: 0x2a2c2e });
+    for (let k = 0; k < 9; k++) p.push({ g: GEO.box, m: M4(x, y - 0.12 - k * 0.3, zf + 0.1, 0.5, 0.04, 0.04), c: 0x2a2c2e });
+  }
+  if (r.steps !== undefined) {   // stone steps down the face, westward, to a landing at the water
+    const x0 = r.steps * MW;
+    for (let k = 0; k < 9; k++) { const x = x0 - k * 0.42, y = top(x) - 0.28 * (k + 1); p.push({ g: GEO.box, m: M4(x - 0.21, y + 0.06 - 0.6, zf + 0.5, 0.42, 1.2, 1.0), c: k % 2 ? 0x8e8a80 : 0x96928a }); }
+  }
+  const m = new THREE.Mesh(mergeGeos(p), propMat); m.castShadow = true; m.receiveShadow = true;
+  return m;
+}
+// ice on a still fjord: flat broken plates, thick along the quay's foot, scattered out on the open water
+const floeGeo = v => { const p = []; for (let i = 0; i < 3; i++) { const an = v * 2.1 + i * 2.3, r = i ? 0.38 + hash2(v, i) * 0.3 : 0; p.push({ g: GEO.cyl, m: M4(Math.sin(an) * r, 0, Math.cos(an) * r, i ? 0.85 : 1.25, 0.12, i ? 0.6 : 0.95, an), c: i % 2 ? 0xe2eaee : 0xd2dee6 }); } return mergeGeos(p); };
+function buildFloes(r, M) {
+  const out = [], d = new THREE.Object3D(), xa = Math.max(r.x0, -16), xb = Math.min(r.x1, MW + 16), deep = Math.min(r.z1 - r.z0 - 1, 34);
+  const ims = [0, 1, 2].map(v => { const im = new THREE.InstancedMesh(floeGeo(v), propMat, 110); im.count = 0; im.receiveShadow = true; im.frustumCulled = false; return im; });
+  const boats = (M.obstacles || []).filter(o => o.t === 'trawler' || o.t === 'boat').map(o => ({ x: o.x * MW, z: o.z * MH, lane: o.t === 'boat' && M.landing }));
+  const lane = []; for (const b of boats) if (b.lane) for (let u = 0; u <= 1; u += 0.05) lane.push(landPath(b.x, b.z, u));   // keep the boat's run in clear of ice
+  for (let i = 0; i < 420; i++) {
+    const edge = hash2(i, 9.1) < 0.5, x = xa + hash2(i, 3.3) * (xb - xa), z = edge ? r.z0 + 0.75 + hash2(i, 5.7) * 2.4 : r.z0 + 1.2 + hash2(i, 5.7) * deep;
+    if (onBridge(x, z, 1.2)) continue;
+    if (boats.some(b => Math.abs(b.x - x) < 9 && Math.abs(b.z - z) < 4) || lane.some(q => Math.hypot(q[0] - x, q[1] - z) < 4.2)) continue;
+    if (!edge && hash2(i, 1.9) > 0.55) continue;
+    const s = edge ? 0.35 + hash2(i, 2) * 0.6 : 0.45 + hash2(i, 2) * 1.5;
+    d.position.set(x, baseY(x, z) - WATER_DROP + 0.06, z); d.rotation.set(0, hash2(i, 4) * 6.3, 0); d.scale.set(s, 1, s * (0.65 + hash2(i, 6) * 0.6)); d.updateMatrix();
+    const im = ims[i % 3]; if (im.count < 110) im.setMatrixAt(im.count++, d.matrix);
+  }
+  for (const im of ims) { im.instanceMatrix.needsUpdate = true; out.push(im); }
+  return out;
+}
+/* Norwegian timber buildings, after the building sheet: a red rorbu cabin on posts with a deck and a white rail, the white
+   two-storey house, the yellow two-storey billet with its porch (the garrison's), the red factory shed with its doors open.
+   Boards, corner boards and window surrounds in the trim colour, a tin gable roof (the snow lies on it). */
+const NORB = { rorbu: { wall: 0x8c2a20, trim: 0xe9e3d4, H: 2.7, door: 0x3a2e24, stilts: 0.85 },
+  white: { wall: 0xdad5c8, trim: 0xf3f0e8, H: 5.3, door: 0x2f4a3c },
+  billet: { wall: 0xc79231, trim: 0xefe9da, H: 5.3, door: 0x3c2c20 },
+  shed: { wall: 0x7c2b21, trim: 0x4e4234, H: 4.3, door: 0x3a2e24 } };
+function mkNorBldg(x, z, w, d, kind) {
+  const K = NORB[kind], H = K.H, seed = hash2(x * 0.37, z * 0.53), parts = [], tins = [], Q = { p: [], c: [] }, cx = x + w / 2, cz = z + d / 2;
+  let gmin = 1e9, gmax = -1e9;
+  for (const [u, v] of [[0, 0], [1, 0], [0, 1], [1, 1], [0.5, 0.5]]) { const g = groundY(x + u * w, z + v * d); gmin = Math.min(gmin, g); gmax = Math.max(gmax, g); }
+  const Y0 = gmax + 0.18 + (K.stilts || 0), drop = gmin - Y0 - 0.3;
+  if (K.stilts) {
+    parts.push({ g: GEO.box, m: M4(0, -0.13, 0, w + 0.1, 0.26, d + 0.1), c: 0x3e3428 });
+    for (const sx of [-0.5, 0, 0.5]) for (const sz of [-0.5, 0.5, 0.5 + 1.5 / d]) parts.push({ g: GEO.cyl, m: M4(sx * (w - 0.3), drop / 2, sz * (d - 0.3) + (sz > 0.5 ? 0.15 : 0), 0.26, -drop, 0.26), c: 0x3a3228 });
+  } else parts.push({ g: GEO.box, m: M4(0, (drop + 0.2) / 2, 0, w + 0.3, 0.2 - drop, d + 0.3), c: 0x77746c });
+  parts.push({ g: GEO.box, m: M4(0, H / 2, 0, w, H, d), c: (K.wall & 0xfefefe) >> 1 });
+  for (const N of [[0, 0, 1], [0, 0, -1], [1, 0, 0], [-1, 0, 0]]) {
+    const len = N[2] ? w : d, off = (N[2] ? d : w) / 2 + 0.012;
+    plankFace(Q, N[0] * off, N[2] * off, N, -len / 2, len / 2, 0.02, H + 0.06, K.wall, seed * 17 + N[0] * 3 + N[2] * 5);
+  }
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) parts.push({ g: GEO.box, m: M4(sx * (w / 2 + 0.01), H / 2, sz * (d / 2 + 0.01), 0.2, H, 0.2), c: K.trim });
+  const fr = BK.frame; BK.frame = K.trim;
+  const win = (N, t, yc, ww, wh) => {
+    const fx = N[0] * w / 2, fz = N[2] * d / 2;
+    fbox(parts, fx, fz, N, t, yc, 0.02, ww + 0.34, wh + 0.34, 0.05, K.trim);
+    glowQ.on = lampsOn() && hash2(t * 3.1 + x, yc * 1.7 + z + N[0]) < 0.45;
+    window4(parts, Q, fx, fz, N, t, yc, ww, wh);
+    glowQ.on = false;
+  };
+  const rows = H > 4.6 && kind !== 'shed' ? [1.5, 1.5 + H / 2] : kind === 'shed' ? [3.0] : [1.5];
+  const nF = Math.max(1, Math.floor(w / 2.3)), slots = [...Array(nF)].map((_, i) => -w / 2 + (i + 0.5) * w / nF);
+  const doorI = kind === 'shed' ? -1 : Math.floor(nF / 2), dx = kind === 'shed' ? 0 : slots[doorI] + (nF % 2 ? 0 : -0.3 * 0);
+  slots.forEach((t, i) => rows.forEach((yc, r) => { if (kind === 'shed' && Math.abs(t) < 2.4) return; if (i === doorI && r === 0) return; win([0, 0, 1], t, yc, kind === 'shed' ? 1.2 : 0.8, kind === 'shed' ? 0.6 : 1.05); }));
+  for (const sx of [-1, 1]) { const nS = Math.max(1, Math.floor(d / 2.8)); for (let i = 0; i < nS; i++) rows.forEach(yc => win([sx, 0, 0], -d / 2 + (i + 0.5) * d / nS, yc, kind === 'shed' ? 1.2 : 0.8, kind === 'shed' ? 0.6 : 1.05)); }
+  BK.frame = fr;
+  const N = [0, 0, 1];
+  if (kind === 'shed') {   // the big doors, open, the dark inside, the leaves folded back
+    fbox(parts, 0, d / 2, N, 0, 1.6, 0.03, 3.4, 3.2, 0.06, 0x15120f);
+    fbox(parts, 0, d / 2, N, 0, 3.3, 0.04, 3.7, 0.22, 0.1, K.trim);
+    for (const s of [-1, 1]) doorLeaf(parts, Q, 0, d / 2 + 0.05, N, s * 1.75, s * 3.4, 3.1, K.wall, seed * 3 + s);
+  } else {
+    fbox(parts, 0, d / 2, N, dx, 1.12, 0.03, 1.3, 2.3, 0.08, K.trim);
+    fbox(parts, 0, d / 2, N, dx, 1.06, 0.06, 0.95, 2.08, 0.06, K.door);
+    fbox(parts, 0, d / 2, N, dx + 0.3, 1.05, 0.1, 0.06, 0.06, 0.06, 0xb8a060);
+    if (!K.stilts && kind !== 'billet') parts.push({ g: GEO.box, m: M4(dx, (drop + 0.15) / 2, d / 2 + 0.45, 1.4, 0.15 - drop, 0.7), c: 0x8a877e });
+  }
+  if (K.stilts) {   // the deck in front, on its own posts, a white rail round it with a gap at the side for the steps
+    const dz = d / 2 + 0.75;
+    parts.push({ g: GEO.box, m: M4(0, -0.05, dz, w - 0.3, 0.1, 1.5), c: 0x6e6252 });
+    for (let t = -w / 2 + 0.2; t <= w / 2 - 0.15; t += (w - 0.4) / Math.round((w - 0.4) / 1.2)) parts.push({ g: GEO.box, m: M4(t, 0.48, d / 2 + 1.44, 0.08, 0.95, 0.08), c: K.trim });
+    parts.push({ g: GEO.box, m: M4(0, 0.95, d / 2 + 1.44, w - 0.35, 0.07, 0.09), c: K.trim }, { g: GEO.box, m: M4(0, 0.5, d / 2 + 1.44, w - 0.35, 0.05, 0.06), c: K.trim });
+    parts.push({ g: GEO.box, m: M4(w / 2 - 0.17, 0.95, dz, 0.09, 0.07, 1.45), c: K.trim }, { g: GEO.box, m: M4(w / 2 - 0.17, 0.48, d / 2 + 0.05, 0.08, 0.95, 0.08), c: K.trim });
+    for (let k = 0; k < 4; k++) parts.push({ g: GEO.box, m: M4(-w / 2 - 0.35, -0.18 - k * 0.2, d / 2 + 0.6 - k * 0.0, 0.6, 0.08, 1.0), c: 0x5e5446 });
+  }
+  if (kind === 'billet') {   // the porch: a stone floor, two posts, a little gable; sandbags beside it
+    const pz = d / 2 + 1.0;
+    parts.push({ g: GEO.box, m: M4(dx, (drop + 0.14) / 2, pz, 3.0, 0.14 - drop, 2.0), c: 0x8a877e });
+    for (const s of [-1, 1]) parts.push({ g: GEO.box, m: M4(dx + s * 1.3, 1.3, pz + 0.8, 0.18, 2.5, 0.18), c: K.trim });
+    parts.push({ g: GEO.prism, m: M4(dx, 2.55, pz, 3.4, 0.75, 2.4), c: 0x3e4244 }, { g: GEO.box, m: M4(dx, 2.5, pz + 0.8, 3.0, 0.16, 0.12), c: K.trim });
+    for (let k = 0; k < 2; k++) for (let i = 0; i < 5 - k; i++) parts.push({ g: GEO.sph, m: M4(dx + 2.3 + (i - 1.5 + k * 0.5) * 0.5, 0.16 + k * 0.2 + drop * 0, pz + 0.6, 0.5, 0.22, 0.36), c: (i + k) % 2 ? 0xb3a070 : 0x9a8858 });
+  }
+  const R = gableRoof(w, d, H, { seed, wall: K.wall, rh: kind === 'shed' ? 1.3 : 0.9 + Math.min(w, d) * 0.12, ov: 0.45, ovg: 0.35, noVent: kind !== 'shed', noPipes: kind === 'rorbu' });
+  tins.push(...R.parts);
+  if (kind !== 'shed') {
+    const chx = (seed > 0.5 ? 1 : -1) * w * 0.25, ch = R.rh + 1.0;
+    parts.push({ g: GEO.box, m: M4(chx, H + ch / 2, 0, 0.62, ch, 0.62), c: 0x6a3a2c }, { g: GEO.box, m: M4(chx, H + ch + 0.05, 0, 0.76, 0.1, 0.76), c: 0x4a2a20 });
+  }
+  const hb = kind === 'shed' ? null : lampFixture(parts, 0, d / 2 + 0.06, [0, 0, 1], dx + 0.95, 2.4);
+  parts.push(vcPart(Q));
+  const m = new THREE.Mesh(mergeGeos(parts), propMat), t = new THREE.Mesh(mergeGeos(tins), metalMat);
+  { const gm = glowMesh(); if (gm) m.add(gm); }
+  m.castShadow = true; m.receiveShadow = true; t.castShadow = true; t.receiveShadow = true; m.add(t);
+  m.position.set(cx, Y0, cz); propRoot.add(m);
+  if (hb) lamps.push({ x: hb[0] + cx, y: hb[1] + Y0, z: hb[2] + cz, nx: 0, nz: 1 });
+  return { type: 'house', x, z, w, d, cx, cz, mesh: m, tall: true, cover: true };
+}
+// a stockfish rack (hjell): A-frames of poles, a ridge pole and two rails, the cod hung in pairs to dry
+function mkFishRack(x, z, len, alongZ) {
+  const p = [], pole = 0x6a5a44, H = 2.5, n = Math.max(2, Math.round(len / 2.2));
+  const at = (t, l, y) => alongZ ? [l, y, t] : [t, y, l];
+  for (let i = 0; i <= n; i++) { const t = -len / 2 + i * len / n; for (const s of [-1, 1]) boxAlong(p, at(t, s * 0.95, -0.2), at(t, -s * 0.14, H + 0.2), 0.1, 0.1, pole); }
+  boxAlong(p, at(-len / 2 - 0.3, 0, H - 0.02), at(len / 2 + 0.3, 0, H - 0.02), 0.1, 0.1, pole);
+  for (const s of [-1, 1]) boxAlong(p, at(-len / 2 - 0.1, s * 0.36, 1.55), at(len / 2 + 0.1, s * 0.36, 1.55), 0.08, 0.08, pole);
+  for (let t = -len / 2 + 0.22; t < len / 2 - 0.1; t += 0.3) for (const [l, y] of [[-0.36, 1.55], [0.36, 1.55], [0, 2.45]]) {
+    if (hash2(t * 7 + l, x) < 0.22) continue;
+    const c = [0x8a7550, 0x9c8760, 0x76643f][(hash2(t, l * 3 + z) * 3) | 0];
+    for (const sd of [-1, 1]) { const q = at(t, l + sd * 0.07, y - 0.32); p.push({ g: GEO.box, m: alongZ ? M4(q[0], q[1], q[2], 0.05, 0.62, 0.12, 0, sd * 0.12) : M4(q[0], q[1], q[2], 0.12, 0.62, 0.05, 0, 0), c }); }
+  }
+  tbAdd('vc', mergeGeos(p), x, groundY(x, z), z);
+  const hw = alongZ ? 1.0 : len / 2, hd = alongZ ? len / 2 : 1.0;
+  return { type: 'rack', x: x - hw, z: z - hd, w: hw * 2, d: hd * 2, cx: x, cz: z, tall: false, cover: false };
+}
+// a few oil drums stood together, one rusty, one on its side
+function mkDrums(x, z, seed) {
+  const p = [], n = 3 + ((seed * 7) % 2);
+  for (let i = 0; i < n; i++) {
+    const a = i * 2.1 + seed, r = i ? 0.62 : 0, px = Math.sin(a) * r, pz = Math.cos(a) * r, c = [0x6b4a2a, 0x3a4a3a, 0x7a2a22, 0x4a4e52][(i + seed) % 4];
+    if (i === n - 1 && seed % 2) { p.push({ g: GEO.cyl, m: M4e(px * 1.6, 0.3, pz * 1.6, 0.6, 0.9, 0.6, 0, a, Math.PI / 2), c }); continue; }
+    p.push({ g: GEO.cyl, m: M4(px, 0.45, pz, 0.6, 0.9, 0.6), c });
+    for (const y of [0.3, 0.6]) p.push({ g: GEO.cyl, m: M4(px, y, pz, 0.62, 0.04, 0.62), c: 0x2a2622 });
+    p.push({ g: GEO.cyl, m: M4(px, 0.9, pz, 0.54, 0.02, 0.54), c: 0x2a2622 });
+  }
+  tbAdd('vc', mergeGeos(p), x, groundY(x, z), z);
+  return { type: 'drums', x, z, radius: 1.0, tall: false, cover: true };
+}
+/* v75: the squad comes in by boat. The landing boat runs in from the fjord during the flyover, the men standing in its
+   well, and ties up at the jetty's end; skip the flyover and it is simply there. Alongside, its deck is a bridge zone like
+   the jetty's, so the men walk off it, and back on to it to leave. */
+let landing = null;
+// the run in: from up the fjord to the east, along the shore past the trawler, swinging north into the jetty (a quadratic
+// curve; u 0 → 1). Returns x, z and the heading's direction
+function landPath(x1, z1, u) {
+  const P0 = [x1 + 34, z1 + 6], P1 = [x1 + 2.5, z1 + 8], v = 1 - u;
+  return [v * v * P0[0] + 2 * v * u * P1[0] + u * u * x1, v * v * P0[1] + 2 * v * u * P1[1] + u * u * z1,
+    2 * v * (P1[0] - P0[0]) + 2 * u * (x1 - P1[0]), 2 * v * (P1[1] - P0[1]) + 2 * u * (z1 - P1[1])];
+}
+function landingSetup(M) {
+  landing = null;
+  if (!M.landing) return;
+  const B = obs.find(o => o.landBoat); if (!B) return;
+  landing = { B, x1: B.cx, z1: B.cz, f: 0 };
+  sol.forEach((u, i) => { u.landSlot = [(i % 2 ? 0.62 : -0.62), 2.9 - (i >> 1) * 1.3]; });
+  landPose(0);
+}
+function landEnd(u) { const L = landing, s = u.landSlot, c = Math.cos(Math.PI), n = Math.sin(Math.PI); return { x: L.x1 + s[0] * c + s[1] * n, z: L.z1 - s[0] * n + s[1] * c }; }
+function landPose(f) {
+  const L = landing, B = L.B, g = Math.max(0, (f - 0.45) / 0.55), e = 1 - Math.pow(1 - g, 1.5), k = 1 - e, t = performance.now() * 0.001;   // it holds offshore while the camera looks at the target, then runs in
+  const q = landPath(L.x1, L.z1, e), x = q[0], z = q[1], a = Math.atan2(q[2], q[3]);
+  const y = baseY(x, z) + Math.sin(t * 2.1) * 0.05 * Math.min(1, k * 4);
+  B.mesh.position.set(x, y, z); B.mesh.rotation.set(Math.sin(t * 1.7) * 0.012 * Math.min(1, k * 4), a, Math.sin(t * 1.3) * 0.02 * Math.min(1, k * 4));
+  const ca = Math.cos(a), sa = Math.sin(a);
+  for (const u of sol) {
+    if (u.dead || !u.landSlot) continue;
+    const [lx, lz] = u.landSlot;
+    u.x = x + lx * ca + lz * sa; u.z = z - lx * sa + lz * ca;
+    u.tx = u.x; u.tz = u.z; u.angle = u.aim = a;
+    u.elev = y - groundY(u.x, u.z);
+  }
+  return { x, z, a, y, k };
+}
+function stepLanding(dt) {
+  if (!landing) return;
+  landing.f = Math.min(1, landing.f + dt / (introDur * 0.97));
+  const P = landPose(landing.f);
+  if (P.k > 0.03) { const bx = P.x + Math.sin(P.a) * 4.9, bz = P.z + Math.cos(P.a) * 4.9; spawnParts(bx + (Math.random() - 0.5) * 2.8, P.y - 1.05, bz, 2, 0xe6eef0, 1.6, 0.16, 0.6, 5); }
+}
+function finishLanding() {
+  if (!landing) return;
+  landPose(1);
+  landing.B.mesh.rotation.set(0, Math.PI, 0);
+  for (const u of sol) { u.elev = 0; u.landSlot = null; u.lastX = u.x; u.lastZ = u.z; }
+  landing = null;
+}
 function mkLorry(T) {
   const fx = Math.round(Math.sin(T.a)), fz = Math.round(Math.cos(T.a)), yaw = Math.atan2(fx, fz);
   // v24: an Opel Blitz with a fuel tank on the back (the vehicle kit), drums stacked beside it
@@ -9095,6 +9515,7 @@ function buildTargets(M) {
     if (t.t === 'pillbox') obs.push(mkPillbox(T));
     else if (t.t === 'radio') mkRadio(T);
     else if (t.t === 'lorry') obs.push(mkLorry(T));
+    else if (t.t === 'otank') { T.kind = 'lorry'; T.oil = true; obs.push(mkOilTank(T)); }   // v75: burns like the lorry
     else if (t.t === 'gun') obs.push(mkGun(T));
     else if (t.t === 'bridge') { const r = bridgeZones[t.b || 0]; T.zone = r; T.mesh = bridges[t.b || 0]; T.x = (r.x0 + r.x1) / 2; T.z = (r.z0 + r.z1) / 2; }
     targets.push(T);
@@ -9108,7 +9529,7 @@ function buildTargets(M) {
     else if (o.t === 'prisoner') { const h = mkHostage(o.x * MW, o.z * MH); h.opt = st; recruits.push(h); st.h = h; }
     optSteps.push(st);
   }
-  if (M.intel) { intel = { x: M.intel.x * MW, z: M.intel.z * MH }; mkIntel(intel); }
+  if (M.intel) { intel = { x: M.intel.x * MW, z: M.intel.z * MH, box: !!M.intel.box }; mkIntel(intel); }
   if (M.extract) { extractPt = { x: M.extract.x * MW, z: M.extract.z * MH, r: M.extract.r || 6 }; mkExtract(extractPt); }
   buildTyreTracks(M); gunHunt = M.gunHunt ? 0 : -1;   // v70
   objSteps = (M.objectives || [{ t: M.win === 'all' || !M.win ? 'kill' : M.win }]).map(s => ({ ...s }));
@@ -9149,7 +9570,8 @@ function destroyTarget(T, how) {
     else showToast('RADIO OUT', how === 'quiet' ? 'smashed, quietly' : 'nobody is calling anybody');
   } else if (T.kind === 'lorry') {
     lorryFireball(T); addSmoker(T.x, T.z, { life: 70, rate: 5, size: 2.2, col: 0x1e1d1c, a: 0.65, rise: 2.6, burst: 8 });   // v31
-    showToast('FUEL LORRY GONE', 'they will be walking tomorrow');
+    if (T.oil) { const left = targets.filter(t => t.oil && !t.dead).length; showToast('FISH OIL ALIGHT', left ? `${left} still to go` : 'the whole harbour smells of it'); }   // v75
+    else showToast('FUEL LORRY GONE', 'they will be walking tomorrow');
   } else if (T.kind === 'gun') {
     T.mesh.rotation.z = how === 'quiet' ? 0 : 0.3; if (how !== 'quiet') { T.mesh.material = pbScorch; addSmoker(T.x, T.z, { life: 30, rate: 2.5, size: 1.3, col: 0x363431, a: 0.55 }); } T.ring.visible = false;
     spawnParts(T.x, groundY(T.x, T.z) + 1, T.z, how === 'quiet' ? 6 : 24, how === 'quiet' ? 0xd8d0b0 : 0xffa040, 6, 0.12, 0.6, 8);
@@ -9295,7 +9717,7 @@ function stepObjectives(dt) {
   if (intel && !intel.taken) {
     intel.ring.scale.setScalar(1 + Math.sin(missionTime * 3) * 0.08);
     const by = sol.find(q => !q.dead && Math.hypot(q.x - intel.x, q.z - intel.z) < 1.5);
-    if (by) { intel.taken = true; intel.ring.visible = false; showToast('DOCUMENTS TAKEN', 'now get them home'); say(by, 'rescue'); updObjBar(); }
+    if (by) { intel.taken = true; intel.ring.visible = false; if (intel.box) intel.mesh.visible = false; showToast(intel.box ? 'CODE BOX TAKEN' : 'DOCUMENTS TAKEN', intel.box ? 'now get it home' : 'now get them home'); say(by, 'rescue'); updObjBar(); }
   }
   if (!pbHinted && targets.some(T => T.kind === 'pillbox' && !T.dead && T.crew.some(u => !u.dead && u.state === 'engage'))) pillboxHint();
   const s = objSteps[objIdx];
@@ -9363,8 +9785,8 @@ function initMission(idx) {
   }
   snowApron();
 
-  waterZones = (M.water || []).map(r => ({ x0: r.x1 * MW, z0: r.z1 * MH, x1: r.x2 * MW, z1: r.z2 * MH }));
-  bridgeZones = (M.bridge || []).map(r => ({ x0: r.x1 * MW, z0: r.z1 * MH, x1: r.x2 * MW, z1: r.z2 * MH, rail: !!r.rail }));
+  waterZones = (M.water || []).map(r => ({ x0: r.x1 * MW, z0: r.z1 * MH, x1: r.x2 * MW, z1: r.z2 * MH, still: !!r.still, quay: !!r.quay, ladders: r.ladders, steps: r.steps }));   // v75: still (a fjord), quay (a sheer stone edge)
+  bridgeZones = (M.bridge || []).map(r => ({ x0: r.x1 * MW, z0: r.z1 * MH, x1: r.x2 * MW, z1: r.z2 * MH, rail: !!r.rail, jetty: !!r.jetty }));
   extendRiversToEdge();
   setupMesas(M);
   ridgeLifts = (M.obstacles || []).filter(o => o.t === 'ridge').map(o => ({ x0: o.x * MW, z0: o.z * MH, x1: (o.x + o.w) * MW, z1: (o.z + o.d) * MH, h: o.h || 5 }));
@@ -9408,7 +9830,7 @@ function initMission(idx) {
   buildTufts();
   placeRiverRocks();
   buildWater();
-  for (const r of bridgeZones) bridges.push(r.rail ? mkRailBridge(r) : mkBridge(r));   // v44: a rail bridge where the line crosses
+  for (const r of bridgeZones) bridges.push(r.rail ? mkRailBridge(r) : r.jetty ? mkJetty(r) : mkBridge(r));   // v75: a jetty on pilings   // v44: a rail bridge where the line crosses
   buildBoundary();
   setupAtmo(M);   // v31: before the obstacles, so burnt hulks can light their smoke
 
@@ -9418,10 +9840,15 @@ function initMission(idx) {
     if ((o.t === 'tree' || o.t === 'rock' || o.t === 'bush') && (roadDist(x, z) || { t: 9 }).t < 1.3) continue;   // nothing growing in a road
     if (o.t === 'tree') obs.push(mkTree(x, z, seed++, o.kind ? TREE_KINDS.indexOf(SNOW && /broad/.test(o.kind) ? 'bare' : o.kind) : undefined));
     else if (o.t === 'casemate') obs.push(...mkCasemate(x, z, o.a || 0));   // v70
+    else if (o.t === 'trawler') obs.push(mkTrawler(x, z, o.a || 0));   // v75
+    else if (o.t === 'boat') obs.push(mkLandingBoat(x, z, o.a === undefined ? Math.PI : o.a));
+    else if (o.t === 'rack') obs.push(mkFishRack(x, z, o.len || 7, !!o.alongZ));
+    else if (o.t === 'drums') obs.push(mkDrums(x, z, seed++));
     else if (o.t === 'rock') obs.push(mkRock(x, z, seed++));
     else if (o.t === 'bush') obs.push(mkBush(x, z, seed++));
     else if (o.t === 'crate') obs.push(mkCrate(x, z, seed++));
     else if (o.t === 'wall') obs.push(mkWall(x, z, o.w, o.d));
+    else if (o.t === 'house' && NORB[o.style]) obs.push(mkNorBldg(x, z, o.w, o.d, o.style));   // v75
     else if (o.t === 'house') obs.push(o.style === 'farm' ? mkFarmhouse(x, z, o.w, o.d) : o.style === 'ruin' ? mkFarmhouse(x, z, o.w, o.d, true) : o.style === 'barn' ? mkBarn(x, z, o.w, o.d) : mkHouse(x, z, o.w, o.d));   // v39: styles
     else if (o.t === 'lamp') obs.push(mkLamppost(x, z, o.style || 0));
     else if (o.t === 'swall') obs.push(mkStoneWall(x, z, o.w, o.d));
@@ -9465,6 +9892,7 @@ function initMission(idx) {
     applyTrait(u, traitOf(g));
     sol.push(u);
   });
+  landingSetup(M);   // v75: in the boat, out on the fjord
   if (sol.some(q => q.trait === 'arm')) { grenCount++; startGren++; }
   // v33: the attached sniper, on the operations that call for him
   if (M.sniper && !sniperRec.dead) addSniper(M);
@@ -12075,8 +12503,8 @@ function objectivePoint() {
 function beginIntro() {
   phase = 'intro'; introT = 0;
   const M = MISSIONS[missionIdx];
-  const o = objectivePoint(), L = sol[0];
-  introDur = 3.6;
+  const o = objectivePoint(), L = landing ? landEnd(sol[0]) : sol[0];
+  introDur = landing ? 7.5 : 3.6;   // v75: long enough to watch the boat come in
   introLA.set(o.x, 0, o.z - 3);
   introA.set(o.x + 6, CAM_H * camZoom * 1.25, o.z + CAM_Z * camZoom * 0.95);
   introLB.set(L.x, 0, L.z - 5.5);
@@ -12099,6 +12527,7 @@ function stepIntro(dt) {
   camera.lookAt(_v);
   placeSun(_v.x, _v.z);   // v34
   rigBeginFrame();
+  stepLanding(dt);   // v75
   for (const u of [...sol, ...ens]) if (!u.dead) animateUnit(u, dt);
   updateBars(); stepBirds(dt); stepFauna(dt); stepParts(dt); stepAtmo(dt);
   if (p >= 1) endIntro(false);
@@ -12106,6 +12535,7 @@ function stepIntro(dt) {
 function endIntro(skipped) {
   if (phase !== 'intro') return;
   phase = 'play';
+  finishLanding();   // v75: alongside the jetty, whether the flyover ran or was skipped
   PF.gameplayStart();
   const go = () => {
     const L = sol[0];
@@ -12458,6 +12888,14 @@ function worldAt(cx, cy) {
   ndc.y = -(cy / innerHeight) * 2 + 1;
   rc.setFromCamera(ndc, camera);
   const hit = rc.intersectObject(gnd, false);
+  // v75: a deck or a jetty stands over the water, well above the bed the ray would otherwise find: pick the deck
+  for (const r of bridgeZones) {
+    if (!r.deck && !r.jetty) continue;
+    const t = (baseY((r.x0 + r.x1) / 2, (r.z0 + r.z1) / 2) - rc.ray.origin.y) / rc.ray.direction.y;
+    if (!(t > 0) || (hit.length && hit[0].distance < t)) continue;
+    const x = rc.ray.origin.x + rc.ray.direction.x * t, z = rc.ray.origin.z + rc.ray.direction.z * t;
+    if (inRect(r, x, z, 0.1)) return new THREE.Vector3(x, 0, z);
+  }
   if (hit.length) return hit[0].point;
   const v = new THREE.Vector3();
   return rc.ray.intersectPlane(flatPlane, v) ? v : null;
@@ -12881,7 +13319,7 @@ Object.defineProperty(window,'waterZones',{get:()=>waterZones});
 Object.defineProperty(window,'bridgeZones',{get:()=>bridgeZones});
 window.inDeepWater = inDeepWater;
 Object.defineProperty(window,'sol',{get:()=>sol});
-Object.defineProperty(window,'ens',{get:()=>ens}); window.__PR = PR; window.__nextPrint = nextPrint; window.__packed = packedSnow;   // v71 dev
+Object.defineProperty(window,'ens',{get:()=>ens}); window.__reveal = () => { seenMap.fill(1); liveMap.fill(1); };   // v75 dev: the whole map, for overview shots window.__PR = PR; window.__nextPrint = nextPrint; window.__packed = packedSnow;   // v71 dev
 Object.defineProperty(window,'missionTime',{get:()=>missionTime});
 Object.defineProperty(window,'kills',{get:()=>kills});
 window.__state = () => ({ sol, ens, missionTime, kills });
@@ -12931,6 +13369,7 @@ window.__pose = (walk, o) => {
 };
 window.__out = () => outcome;
 window.__skipIntro = () => endIntro(false);
+window.__stepIntro = (secs) => { for (let i = 0; i < Math.round(secs * 30); i++) if (phase === 'intro') stepIntro(1 / 30); };   // v75 dev: run the flyover in game time (the landing shots)
 window.__phase = () => phase;
 window.__level = async (fn, ms) => {   // fire a sound and report its peak amplitude at the master bus
   if (!AC) return null;
