@@ -412,7 +412,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
     <button id="tset">SETTINGS <small>sound · music · graphics</small></button>
   </div>
   <div class="foot">© GAMELAB · NO GRUNTS WERE CONSULTED</div>
-  <div id="tver">v79</div>
+  <div id="tver">v81</div>
 </div>
 
 <div id="ops" class="screen">
@@ -570,7 +570,7 @@ const THREE = window.THREE;   // bundled above as a classic script: one file, no
     __dbg() __probe() __audio() __renderInfo() __fps()
 ═══════════════════════════════════════════════════════════════*/
 
-const MW = 100, MH = 100;          // world size
+let MW = 100, MH = 100;            // world size: 100 × 100, or the op's own (v80: M.size, see setMapSize)
 const FR = 128;                    // fog-of-war resolution
 const SIGHT = 17.5;                // squad sight radius
 const SNAKE = 2.3;                 // follow spacing
@@ -771,6 +771,7 @@ const LOOK = {
   aer: { value: 1 }, aerA: { value: 38 },
   grade: { value: 1 },
   ao: { value: 1 }, hgt: { value: null },
+  sz: { value: new THREE.Vector2(MW, MH) },   // v80: the map's size, for the height texture's UVs
 };
 const LOOK_VTF = R.capabilities.maxVertexTextures > 0;
 const LOOK_HN = 128, LOOK_H = new Uint8Array(LOOK_HN * LOOK_HN * 4);
@@ -833,8 +834,8 @@ function lookInject(sh, m) {
   }`);
   }
   if (phong && ud.lookAO !== false && LOOK_VTF) {
-    sh.uniforms.uLkAO = LOOK.ao; sh.uniforms.uLkHgt = LOOK.hgt;
-    vs = vs.replace('#include <common>', '#include <common>\nuniform float uLkAO; uniform sampler2D uLkHgt; varying float vLkAO;')
+    sh.uniforms.uLkAO = LOOK.ao; sh.uniforms.uLkHgt = LOOK.hgt; sh.uniforms.uLkSz = LOOK.sz;
+    vs = vs.replace('#include <common>', '#include <common>\nuniform float uLkAO; uniform sampler2D uLkHgt; uniform vec2 uLkSz; varying float vLkAO;')
       .replace('#include <fog_vertex>', `#include <fog_vertex>
   {
     vec4 lkW = vec4(transformed, 1.0);
@@ -842,7 +843,7 @@ function lookInject(sh, m) {
     lkW = instanceMatrix * lkW;
 #endif
     lkW = modelMatrix * lkW;
-    vec2 lkUV = lkW.xz / ${MW.toFixed(1)};
+    vec2 lkUV = lkW.xz / uLkSz;
     float lkIn = step(-0.1, lkUV.x) * step(lkUV.x, 1.1) * step(-0.1, lkUV.y) * step(lkUV.y, 1.1);
     vec4 lkHt = texture2D(uLkHgt, clamp(lkUV, 0.0, 1.0));
     float lkGy = (lkHt.r + lkHt.g / 255.0) * 16.0 - 6.0;
@@ -854,20 +855,24 @@ function lookInject(sh, m) {
   // v67: snow lies on whatever faces up (roofs, tree tiers, rocks, wall tops, vehicles). uSnow is the op's snow
   // (0 or 1), uSnK this material's share: 0 for the ground (coloured in terrCol), water and men; about half on roads.
   if (phong) {
-    sh.uniforms.uSnow = ATMO.snow; sh.uniforms.uSnK = { value: ud.snowK === undefined ? 1 : ud.snowK };
-    vs = vs.replace('#include <common>', '#include <common>\nvarying vec3 vSnN; varying vec2 vSnW;')
+    sh.uniforms.uSnow = ATMO.snow; sh.uniforms.uSnK = { value: ud.snowK === undefined ? 1 : ud.snowK }; sh.uniforms.uSnClump = { value: ud.sway ? 1 : 0 };   // v81: foliage holds snow in clumps
+    vs = vs.replace('#include <common>', '#include <common>\nvarying vec3 vSnN; varying vec2 vSnW; varying float vSnY;')
       .replace('#include <fog_vertex>', `#include <fog_vertex>
   {
     vec3 snN = objectNormal; vec4 snW = vec4(transformed, 1.0);
 #ifdef USE_INSTANCING
     snN = mat3(instanceMatrix) * snN; snW = instanceMatrix * snW;
 #endif
-    vSnN = normalize(mat3(modelMatrix) * snN); vSnW = (modelMatrix * snW).xz;
+    vSnN = normalize(mat3(modelMatrix) * snN); vec4 snM = modelMatrix * snW; vSnW = snM.xz; vSnY = snM.y;
   }`);
-    fs = fs.replace('#include <common>', '#include <common>\nvarying vec3 vSnN; varying vec2 vSnW; uniform float uSnow, uSnK;')
+    fs = fs.replace('#include <common>', '#include <common>\nvarying vec3 vSnN; varying vec2 vSnW; varying float vSnY; uniform float uSnow, uSnK, uSnClump;')
       .replace('#include <color_fragment>', `#include <color_fragment>
   {
     float snU = smoothstep(0.42, 0.8, normalize(vSnN).y) * uSnow * uSnK;
+    if (uSnClump > 0.5) {   // v81, after Khal's Plateau sheet: on spruce the snow sits in clumps on the tops of the tiers, dark green between
+      float cl = sin(vSnW.x * 3.7 + sin(vSnW.y * 2.3 + vSnY * 3.1)) * sin(vSnW.y * 3.3 + vSnY * 4.7 + sin(vSnW.x * 1.9));
+      snU *= smoothstep(0.62, 0.9, normalize(vSnN).y) * smoothstep(-0.15, 0.35, cl);
+    }
     float snV = fract(sin(dot(floor(vSnW * 2.3), vec2(12.9898, 78.233))) * 43758.5453);
     diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.80, 0.84, 0.90), snU * (0.82 + 0.18 * snV));
   }`);
@@ -1032,10 +1037,33 @@ function vnoise(x, y) {
 function fbm(x, y) { return vnoise(x, y) * 0.6 + vnoise(x * 2.1, y * 2.1) * 0.27 + vnoise(x * 4.3, y * 4.3) * 0.13; }
 // bare terrain, before any river is cut into it
 function baseY(x, z) { return (fbm(x * 0.04 + 9, z * 0.04 + 4) - 0.5) * 2.9 + (fbm(x * 0.15, z * 0.15) - 0.5) * 0.6; }
+/* v81 (The Plateau): frozen lakes and the plateau edge.
+   M.ice = [{ x, z, rx, rz }] (fractions of the map): ellipses of ice, flat, walkable, no prints (packed), blue-grey in the snow.
+   M.edge = { z, h, gully: { x, w } }: north of z the ground drops h metres; a gully w metres wide is the one way down. */
+let iceZones = [], edgeDrop = null;
+function iceAt(x, z) {
+  for (let i = 0; i < iceZones.length; i++) {
+    const Z = iceZones[i], dx = (x - Z.x) / Z.rx, dz = (z - Z.z) / Z.rz;
+    if (dx > 1.3 || dx < -1.3 || dz > 1.3 || dz < -1.3) continue;
+    const d = Math.sqrt(dx * dx + dz * dz); if (d < 1.3) return Math.min(1, (1.3 - d) / 0.3);
+  }
+  return 0;
+}
+function iceY(x, z) { for (const Z of iceZones) if (Math.abs((x - Z.x) / Z.rx) < 1.3 && Math.abs((z - Z.z) / Z.rz) < 1.3) return Z.y; return 0; }
+function dropAt(x, z) {
+  const E = edgeDrop, dz = E.z - z;
+  if (dz < -0.5) return 0;
+  const sm = t => t * t * (3 - 2 * t), c01 = v => Math.max(0, Math.min(1, v));
+  const out = c01((Math.abs(x - E.gx) - E.gw / 2) / 2.5);   // 0 in the gully, 1 beside it
+  const t = c01((dz + 0.5) / 22) * (1 - out) + c01((dz + 0.5) / 3) * out;
+  return E.h * sm(t);
+}
 let deckDrops = [];   // v76: boat decks that sit below the bank (the landing boat): groundY there is baseY + dy
 function groundY(x, z) {
   if (deckDrops.length) for (let i = 0; i < deckDrops.length; i++) { const r = deckDrops[i]; if (x >= r.x0 && x <= r.x1 && z >= r.z0 && z <= r.z1) return baseY(x, z) + r.dy; }
-  const g = baseY(x, z) - waterFactor(x, z) * WATER_DEPTH + (mesas.length ? mesaLift(x, z) : 0) + roadDeltaAt(x, z);
+  let g = baseY(x, z) - waterFactor(x, z) * WATER_DEPTH + (mesas.length ? mesaLift(x, z) : 0) + roadDeltaAt(x, z);
+  if (edgeDrop) g -= dropAt(x, z);   // v81
+  if (iceZones.length) { const f = iceAt(x, z); if (f) g = g * (1 - f) + iceY(x, z) * f; }   // v81: a frozen lake is flat
   const p = padBlend(x, z);
   return p ? g * (1 - p.f) + p.y * p.f : g;
 }
@@ -1194,27 +1222,33 @@ function surfY(x, z) {
   return w !== null && w > g ? w : g;
 }
 
-// the mesh runs well past the playable 100×100 so the map never ends in a visible
+// the mesh runs 36 m past the playable map on every side so the map never ends in a visible
 // seam; play bounds stay at 0..MW/MH and the fog sheet keeps the surplus dark
-const TW = 172, SEG = MOBILE ? 136 : 172;   // facets ~1 m: grounds meet in clean bands, still low poly
-let gndGeo = new THREE.PlaneGeometry(TW, TW, SEG, SEG);
-{
+const SEG_M = MOBILE ? 172 / 136 : 1;   // facets ~1 m (1.26 on a phone): grounds meet in clean bands, still low poly
+let TW = 172, TD = 172, gndGeo = null;
+function buildGroundGeo() {   // v80: sized to the map (100 × 100 gives v79's mesh exactly: 172 m, 172 or 136 segments)
+  TW = MW + 72; TD = MH + 72;
+  const sx = Math.round(TW / SEG_M), sz = Math.round(TD / SEG_M);
+  let g = new THREE.PlaneGeometry(TW, TD, sx, sz);
   // jitter the lattice in XZ (interior only) so the facets stop reading as graph paper
-  const pa = gndGeo.attributes.position, cell = TW / SEG;
+  const pa = g.attributes.position, cell = TW / sx;
   for (let i = 0; i < pa.count; i++) {
     const x = pa.getX(i), y = pa.getY(i);
-    if (Math.abs(x) < TW / 2 - 0.01 && Math.abs(y) < TW / 2 - 0.01) {
+    if (Math.abs(x) < TW / 2 - 0.01 && Math.abs(y) < TD / 2 - 0.01) {
       pa.setX(i, x + (hash2(x * 3.1, y * 2.7) - 0.5) * cell * 0.72);
       pa.setY(i, y + (hash2(x * 1.9, y * 4.3) - 0.5) * cell * 0.72);
     }
   }
+  // flatShading only flattens NORMALS — vertex colours still interpolate. Go
+  // non-indexed and paint whole triangles so the ground reads as plates of colour.
+  g = g.toNonIndexed();
+  g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(g.attributes.position.count * 3), 3));
+  g.setAttribute('wts', new THREE.BufferAttribute(new Float32Array(g.attributes.position.count * 4), 4));
+  g.setAttribute('aog', new THREE.BufferAttribute(new Float32Array(g.attributes.position.count).fill(1), 1));   // v21 contact shading
+  if (gndGeo) gndGeo.dispose();
+  gndGeo = g;
 }
-// flatShading only flattens NORMALS — vertex colours still interpolate. Go
-// non-indexed and paint whole triangles so the ground reads as plates of colour.
-gndGeo = gndGeo.toNonIndexed();
-gndGeo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(gndGeo.attributes.position.count * 3), 3));
-gndGeo.setAttribute('wts', new THREE.BufferAttribute(new Float32Array(gndGeo.attributes.position.count * 4), 4));
-gndGeo.setAttribute('aog', new THREE.BufferAttribute(new Float32Array(gndGeo.attributes.position.count).fill(1), 1));   // v21 contact shading
+buildGroundGeo();
 /* the low-poly palette (ground study D): grass in three greens that clump, drying in broad patches,
    mud round buildings, tan dirt on tracks, gravel on roads, a grey-green riverbed */
 const LP = { lush: SC(0x5c8c34), mid: SC(0x6a9840), deep: SC(0x4c7c2e), dry: SC(0x9a9a4a),
@@ -1224,7 +1258,8 @@ const LP = { lush: SC(0x5c8c34), mid: SC(0x6a9840), deep: SC(0x4c7c2e), dry: SC(
              earth: SC(0x7a5434), earthD: SC(0x5c3e26), peb: SC(0x8e897b), pebD: SC(0x726d62),
              tar: SC(0x55534d), tarD: SC(0x46443f), verge: SC(0xa58a5e), rut: SC(0x7e6646),
              // v67: snow — fresh, its blue shade, packed on roads, packed and dirtied on tracks, trodden slush by doors
-             snow: SC(0xe8eef4), snowD: SC(0xc6d2e0), snowP: SC(0xbcc0c4), snowT: SC(0xb8ae9e), slush: SC(0x908c86) };
+             snow: SC(0xe8eef4), snowD: SC(0xc6d2e0), snowP: SC(0xbcc0c4), snowT: SC(0xb8ae9e), slush: SC(0x908c86),
+             ice: SC(0x40667e), iceD: SC(0x24425a), iceG: SC(0x3a9a86) };   // v81: lake ice, and the aurora's green on it
 /* splat detail, after the three.js forum's terrain-splatting thread: ONE 256 px texture with four greyscale
    details packed in RGBA (grass streaks, mud cracks, road grit, pebbles), weighted per facet by the same
    splat weights that pick its colour. One texture, two reads a pixel, scaled for the game camera. */
@@ -1266,7 +1301,7 @@ gndMat.onBeforeCompile = sh => {
     .replace('#include <common>', '#include <common>\nvarying float vAOg;');
   lookInject(sh, gndMat);
 };
-gndMat.userData = { lookRim: false, lookAO: false };
+gndMat.userData = { lookRim: false, lookAO: false, snowK: 0 };   // v81: snowK here too (since v67 it was set above, then lost: the shader painted fresh snow over the ground's own colours)
 const gnd = new THREE.Mesh(gndGeo, gndMat);
 gnd.rotation.x = -Math.PI / 2;
 gnd.receiveShadow = true;
@@ -1613,6 +1648,7 @@ function grassCol(cx, cz, h, c) {
 /* the ground's colour and splat weights at one point. v35: evaluated per VERTEX (it was per facet), so grounds
    blend into each other and the triangles no longer show as a mosaic of plates. ny: 1 flat, 0 vertical. */
 const _tw = [0, 0, 0, 0], _mc = new THREE.Color(), _sn = new THREE.Color();
+const _ic = new THREE.Color();
 function terrCol(cx, cz, cy, ny, h, c) {
   const cl = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   let w0 = 0, w1 = 0, w2 = 0, w3 = 0;                  // splat weights: grass, mud, dirt, gravel
@@ -1674,6 +1710,12 @@ function terrCol(cx, cz, cy, ny, h, c) {
     else if (kind === 'bed') cov = 0;
     else if (kind === 'beach') cov = 0.6 + fine * 0.3;
     else if (fine > 0.84) cov = 0.7;   // a tussock or a stone through the snow
+    if (iceZones.length) { const f = iceAt(cx, cz); if (f > 0) {   // v81: clear ice, dusted with snow in drifts, cracked
+      const ic = _ic.copy(LP.ice).lerp(LP.iceD, n * 0.7 + (Math.abs(fine - 0.5) < 0.05 ? 0.4 : 0));
+      if (auroraOn) ic.lerp(LP.iceG, Math.min(0.75, Math.max(0, vnoise(cx * 0.05 + 2, cz * 0.03) - 0.4) * 2.2));
+      { const dr = vnoise(cx * 0.16 + 7, cz * 0.16 - 3) * 0.7 + vnoise(cx * 0.6, cz * 0.6) * 0.3; ic.lerp(LP.snow, dr > 0.6 ? 0.85 : dr > 0.52 ? 0.4 : 0.04); }   // drifts of snow on the ice
+      col.lerp(ic, Math.min(1, f * 1.2)); cov = Math.max(cov, f);
+    } }
     c.lerp(col, cov);
     const k = 1 - cov; w0 *= k; w1 *= k; w2 *= k; w3 *= k;
   }
@@ -1742,7 +1784,7 @@ function snowApron() {   // v67: white under the map and on the hills in snow, g
 }
 {
   const apron = new THREE.Mesh(new THREE.PlaneGeometry(560, 560), mat(0x3f5624, { shininess: 0 })); APRON.m = apron.material;
-  apron.rotation.x = -Math.PI / 2; apron.position.set(MW / 2, -2.2, MH / 2); scene.add(apron);
+  apron.rotation.x = -Math.PI / 2; apron.position.set(MW / 2, -2.2, MH / 2); scene.add(apron); APRON.apron = apron;
   const hills = new THREE.Group();
   for (let i = 0; i < 26; i++) {
     const a = (i / 26) * Math.PI * 2 + hash2(i, 3) * 0.2, r = 118 + hash2(i, 9) * 46;
@@ -1750,10 +1792,10 @@ function snowApron() {   // v67: white under the map and on the hills in snow, g
     const m = mesh(GEO.cone, mat([0x3f5a2b, 0x476331, 0x384f26][i % 3], { shininess: 0 }),
       36 + hash2(i, 5) * 34, h, 36 + hash2(i, 11) * 30,
       MW / 2 + Math.cos(a) * r, h / 2 - 3, MH / 2 + Math.sin(a) * r);
-    m.rotation.y = hash2(i, 23) * 3;
+    m.rotation.y = hash2(i, 23) * 3; m.userData.ring = [a, r];
     hills.add(m); APRON.h.push([m.material, m.material.color.clone()]);
   }
-  scene.add(hills);
+  scene.add(hills); APRON.hills = hills;
 }
 
 /*───────────────────── grass tufts (instanced) ─────────────────────*/
@@ -1966,7 +2008,7 @@ const FOG_SPAN = 4;
 fogT.repeat.set(FOG_SPAN, FOG_SPAN);
 fogT.offset.set(-(FOG_SPAN - 1) / 2, -(FOG_SPAN - 1) / 2);
 fogT.needsUpdate = true;
-const fogP = new THREE.Mesh(new THREE.PlaneGeometry(MW * FOG_SPAN, MH * FOG_SPAN),
+const fogP = new THREE.Mesh(new THREE.PlaneGeometry(MW * FOG_SPAN, MH * FOG_SPAN),   // v80: rebuilt by setMapSize
   new THREE.MeshBasicMaterial({ map: fogT, transparent: true, depthWrite: false, side: THREE.DoubleSide, fog: false }));
 // +90° (not -90°) so texture rows run the same way as world Z; low enough that
 // parallax is small, high enough to hide a standing man
@@ -1979,11 +2021,11 @@ const seenMap = new Float32Array(FR * FR);     // ever explored
 const liveMap = new Float32Array(FR * FR);     // visible right now
 
 function reveal(wx, wz, rad, buf) {
-  const cx = (wx / MW) * FR, cy = (wz / MH) * FR, r = rad / MW * FR, r2 = r * r;
+  const cx = (wx / MW) * FR, cy = (wz / MH) * FR, r = rad / MW * FR, r2 = r * r, ry = rad / MH * FR, k = r / ry;   // v80: texels are taller on a long map
   const x0 = Math.max(0, (cx - r) | 0), x1 = Math.min(FR - 1, (cx + r) | 0);
-  const y0 = Math.max(0, (cy - r) | 0), y1 = Math.min(FR - 1, (cy + r) | 0);
+  const y0 = Math.max(0, (cy - ry) | 0), y1 = Math.min(FR - 1, (cy + ry) | 0);
   for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
-    const d2 = (x - cx) ** 2 + (y - cy) ** 2;
+    const d2 = (x - cx) ** 2 + ((y - cy) * k) ** 2;
     if (d2 < r2) { const v = 1 - Math.sqrt(d2) / r; const i = y * FR + x; if (v > buf[i]) buf[i] = v; }
   }
 }
@@ -3047,10 +3089,10 @@ function clearPrints() {
   PR.live.fill(0); PR.head = 0; PR.used = 0; PR.fadeT = 0; printMesh.count = 0; printMesh.visible = !!SNOW; tracksToast = false;
   for (const u of [...sol, ...ens]) { u.prX = undefined; u.stepD = 0; }
 }
-const packedSnow = (x, z) => { const rd = roadDist(x, z); return (rd && rd.t < 1.3) || ((streets.length || squares.length) && onStreet(x, z, 0.3)) || padBlend(x, z) || waterFactor(x, z) > 0.02 || onBridge(x, z, 0.3); };
+const packedSnow = (x, z) => { const rd = roadDist(x, z); return (rd && rd.t < 1.3) || (iceZones.length && iceAt(x, z) > 0.5) || ((streets.length || squares.length) && onStreet(x, z, 0.3)) || padBlend(x, z) || waterFactor(x, z) > 0.02 || onBridge(x, z, 0.3); };
 function printStrength(i) {
-  const age = missionTime - PR.t[i], fill = wx && wx.snow ? wx.fill : 1e9;
-  return Math.max(0, 1 - age / fill) * (0.78 + 0.22 * Math.exp(-age / 45));   // fresh prints are darker and sharper
+  const age = missionTime - PR.t[i], fill = wx && wx.snow ? wx.fill : 1e9, ageF = missionTime - Math.max(PR.t[i], snowT0);   // v81: filling starts when the snow does
+  return Math.max(0, 1 - ageF / fill) * (0.78 + 0.22 * Math.exp(-age / 45));   // fresh prints are darker and sharper
 }
 function setPrintColour(i) {   // v76: the strength in aS's fraction (0..0.5 → opacity up to 0.95), a crawl marked by +2
   PRINT_S.array[i] = Math.min(0.46, PR.s[i] * (PR.kind[i] === 2 ? 0.46 : 0.43)) + (PR.kind[i] === 1 ? 2 : PR.kind[i] === 2 ? 4 : 0);
@@ -3667,6 +3709,20 @@ function placeSun(tx, tz) {
   sun.target.updateMatrixWorld();
 }
 
+// ---- v81: snow that starts during an op (M.snowAt seconds), and the aurora's light on a clear night (M.aurora) ----
+let snowAt = 0, snowT0 = 0, auroraOn = false;
+const auroraBase = new THREE.Color(), auroraG = new THREE.Color(0x2fe0a0);
+function startSnow() {
+  snowAt = 0; snowT0 = missionTime;
+  wx = WEATHER.snow; setupFlakes();
+  scene.fog.near = Math.min(scene.fog.near, 22); scene.fog.far = Math.min(scene.fog.far, 84);
+  showToast('IT’S SNOWING', 'tracks fill in about two minutes, theirs and yours');
+}
+function stepAurora() {   // the camera never sees the sky: the aurora is a slow green swell in the light off the snow
+  if (!auroraOn) return;
+  const t = ATMO.t.value, p = 0.5 + 0.5 * Math.sin(t * 0.21) * Math.sin(t * 0.077 + 1.3);
+  hemi.color.copy(auroraBase).lerp(auroraG, (0.05 + 0.07 * p) * (wx ? 0.4 : 1));
+}
 // ---- per mission, per frame ----
 function setupAtmo(M) {
   smoke = []; smokers = []; smokeMesh.count = 0;
@@ -3690,6 +3746,7 @@ function stepAtmo(dt) {
   ATMO.off.value.x -= Math.cos(windAng) * windMag * 3.2 * 0.0125 * dt; ATMO.off.value.y -= Math.sin(windAng) * windMag * 3.2 * 0.0125 * dt;
   stepSmoke(dt); stepMist(dt); stepRain(dt); stepFlakes(dt); stepBreath(dt); stepPrints(dt); stepStorm(dt); stepPuddles(dt);   // v67: snow, breath. v71: v67's comment had swallowed stepStorm and stepPuddles. v72: tracks
   stepGrass(dt);   // v35
+  stepAurora();   // v81
   stepLamps(dt);   // v38
 }
 
@@ -4089,10 +4146,22 @@ function stepTreeFade(dt) {
     }
   }
 }
-function mkRock(x, z, seed) {
-  const s = 0.9 + hash2(seed, 3) * 0.5;
+function mkRock(x, z, seed, sc) {
+  const s = (0.9 + hash2(seed, 3) * 0.5) * (sc || 1);   // v81: sc, an outcrop
   addInstance('rock', x, z, s, hash2(seed, 9) * 6.3, 0);
   return { type: 'rock', x, z, radius: 1.05 * s, tall: true, cover: true };
+}
+// v81: a cairn on the old summer trail — flat stones stacked to a point, snow on every ledge. Low cover
+function mkCairn(x, z, seed) {
+  const p = [], gs = [0x86837c, 0x9a978e, 0x726f68, 0x8e8a80], h0 = 0.95 + hash2(seed, 2) * 0.45;
+  let y = 0;
+  for (let i = 0; y < h0; i++) {
+    const r = 0.5 * (1 - y / (h0 + 0.25)) + 0.08, th = 0.16 + hash2(seed, i) * 0.08;
+    for (let k = 0; k < (r > 0.3 ? 3 : 1); k++) { const a = k * 2.1 + i; p.push({ g: GEO.sph, m: M4(r > 0.3 ? Math.cos(a) * r * 0.45 : 0, y + th / 2, r > 0.3 ? Math.sin(a) * r * 0.45 : 0, r * (r > 0.3 ? 1.1 : 1.6), th, r * (r > 0.3 ? 0.9 : 1.4), a), c: gs[(i + k + seed) % 4] }); }
+    y += th * 0.85;
+  }
+  tbAdd('vc', mergeGeos(p), x, groundY(x, z) - 0.05, z);
+  return { type: 'cairn', x, z, radius: 0.62, tall: false, low: true, h: y, cover: true };
 }
 // concealment, not cover: you can walk and shoot through it, but it hides you
 function mkBush(x, z, seed) {
@@ -4644,15 +4713,16 @@ function mkCrate(x, z, seed) {
 }
 
 /*──────────── obstacle broad-phase: a uniform grid, or 80 props melts the CPU ────────────*/
-const CELL = 7, GW = Math.ceil(MW / CELL) + 4, GOFF = 2;
+const CELL = 7, GOFF = 2;
+let GW = Math.ceil(MW / CELL) + 4, GWZ = Math.ceil(MH / CELL) + 4;   // v80: across and along, sized by setMapSize
 let cells = [];
 function gridIdx(x, z) {
   const cx = Math.floor(x / CELL) + GOFF, cz = Math.floor(z / CELL) + GOFF;
-  if (cx < 0 || cx >= GW || cz < 0 || cz >= GW) return -1;
+  if (cx < 0 || cx >= GW || cz < 0 || cz >= GWZ) return -1;
   return cz * GW + cx;
 }
 function buildGrid() {
-  cells = new Array(GW * GW);
+  cells = new Array(GW * GWZ);
   for (let i = 0; i < cells.length; i++) cells[i] = [];
   for (const o of obs) {
     const pad = 2.4;
@@ -4916,7 +4986,7 @@ function rigLook(isFoe, colour, kind, who) {
     const sh = hex => new THREE.Color(hex).multiplyScalar(k).getHex();
     // v67: in snow a white smock over the battledress; helmet, webbing and khaki trousers stay, so ours read apart from theirs
     return { ours: true, chibi: 1, kind, build: L.build || 'std', tunic: SNOW ? sh(0xd8dad2) : sh(0x7c704c), tunicD: SNOW ? sh(0xbfc2b8) : sh(0x665c3e), trous: sh(0x766a48), helm: 0x5e5c40, web: 0xb5a77a, ank: 0xa89a70,
-             boot: 0x3a2c22, skin: L.skin || 0xd8a97e, hair: HAIR[L.hair] || HAIR.brown, mo: L.mo, stub: L.stub, cheeks: L.cheeks, cigar: L.cigar, pack: 0x9c8f64 };
+             boot: 0x3a2c22, skin: L.skin || 0xd8a97e, hair: HAIR[L.hair] || HAIR.brown, mo: L.mo, stub: L.stub, cheeks: L.cheeks, cigar: L.cigar, cap: L.cap, pipe: L.pipe, pack: 0x9c8f64 };
   }
   // field grey, lifted: true feldgrau reads near-black from the game camera against the grass
   const v = who || 0;
@@ -4940,6 +5010,7 @@ function faceParts(C, B) {
   if (C.mo) P.push(RP_(RG.box, RM4(0, 0.063, 0.11, 0.08, 0.02, 0.022), hair));
   if (C.cheeks) P.push(RP_(RG.box, RM4(0.058, 0.082, 0.096, 0.03, 0.022, 0.01), 0xd47a6a), RP_(RG.box, RM4(-0.058, 0.082, 0.096, 0.03, 0.022, 0.01), 0xd47a6a));
   if (C.cigar) P.push(RP_(RG.box, RM4(0.03, 0.05, 0.135, 0.016, 0.016, 0.075, 0, 0.3), 0x6a4a2a), RP_(RG.box, RM4(0.05, 0.05, 0.172, 0.018, 0.018, 0.012, 0, 0.3), 0xd4562a));
+  if (C.pipe) P.push(RP_(RG.box, RM4(-0.03, 0.05, 0.14, 0.014, 0.014, 0.07, 0, -0.3), 0x3a2a1c), RP_(RG.cyl, RM4(-0.052, 0.068, 0.172, 0.032, 0.042, 0.032), 0x4a3424));   // v81: Tor's pipe
   return P;
 }
 function rigParts(C) {
@@ -4986,7 +5057,10 @@ function rigParts(C) {
   B.neck = [RP_(RG.cyl, RM4(0, 0.03, 0, 0.11, 0.09, 0.11), C.skin)];
   B.head = [
     RP_(RG.sph, RM4(0, 0.10, 0, 0.21, 0.24, 0.22), C.skin), ...faceParts(C, BUILDS[C.build]),
-    ...(ours ? [
+    ...(ours && C.cap ? [   // v81: Tor — a navy wool cap with a turned-up band and a bobble, under a white hood
+      RP_(RG.sph, RM4(0, 0.165, -0.005, 0.24, 0.17, 0.26), 0x2c3a5c), RP_(RG.cyl, RM4(0, 0.135, 0, 0.255, 0.055, 0.27), 0x3e4e74), RP_(RG.sph, RM4(0, 0.255, -0.01, 0.06, 0.06, 0.06), 0xd8d4c8),
+      RP_(RG.sph, RM4(0, 0.1, -0.065, 0.28, 0.27, 0.24), C.tunic), RP_(RG.cyl, RM4(0, -0.01, 0, 0.2, 0.06, 0.2), 0x8a2a24),
+    ] : ours ? [
       RP_(RG.sph, RM4(0, 0.175, 0, 0.27, 0.15, 0.29), C.helm), RP_(RG.cyl, RM4(0, 0.158, 0, 0.43, 0.022, 0.45), C.helm),                         // the Brodie: shallow dome, wide flat brim
       RP_(RG.cyl, RM4(0, 0.148, 0, 0.44, 0.01, 0.46), 0x4a4832),
       RP_(RG.box, RM4(0.098, 0.085, 0.035, 0.012, 0.12, 0.014), 0x3a2e22), RP_(RG.box, RM4(-0.098, 0.085, 0.035, 0.012, 0.12, 0.014), 0x3a2e22),   // chin strap
@@ -7253,6 +7327,46 @@ const MISSIONS = [
     spawnZ: .92, grenades: 6, reinf: 3, alertThreshold: .6,
   },
 
+  {
+    // v81: Norway, op 2 (notes/norway-theatre.md, N2), built from Khal's Plateau sheets (assets/norway/plateau-ref): the first long
+    // map (100 × 250 m, v80). A clear night on the Hardangervidda with the aurora on the snow; it snows from 3:00. Almost no
+    // cover: cairns, rocks, a frozen lake that takes no prints. Find Tor at his hut, take the supply drop off the plateau north of
+    // the lake, and go down the gully off the edge. Two ski patrols cross the plateau and read tracks. A side op for now.
+    name: 'The Plateau', side: true, snow: 1, night: true, aurora: true, snowAt: 180, noTraffic: true, noExtras: true, size: [100, 250],
+    obj: 'Find Tor, take the drop, off the edge',
+    sub: "Hardangervidda · Night · Clear, then snow · Norway", drawn: "Drawn from the Grouse party on the Hardangervidda plateau, winter 1942–43.",
+    brief: "Somewhere on this plateau, in a hut the size of a wardrobe, a Norwegian called Tor has been waiting for you since Tuesday. He knows the way down, reads tracks the way you read the racing results, and will not be impressed by any of you. Find him. The RAF dropped your supplies last night with its usual precision, which is to say north of the lake and some way from where it meant to: three containers in the snow, and the German weather post has probably noticed. Take them. Then follow Tor down the gully off the edge before their ski patrols follow you. It is a clear night, and every step you take is written in the snow; the ice on the lake takes none. In about three minutes it will snow. Up here the snow is your only friend, and it is not a close one.",
+    weather: null, scatter: 10, diff: 0.25, charges: 0, roads: [],   // roads: none, or the game lays a track to the enemy (a track takes no prints)
+    edge: { z: .06, h: 11, gully: { x: .64, w: 7 } },
+    ice: [{ x: .4, z: .412, rx: .22, rz: .068 }, { x: .615, z: .362, rx: .045, rz: .014 }, { x: .69, z: .336, rx: .045, rz: .013 }, { x: .77, z: .31, rx: .05, rz: .013 }, { x: .86, z: .288, rx: .05, rz: .012 }],
+    guide: { x: .6, z: .596, a: 0 },
+    intel: { x: .81, z: .19, drop: true },
+    objectives: [{ t: 'guide', label: 'Find Tor at the hunting hut' }, { t: 'take', label: 'Take the supply drop north of the lake' }, { t: 'extract', label: 'Down the gully off the plateau edge' }],
+    extract: { x: .64, z: .074, r: 5 },
+    optional: [{ t: 'radio', x: .2, z: .156, label: "The weather post's radio: cut it" }],
+    enemies: [
+      { x: .14, z: .154, a: 0, range: 13, arc: Math.PI * .6, hp: 3 },
+      { x: .22, z: .132, a: .5, range: 12, arc: Math.PI * .55, hp: 3 },
+      { x: .86, z: .592, a: -Math.PI * .5, range: 15, arc: Math.PI * .5, hp: 3 },
+      { x: .78, z: .2, a: -.6, range: 11, arc: Math.PI * .6, hp: 3 },
+      { x: .85, z: .208, a: .7, range: 11, arc: Math.PI * .6, hp: 3 },
+      // two ski patrols of three, east to west and back across the plateau: fast, and they read tracks
+      ...[0, 1, 2].map(i => ({ x: .97 - i * .025, z: .46, a: -Math.PI * .5, range: 13, arc: Math.PI * .55, hp: 3, ski: true, patrol: [{ x: .62, z: .432 }, { x: .3, z: .472 }, { x: .03, z: .448 }, { x: .3, z: .472 }, { x: .62, z: .432 }, { x: .97, z: .46 }] })),
+      ...[0, 1, 2].map(i => ({ x: .03 + i * .025, z: .728, a: Math.PI * .5, range: 13, arc: Math.PI * .55, hp: 3, ski: true, patrol: [{ x: .38, z: .704 }, { x: .7, z: .744 }, { x: .97, z: .712 }, { x: .7, z: .744 }, { x: .38, z: .704 }, { x: .03, z: .728 }] })),
+    ],
+    obstacles: [
+      { t: 'house', style: 'turf', x: .56, z: .56, w: 8, d: 6 },
+      { t: 'house', style: 'wpost', x: .08, z: .12, w: 8, d: 6 },
+      { t: 'rock', x: .86, z: .174, s: 1.5 },
+      ...[[0.42, 0.856], [0.36, 0.768], [0.28, 0.672], [0.22, 0.584], [0.26, 0.496], [0.16, 0.4], [0.18, 0.312], [0.24, 0.24], [0.36, 0.176], [0.5, 0.124]].map(([x, z]) => ({ t: 'cairn', x, z })),
+      ...[[0.4, 0.48], [0.45, 0.492], [0.7, 0.48], [0.12, 0.512], [0.84, 0.528], [0.34, 0.64], [0.78, 0.672], [0.6, 0.712], [0.88, 0.76], [0.14, 0.744], [0.5, 0.8], [0.3, 0.848], [0.72, 0.856], [0.74, 0.22], [0.92, 0.232], [0.6, 0.28], [0.3, 0.336], [0.08, 0.6], [0.94, 0.432], [0.54, 0.384]].map(([x, z]) => ({ t: 'rock', x, z })),
+      ...[[0.06, 0.084], [0.18, 0.092], [0.3, 0.08], [0.44, 0.088], [0.78, 0.084], [0.9, 0.08], [0.97, 0.1], [0.52, 0.08]].map(([x, z]) => ({ t: 'rock', x, z, s: 1.6 })),
+      ...[[0.22, 0.368, 1.7], [0.7, 0.6, 1.6], [0.88, 0.56, 1.5], [0.1, 0.792, 1.6], [0.84, 0.896, 1.5], [0.36, 0.232, 1.4], [0.88, 0.176, 1.5], [0.58, 0.512, 1.4]].map(([x, z, s]) => ({ t: 'rock', x, z, s })),
+      ...[[0.04, 0.864], [0.94, 0.856], [0.86, 0.88], [0.68, 0.584], [0.7, 0.564], [0.52, 0.588], [0.04, 0.2], [0.07, 0.232], [0.14, 0.256], [0.92, 0.256], [0.96, 0.288], [0.02, 0.68], [0.98, 0.6], [0.96, 0.392], [0.03, 0.472]].map(([x, z], i) => ({ t: 'tree', x, z, kind: i % 3 ? 'pine' : 'pineTall' })),
+      ...[[0.06, 0.92], [0.12, 0.952], [0.2, 0.904], [0.7, 0.928], [0.8, 0.952], [0.88, 0.912], [0.94, 0.96], [0.28, 0.968]].map(([x, z]) => ({ t: 'tree', x, z, kind: 'bare' })),
+    ],
+    spawnZ: .962, grenades: 6, reinf: 2, alertThreshold: .6,
+  },
 ];
 
 /* ── the difficulty curve (v17). Ops 1–3 teach; from op 4 every operation is harder than the last, with
@@ -7324,7 +7438,7 @@ Object.assign(SQUAD_LOOK, {
   Bert:  { build: 'stocky', hair: 'ginger', skin: 0xe2b48c, mo: 1, stub: 0, cheeks: 1 },
   Dixon: { build: 'small',  hair: 'dark',   skin: 0xe2b48c, mo: 0, stub: 1 },
 });
-const TRAIT_OF = { Sarge: 'tough', Stan: 'eye', Cal: 'quiet', Bob: 'arm', Tug: 'eye',
+const TRAIT_OF = { Sarge: 'tough', Stan: 'eye', Cal: 'quiet', Bob: 'arm', Tug: 'eye', Tor: 'keen',
   Max: 'keen', Rik: 'quick', Tom: 'quiet', Sam: 'eye', Lee: 'quiet', Jay: 'tough', Ned: 'tough', Gus: 'arm', Wilf: 'quick',
   Alf: 'tough', Herb: 'arm', Cyril: 'eye', Norm: 'quick', Reg: 'tough', Sid: 'keen', Vern: 'eye', Ollie: 'arm', Bert: 'tough', Dixon: 'quick' };
 function traitOf(g) {
@@ -7334,6 +7448,7 @@ function traitOf(g) {
   return Object.keys(TRAITS)[h % 6];
 }
 SQUAD_LOOK.Tug = { build: 'tall', hair: 'black', skin: 0x5a3a26, mo: 0, stub: 0 };
+SQUAD_LOOK.Tor = { build: 'tall', hair: 'fair', skin: 0xe2b48c, mo: 0, stub: 1, cap: 1, pipe: 1 };   // v81: the Norwegian guide, after his portrait
 function addSniper(M) {
   const ref = { ...newGrunt('Tug', sniperRec.kills), sniper: true };
   const u = mkUnit({ name: 'Tug', colour: P.friendly[4 % P.friendly.length], hp: 4, ref }, false);
@@ -7533,7 +7648,7 @@ let kills = 0, phase = 'title', paused = false;
 let globalAlert = 0, missionTime = 0, grenCount = 8, startGren = 8, everSpotted = false, weapon = 'gun';
 let wavering = false;   // v20: the officer is dead and there is a way home — his men hold, they do not hunt
 let reinfSent = false, hitStop = 0, outcome = null, weatherFog = false;
-let reinfBlocked = false, optSteps = [], recruits = [];   // v46: optional objectives (a radio cut means no reinforcements; a freed man joins the squad)
+let reinfBlocked = false, optSteps = [], recruits = [], guideWait = null, guideJoined = false;   // v81: Tor, waiting at his hut   // v46: optional objectives (a radio cut means no reinforcements; a freed man joins the squad)
 let bloodTimer = 0, squadProne = false, noiseTimer = 0, spotted = false;
 /* v32 squad split: two fireteams. Off, the squad is one snake as before. Split, team A (the first half of the
    line) and team B each have their own leader, trail, stance and suppression; orders go to the selected team,
@@ -7667,6 +7782,7 @@ function angDiff(a, b) { let d = a - b; while (d > Math.PI) d -= Math.PI * 2; wh
 function blocked(x, z, pad) {
   const p = pad === undefined ? 0.42 : pad;
   if (trainsLive) { const t = trainHit(x, z, p); if (t) return t; }   // v43: a passing train
+  if (edgeDrop && z < edgeDrop.z + 1 + p && Math.abs(x - edgeDrop.gx) > edgeDrop.gw / 2 - p) return EDGE_OB;   // v81: the plateau edge
   const list = near(x, z);
   for (let i = 0; i < list.length; i++) {
     const o = list[i];
@@ -7676,6 +7792,7 @@ function blocked(x, z, pad) {
   }
   return null;
 }
+const EDGE_OB = { type: 'edge', x: 0, z: 0, radius: 0.01, tall: false };
 const inObsRect = (o, x, z) => x > o.x - 0.5 && x < o.x + o.w + 0.5 && z > o.z - 0.5 && z < o.z + o.d + 0.5;
 function hasLOS(x1, z1, x2, z2, elev, fromGround) {
   if (elev && fromGround === undefined) { const dd = Math.hypot(x2 - x1, z2 - z1); if (dd < 2.6) return true; }
@@ -7775,16 +7892,20 @@ function steerMove(u, tx, tz, speed, dt) {
 // Local steering cannot find a doorway six metres to the right of where you are
 // pushing. A* over a coarse grid, run once per order, fixes doors, interior walls,
 // rivers and dense cover in one go.
-const PCELL = 1.0, PW = Math.ceil(MW / PCELL) + 1, PH = Math.ceil(MH / PCELL) + 1;
-let pblock = new Uint8Array(PW * PH);
+const PCELL = 1.0;
+let PW = 0, PH = 0, pblock, _g, _f, _came, _seen, _closed;
+function allocPathGrid() {   // v80: sized to the map
+  PW = Math.ceil(MW / PCELL) + 1; PH = Math.ceil(MH / PCELL) + 1;
+  pblock = new Uint8Array(PW * PH); _g = new Float32Array(PW * PH); _f = new Float32Array(PW * PH);
+  _came = new Int32Array(PW * PH); _seen = new Int32Array(PW * PH); _closed = new Int32Array(PW * PH);
+}
+allocPathGrid();
 function buildPathGrid() {
   for (let r = 0; r < PH; r++) for (let c = 0; c < PW; c++) {
     const x = c * PCELL, z = r * PCELL;
     pblock[r * PW + c] = (blocked(x, z, 0.4) || nearWater(x, z)) ? 1 : 0;   // the margin men actually walk with
   }
 }
-const _g = new Float32Array(PW * PH), _f = new Float32Array(PW * PH);
-const _came = new Int32Array(PW * PH), _seen = new Int32Array(PW * PH), _closed = new Int32Array(PW * PH);
 let _stamp = 0;
 // routes keep a margin off the river: a path hugging the bank or the edge of a bridge drowns whoever is
 // nudged half a step sideways. A bridge is safe only well inside its rails (across, not along).
@@ -8618,7 +8739,7 @@ function buildBoundary() {
   }
   // our own line along the bottom: two courses of sandbags, open where a road or a river comes through
   const bags = [], z0 = MH + 2.4, sandC = [0x8a7e5c, 0x948863, 0x7c7152];
-  for (let x = -28; x <= MW + 28; x += 0.86) {
+  if (!SNOW) for (let x = -28; x <= MW + 28; x += 0.86) {
     if (wet(x, z0)) continue; { const rd = roadDist(x, z0); if (rd && rd.t < 1.3) continue; }
     const y = groundY(x, z0);
     for (let row = 0; row < 2; row++) bags.push({ g: GEO.box, m: M4(x + (row ? 0.43 : 0), y + 0.22 + row * 0.4, z0 + (hash2(x, row) - 0.5) * 0.1, 0.84, 0.42, 0.62, (hash2(x, row + 5) - 0.5) * 0.12), c: sandC[(Math.round(x / 0.86) + row) % 3] });
@@ -9071,7 +9192,14 @@ function mkRadio(T) {
   return null;   // a table and a set: nothing to collide with (a man standing over it must be able to walk off again)
 }
 function mkIntel(I) {
-  const p = I.box ? [   // v75: the code box, yellow, stencilled, rope handles
+  const p = I.drop ? [   // v81: the RAF's idea of the right place
+    { g: GEO.cyl, m: M4e(-0.9, 0.3, 0.2, 0.55, 1.7, 0.55, 0, 0.4, Math.PI / 2), c: 0x4a5236 }, { g: GEO.cyl, m: M4e(-0.9, 0.3, 0.2, 0.6, 0.12, 0.6, 0, 0.4, Math.PI / 2), c: 0x2e3224 },
+    { g: GEO.cyl, m: M4e(0.6, 0.3, -0.6, 0.55, 1.7, 0.55, 0, -0.9, Math.PI / 2), c: 0x4e5638 }, { g: GEO.cyl, m: M4e(0.6, 0.3, -0.6, 0.6, 0.12, 0.6, 0, -0.9, Math.PI / 2), c: 0x2e3224 },
+    { g: GEO.cyl, m: M4e(0.5, 0.18, 0.9, 0.55, 0.85, 0.55, 0, 0.2, Math.PI / 2), c: 0x4a5236 }, { g: GEO.cyl, m: M4(1.15, 0.28, 0.95, 0.5, 0.06, 0.5), c: 0x2e3224 },
+    { g: GEO.box, m: M4(1.0, 0.18, 1.55, 0.5, 0.36, 0.4, 0.3), c: 0x8a6a40 }, { g: GEO.box, m: M4(1.5, 0.15, 1.3, 0.4, 0.3, 0.35, -0.4), c: 0x7a6a50 },
+    { g: GEO.sph, m: M4(-0.2, 0.25, -1.9, 2.6, 0.9, 1.6, 0.3), c: 0xb8a878 }, { g: GEO.sph, m: M4(-0.9, 0.12, -2.4, 1.6, 0.5, 1.0, -0.4), c: 0xa89868 },   // the canopy, half draped
+    ...[-0.6, -0.2, 0.2].map(t => ({ g: GEO.box, m: M4e(-0.5 + t, 0.3, -0.7, 0.012, 0.012, 1.7, 0.2, t, 0), c: 0xb8b2a0 })),
+  ] : I.box ? [   // v75: the code box, yellow, stencilled, rope handles
     { g: GEO.box, m: M4(0, 0.3, 0, 0.95, 0.6, 0.62), c: 0xc9a227 }, { g: GEO.box, m: M4(0, 0.62, 0, 1.0, 0.06, 0.66), c: 0xa88a20 },
     { g: GEO.box, m: M4(0, 0.36, 0.315, 0.5, 0.12, 0.01), c: 0x1a1a1a }, { g: GEO.box, m: M4(-0.2, 0.2, 0.315, 0.12, 0.08, 0.01), c: 0x1a1a1a },
     ...[-1, 1].map(s => ({ g: GEO.box, m: M4(s * 0.5, 0.42, 0, 0.04, 0.06, 0.3), c: 0x8a7a52 })),
@@ -9411,7 +9539,10 @@ function buildFloes(r, M) {
 const NORB = { rorbu: { wall: 0x8c2a20, trim: 0xe9e3d4, H: 2.7, door: 0x3a2e24, stilts: 0.85 },
   white: { wall: 0xdad5c8, trim: 0xf3f0e8, H: 5.3, door: 0x2f4a3c },
   billet: { wall: 0xc79231, trim: 0xefe9da, H: 5.3, door: 0x3c2c20 },
-  shed: { wall: 0x7c2b21, trim: 0x4e4234, H: 4.3, door: 0x3a2e24 } };
+  shed: { wall: 0x7c2b21, trim: 0x4e4234, H: 4.3, door: 0x3a2e24 },
+  // v81, from Khal's Plateau sheet: a log hunting hut under a turf roof, and the German weather post
+  turf: { wall: 0x5e4a36, trim: 0x46382a, H: 2.5, door: 0x3a2e24, turf: true },
+  wpost: { wall: 0x9a3024, trim: 0xe9e3d4, H: 2.5, door: 0x3a2e24, mast: true } };
 function mkNorBldg(x, z, w, d, kind) {
   const K = NORB[kind], H = K.H, seed = hash2(x * 0.37, z * 0.53), parts = [], tins = [], Q = { p: [], c: [] }, cx = x + w / 2, cz = z + d / 2;
   let gmin = 1e9, gmax = -1e9;
@@ -9467,18 +9598,38 @@ function mkNorBldg(x, z, w, d, kind) {
     parts.push({ g: GEO.prism, m: M4(dx, 2.55, pz, 3.4, 0.75, 2.4), c: 0x3e4244 }, { g: GEO.box, m: M4(dx, 2.5, pz + 0.8, 3.0, 0.16, 0.12), c: K.trim });
     for (let k = 0; k < 2; k++) for (let i = 0; i < 5 - k; i++) parts.push({ g: GEO.sph, m: M4(dx + 2.3 + (i - 1.5 + k * 0.5) * 0.5, 0.16 + k * 0.2 + drop * 0, pz + 0.6, 0.5, 0.22, 0.36), c: (i + k) % 2 ? 0xb3a070 : 0x9a8858 });
   }
-  const R = gableRoof(w, d, H, { seed, wall: K.wall, rh: kind === 'shed' ? 1.3 : 0.9 + Math.min(w, d) * 0.12, ov: 0.45, ovg: 0.35, noVent: kind !== 'shed', noPipes: kind === 'rorbu' });
+  const R = K.turf ? { rh: 1.25, parts: [] } : gableRoof(w, d, H, { seed, wall: K.wall, rh: kind === 'shed' ? 1.3 : 0.9 + Math.min(w, d) * 0.12, ov: 0.45, ovg: 0.35, noVent: kind !== 'shed', noPipes: kind === 'rorbu' || kind === 'wpost' });
   tins.push(...R.parts);
+  if (K.turf) {   // v81: sod over birch bark on boards, the ridge along the hut, grass tufts at the eaves where the snow has slid
+    parts.push({ g: GEO.prism, m: M4(0, H - 0.05, 0, d + 0.9, R.rh, w + 0.8, Math.PI / 2), c: 0x5a5236 });
+    parts.push({ g: GEO.prism, m: M4(0, H - 0.2, 0, d + 0.95, R.rh * 0.86, w + 0.85, Math.PI / 2), c: 0x3a3226 });
+    for (let i = 0; i < 9; i++) { const t = -w / 2 + (i + 0.5) * w / 9; for (const sz of [-1, 1]) parts.push({ g: GEO.cone, m: M4(t + (hash2(i, sz) - 0.5) * 0.3, H - 0.02, sz * (d / 2 + 0.42), 0.16, 0.28, 0.16), c: 0x7a6e3a }); }
+  }
+  if (K.mast) {   // a lattice mast at the hut's end, guyed four ways, a cup anemometer and a wind vane on top, a Stevenson screen
+    const mx = w / 2 + 1.4, mz = -d / 2 + 0.6, MHt = 7.2;
+    for (const [a, b] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) parts.push({ g: GEO.box, m: M4(mx + a * 0.16, MHt / 2 - 0.2, mz + b * 0.16, 0.05, MHt, 0.05), c: 0x5a5c60 });
+    for (let y = 0.4; y < MHt - 0.3; y += 0.7) for (const [a, b] of [[0, -1], [1, 0], [0, 1], [-1, 0]]) parts.push({ g: GEO.box, m: M4(mx + a * 0.16, y, mz + b * 0.16, b ? 0.32 : 0.03, 0.03, a ? 0.32 : 0.03), c: 0x6a6c70 });
+    parts.push({ g: GEO.cyl, m: M4(mx, MHt, mz, 0.05, 0.7, 0.05), c: 0x3a3c40 }, { g: GEO.box, m: M4(mx + 0.12, MHt + 0.32, mz, 0.6, 0.03, 0.03), c: 0x3a3c40 }, { g: GEO.box, m: M4(mx + 0.4, MHt + 0.32, mz, 0.04, 0.2, 0.16), c: 0x3a3c40 });
+    for (let k = 0; k < 3; k++) { const a = k * 2.09; parts.push({ g: GEO.sph, m: M4(mx + Math.cos(a) * 0.22, MHt - 0.25, mz + Math.sin(a) * 0.22, 0.1, 0.08, 0.1), c: 0x2a2c30 }); }
+    for (const [ax, az] of [[3.2, 0], [-2.6, 0], [0, 3.2], [0, -3.0]]) boxAlong(parts, [mx, MHt - 0.6, mz], [mx + ax, -0.2, mz + az], 0.02, 0.02, 0x2a2a28);
+    const sx = -w / 2 - 1.6, sz = d / 2 - 0.4;   // the screen: white louvred box on legs
+    for (const [a, b] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) parts.push({ g: GEO.box, m: M4(sx + a * 0.3, 0.55, sz + b * 0.25, 0.05, 1.1, 0.05), c: 0xd8d4c8 });
+    parts.push({ g: GEO.box, m: M4(sx, 1.35, sz, 0.75, 0.6, 0.6), c: 0xece8de }, { g: GEO.prism, m: M4(sx, 1.65, sz, 0.85, 0.16, 0.7), c: 0xd8d4c8 });
+  }
+  let chimney = null;
   if (kind !== 'shed') {
-    const chx = (seed > 0.5 ? 1 : -1) * w * 0.25, ch = R.rh + 1.0;
-    parts.push({ g: GEO.box, m: M4(chx, H + ch / 2, 0, 0.62, ch, 0.62), c: 0x6a3a2c }, { g: GEO.box, m: M4(chx, H + ch + 0.05, 0, 0.76, 0.1, 0.76), c: 0x4a2a20 });
+    const chx = (seed > 0.5 ? 1 : -1) * w * 0.25, ch = R.rh + (K.turf ? 0.7 : 1.0);
+    parts.push({ g: GEO.box, m: M4(chx, H + ch / 2, 0, 0.62, ch, 0.62), c: K.turf ? 0x6e6c66 : 0x6a3a2c }, { g: GEO.box, m: M4(chx, H + ch + 0.05, 0, 0.76, 0.1, 0.76), c: K.turf ? 0x55534e : 0x4a2a20 });
+    chimney = [chx, H + ch + 0.15];
   }
   const hb = kind === 'shed' ? null : lampFixture(parts, 0, d / 2 + 0.06, [0, 0, 1], dx + 0.95, 2.4);
   parts.push(vcPart(Q));
-  const m = new THREE.Mesh(mergeGeos(parts), propMat), t = new THREE.Mesh(mergeGeos(tins), metalMat);
+  const m = new THREE.Mesh(mergeGeos(parts), propMat);
   { const gm = glowMesh(); if (gm) m.add(gm); }
-  m.castShadow = true; m.receiveShadow = true; t.castShadow = true; t.receiveShadow = true; m.add(t);
+  m.castShadow = true; m.receiveShadow = true;
+  if (tins.length) { const t = new THREE.Mesh(mergeGeos(tins), metalMat); t.castShadow = true; t.receiveShadow = true; m.add(t); }   // v81: a turf roof has no tin
   m.position.set(cx, Y0, cz); propRoot.add(m);
+  if (K.turf && chimney) addSmoker(cx + chimney[0], cz, { y: Y0 + chimney[1], life: 1e9, rate: 1.4, size: 0.9, a: 0.32, rise: 1.1, col: 0x8a8a8c });   // v81: someone's in
   if (hb) lamps.push({ x: hb[0] + cx, y: hb[1] + Y0, z: hb[2] + cz, nx: 0, nz: 1 });
   return { type: 'house', x, z, w, d, cx, cz, mesh: m, tall: true, cover: true };
 }
@@ -9693,13 +9844,19 @@ function buildTargets(M) {
   // v46: optional objectives. A radio becomes a target flagged optional; a prisoner waits to be freed
   for (const h of recruits) { if (h.F) unitRoot.remove(h.F.root); if (h.ring) scene.remove(h.ring); }
   recruits = []; optSteps = [];
+  if (guideWait) { unitRoot.remove(guideWait.mesh); guideWait = null; } guideJoined = false;
+  if (M.guide) {   // v81: Tor, a Norwegian ski guide (Kompani Linge, fictional), standing at his hut door; attached, like Tug, not on the roster
+    const g = mkUnit({ name: 'Tor', colour: P.friendly[5 % P.friendly.length], hp: 4, ref: { ...newGrunt('Tor', 0), guide: true } }, false);
+    g.x = M.guide.x * MW; g.z = M.guide.z * MH; g.tx = g.x; g.tz = g.z; g.angle = g.aim = M.guide.a === undefined ? 0 : M.guide.a; g.rv = 0;
+    guideWait = g;
+  }
   for (const o of (M.optional || [])) {
     const st = { ...o, done: false };
     if (o.t === 'radio') { const T = { kind: 'radio', x: o.x * MW, z: o.z * MH, a: o.a || 0, dead: false, optional: true, opt: st }; mkRadio(T); targets.push(T); st.T = T; }
     else if (o.t === 'prisoner') { const h = mkHostage(o.x * MW, o.z * MH); h.opt = st; recruits.push(h); st.h = h; }
     optSteps.push(st);
   }
-  if (M.intel) { intel = { x: M.intel.x * MW, z: M.intel.z * MH, box: !!M.intel.box }; mkIntel(intel); }
+  if (M.intel) { intel = { x: M.intel.x * MW, z: M.intel.z * MH, box: !!M.intel.box, drop: !!M.intel.drop }; mkIntel(intel); }
   if (M.extract) { extractPt = { x: M.extract.x * MW, z: M.extract.z * MH, r: M.extract.r || 6 }; mkExtract(extractPt); }
   buildTyreTracks(M); gunHunt = M.gunHunt ? 0 : -1;   // v70
   objSteps = (M.objectives || [{ t: M.win === 'all' || !M.win ? 'kill' : M.win }]).map(s => ({ ...s }));
@@ -9787,6 +9944,7 @@ const stepDone = s => {
     case 'liberate': return !ens.some(e => !e.dead && !e.dog) && prisoners.every(h => h.rescued);
     case 'destroy': { const L = targets.filter(t => !t.optional && (!s.what || t.kind === s.what)); return L.length > 0 && L.every(t => t.dead); }
     case 'take': return !!(intel && intel.taken);
+    case 'guide': return guideJoined;   // v81
     case 'free': return prisoners.length > 0 && prisoners.every(h => h.rescued);
     case 'killTag': { const L = ens.filter(e => e.tag === s.tag); return L.length > 0 && L.every(e => e.dead); }
     case 'hold': return (s.held || 0) >= s.time;   // v47
@@ -9807,6 +9965,18 @@ function joinRecruit(h) {
   const si = sol.findIndex(q => q.sniper); if (si >= 0) sol.splice(si, 0, u); else sol.push(u);
   showToast('ONE MORE', `Pte. ${name} takes a rifle off a dead man and falls in`);
   say(u, 'rescue'); updateHUD(); teamUI(); updObjBar();
+}
+function joinGuide() {
+  const u = guideWait; guideWait = null; guideJoined = true;
+  const K = KIT.rifle; u.kit = 'rifle'; u.K = K; u.acc *= K.acc; u.team = 0; u.guide = true;
+  u.barOff = sol.filter(q => !q.sniper).length * 0.17;
+  applyTrait(u, traitOf(u.ref));
+  if (squadSkis) { u.skis = true; showSkis(u, true); }
+  if (squadProne) u.prone = true;
+  const si = sol.findIndex(q => q.sniper); if (si >= 0) sol.splice(si, 0, u); else sol.push(u);
+  showToast('TOR JOINS', 'Kompani Linge’s man on the plateau. He reads tracks for a living');
+  bubble(u, 'You are late. Follow me.', 2.4);
+  updateHUD(); teamUI(); updObjBar();
 }
 const OPT_TXT = { radio: 'Cut the radio — no reinforcements', prisoner: 'Free the prisoner — he joins you' };
 /* v47: three new kinds of pressure on an objective step, all data-driven:
@@ -9914,8 +10084,22 @@ function stepObjectives(dt) {
   }
 }
 
+// v80: an op can set its own size, M.size = [w, h] in metres (the Norway long maps: 100 × 250). Everything sized
+// at load from MW and MH is rebuilt here; a 100 × 100 op is exactly as before.
+function setMapSize(w, h) {
+  if (w === MW && h === MH) return;
+  MW = w; MH = h; window.MW = MW; window.MH = MH;
+  LOOK.sz.value.set(MW, MH);
+  buildGroundGeo(); gnd.geometry = gndGeo; gnd.position.set(MW / 2, 0, MH / 2);
+  APRON.apron.position.set(MW / 2, -2.2, MH / 2);
+  for (const m of APRON.hills.children) { const [a, r] = m.userData.ring; m.position.x = MW / 2 + Math.cos(a) * (r + (MW - 100) / 2); m.position.z = MH / 2 + Math.sin(a) * (r + (MH - 100) / 2); }
+  fogP.geometry.dispose(); fogP.geometry = new THREE.PlaneGeometry(MW * FOG_SPAN, MH * FOG_SPAN); fogP.position.set(MW / 2, FOG_Y, MH / 2 - FOG_PARALLAX);
+  GW = Math.ceil(MW / CELL) + 4; GWZ = Math.ceil(MH / CELL) + 4;
+  allocPathGrid();
+}
 function initMission(idx) {
   const M = MISSIONS[idx];
+  setMapSize(M.size ? M.size[0] : 100, M.size ? M.size[1] : 100);
   clearMission();
   kills = 0; globalAlert = 0; missionTime = 0; coldT = -1e9; squadSkis = false; skiChangeT = 0; reinfSent = false; reinfBlocked = false; wavering = false; outcome = null;
   grenCount = startGren = M.grenades + upgLvl('webb'); everSpotted = false; weapon = 'gun'; setWeapon('gun');
@@ -9934,6 +10118,11 @@ function initMission(idx) {
   if (DEV_SNOW) { M.snow = M.snow || 1; if (DEV_SNOW >= 2 && !M.night && (!M.weather || WEATHER[M.weather])) M.weather = DEV_SNOW >= 3 ? 'blizzard' : 'snow'; }
   if (M.snow && WEATHER[M.weather] && !WEATHER[M.weather].snow) M.weather = WEATHER[M.weather].n >= 1 ? 'blizzard' : 'snow';   // v67: in snow, rain falls as snow
   SNOW = M.snow ? 1 : 0; ATMO.snow.value = SNOW; clearPrints();   // v71
+  for (const m of [swayMat, swayMatI]) m.color.copy(SNOW ? SC(0x8a968e) : new THREE.Color(1, 1, 1));   // v81: spruce reads darker in the snow (Khal's sheet); the snow on it is mixed in after the tint
+  edgeDrop = M.edge ? { z: M.edge.z * MH, h: M.edge.h || 10, gx: M.edge.gully.x * MW, gw: M.edge.gully.w || 6 } : null;   // v81
+  iceZones = [];
+  for (const q of (M.ice || [])) { const Z = { x: q.x * MW, z: q.z * MH, rx: q.rx * MW, rz: q.rz * MH }; Z.y = baseY(Z.x, Z.z) - 0.3 - (edgeDrop ? dropAt(Z.x, Z.z) : 0); iceZones.push(Z); }
+  snowAt = M.snowAt || 0; snowT0 = 0;
   wx = WEATHER[M.weather] || null; weatherRain = !!(wx && !wx.snow);   // v34: early, the ground and the roads are coloured wet
   night = !!M.night;
   setNightLighting(night);
@@ -9951,9 +10140,10 @@ function initMission(idx) {
   } else { SUN_OFF.set(38, 54, 26); ATMO.cloud.value = 0; windMag = 0.4; smokeTint.setRGB(0.6, 0.65, 0.8); }
   if (SNOW) {   // v67: snow throws the light back up — a pale ground bounce instead of green; a blue moonlit night
     hemi.groundColor = SC(night ? 0x3c4a66 : 0xd2dae4); hemi.intensity = Math.max(hemi.intensity, night ? 0.42 : 0.5);
-    if (night) R.toneMappingExposure = 0.96;
+    if (night) { R.toneMappingExposure = 1.22; sun.intensity = 0.42; sun.color = SC(0xb4c8ee); hemi.intensity = 0.62; }   // v81: moonlight on snow is bright (v67: 0.96, and the moon at 0.22)
   }
   snowApron();
+  auroraOn = !!(M.aurora && night); if (auroraOn) { auroraBase.copy(hemi.color); auroraG.copy(SC(0x2fe0a0)); }   // v81
 
   waterZones = (M.water || []).map(r => ({ x0: r.x1 * MW, z0: r.z1 * MH, x1: r.x2 * MW, z1: r.z2 * MH, still: !!r.still, quay: !!r.quay, ladders: r.ladders, steps: r.steps }));   // v75: still (a fjord), quay (a sheer stone edge)
   deckDrops = [];
@@ -10015,7 +10205,8 @@ function initMission(idx) {
     else if (o.t === 'boat') obs.push(mkLandingBoat(x, z, o.a === undefined ? Math.PI : o.a));
     else if (o.t === 'rack') obs.push(mkFishRack(x, z, o.len || 7, !!o.alongZ));
     else if (o.t === 'drums') obs.push(mkDrums(x, z, seed++));
-    else if (o.t === 'rock') obs.push(mkRock(x, z, seed++));
+    else if (o.t === 'rock') obs.push(mkRock(x, z, seed++, o.s));
+    else if (o.t === 'cairn') obs.push(mkCairn(x, z, seed++));   // v81
     else if (o.t === 'bush') obs.push(mkBush(x, z, seed++));
     else if (o.t === 'crate') obs.push(mkCrate(x, z, seed++));
     else if (o.t === 'wall') obs.push(mkWall(x, z, o.w, o.d));
@@ -10084,6 +10275,7 @@ function initMission(idx) {
     if (e.rim) { const R = obs.find(o => o.type === 'ridge' && inObsRect(o, u.x, u.z)); if (R) { u.elev = R.h; u.fixed = true; u.rimOn = R; } }
     if (e.tag) u.tag = e.tag;
     if (e.hold) u.fixed = true;   // v40: a man at a window keeps to it
+    if (e.ski && SNOW) { u.skis = true; u.skiPatrol = true; showSkis(u, true); }   // v81: a ski patrol
     if (!u.dog && !u.tower) u.visionRange *= 1 + 0.1 * diffD;   // the difficulty curve
     mkCone(u);
     ens.push(u);
@@ -11328,6 +11520,7 @@ function update(dt) {
   if (phase !== 'play' || paused) return;
   pathBudget = 2;
   missionTime += dt;
+  if (snowAt && missionTime >= snowAt) startSnow();   // v81
   quietT = Math.max(0, quietT - dt);
   globalAlert = Math.max(0, globalAlert - dt * 0.09);
   // v56: the band follows the danger, not only the shouting: inside 36 m of a German it tightens, by 12 m it's half way to a fight
@@ -11530,6 +11723,7 @@ function update(dt) {
   ens.forEach(e => {
     if (e.dead) { stepDeath(e, dt); return; }
     e.barkT -= dt; e.stateT += dt; e.coverT -= dt; e.react = Math.max(0, e.react - dt);
+    if (e.skis && (e.state === 'engage' || e.state === 'search')) { e.skis = false; showSkis(e, false); e.react = Math.max(e.react, 1.2); }   // v81: a ski patrol stops and kicks its skis off to fight
     e.offGuard = Math.max(0, (e.offGuard || 0) - dt);
     e.moving = false;
     if (e.pinned && e.state !== 'engage') { e.pinned = false; e.prone = false; e.supT = 0; }   // v32
@@ -11863,6 +12057,11 @@ function update(dt) {
     }
   }
 
+  // v81: Tor waits at his hut, pipe going, until one of ours reaches him
+  if (guideWait) {
+    const g = guideWait; animateRig(g, dt);
+    if (sol.some(s => !s.dead && !s.sniper && dst(s, g) < 2.4)) joinGuide();
+  }
   // v46: an optional prisoner — one of ours, in their hands. Reach him and he picks up a rifle and joins the squad
   for (const h of recruits) {
     if (h.opt.done) continue;
@@ -12193,53 +12392,56 @@ function updateCamera(dt) {
 
 /*───────────────────── minimap ─────────────────────*/
 const mmC = $('minimap'), mmX = mmC.getContext('2d'), MM = 132;
+let mmK = MM / 100, mmOz = 0;   // v80: minimap pixels per metre, and the window's top on a long map
 function drawMinimap() {
   mmX.fillStyle = SNOW ? '#1a1e22' : '#0a1207'; mmX.fillRect(0, 0, MM, MM);
-  const step = 2, sc = MM / FR;
+  // v80: the map's width fills the minimap; on a long map a square window scrolls with the camera (mmOz)
+  mmK = MM / MW; mmOz = clamp(camTgt.z - MW / 2, 0, MH - MW);
+  const step = 2, sc = MM / FR, scz = MH / FR * mmK;
   for (let y = 0; y < FR; y += step) for (let x = 0; x < FR; x += step) {
     const i = y * FR + x;
     if (seenMap[i] > 0.02) {
       mmX.fillStyle = SNOW ? (liveMap[i] > 0.02 ? '#c4ccd4' : '#7c848c') : liveMap[i] > 0.02 ? '#5f8a37' : '#39501f';   // v67: white in snow
-      mmX.fillRect(x * sc, y * sc, sc * step + 1, sc * step + 1);
+      mmX.fillRect(x * sc, y * scz - mmOz * mmK, sc * step + 1, scz * step + 1);
     }
   }
   for (const r of waterZones) {
     mmX.fillStyle = '#1d4f63';
-    mmX.fillRect((r.x0 / MW) * MM, (r.z0 / MH) * MM, ((r.x1 - r.x0) / MW) * MM, ((r.z1 - r.z0) / MH) * MM);
+    mmX.fillRect((r.x0 * mmK), ((r.z0 - mmOz) * mmK), ((r.x1 - r.x0) * mmK), ((r.z1 - r.z0) * mmK));
   }
   for (const r of bridgeZones) {
     mmX.fillStyle = '#8a6a3c';
-    mmX.fillRect((r.x0 / MW) * MM, (r.z0 / MH) * MM, ((r.x1 - r.x0) / MW) * MM, ((r.z1 - r.z0) / MH) * MM);
+    mmX.fillRect((r.x0 * mmK), ((r.z0 - mmOz) * mmK), ((r.x1 - r.x0) * mmK), ((r.z1 - r.z0) * mmK));
   }
   if (streets.length || squares.length) {   // v40: the cobbles
     mmX.fillStyle = '#7a776c';
-    for (const q of squares) mmX.fillRect((q.x0 / MW) * MM, (q.z0 / MH) * MM, ((q.x1 - q.x0) / MW) * MM, ((q.z1 - q.z0) / MH) * MM);
+    for (const q of squares) mmX.fillRect((q.x0 * mmK), ((q.z0 - mmOz) * mmK), ((q.x1 - q.x0) * mmK), ((q.z1 - q.z0) * mmK));
     mmX.strokeStyle = '#7a776c'; mmX.lineCap = 'butt';
-    for (const r of streets) { mmX.lineWidth = r.w / MW * MM; mmX.beginPath(); r.pts.forEach(([x, z], i) => mmX[i ? 'lineTo' : 'moveTo'](x / MW * MM, z / MH * MM)); mmX.stroke(); }
+    for (const r of streets) { mmX.lineWidth = r.w * mmK; mmX.beginPath(); r.pts.forEach(([x, z], i) => mmX[i ? 'lineTo' : 'moveTo'](x * mmK, (z - mmOz) * mmK)); mmX.stroke(); }
   }
   if (railLine) {   // v43: the railway, and any train on it
-    mmX.strokeStyle = '#4a4640'; mmX.lineWidth = 2; mmX.setLineDash([3, 2]); mmX.beginPath(); railLine.pts.forEach(([x, z], i) => mmX[i ? 'lineTo' : 'moveTo'](x / MW * MM, z / MH * MM)); mmX.stroke(); mmX.setLineDash([]);
-    mmX.fillStyle = '#d8483a'; for (const t of trains) for (const car of t.cars) if (car.vis) { mmX.beginPath(); mmX.arc(car.x / MW * MM, car.z / MH * MM, 2.2, 0, 6.3); mmX.fill(); }
+    mmX.strokeStyle = '#4a4640'; mmX.lineWidth = 2; mmX.setLineDash([3, 2]); mmX.beginPath(); railLine.pts.forEach(([x, z], i) => mmX[i ? 'lineTo' : 'moveTo'](x * mmK, (z - mmOz) * mmK)); mmX.stroke(); mmX.setLineDash([]);
+    mmX.fillStyle = '#d8483a'; for (const t of trains) for (const car of t.cars) if (car.vis) { mmX.beginPath(); mmX.arc(car.x * mmK, (car.z - mmOz) * mmK, 2.2, 0, 6.3); mmX.fill(); }
   }
   for (const o of obs) {
-    const mx = ((o.cx !== undefined ? o.cx : o.x) / MW) * MM, mz = ((o.cz !== undefined ? o.cz : o.z) / MH) * MM;
+    const mx = ((o.cx !== undefined ? o.cx : o.x) * mmK), mz = (((o.cz !== undefined ? o.cz : o.z) - mmOz) * mmK);
     if (o.type === 'tree') { mmX.fillStyle = '#2c4d19'; mmX.beginPath(); mmX.arc(mx, mz, 1.6, 0, 6.3); mmX.fill(); }
     else if (o.type === 'bush') { mmX.fillStyle = '#1f3a12'; mmX.beginPath(); mmX.arc(mx, mz, 1.9, 0, 6.3); mmX.fill(); }
     else if (o.type === 'rock' || o.type === 'crate') { mmX.fillStyle = '#6b6857'; mmX.fillRect(mx - 1.2, mz - 1.2, 2.4, 2.4); }
-    else if (o.type === 'casemate') { mmX.fillStyle = '#8f8c84'; mmX.fillRect((o.cx / MW) * MM - 2, (o.cz / MH) * MM - 2, 4, 4); }   // v70
-    else if (o.type === 'wall') { mmX.fillStyle = '#8a7f5e'; mmX.fillRect((o.x / MW) * MM, (o.z / MH) * MM, Math.max(1.6, (o.w / MW) * MM), Math.max(1.6, (o.d / MH) * MM)); }
-    else if (o.type === 'house') { mmX.fillStyle = '#a2472f'; mmX.fillRect((o.x / MW) * MM, (o.z / MH) * MM, (o.w / MW) * MM, (o.d / MH) * MM); }
-    else if (o.type === 'swall') { mmX.fillStyle = '#9a9488'; mmX.fillRect((o.x / MW) * MM, (o.z / MH) * MM, Math.max(1.4, (o.w / MW) * MM), Math.max(1.4, (o.d / MH) * MM)); }
-    else if (o.type === 'fence') { mmX.fillStyle = '#9aa0a8'; mmX.fillRect((o.x / MW) * MM, (o.z / MH) * MM, Math.max(1, (o.w / MW) * MM), Math.max(1, (o.d / MH) * MM)); }
-    else if (o.type === 'tower') { mmX.fillStyle = '#c9a060'; mmX.fillRect((o.x / MW) * MM, (o.z / MH) * MM, (o.w / MW) * MM, (o.d / MH) * MM); }
-    else if (o.type === 'thicket') { mmX.fillStyle = '#1c3310'; mmX.fillRect((o.x / MW) * MM, (o.z / MH) * MM, (o.w / MW) * MM, (o.d / MH) * MM); }
-    else if (o.type === 'ridge') { mmX.fillStyle = '#6b6857'; mmX.fillRect((o.x / MW) * MM, (o.z / MH) * MM, (o.w / MW) * MM, (o.d / MH) * MM); }
-    else if (o.type === 'cliff') { mmX.fillStyle = '#8a7a5a'; mmX.fillRect((o.x / MW) * MM, (o.z / MH) * MM, Math.max(1.2, (o.w / MW) * MM), Math.max(1.2, (o.d / MH) * MM)); }
-    else if (o.type === 'gate') { mmX.fillStyle = '#8a5a3c'; mmX.fillRect((o.x / MW) * MM, (o.z / MH) * MM, Math.max(2, (o.w / MW) * MM), Math.max(2, (o.d / MH) * MM)); }
+    else if (o.type === 'casemate') { mmX.fillStyle = '#8f8c84'; mmX.fillRect((o.cx * mmK) - 2, ((o.cz - mmOz) * mmK) - 2, 4, 4); }   // v70
+    else if (o.type === 'wall') { mmX.fillStyle = '#8a7f5e'; mmX.fillRect((o.x * mmK), ((o.z - mmOz) * mmK), Math.max(1.6, (o.w * mmK)), Math.max(1.6, (o.d * mmK))); }
+    else if (o.type === 'house') { mmX.fillStyle = '#a2472f'; mmX.fillRect((o.x * mmK), ((o.z - mmOz) * mmK), (o.w * mmK), (o.d * mmK)); }
+    else if (o.type === 'swall') { mmX.fillStyle = '#9a9488'; mmX.fillRect((o.x * mmK), ((o.z - mmOz) * mmK), Math.max(1.4, (o.w * mmK)), Math.max(1.4, (o.d * mmK))); }
+    else if (o.type === 'fence') { mmX.fillStyle = '#9aa0a8'; mmX.fillRect((o.x * mmK), ((o.z - mmOz) * mmK), Math.max(1, (o.w * mmK)), Math.max(1, (o.d * mmK))); }
+    else if (o.type === 'tower') { mmX.fillStyle = '#c9a060'; mmX.fillRect((o.x * mmK), ((o.z - mmOz) * mmK), (o.w * mmK), (o.d * mmK)); }
+    else if (o.type === 'thicket') { mmX.fillStyle = '#1c3310'; mmX.fillRect((o.x * mmK), ((o.z - mmOz) * mmK), (o.w * mmK), (o.d * mmK)); }
+    else if (o.type === 'ridge') { mmX.fillStyle = '#6b6857'; mmX.fillRect((o.x * mmK), ((o.z - mmOz) * mmK), (o.w * mmK), (o.d * mmK)); }
+    else if (o.type === 'cliff') { mmX.fillStyle = '#8a7a5a'; mmX.fillRect((o.x * mmK), ((o.z - mmOz) * mmK), Math.max(1.2, (o.w * mmK)), Math.max(1.2, (o.d * mmK))); }
+    else if (o.type === 'gate') { mmX.fillStyle = '#8a5a3c'; mmX.fillRect((o.x * mmK), ((o.z - mmOz) * mmK), Math.max(2, (o.w * mmK)), Math.max(2, (o.d * mmK))); }
   }
   for (const b of builds) {
     mmX.strokeStyle = '#a8a08c'; mmX.lineWidth = 1;
-    mmX.strokeRect((b.x0 / MW) * MM, (b.z0 / MH) * MM, ((b.x1 - b.x0) / MW) * MM, ((b.z1 - b.z0) / MH) * MM);
+    mmX.strokeRect((b.x0 * mmK), ((b.z0 - mmOz) * mmK), ((b.x1 - b.x0) * mmK), ((b.z1 - b.z0) * mmK));
   }
   for (const e of ens) {
     if (e.dead) continue;
@@ -12247,41 +12449,42 @@ function drawMinimap() {
     if (i < 0 || i >= seenMap.length || seenMap[i] < 0.05) continue;
     if (e.cmd) {
       mmX.fillStyle = '#ffd24a';
-      mmX.fillRect((e.x / MW) * MM - 2.4, (e.z / MH) * MM - 2.4, 4.8, 4.8);
+      mmX.fillRect((e.x * mmK) - 2.4, ((e.z - mmOz) * mmK) - 2.4, 4.8, 4.8);
     } else {
       mmX.fillStyle = e.state === 'engage' ? '#ff5a45' : e.alert > 0.3 ? '#ffc23d' : '#c86a5a';
-      mmX.fillRect((e.x / MW) * MM - 1.6, (e.z / MH) * MM - 1.6, 3.2, 3.2);
+      mmX.fillRect((e.x * mmK) - 1.6, ((e.z - mmOz) * mmK) - 1.6, 3.2, 3.2);
     }
   }
   // traffic and the plane: you hear them coming, so the map shows them
-  for (const v of vehs) { if (v.dead) continue; mmX.save(); mmX.translate((v.x / MW) * MM, (v.z / MH) * MM); mmX.rotate(-v.yaw); mmX.fillStyle = v.spotted ? '#ff5a45' : '#e0a050'; mmX.fillRect(-1.6, -2.6, 3.2, 5.2); mmX.restore(); }
-  if (spotter) { mmX.fillStyle = '#f2f0e0'; mmX.beginPath(); mmX.arc((spotter.x / MW) * MM, (spotter.z / MH) * MM, 2.6, 0, 6.3); mmX.fill(); }
-  for (const h of prisoners) { mmX.fillStyle = h.rescued ? '#9ede5a' : '#ffd24a'; mmX.fillRect((h.x / MW) * MM - 2.2, (h.z / MH) * MM - 2.2, 4.4, 4.4); }
-  for (const t of towers) if (t.light.on && t.light.pool.visible) { mmX.fillStyle = 'rgba(255,226,160,.35)'; mmX.beginPath(); mmX.arc((t.light.px / MW) * MM, (t.light.pz / MH) * MM, 4.1 / MW * MM, 0, 6.3); mmX.fill(); }
+  for (const v of vehs) { if (v.dead) continue; mmX.save(); mmX.translate((v.x * mmK), ((v.z - mmOz) * mmK)); mmX.rotate(-v.yaw); mmX.fillStyle = v.spotted ? '#ff5a45' : '#e0a050'; mmX.fillRect(-1.6, -2.6, 3.2, 5.2); mmX.restore(); }
+  if (spotter) { mmX.fillStyle = '#f2f0e0'; mmX.beginPath(); mmX.arc((spotter.x * mmK), ((spotter.z - mmOz) * mmK), 2.6, 0, 6.3); mmX.fill(); }
+  for (const h of prisoners) { mmX.fillStyle = h.rescued ? '#9ede5a' : '#ffd24a'; mmX.fillRect((h.x * mmK) - 2.2, ((h.z - mmOz) * mmK) - 2.2, 4.4, 4.4); }
+  for (const t of towers) if (t.light.on && t.light.pool.visible) { mmX.fillStyle = 'rgba(255,226,160,.35)'; mmX.beginPath(); mmX.arc((t.light.px * mmK), ((t.light.pz - mmOz) * mmK), 4.1 * mmK, 0, 6.3); mmX.fill(); }
   for (const T of targets) {
     if (T.kind === 'bridge' || T.hidden) continue;   // v70
     mmX.fillStyle = T.dead ? '#555048' : T.kind === 'pillbox' ? '#ff8a3a' : T.kind === 'lorry' ? '#ffd24a' : '#ff5a8a';
-    mmX.fillRect((T.x / MW) * MM - 2.8, (T.z / MH) * MM - 2.8, 5.6, 5.6);
-    if (T.kind === 'pillbox' && !T.dead) { mmX.fillStyle = '#ffd890'; mmX.fillRect((T.sx / MW) * MM - 1.2, (T.sz / MH) * MM - 1.2, 2.4, 2.4); }
+    mmX.fillRect((T.x * mmK) - 2.8, ((T.z - mmOz) * mmK) - 2.8, 5.6, 5.6);
+    if (T.kind === 'pillbox' && !T.dead) { mmX.fillStyle = '#ffd890'; mmX.fillRect((T.sx * mmK) - 1.2, ((T.sz - mmOz) * mmK) - 1.2, 2.4, 2.4); }
   }
-  if (intel && !intel.taken) { mmX.fillStyle = '#ffd24a'; mmX.beginPath(); mmX.arc((intel.x / MW) * MM, (intel.z / MH) * MM, 2.8, 0, 6.3); mmX.fill(); }
-  if (extractPt && extractPt.on) { mmX.strokeStyle = '#7cff6a'; mmX.lineWidth = 1.5; mmX.beginPath(); mmX.arc((extractPt.x / MW) * MM, (extractPt.z / MH) * MM, Math.max(4, extractPt.r / MW * MM), 0, 6.3); mmX.stroke(); }
+  if (guideWait) { mmX.fillStyle = '#ffd24a'; mmX.fillRect((guideWait.x * mmK) - 2.4, ((guideWait.z - mmOz) * mmK) - 2.4, 4.8, 4.8); }   // v81
+  if (intel && !intel.taken) { mmX.fillStyle = '#ffd24a'; mmX.beginPath(); mmX.arc((intel.x * mmK), ((intel.z - mmOz) * mmK), 2.8, 0, 6.3); mmX.fill(); }
+  if (extractPt && extractPt.on) { mmX.strokeStyle = '#7cff6a'; mmX.lineWidth = 1.5; mmX.beginPath(); mmX.arc((extractPt.x * mmK), ((extractPt.z - mmOz) * mmK), Math.max(4, extractPt.r * mmK), 0, 6.3); mmX.stroke(); }
   if (hostage) {
     mmX.fillStyle = hostage.rescued ? '#9ede5a' : '#ffd24a';
-    mmX.fillRect((hostage.x / MW) * MM - 2.2, (hostage.z / MH) * MM - 2.2, 4.4, 4.4);
+    mmX.fillRect((hostage.x * mmK) - 2.2, ((hostage.z - mmOz) * mmK) - 2.2, 4.4, 4.4);
   }
   for (const s of shells) {
     mmX.strokeStyle = '#ff3a2a'; mmX.lineWidth = 1.5;
-    mmX.beginPath(); mmX.arc((s.tx / MW) * MM, (s.tz / MH) * MM, 5, 0, 6.3); mmX.stroke();
+    mmX.beginPath(); mmX.arc((s.tx * mmK), ((s.tz - mmOz) * mmK), 5, 0, 6.3); mmX.stroke();
   }
   const ldr = sol.find(q => !q.dead);
   for (const s of sol) {
     if (s.dead) continue;
     mmX.fillStyle = split ? (s.team ? (s === teamLeader(1) ? '#c8f0ff' : '#6fd8ff') : (s === teamLeader(0) ? '#fff0b0' : '#ffd25a')) : s === ldr ? '#d9ffb0' : '#9ede5a';
-    mmX.fillRect((s.x / MW) * MM - 1.8, (s.z / MH) * MM - 1.8, 3.6, 3.6);
+    mmX.fillRect((s.x * mmK) - 1.8, ((s.z - mmOz) * mmK) - 1.8, 3.6, 3.6);
   }
   mmX.strokeStyle = 'rgba(217,210,173,.45)'; mmX.lineWidth = 1;
-  mmX.strokeRect((camTgt.x / MW) * MM - 11, (camTgt.z / MH) * MM - 8, 22, 16);
+  mmX.strokeRect((camTgt.x * mmK) - 11, ((camTgt.z - mmOz) * mmK) - 8, 22, 16);
 }
 
 /*───────────────────── HUD ─────────────────────*/
@@ -12515,6 +12718,7 @@ const FACES = {
 };
 // v51: hand-drawn portraits of the original four (from the promo kit)
 const PORTRAIT = {
+  Tor: 'data:image/webp;base64,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',   // v81: from assets/norway/p-tor.webp
   Sarge: 'data:image/webp;base64,UklGRsgQAABXRUJQVlA4ILwQAACwNACdASpwAHAAPnkqkEgkoqGhPL6MyJAPCWwArZr2gsyT+W+6XZ90V8j37fSPt3fMB51Pp7/1O+4b0N/l7R34LflvAfxm/IdBLBnaH9zEdPJB5R6gXszzu/sO0oAB9dvAS1L/EfsB+XH/J8Lz1H2BP1T6tH+T4/frn2CP1867vpSOMUWbM2rGE0Z04wDWV8qfzo5k0z54k74Onjp6ysBxG/0lxC7Th92QXEJ8UolwxTSn4otzTMIEXMu8Wh9Cu6zb19fWvG1ySnrFihEx4wJhyuUVYWzwI22aZ3P0To/oRScH9IZX4SG7gIldiYflDbtLBJIQxieIB/beRx9KyjpHcRp9LFYDHToBxMV/v8Hjypf3fjWWL2y3wgw3hVsQ6d8RvdTlyLz4x/tkOv3HZ//NIwCkx2xoIfTmYmvfKVpJF2AMPSc/bHgWbvq/881EHlzKNsTyz9M3orNwjCwrFc0hjiNpfAWC2aF/sx03OcwUvc7dZaQj0wnKXmmv6+lMoHm/ik/gSDyE5vW9OcNb+/6FkKl9jNRYWSOQYf7q2LnzCxnFE1QYDq96vJPjO+AAAP7zkjkoVqDdUjYeABALDknktHq6uNOCWL1ItUkQ8YrJLJIsd+Z+pkIoVHLoQ4mzDwTKlQ/434BqDWPsRvf//81N/vk1/Nd+gtHbVf//Ag+EHzy30v14dbU0f7UmmI7yy9vD55DgRpqFMbZ7vk6TtnL2ysI3NtxWb3nVrT36m2jeNI9qoWU7qQleEphASDwngxD4SBQO48xaomvb2QZ/SIHpScoZCUfobhgj511BfIfY+oxJS9x1GZZlyG9gLv2D46EJQaPnkSkzZ5XjJByXmzg7xLkaAlDgSWfbmg6JHSnmaYzgmCnoJJ2y7VsCRE3lf7/jTlUiXbiERYB/6bgxaRlaq3Av32Gl23nmkvA2VxRGnoF0cC2YCrKOZnmaKhr5p+NIIrjohJ9++lEUYOUpwUGAI6FrWlqRGyV4QoSvXl2LM+AVCAxwaOlrgWp1Z98QDtMiAJlCQwvNsJqZFndB2f14NN8nf7/W+V9SLX8BbsomyEBw721Lpbxy0DzJdezv/kKf27xO+kCgyktGkRY3FK3PPAqyXXUOTxH6rU6wP34q2VQS3ZvHC0rt6pKbVUzi0Y2YRN+wp45PyHKONK4L1sqVNLMj0KWREuG4q2f9GBFIWwAGZdj8im/R7mZDT8N1tROgTxU99GFWTHt4FzR2mMmp+OzTBdBTGrFcGDKTOV3RnrsU8B9rqoEAY192TvsA8/0t99/9/QgqEDxQdibjHJ+WvC/851+D8i4QfzZ6hu5z74IhN1sgGjRZFFxDHO/KZqUEm7unX8u9Mt2Bk9R9f8Vq2IJKgrpjCuz/x4Bx2pyHl79eN6WhB5sIshhavrkd04mKpt02JY2+5JShi94j7fwHVEF2XnKh/ujUmZ6ijpo2msbQQACwQ9V/6l7/GAoQ30dV2U3JhyhK0I0K7chBeCDSFE1v5PVT+Wjp8/eVQeR1aLPD2+dYrKzAAxhI/u83OWofzdPZOvuDfH+aWnGK3svDuVvPvA+MOCNm9kWPuj8Fu5wiT2RVtvZGmgR6Lz95wMnnW8gUSPWVCojqnFQGS/ihAElt86qLHjyYn4XOS3eRNhgESLW55Z4AsVK7HU+JXJn0Y8YNGhruSLFxqZmq5lu2t61ou8VxZzJU26H1nrIrjg6nZMpq43OTmGWrW5BrhNl5ftwAGFOsJoaMDQO6WaqdnhTK2zR+Sl6vApzFC90FEE6PlqmfWybPcPAu2t/oF8uf3Xp0uZs4RxFEL8DKYOJoDZ4s0CHCdJRZndvrHToS1FSO8sNUoJj1z29wMpCstLxcpIph/70ZBKkou6llFCltUFKMKu1SLGq/BOSnJooKYdgUv0Om6lUENO1+eO+zNP61pYbExqtbQPO5CbxiiuxuCj1wCIYX1RX3Y6Lwj23OL3tsdWRESGCNMP84TqpeU9LpWGQDfCDVDbabeZ5sfK42q8dvyfZzWP9PrLLX9IoNjvKnjB/b2O6S+qMnFP/Gp3v6qq5GSb4htuA5Eih6mADvjGqyC1nkffzycK9lKYBpnMBX4KNjS3s5Oq0ffkpaNuaQGzLy/SEXiyZ/s+JfpVn4/IRDiunYBZHURhxg3PrcYJZav2GYwxxllF7TzzkuOO19EM7w7FsSluL0jTM2zLFZVqO7dNKiG1KctRTPTrqj83BPr55H2Y+cXVBoL0exExse8crYkdZk30L4ZyZpT4p6odtwGsFx8+5NgKH7nL95rnIzgBrbfY1n+EsKtb2gCppGdTdsG/p8x2F36tAKKl29LOYQO1p1p/EM7RyV/XGq9S2eef7mXGlNS2latuXXCHZdkqknrNM+BHCujWrfslgvhoGqln26jf9ZaJCPh3ORiyU4XbUGhEZKWXsvb9KpsF88K5S/bdFa5hu6Sp+QQJSj6T4RmsaKtcrInTChGDHL8MK8T2Xxfw4FQH2c4TjIynEuBYN2U8ekGdY82Ucw7LFfRP+pYkAoTrcnBKJGKaDA5RjScLnuTA9qI1qBHi0+KcQkgrJ2wfzEU7kBuzrWuKCWo5q6sAHftCPAVxkaqlc9MinL0knh1PjnX77Kw17J+qBLaJTFqjh+0CWjqHZmWfc3a/Sztxu4js09JlmmVOBNxhdvcU8Czf6DlZ8fI3gua/tr0JnNYt8gYqRmbXwwXuU5c+TOdlwwr2trHTLFwkaipf0WaGSoI9BepySNxwStE4TmNFEZDU2jjFrD/RylXMhScYfcl6hll1WjraUTK+u09pU+CJMuVTUCMHFt0z5zaDN6WtMCP/HL+k5biZnhfC6+w10tUzOdSkvHQU5JmHJsvyF984JAsABhq078tHQSH8qq1BKnhI8xxiw3kKkbezuVT65vRnaU0/H09f7mjmMx0AY818txPEp+XBLKgn57KCur8HzK2Xei53eta7Lcl5nU2j9ZxUsuTXvAeYRbnsq8wcShuUkyA+w7VxcJFcASe4/IO4KKBQJjs9gsTqNsnzZVOLP5zrdoFNzzff3LAifZET8Fnp5Cj/UOoPylIIQFNEBGgEh4GdWFK2DimxClIfWmRe9XJajnLF0th6Q+zbh8h5P5iK7M74UsQoXBwpX3KwGbCrDqd3VlHw4D+z4g8L4bMO3FaDsDAv16OndUgSw2r/931y1M+rVn+jWf2OY2v3q9IRT2vhTszas3LGgWrYBzhmP4vv8byeZ228ak4Tl/o6c51z4R2500F5jTkvmPjC49go77T0XHVsWKBJdEZKk0KrtSM4ICQFcs70M0mAeH+6thvFm0FwYmDYgt/wNXcsHi6kKdaFHtyDJyXpxh5RWY/Rci0x1Y+gMAeSJlmcS8+Ukbe8g8n2n3r4pVU1WwcePzXjOiuzgtnNYdwQ94vPf/hILsXLO/otFK3HWbIFpTTDhWKOcA4MT6am+aeMsfNwbqhM1FUSkE0+P97NQnJUyZYSQBQ08pm2fuoR3CIsDXfBoognuBRoNNpHPWgmZ8zyhbl/qspaUHalDKbZ4tHFryC6nS7/KNbQupv/jMm9F+ut0lmgROnYPqByKuFfsf4gzQYPksc7jp6ev/3gnMZ8icfmwSfZ1sUm1Vsp56V3KNyeUUvd/ungUL+thntPAh62ur+Pa8EX6Wd7McZiqwjJPQWyz2TFaPlIwn1q/YMa1ugwiLgTB7+11KB47RC6D0x9CYXtBA+wxBuatYQa58cCUTrXjYhQsvIxeJhexZ3jrulTtVYijWH6olO2R/RLSI4S0A87HllUEsj4v6ZgjIOZO6u9SxrqBPgW4Dc/a440R20Pgjiy+dYxEHD9+/U2NPR3s+Qox5q867l1S2VdE483wPG0BWg2U8OxQMS5bith5Wj0zfhYQ44XiaO/hosovqm26CoVxPLhBfvYmKAr8n1ljAR1hyNGW+XDXB85YlVvHfbZ+2580890ZgbR9fDaYhiKFRL6i32ZqOf8PQ7znZ7W3Hg8B+GsZwguxXLKcvLOV6jajXazvT3/pxm29OfJM9RRy6xwvYGpoBrz+2xcb87mF44D+T+kEAgB7ugctuT9t36WTgsbmBD53sErolTgcgN2qGlu8xD4va1g/rAR3O70yhvTML0Rf2XTEsms0/LBiS2jeune9ZK/KebpAPg6vh+7RBrWFviuMv55TBj0Z3apHJhWbl3fmXpZKNkPEjuigYTqonjjGJ0GhtCN4VjMkGGyM59hbG8BYPDFpvSNRIO/c48fWuyGzmtymKyC88rZ9taGaSmZF2sVUpYtHqzcB7ALi1+3beHUW1DVx4Zwj8DLczZA9XVEYyKB6sxwcTE+gxxa7/xexqy5g5MRs+kJhVqoFOlONPlE+8oiG247Jq1CS8FiKP2bacSy/TO7fw1ImQ4H18CQgDoUs532TnCW9qkWLAXF1QOH+WGesoB8ybbyb4aQmdJM9FOroMjt/uNglQEN5BLn4tj11b1MbPtTFQYFlARuilFg7LGYk5pk/CYrz3sbCIC9Dyu2MXCoIx3HL9aQWNoxSUNR46kxvfzjbqaIxqa5Fu0y4N9a0Mulg847je984XgouDaQL+/1/wD0flUCBnZHuJXx+ICT19V6ggegUY1sUSQ7RlpeDD++gyiQZiOYXev+7ifeOsOkYUrzkMLBiVfxJi44uqPzoHlexLZ4unkZbgqbDEAbOr43CDM2ODkiVodVr1r9667OQF0/g1FwfbzU0MekekZqDUhv17G39Q3vmDzhSK/07Gg4qQAOR62lyPGeQgRq9zd66LpUWGdmni/+TIpVz9JdJnGrxmYH4ESAXtXZk6EcBtKBLU1BKDytyE6bnxhzXNCTmn0UCCop+25HN1LlNphjQhIy6ttTeMSx80p2oluGR3ETnNd98qs+S50lLswsEGIGFjIUI6g1DqvTA0X1heuwR4wyPiZtrQqnWv7t2cn/XctxJRTEo1HVqOeagmOyCW7Rj1dT4q852QzPmxPe1giDz7v5qZYOfg7VKy0Ojm2oKdgSHsglYRUVM/1yb/DUHZH+oB7HKrmDqwC+QXjmMkX37Y702RQGjFRRXvV1sXJEIxC/52Pj5QegxQeLpNnubeE8JsvfDPlNdiZEH1POH9VSK27N0cLBdzmlDodMTTbrVdpNXUnCiwDfUSV73RgEODcHQ8euDekegFJlukz09SnS7icjam8c7YkrxdX6cIca3uaKwc4YzCPzmAM/ECSjxiVK1nAfVRPLZEYrYti9CUlEctFeEYyW/b0tldM6IaADIuX5pnVkyTSOfr71lDKp2omhC1TIer+ezuWDzJg8uUp9+1Vpu3ZJd2SuKFpprVbI4G8Yxk8X5Fsw48l1vLPrZqvU7UxyDRtg3IzKmz8WhZfM/HOurnZd8IRxjYQy3oRh30YqjxxAV34TYdd5WWAfpENHkI82S4r5zouE76TOe+HxO+gSpbhnhJnxSbXTV9scMcJpxqVFu4x4g8+o/vq2oZLKlDvJhNz1xssfE6zNSn8omhPQJABbHRT6fRMqJtv+ox6I7GY+HRTHRtO2ac1h1H07YczAnVtCN2er/6YzC/NfTTiBFS55wRJuV30vzCQ5suKsKWMD0JfYVtz8srXlClcIHDZhPphdrQyeLOyR41Vi33zUcnCI2OzBwBMEUY6YEYv69Oxdfs7N2yuthwAW1d/PZkPIN8nJLDhoR9Aq3DS2CwQ59U1FPL3e0Ya85YWspAAAA=',
   Stan: 'data:image/webp;base64,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',
   Cal: 'data:image/webp;base64,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',
@@ -12731,6 +12935,7 @@ let introT = 0, introDur = 3.6;
 const introA = new THREE.Vector3(), introB = new THREE.Vector3(), introLA = new THREE.Vector3(), introLB = new THREE.Vector3();
 function objectivePoint() {
   const cmd = ens.find(e => e.cmd);
+  if (guideWait) return { x: guideWait.x, z: guideWait.z };   // v81: the flyover shows where Tor waits
   const T0 = targets.find(t => !t.dead && !t.optional); if (T0) return { x: T0.x, z: T0.z };   // v46: the flyover shows the main job, not the optional radio
   if (intel && !intel.taken) return { x: intel.x, z: intel.z };
   if (objective === 'extract' && extractPt) return { x: extractPt.x, z: extractPt.z };
@@ -13031,7 +13236,11 @@ function showDone() {
 const DEV = /dev/.test(location.hash) || /[?&]dev/.test(location.search);
 function drawOpPreview(cv, M) {
   const S = cv.width, x = cv.getContext('2d');
-  x.fillStyle = M.weather === 'fog' ? '#3a4a3a' : '#3f5a24'; x.fillRect(0, 0, S, S);
+  x.setTransform(1, 0, 0, 1, 0, 0); x.fillStyle = '#1c1e1a'; x.fillRect(0, 0, S, S);
+  const k = M.size ? M.size[0] / M.size[1] : 1, MW = M.size ? M.size[0] : 100, MH = M.size ? M.size[1] : 100;   // v81: a long map drawn as a strip
+  x.setTransform(k, 0, 0, 1, S * (1 - k) / 2, 0);
+  x.fillStyle = M.snow ? '#c8d0d8' : M.weather === 'fog' ? '#3a4a3a' : '#3f5a24'; x.fillRect(0, 0, S, S);
+  for (const q of (M.ice || [])) { x.fillStyle = '#7c9cb4'; x.beginPath(); x.ellipse(q.x * S, q.z * S, q.rx * S, q.rz * S, 0, 0, 6.3); x.fill(); }
   for (const r of (M.water || [])) { x.fillStyle = '#2a6a86'; x.fillRect(r.x1 * S, r.z1 * S, (r.x2 - r.x1) * S, (r.z2 - r.z1) * S); }
   for (const r of (M.bridge || [])) { x.fillStyle = '#9a7648'; x.fillRect(r.x1 * S, r.z1 * S, (r.x2 - r.x1) * S, (r.z2 - r.z1) * S); }
   for (const q of (M.mesas || [])) { x.fillStyle = 'rgba(190,170,120,.35)'; x.fillRect(q.x * S, q.z * S, q.w * S, q.d * S); for (const r of (q.ramps || [])) { x.strokeStyle = '#d8c89a'; x.lineWidth = (r.w || 3.4) / 100 * S; x.beginPath(); x.moveTo(r.fx * S, r.fz * S); x.lineTo(r.tx * S, r.tz * S); x.stroke(); } }
@@ -13091,7 +13300,10 @@ function showOps() {
     if (M.night) extras.push('night');
     if ((M.targets || []).some(t => t.t === 'pillbox')) extras.push('pillbox');
     if (M.charges) extras.push('charges');
-    if (M.intel) extras.push('documents');
+    if (M.intel) extras.push(M.intel.drop ? 'supply drop' : 'documents');   // v81
+    if (M.guide) extras.push('Tor joins');
+    if (M.snowAt) extras.push('snow from ' + Math.round(M.snowAt / 60) + ':00');
+    if (M.size && M.size[1] > 100) extras.push('long map');
     if (M.extract) extras.push('extraction');
     if (M.mesas) extras.push('cliffs');
     if ((M.obstacles || []).some(o => o.t === 'ridge')) extras.push('canyon');
