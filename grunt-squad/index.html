@@ -57,7 +57,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
 #otime{position:fixed;right:8px;top:calc(204px + env(safe-area-inset-top));z-index:11;display:none;padding:3px 10px;border-radius:2px;font-size:12px;font-weight:bold;letter-spacing:2px;color:var(--amber);border:1px solid rgba(255,194,61,.5);background:rgba(6,12,4,.7)}#otime.hot{color:#ff8a5a;border-color:#ff8a5a}
 #objbar .opt{font-size:10.5px;color:#d8d0a4;margin-top:3px}#objbar .opt span{color:var(--amber)}#objbar .opt.done{opacity:.55}
 .bdrawn{margin-top:10px;font-style:italic;font-size:11px;color:#6d6a45}   /* v69 */
-.bopt{margin-top:10px;color:#e8d89a}.bopt b{color:var(--amber);letter-spacing:2px;margin-right:6px}
+.bopt{margin-top:10px;color:#3d3420}.bopt b{color:#9a5a12;letter-spacing:2px;margin-right:6px}
 #mname{margin-left:auto;color:var(--khaki-d);font-size:11px;letter-spacing:2px;text-transform:uppercase}
 
 #minimap{position:fixed;right:8px;top:calc(48px + env(safe-area-inset-top));z-index:10;display:none;
@@ -87,7 +87,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
 #ctd.hot{animation:pulse .3s infinite;color:#fff;background:rgba(216,72,58,.85)}
 #truck{position:fixed;right:8px;top:calc(176px + env(safe-area-inset-top));z-index:11;display:none;padding:3px 10px;border-radius:2px;font-size:12px;font-weight:bold;letter-spacing:2px;color:var(--amber);border:1px solid rgba(255,194,61,.5);background:rgba(6,12,4,.7)}
 #truck.hot{color:#ff7a68;border-color:var(--blood);animation:pulse .55s infinite}
-#bc{font-size:8.5px!important;letter-spacing:.5px;font-weight:bold}
+#bc,#bski{font-size:8.5px!important;letter-spacing:.5px;font-weight:bold}
 #bs,#bt{font-size:8.5px!important;letter-spacing:.5px;font-weight:bold;line-height:1.15}
 #bt.tA{border-color:#ffd25a;color:#ffd25a;background:rgba(255,210,90,.14)}
 #bt.tB{border-color:#6fd8ff;color:#6fd8ff;background:rgba(111,216,255,.14)}
@@ -388,6 +388,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
   <button id="bx" data-w="charge" style="display:none">🧨<span id="xc">0</span><span id="xt" style="display:none"></span></button>
   <button id="bk" data-w="knife" title="Knife (K): tap a sentry">🗡️</button>
   <button id="bc" title="Crawl (Q)">CRAWL</button>
+  <button id="bski" title="Skis (B)" style="display:none">SKIS</button>
   <button id="bsn" data-w="snipe" title="Sniper (S): tap a sentry to mark him, the ground to move" style="display:none">🎯</button>
   <button id="bs" title="Split the squad (V)">SPLIT</button>
   <button id="bt" title="Switch team (Tab)" style="display:none">TEAM<br>B</button>
@@ -411,7 +412,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
     <button id="tset">SETTINGS <small>sound · music · graphics</small></button>
   </div>
   <div class="foot">© GAMELAB · NO GRUNTS WERE CONSULTED</div>
-  <div id="tver">v76</div>
+  <div id="tver">v78</div>
 </div>
 
 <div id="ops" class="screen">
@@ -481,7 +482,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
       <div class="row"><div class="k">Objective</div><div class="v" id="bobj"></div></div>
       <div class="row"><div class="k">Notes</div><div class="v" id="btxt"></div></div>
       <div class="row"><div class="k">Opposition</div><div class="v" id="bopp"></div></div>
-      <div class="row"><div class="k">Doctrine</div><div class="v">Press <b>Q</b> or <b>CRAWL</b> to go prone. Down in the grass you are silent and all but invisible — only a sentry looking straight at you from a few metres will make you out — but weapons are slung: no rifles, no grenades until you are back on your feet, and standing up costs you half a second. Crawl into position, stand, and kill — and for the first <b>two seconds</b> after you come up out of a crawl, your grunts fire faster and shoot straighter than anything facing them. That window is the whole reward for the approach. Or use the knife: pick <b>🗡️</b> (or <b>K</b>) and <b>tap a sentry</b>. The nearest man goes after him alone — crawling if you are down — while the rest hold, then rises for the last few metres and does it with the stiletto. Nobody hears a thing. Send him in from behind: if the sentry turns and sees him coming, it is rifles after all. Tap the ground to call him back. Sentries hear rifles and shout to each other, so take the outliers first. Stripes are not decoration: a lance-corporal takes a fourth round, a sergeant a fifth, and every rank shoots a little straighter.</div></div>
+      <div class="row"><div class="k">Doctrine</div><div class="v">Press <b>Q</b> or <b>CRAWL</b> to go prone. Down <span id="bdocw">in the grass</span> you are silent and all but invisible — only a sentry looking straight at you from a few metres will make you out — but weapons are slung: no rifles, no grenades until you are back on your feet, and standing up costs you half a second. Crawl into position, stand, and kill — and for the first <b>two seconds</b> after you come up out of a crawl, your grunts fire faster and shoot straighter than anything facing them. That window is the whole reward for the approach. Or use the knife: pick <b>🗡️</b> (or <b>K</b>) and <b>tap a sentry</b>. The nearest man goes after him alone — crawling if you are down — while the rest hold, then rises for the last few metres and does it with the stiletto. Nobody hears a thing. Send him in from behind: if the sentry turns and sees him coming, it is rifles after all. Tap the ground to call him back.<span id="bdocski"></span> Sentries hear rifles and shout to each other, so take the outliers first. Stripes are not decoration: a lance-corporal takes a fourth round, a sergeant a fifth, and every rank shoots a little straighter.</div></div>
       <div class="rule"></div>
       <div class="row"><div class="k">Assigned</div><div class="v"><div class="crew" id="bcrew"></div></div></div>
       <button class="btn" id="bgo">DEPLOY</button>
@@ -3018,7 +3019,8 @@ const printMesh = (() => {
   {
     // vP: the unit disc (x across, y along). aS > 1.5 marks a crawl: a long soft trough. Otherwise a sole and a heel.
     float a;
-    if (vS > 1.5) a = (1.0 - smoothstep(0.25, 0.5, abs(vP.x))) * (1.0 - smoothstep(0.3, 0.5, abs(vP.y))) * 0.8;
+    if (vS > 3.5) a = (1.0 - smoothstep(0.035, 0.075, abs(abs(vP.x) - 0.2))) * (1.0 - smoothstep(0.38, 0.5, abs(vP.y)));   // v78: skis, two grooves
+    else if (vS > 1.5) a = (1.0 - smoothstep(0.25, 0.5, abs(vP.x))) * (1.0 - smoothstep(0.3, 0.5, abs(vP.y))) * 0.8;
     else {
       float sole = 1.0 - smoothstep(0.17, 0.27, length(vec2(vP.x * 1.2, (vP.y + 0.12) * 0.9)));   // +y is behind him
       float heel = 1.0 - smoothstep(0.1, 0.17, length(vec2(vP.x * 1.1, vP.y - 0.3)));
@@ -3045,31 +3047,33 @@ function printStrength(i) {
   return Math.max(0, 1 - age / fill) * (0.78 + 0.22 * Math.exp(-age / 45));   // fresh prints are darker and sharper
 }
 function setPrintColour(i) {   // v76: the strength in aS's fraction (0..0.5 → opacity up to 0.95), a crawl marked by +2
-  PRINT_S.array[i] = Math.min(0.46, PR.s[i] * 0.43) + (PR.kind[i] === 1 ? 2 : 0);
+  PRINT_S.array[i] = Math.min(0.46, PR.s[i] * (PR.kind[i] === 2 ? 0.46 : 0.43)) + (PR.kind[i] === 1 ? 2 : PR.kind[i] === 2 ? 4 : 0);
 }
 function addPrint(x, z, a, foe, kind) {
   if (!foe) for (let i = 0; i < PR.used; i++) if (PR.live[i] && PR.foe[i] && PR.s[i] > 0.2 && Math.abs(PR.x[i] - x) < PRINT_MASK && Math.abs(PR.z[i] - z) < PRINT_MASK && Math.hypot(PR.x[i] - x, PR.z[i] - z) < PRINT_MASK) return;
   const i = PR.head; PR.head = (PR.head + 1) % PRINT_N; PR.used = Math.max(PR.used, PR.head === 0 ? PRINT_N : PR.head);
   PR.x[i] = x; PR.z[i] = z; PR.t[i] = missionTime; PR.a[i] = a; PR.foe[i] = foe ? 1 : 0; PR.kind[i] = kind; PR.live[i] = 1; PR.s[i] = 1;
   _trE.set(-Math.PI / 2, a, 0); _trQ.setFromEuler(_trE);
-  _trV.set(x, groundY(x, z) + 0.03, z); _trS.set(kind === 1 ? 0.75 : 0.5, kind === 1 ? 1.05 : 0.5, 1);   // v76: the boot is drawn inside the disc
+  _trV.set(x, groundY(x, z) + 0.03, z); _trS.set(kind === 1 ? 0.75 : kind === 2 ? 0.7 : 0.5, kind === 1 ? 1.05 : kind === 2 ? 1.0 : 0.5, 1);   // v76: the boot is drawn inside the disc
   printMesh.setMatrixAt(i, _trM.compose(_trV, _trQ, _trS)); setPrintColour(i);
   printMesh.count = PR.used; printMesh.instanceMatrix.needsUpdate = true; PRINT_S.needsUpdate = true;
 }
 function stepPrints(dt) {
   if (!SNOW || phase !== 'play') return;
+  if (skiChangeT > 0) skiChangeT -= dt;   // v78
   for (const u of [...sol, ...ens]) {
     if (u.dead || u.dog || u.elev || u.inBox || u.tower) continue;
     if (u.prX === undefined) { u.prX = u.x; u.prZ = u.z; u.stepD = 0; u.prSide = 1; continue; }
     const d = Math.hypot(u.x - u.prX, u.z - u.prZ); u.prX = u.x; u.prZ = u.z;
     if (d > 3) continue;   // a teleport, not a step
     u.stepD += d;
-    const stride = u.prone ? 0.5 : 0.78;
+    const stride = u.skis ? 0.85 : u.prone ? 0.5 : 0.78;
     if (u.stepD < stride) continue;
     u.stepD -= stride;
     if (packedSnow(u.x, u.z)) continue;
     const a = u.angle || 0;
-    if (u.prone) addPrint(u.x, u.z, a, u.foe, 1);
+    if (u.skis) addPrint(u.x, u.z, a, u.foe, 2);   // v78: two long grooves
+    else if (u.prone) addPrint(u.x, u.z, a, u.foe, 1);
     else { u.prSide = -u.prSide; addPrint(u.x + Math.cos(a) * 0.14 * u.prSide, u.z - Math.sin(a) * 0.14 * u.prSide, a, u.foe, 0); }
   }
   // the fill: every half second, fade them all
@@ -5194,6 +5198,14 @@ function rigPoseInto(Pz, F) {
     Pz.apL.set(0.5, -1, 0.3); Pz.apR.set(-0.9, -1, -0.2);
   } else if (st === 'aim') {
     rigAimInto(Pz, F, true);
+  } else if (st === 'ski') {
+    // v78: the diagonal stride, skis kept flat on the snow and sliding past each other, a forward lean, knees bent, rifle across the chest
+    const g = F.skiGo || 0, sw = Math.sin(2 * Math.PI * ph) * 0.42 * g;
+    Pz.ph = 0.76 - 0.02 * g; Pz.pp = 0.1 + 0.12 * g; Pz.cp = 0.08 + 0.1 * g; Pz.hp = -0.12 * g;
+    Pz.fL.set(0.12, FOOT_H, sw); Pz.fR.set(-0.12, FOOT_H, -sw); Pz.flat = 1; Pz.kp.set(0.1, 0, 1);
+    Pz.pyw = -0.08 * Math.sin(2 * Math.PI * ph) * g; Pz.cy = 0.1 * Math.sin(2 * Math.PI * ph) * g;
+    Pz.rp.copy(RPOSE.port.p); Pz.rq.copy(RPOSE.port.q);
+    Pz.apL.set(0.7, -1, 0.1); Pz.apR.set(-0.7, -1, -0.5);
   }
   if (Pz.ph < 0.4) { Pz.fL.z *= LEGK; Pz.fR.z *= LEGK; Pz.eL.z *= TORK; Pz.eR.z *= TORK; }
   else if (st === 'idle' || st === 'aim') { Pz.fL.x *= WID; Pz.fR.x *= WID; }
@@ -5299,6 +5311,7 @@ function rigBeginFrame() {
   rigFrusOK = true;
 }
 function rigState(u, F) {
+  if (u.skis && !u.prone && !u.dead) return 'ski';   // v78
   if (u.prone) return u.rv > 0.3 ? 'crawl' : 'prone';
   if (u.rv > 0.45) return u.rv > 3.4 ? 'run' : 'walk';
   return u.aimB > 0.5 && !u.F.noGun ? 'aim' : 'idle';
@@ -5326,6 +5339,7 @@ function animateRig(u, dt) {
   const md = moved / (F.sc || RS);   // v29: each man's own scale (it was RS for all, so a tall man's feet skated)
   if (st === 'walk' || st === 'run') F.phase = (F.phase + md * GAIT[st].sf / (GAIT[st].L * (F.kL || 1))) % 1;
   else if (st === 'crawl') F.phase = (F.phase + md / GAIT.crawl.D) % 1;
+  else if (st === 'ski') { F.phase = (F.phase + md / 2.6) % 1; F.skiGo = lerp(F.skiGo || 0, u.rv > 0.45 ? 1 : 0, 1 - Math.pow(0.02, dt)); }   // v78: a long glide each kick
   F.t += dt;
   // recoil, flinch, muzzle flash, hit flash
   if (u.recoil > 0) { F.recoil = Math.max(F.recoil, u.recoil); u.recoil = Math.max(0, u.recoil - dt * 9); }
@@ -7549,6 +7563,7 @@ function stanceUI(v) {
   $('hst').style.color = v ? '#ffc23d' : '';
   $('bg').classList.toggle('slung', v);
   $('bn').classList.toggle('slung', v);
+  if (squadSkis) skiUI();   // v78
 }
 function setSplit(v) {
   if (v === split) return;
@@ -7724,6 +7739,7 @@ function moveAlong(u, tx, tz, speed, dt) {
 // steer round obstacles instead of grinding into them
 function steerMove(u, tx, tz, speed, dt) {
   if (u.fixed) return false;
+  if (SNOW) { if (!u.foe && skiChangeT > 0 && !u.sniper) return false; speed *= snowGo(u); }   // v78
   const dx = tx - u.x, dz = tz - u.z, d = Math.hypot(dx, dz);
   if (d < 0.001) return false;
   const want = Math.atan2(dx, dz);
@@ -8171,6 +8187,7 @@ function foeGrenade(e, tx, tz) {
 function throwGrenade(tx, tz) {
   if (grenCount <= 0) return;
   if (squadProne) { showToast('WEAPONS SLUNG', 'stand up to throw'); return; }
+  if (squadSkis) { showToast('ON SKIS', 'take them off to throw'); return; }   // v78
   let live = sol.filter(s => !s.dead && !s.sniper && (!split || tmOf(s) === selTeam));   // v32: the selected team throws
   if (!live.length) live = sol.filter(s => !s.dead);
   if (!live.length) return;
@@ -9876,7 +9893,7 @@ function stepObjectives(dt) {
 function initMission(idx) {
   const M = MISSIONS[idx];
   clearMission();
-  kills = 0; globalAlert = 0; missionTime = 0; reinfSent = false; reinfBlocked = false; wavering = false; outcome = null;
+  kills = 0; globalAlert = 0; missionTime = 0; coldT = -1e9; squadSkis = false; skiChangeT = 0; reinfSent = false; reinfBlocked = false; wavering = false; outcome = null;
   grenCount = startGren = M.grenades + upgLvl('webb'); everSpotted = false; weapon = 'gun'; setWeapon('gun');
   hitStop = 0; bloodTimer = 0; camShake = 0; squadProne = false; noiseTimer = 0; spotted = false;
   wetN = 0; wetT = -1e9;   // v63: the wet grumble's per-op allowance
@@ -11211,12 +11228,58 @@ function muteEngines() {
 }
 
 /*───────────────────── stance ─────────────────────*/
+let coldT = -1e9;
+const COLD_GAP = 45;
+/* v78: deep snow and skis (Norway step 3). On a snow op, off the packed places (roads, tracks, quays, decks, floors), a
+   man on foot wades at a bit over half pace; crawling, the snow costs him less. Skis put the squad back on top of it,
+   faster than walking ever was, but with rifles slung (no shooting, no grenades), no going prone (CRAWL takes them off),
+   clumsy on a road, a second and a bit to clip in or out, and tracks a blind man could follow. The enemy wades too. */
+let squadSkis = false, skiChangeT = 0;
+const SKI_T = 1.2;
+function snowGo(u) {
+  if (!SNOW || u.elev || u.tower || u.inBox) return 1;
+  const packed = packedSnow(u.x, u.z);
+  if (u.skis) return packed ? 0.85 : 1.25;
+  if (packed) return 1;
+  if (u.foe) return u.dog ? 0.85 : 0.7;
+  return u.prone ? 0.85 : 0.55;
+}
+const skiGeo = (() => { let g = null; return () => g || (g = mergeGeos([
+  { g: GEO.box, m: M4(0, -0.1, 0.16, 0.085, 0.028, 1.62), c: 0xb8996a }, { g: GEO.box, m: M4e(0, -0.065, 1.03, 0.085, 0.028, 0.2, -0.45, 0, 0), c: 0xb8996a },
+  { g: GEO.box, m: M4(0, -0.085, 0.05, 0.11, 0.05, 0.2), c: 0x2a2622 }, { g: GEO.box, m: M4(0, -0.112, 0.16, 0.09, 0.006, 1.6), c: 0x6a5434 }])); })();
+function showSkis(u, v) {
+  const F = u.F; if (!F || !F.rig) return;
+  if (v && !F.skiL) { F.skiL = new THREE.Mesh(skiGeo(), figMat); F.skiR = new THREE.Mesh(skiGeo(), figMat); F.legL.an.add(F.skiL); F.legR.an.add(F.skiR); F.skiL.castShadow = F.skiR.castShadow = true; }
+  if (F.skiL) F.skiL.visible = F.skiR.visible = !!v;
+}
+function skiUI() {
+  const b = $('bski'); b.className = squadSkis ? 'on2' : ''; b.textContent = squadSkis ? 'SKIS OFF' : 'SKIS';
+  const slung = squadProne || squadSkis;
+  $('bg').classList.toggle('slung', slung); $('bn').classList.toggle('slung', slung);
+  $('hst').textContent = squadSkis ? 'ON SKIS · SLUNG' : squadProne ? 'PRONE · UNSEEN' : 'UPRIGHT · ARMED';
+  $('hst').style.color = squadProne || squadSkis ? '#ffc23d' : '';
+}
+function setSkis(v) {
+  if (!SNOW || v === squadSkis || phase !== 'play') return;
+  if (v && squadProne) setProne(false);   // up off the snow first
+  squadSkis = v; skiChangeT = SKI_T;
+  for (const q of sol) if (!q.dead && !q.sniper) { q.skis = v; showSkis(q, v); }
+  if (v && weapon === 'grenade') setWeapon('gun');
+  skiUI();
+  showToast(v ? 'SKIS ON' : 'SKIS OFF', v ? 'quick over deep snow · rifles slung · no crawling' : 'armed again, and wading');
+  SFX.ui();
+}
 function setProne(v) {
+  if (v && squadSkis) setSkis(false);   // v78: you can't lie down on skis: CRAWL takes them off
   if (squadProne === v) return;
   squadProne = v;
   const tk = split ? selTeam : 0; teamProne[tk] = v; if (!split) teamProne[1] = v;   // v32: the selected team only
   for (const s of sol) if (!s.dead && tmOf(s) === tk) s.prone = v;
   if (v) proneSince = missionTime;
+  if (v && SNOW && missionTime - coldT > COLD_GAP) {   // v77, Khal: down in the snow, somebody says so. Not Cal: it's a London line
+    const w = sol.filter(q => !q.dead && tmOf(q) === tk && q.name !== 'Cal' && !q.sniper);
+    if (w.length) { coldT = missionTime; voxSay(w[(Math.random() * w.length) | 0], 'prone_cold', "Brrrr… bleedin' cold, innit.", 2.2); }   // the voice plays once Khal's take is in VOX
+  }
   else if (missionTime - proneSince >= AMBUSH_MIN_PRONE && !knife) {
     // came up out of concealment: the squad gets the drop, briefly
     for (const s of sol) if (!s.dead && tmOf(s) === tk) { s.ambushT = AMBUSH_T; s.fireT = 0; }
@@ -11346,7 +11409,7 @@ function update(dt) {
     s.ambushT = Math.max(0, (s.ambushT || 0) - dt);
     const amb = s.ambushT > 0;
     // during the ambush window they come up shooting rather than waiting to be fully upright
-    const armed = (s.sniper ? s.prone || !s.moving : !s.prone && s.proneB < (amb ? 0.62 : 0.30)) && !((knife || quietT > 0) && !spotted);   // v26: everyone holds fire while the knife goes in, and for a moment after
+    const armed = !s.skis && (s.sniper ? s.prone || !s.moving : !s.prone && s.proneB < (amb ? 0.62 : 0.30)) && !((knife || quietT > 0) && !spotted);   // v26: everyone holds fire while the knife goes in, and for a moment after
     // while the camp is unaware, hold until the target is close enough that four
     // rifles win the exchange outright. Once spotted, engage at full range.
     const eRange = spotted ? s.range : Math.min(s.range, s.K ? s.K.hold : 12.5);
@@ -12220,9 +12283,11 @@ function showToast(a, b) {
   t.style.display = 'block'; toastT = 2.4;
 }
 function setWeapon(w) {
+  if (w === 'grenade' && squadSkis) { showToast('ON SKIS', 'take them off to throw'); w = 'gun'; }   // v78
   weapon = w;
   $('bg').className = w === 'gun' ? 'on' : '';
   $('bn').className = w === 'grenade' ? 'on2' : '';
+  if (squadProne || squadSkis) { $('bg').classList.add('slung'); $('bn').classList.add('slung'); }   // v78: picking a weapon used to clear the slung look
   $('bx').className = w === 'charge' ? 'on3' : '';
   $('bk').className = w === 'knife' ? 'on4' : '';
   $('bsn').className = w === 'snipe' ? 'on4' : '';
@@ -12583,6 +12648,8 @@ function showBrief() {
   $('bsub').textContent = M.sub;
   $('bobj').textContent = M.obj;
   $('btxt').textContent = M.brief;
+  $('bdocw').textContent = (M.snow || DEV_SNOW) ? "in the snow (brrrr, bleedin' cold, innit)" : 'in the grass';   // v77
+  $('bdocski').innerHTML = (M.snow || DEV_SNOW) ? ' Off the road the snow is deep and a man on foot wades. <b>SKIS</b> (or <b>B</b>) get you over it faster than walking ever did, but rifles are slung, nobody can crawl on them, and they leave tracks a blind man could follow.' : '';   // v78
   if (M.drawn) { const d = document.createElement('div'); d.className = 'bdrawn'; d.textContent = M.drawn; $('btxt').appendChild(d); }   // v69
   if (M.optional && M.optional.length) { const d = document.createElement('div'); d.className = 'bopt'; d.innerHTML = '<b>OPTIONAL</b> ' + M.optional.map(o => o.label || OPT_TXT[o.t]).join(' · '); $('btxt').appendChild(d); }   // v46
   $('bopp').textContent = `${missionEnemies(M).length + (M.targets || []).filter(t => t.t === 'pillbox').length * 2} identified. Reinforcements likely if the noise gets out of hand.`;
@@ -12607,6 +12674,7 @@ function startMission() {
   fadeTo(() => {
     initMission(missionIdx);
     $('bc').className = ''; $('bc').textContent = 'CRAWL';
+    $('bski').className = ''; $('bski').textContent = 'SKIS'; $('bski').style.display = SNOW ? '' : 'none';   // v78
     $('bg').classList.remove('slung'); $('bn').classList.remove('slung');
     $('hst').textContent = 'UPRIGHT · ARMED'; $('hst').style.color = '';
     $('nc').textContent = grenCount;
@@ -13134,6 +13202,7 @@ $('wbar').addEventListener('click', e => {
   if (!b) return;
   initAudio();
   if (b.id === 'bc') { setProne(!squadProne); return; }
+  if (b.id === 'bski') { setSkis(!squadSkis); return; }   // v78
   if (b.id === 'bs') { setSplit(!split); return; }
   if (b.id === 'bt') { selectTeam(1 - selTeam); return; }
   SFX.ui();
@@ -13143,6 +13212,7 @@ addEventListener('keydown', e => {
   if (phase === 'intro' && (e.code === 'Space' || e.code === 'Enter' || e.code === 'Escape')) { endIntro(true); return; }
   if (phase !== 'play') return;
   if (e.code === 'KeyQ' && !paused) { initAudio(); setProne(!squadProne); }
+  if (e.code === 'KeyB' && !paused) { initAudio(); setSkis(!squadSkis); }   // v78
   if (e.code === 'KeyV' && !paused) { initAudio(); setSplit(!split); }
   if ((e.code === 'Tab' || e.code === 'Digit1' || e.code === 'Digit2') && !paused && split) { e.preventDefault(); selectTeam(e.code === 'Digit1' ? 0 : e.code === 'Digit2' ? 1 : 1 - selTeam); }
   if (e.code === 'KeyG' && !paused) setWeapon(weapon === 'gun' ? 'grenade' : 'gun');
