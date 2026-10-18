@@ -411,7 +411,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
     <button id="tset">SETTINGS <small>sound · music · graphics</small></button>
   </div>
   <div class="foot">© GAMELAB · NO GRUNTS WERE CONSULTED</div>
-  <div id="tver">v75</div>
+  <div id="tver">v76</div>
 </div>
 
 <div id="ops" class="screen">
@@ -1031,7 +1031,9 @@ function vnoise(x, y) {
 function fbm(x, y) { return vnoise(x, y) * 0.6 + vnoise(x * 2.1, y * 2.1) * 0.27 + vnoise(x * 4.3, y * 4.3) * 0.13; }
 // bare terrain, before any river is cut into it
 function baseY(x, z) { return (fbm(x * 0.04 + 9, z * 0.04 + 4) - 0.5) * 2.9 + (fbm(x * 0.15, z * 0.15) - 0.5) * 0.6; }
+let deckDrops = [];   // v76: boat decks that sit below the bank (the landing boat): groundY there is baseY + dy
 function groundY(x, z) {
+  if (deckDrops.length) for (let i = 0; i < deckDrops.length; i++) { const r = deckDrops[i]; if (x >= r.x0 && x <= r.x1 && z >= r.z0 && z <= r.z1) return baseY(x, z) + r.dy; }
   const g = baseY(x, z) - waterFactor(x, z) * WATER_DEPTH + (mesas.length ? mesaLift(x, z) : 0) + roadDeltaAt(x, z);
   const p = padBlend(x, z);
   return p ? g * (1 - p.f) + p.y * p.f : g;
@@ -2769,7 +2771,7 @@ const WEATHER = {
   heavy: { n: 1, fog: [32, 100], see: 0.72, hear: [0.45, 0.75], wind: 1.5, light: 'heavy', puddles: 30, ripple: 1 },
   storm: { n: 1, fog: [30, 96], see: 0.7, hear: [0.45, 0.7], wind: 1.85, light: 'storm', puddles: 30, ripple: 1, lightning: true },
   // v67: falling snow. fill: how long a footprint lasts under it (s), for the tracks (v68)
-  snow:     { n: 0.55, fog: [44, 126], see: 0.85, hear: [0.6, 0.8], wind: 0.9, light: 'snowlight', snow: true, fill: 180 },
+  snow:     { n: 0.55, fog: [44, 126], see: 0.85, hear: [0.6, 0.8], wind: 0.9, light: 'snowlight', snow: true, fill: 120 },
   blizzard: { n: 1, fog: [16, 62], see: 0.6, hear: [0.4, 0.7], wind: 2.2, light: 'blizzard', snow: true, fill: 40 },
 };
 let wx = null;
@@ -2999,12 +3001,36 @@ function stepBreath(dt) {
 const PRINT_N = MOBILE ? 600 : 1200, PRINT_MASK = 0.6, PRINT_SEE = 0.35, TRACK_HOP = 4.5;
 const PR = { x: new Float32Array(PRINT_N), z: new Float32Array(PRINT_N), t: new Float32Array(PRINT_N), a: new Float32Array(PRINT_N),
   foe: new Uint8Array(PRINT_N), kind: new Uint8Array(PRINT_N), live: new Uint8Array(PRINT_N), s: new Float32Array(PRINT_N), head: 0, used: 0, fadeT: 0 };
+/* v76: the prints were multiply-blended, which r128 only does with premultiplied alpha: without it they drew solid
+   black in Chromium and, on Khal's iPhone, not visibly at all. Now ordinary alpha blending: a blue-grey shadow, soft at
+   the edge, its opacity per print (aS) so snowfall fills it. A boot print is a sole and a heel; a crawl is a trough. */
+const PRINT_S = new THREE.InstancedBufferAttribute(new Float32Array(PRINT_N), 1);
 const printMesh = (() => {
-  const g = new THREE.CircleGeometry(0.5, 9);
-  const m = new THREE.InstancedMesh(g, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, blending: THREE.MultiplyBlending, depthWrite: false, fog: false,
-    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }), PRINT_N);
-  m.count = 0; m.frustumCulled = false; m.renderOrder = 2; m.visible = false;
-  m.setColorAt(0, new THREE.Color(1, 1, 1)); m.instanceColor.setUsage(THREE.DynamicDrawUsage); m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  const g = new THREE.CircleGeometry(0.5, 12);
+  g.setAttribute('aS', PRINT_S); PRINT_S.setUsage(THREE.DynamicDrawUsage);
+  const mat = new THREE.MeshBasicMaterial({ color: SC(0x5b6678), transparent: true, depthWrite: false, fog: false,
+    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  mat.onBeforeCompile = sh => {
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aS; varying float vS; varying vec2 vP;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\n  vS = aS; vP = position.xy;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vS; varying vec2 vP;')
+      .replace('#include <color_fragment>', `#include <color_fragment>
+  {
+    // vP: the unit disc (x across, y along). aS > 1.5 marks a crawl: a long soft trough. Otherwise a sole and a heel.
+    float a;
+    if (vS > 1.5) a = (1.0 - smoothstep(0.25, 0.5, abs(vP.x))) * (1.0 - smoothstep(0.3, 0.5, abs(vP.y))) * 0.8;
+    else {
+      float sole = 1.0 - smoothstep(0.17, 0.27, length(vec2(vP.x * 1.2, (vP.y + 0.12) * 0.9)));   // +y is behind him
+      float heel = 1.0 - smoothstep(0.1, 0.17, length(vec2(vP.x * 1.1, vP.y - 0.3)));
+      a = max(sole, heel);
+    }
+    diffuseColor.a *= a * fract(vS) * 2.0;
+    diffuseColor.rgb *= mix(1.0, 0.82, a);
+  }`);
+  };
+  mat.customProgramCacheKey = () => 'gsPrint';
+  const m = new THREE.InstancedMesh(g, mat, PRINT_N);
+  m.count = 0; m.frustumCulled = false; m.renderOrder = 2; m.visible = false; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   scene.add(m); return m;
 })();
 const _trQ = new THREE.Quaternion(), _trE = new THREE.Euler(0, 0, 0, 'YXZ'), _trV = new THREE.Vector3(), _trS = new THREE.Vector3(), _trM = new THREE.Matrix4(), _trC = new THREE.Color();
@@ -3018,19 +3044,17 @@ function printStrength(i) {
   const age = missionTime - PR.t[i], fill = wx && wx.snow ? wx.fill : 1e9;
   return Math.max(0, 1 - age / fill) * (0.78 + 0.22 * Math.exp(-age / 45));   // fresh prints are darker and sharper
 }
-function setPrintColour(i) {
-  const s = PR.s[i], tr = PR.kind[i] === 1;
-  _trC.setRGB(1 - (tr ? 0.24 : 0.36) * s, 1 - (tr ? 0.2 : 0.31) * s, 1 - (tr ? 0.14 : 0.22) * s);   // a blue shadow in the snow
-  printMesh.setColorAt(i, _trC);
+function setPrintColour(i) {   // v76: the strength in aS's fraction (0..0.5 → opacity up to 0.95), a crawl marked by +2
+  PRINT_S.array[i] = Math.min(0.46, PR.s[i] * 0.43) + (PR.kind[i] === 1 ? 2 : 0);
 }
 function addPrint(x, z, a, foe, kind) {
   if (!foe) for (let i = 0; i < PR.used; i++) if (PR.live[i] && PR.foe[i] && PR.s[i] > 0.2 && Math.abs(PR.x[i] - x) < PRINT_MASK && Math.abs(PR.z[i] - z) < PRINT_MASK && Math.hypot(PR.x[i] - x, PR.z[i] - z) < PRINT_MASK) return;
   const i = PR.head; PR.head = (PR.head + 1) % PRINT_N; PR.used = Math.max(PR.used, PR.head === 0 ? PRINT_N : PR.head);
   PR.x[i] = x; PR.z[i] = z; PR.t[i] = missionTime; PR.a[i] = a; PR.foe[i] = foe ? 1 : 0; PR.kind[i] = kind; PR.live[i] = 1; PR.s[i] = 1;
   _trE.set(-Math.PI / 2, a, 0); _trQ.setFromEuler(_trE);
-  _trV.set(x, groundY(x, z) + 0.03, z); _trS.set(kind === 1 ? 0.62 : 0.15, kind === 1 ? 0.95 : 0.31, 1);
+  _trV.set(x, groundY(x, z) + 0.03, z); _trS.set(kind === 1 ? 0.75 : 0.5, kind === 1 ? 1.05 : 0.5, 1);   // v76: the boot is drawn inside the disc
   printMesh.setMatrixAt(i, _trM.compose(_trV, _trQ, _trS)); setPrintColour(i);
-  printMesh.count = PR.used; printMesh.instanceMatrix.needsUpdate = true; printMesh.instanceColor.needsUpdate = true;
+  printMesh.count = PR.used; printMesh.instanceMatrix.needsUpdate = true; PRINT_S.needsUpdate = true;
 }
 function stepPrints(dt) {
   if (!SNOW || phase !== 'play') return;
@@ -3057,7 +3081,7 @@ function stepPrints(dt) {
       const s = printStrength(i);
       if (Math.abs(s - PR.s[i]) > 0.01) { PR.s[i] = s; ch = true; if (s <= 0.02) { PR.live[i] = 0; printMesh.setMatrixAt(i, _zeroM); printMesh.instanceMatrix.needsUpdate = true; } else setPrintColour(i); }
     }
-    if (ch) printMesh.instanceColor.needsUpdate = true;
+    if (ch) PRINT_S.needsUpdate = true;
   }
 }
 // the nearest fresh print of ours this man can see, or -1
@@ -7175,7 +7199,7 @@ const MISSIONS = [
     targets: [{ t: 'otank', x: .14, z: .42 }, { t: 'otank', x: .245, z: .4 }, { t: 'otank', x: .14, z: .53 }],
     intel: { x: .834, z: .896, box: true },
     objectives: [{ t: 'destroy', what: 'lorry', label: 'Burn the fish-oil tanks' }, { t: 'take', label: 'Take the code box off the trawler' }, { t: 'extract', label: 'Back down the jetty to the boat' }],
-    extract: { x: .533, z: .92, r: 4.5 },
+    extract: { x: .525, z: .92, r: 4.5 },
     optional: [{ t: 'prisoner', x: .71, z: .61, label: 'A Norwegian volunteer: bring him out' }],
     enemies: [
       { x: .2, z: .565, a: 0, range: 12, arc: Math.PI * .6, hp: 3 },
@@ -7187,7 +7211,7 @@ const MISSIONS = [
     ],
     obstacles: [
       // cliffs on three sides, the village in the bowl between them and the fjord
-      { t: 'ridge', x: -.1, z: -.12, w: 1.2, d: .2, h: 7 }, { t: 'ridge', x: -.12, z: .06, w: .16, d: .66, h: 6 }, { t: 'ridge', x: .96, z: .06, w: .16, d: .66, h: 6 },
+      { t: 'ridge', style: 'granite', x: -.1, z: -.12, w: 1.2, d: .2, h: 11 }, { t: 'ridge', style: 'granite', x: -.12, z: .06, w: .16, d: .66, h: 9 }, { t: 'ridge', style: 'granite', x: .96, z: .06, w: .16, d: .66, h: 9 },
       { t: 'house', style: 'billet', x: .41, z: .3, w: 10, d: 6.5 }, { t: 'house', style: 'white', x: .6, z: .52, w: 8, d: 6 },
       { t: 'house', style: 'shed', x: .22, z: .47, w: 8, d: 6 },
       { t: 'house', style: 'rorbu', x: .05, z: .795, w: 6.5, d: 4.8 }, { t: 'house', style: 'rorbu', x: .16, z: .795, w: 6, d: 4.8 },
@@ -7196,7 +7220,7 @@ const MISSIONS = [
       { t: 'fence', x: .07, z: .33, w: .26, d: .01 }, { t: 'fence', x: .07, z: .33, w: .01, d: .27 }, { t: 'fence', x: .33, z: .33, w: .01, d: .11 },
       { t: 'fence', x: .33, z: .5, w: .01, d: .1 }, { t: 'fence', x: .07, z: .6, w: .1, d: .01 }, { t: 'fence', x: .23, z: .6, w: .11, d: .01 },
       { t: 'rack', x: .12, z: .68, len: 8 }, { t: 'rack', x: .25, z: .7, len: 7 }, { t: 'rack', x: .66, z: .7, len: 8 }, { t: 'rack', x: .84, z: .6, len: 7, alongZ: true },
-      { t: 'trawler', x: .8, z: .8865, a: Math.PI / 2 }, { t: 'boat', x: .533, z: .92, a: Math.PI },
+      { t: 'trawler', x: .8, z: .8865, a: Math.PI / 2 }, { t: 'boat', x: .529, z: .92, a: Math.PI },
       ...[[.15, .735], [.4, .735], [.6, .735], [.86, .735], [.513, .945], [.72, .835]].map(([x, z]) => ({ t: 'lamp', x, z })),
       { t: 'crate', x: .7, z: .835 }, { t: 'crate', x: .745, z: .83 }, { t: 'crate', x: .9, z: .835 }, { t: 'crate', x: .3, z: .5 },
       { t: 'drums', x: .68, z: .815 }, { t: 'drums', x: .93, z: .82 }, { t: 'drums', x: .3, z: .44 }, { t: 'drums', x: .1, z: .47 }, { t: 'drums', x: .2, z: .36 },
@@ -8795,18 +8819,18 @@ function looseTree(kind, x, y, z, s) {
   _dummy.position.set(x, y, z); _dummy.rotation.set(0, hash2(x, z) * 6.3, 0); _dummy.scale.setScalar(s); _dummy.updateMatrix();
   im.setMatrixAt(im.count++, _dummy.matrix); im.instanceMatrix.needsUpdate = true;
 }
-function mkRidge(x, z, w, d, h) {
+function mkRidge(x, z, w, d, h, granite) {
   const p = [], base = groundY(x + w / 2, z + d / 2), cx = x + w / 2, cz = z + d / 2;
   const foot = (lx, lz) => groundY(cx + lx, cz + lz) - base, hw = w / 2, hd = d / 2;
   // v26: the top and the earth faces are the ground mesh itself (ridgeLift); this mesh is the rock in front and what grows on top
   const top = (lx, lz) => foot(lx, lz) + h;
-  ridgeTopDecor(p, hw - 1.2, hd - 1.2, top, x * 0.3 + z * 0.7);
+  if (!granite) ridgeTopDecor(p, hw - 1.2, hd - 1.2, top, x * 0.3 + z * 0.7);   // v76: a granite ridge is faced by mkGraniteCliffs instead
   const sides = [[-hw, -hd, hw, -hd, 0, -1], [hw, hd, -hw, hd, 0, 1], [-hw, hd, -hw, -hd, -1, 0], [hw, -hd, hw, hd, 1, 0]];
   // v30: one faceted rock wall right round, its turf cap running back on to the top
-  rockWall(p, [[-hw, -hd], [hw, -hd], [hw, hd], [-hw, hd]], { top, foot, inT: 0.8, out: 0.6, cap: true, capIn: 3.6, closed: true, seed: x * 0.37 + z * 0.11 });
-  sides.forEach(([ax, az, bx, bz, nx, nz], i) => cliffLip(p, ax - nx * 1.2, az - nz * 1.2, bx - nx * 1.2, bz - nz * 1.2, nx, nz, (lx, lz) => top(lx, lz) + 0.05, x + z + i * 5));
-  const m = new THREE.Mesh(mergeGeos(p), propMat); m.userData.own = true; m.castShadow = true; m.receiveShadow = true;
-  m.position.set(cx, base, cz); edgeRoot.add(m);
+  if (!granite) rockWall(p, [[-hw, -hd], [hw, -hd], [hw, hd], [-hw, hd]], { top, foot, inT: 0.8, out: 0.6, cap: true, capIn: 3.6, closed: true, seed: x * 0.37 + z * 0.11 });
+  if (!granite) sides.forEach(([ax, az, bx, bz, nx, nz], i) => cliffLip(p, ax - nx * 1.2, az - nz * 1.2, bx - nx * 1.2, bz - nz * 1.2, nx, nz, (lx, lz) => top(lx, lz) + 0.05, x + z + i * 5));
+  if (p.length) { const m = new THREE.Mesh(mergeGeos(p), propMat); m.userData.own = true; m.castShadow = true; m.receiveShadow = true;
+    m.position.set(cx, base, cz); edgeRoot.add(m); }
   // a few pines well back from the lip, where they can't hide a man on the rim
   for (let i = 0; i < Math.max(2, (w * d) / 220); i++) {
     const px = cx + (hash2(i * 3, x) - 0.5) * (w - 9), pz = cz + (hash2(z, i * 3) - 0.5) * (d - 9);
@@ -9062,84 +9086,189 @@ function bootTop(b, t, ya, yb, c) {
   const A = L(ya), B = L(yb);
   return { g: hexa({ ...A, y: ya }, { ...B, yb, yf: yb }), m: new THREE.Matrix4(), c };
 }
+/* v76: a hull lofted through stations, after the harbour sheet: a curved sheer, a cruiser stern, a raked stem, a black
+   (or grey-green) side and a red bottom with a crisp boot-top at the waterline, bulwarks with a rail, a planked deck.
+   S(t), t 0 (stern) → 1 (bow), gives { z, b (half-beam at the deck), y (deck edge), k (keel), bw (bulwark) }.
+   Returns { hull, deck } part lists: the hull for propMat, the deck for deckMat (less snow, so the planks show). */
+const deckMat = (() => { const m = propMat.clone(); m.userData = { ...propMat.userData, snowK: 0.35 }; return m; })();
+const boatMat = (() => { const m = propMat.clone(); m.userData = { ...propMat.userData, snowK: 0 }; return m; })();   // the dory: none
+function loftHull(n, S, o) {
+  const H = { p: [], c: [] }, D = { p: [], c: [] }, th = o.th || 0.12, wl = o.wl;
+  const C = { top: SC(o.top), bot: SC(o.bot), rail: SC(o.rail || o.top), inner: SC(o.inner || 0x3a3632) };
+  const rings = [];
+  for (let i = 0; i <= n; i++) {
+    const s = S(i / n), b = Math.max(0, s.b), bi = Math.max(0, b - th), y = s.y, k = s.k, bw = s.bw || 0;
+    const wy = Math.min(y - 0.05, wl + 0.18), ww = b * (0.985 - 0.04 * (y - wy) / Math.max(0.1, y - k));
+    rings.push({ z: s.z, y, pts: [
+      [bi, y, 'inner'], [bi, y + bw, 'inner'], [b, y + bw, 'rail'], [b, y, 'top'], [ww, wy, 'top'], [ww * 0.995, wy - 0.03, 'bot'],
+      [b * 0.86, k + (y - k) * 0.22, 'bot'], [b * 0.36, k + 0.06, 'bot'], [0, k, 'bot']] });
+  }
+  const quad = (A, B, Cc, Dd, col, want) => {   // want: the outward direction this face should have
+    const ux = B[0] - A[0], uy = B[1] - A[1], uz = B[2] - A[2], vx = Cc[0] - A[0], vy = Cc[1] - A[1], vz = Cc[2] - A[2];
+    const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+    if (nx * want[0] + ny * want[1] + nz * want[2] < 0) vcQ(H, A, Dd, Cc, B, col[0], col[3], col[2], col[1]); else vcQ(H, A, B, Cc, Dd, col[0], col[1], col[2], col[3]);
+  };
+  for (let i = 0; i < n; i++) {
+    const r0 = rings[i], r1 = rings[i + 1];
+    for (const sx of [-1, 1]) for (let j = 0; j + 1 < r0.pts.length; j++) {
+      const a = r0.pts[j], b = r0.pts[j + 1], c = r1.pts[j + 1], d = r1.pts[j];
+      const A = [a[0] * sx, a[1], r0.z], B = [b[0] * sx, b[1], r0.z], Cc = [c[0] * sx, c[1], r1.z], Dd = [d[0] * sx, d[1], r1.z];
+      const cl = q => C[q[2]];
+      const mx = (A[0] + B[0] + Cc[0] + Dd[0]) / 4, my = (A[1] + B[1] + Cc[1] + Dd[1]) / 4, yc = (r0.y + rings[i].pts[8][1]) / 2;
+      const want = j === 0 ? [-sx, 0, 0] : j === 1 ? [0, 1, 0] : j === 2 ? [sx, 0, 0] : [mx, my - yc, 0];
+      quad(A, B, Cc, Dd, [cl(a), cl(b), cl(c), cl(d)], want);
+    }
+    // the deck: planks along the length, a slightly different brown each
+    const NP = 7;
+    for (let q = 0; q < NP; q++) {
+      const f0 = -1 + 2 * q / NP, f1 = -1 + 2 * (q + 1) / NP, w0 = r0.pts[0][0], w1 = r1.pts[0][0];
+      const c = vcCol.copy(SC(o.deck)).multiplyScalar(0.86 + hash2(q, 3.7) * 0.26).clone(), cs = c.clone().multiplyScalar(0.8);
+      vcQ(D, [w0 * f0 + 0.02, r0.y, r0.z], [w1 * f0 + 0.02, r1.y, r1.z], [w1 * f1 - 0.02, r1.y, r1.z], [w0 * f1 - 0.02, r0.y, r0.z], cs, cs, c, c);
+    }
+  }
+  // fix the deck's winding so it faces up
+  for (let i = 0; i < D.p.length; i += 9) {
+    const ux = D.p[i + 3] - D.p[i], uz = D.p[i + 5] - D.p[i + 2], vx = D.p[i + 6] - D.p[i], vz = D.p[i + 8] - D.p[i + 2];
+    if (uz * vx - ux * vz < 0) for (let j = 0; j < 3; j++) { const t = D.p[i + 3 + j]; D.p[i + 3 + j] = D.p[i + 6 + j]; D.p[i + 6 + j] = t; const c = D.c[i + 3 + j]; D.c[i + 3 + j] = D.c[i + 6 + j]; D.c[i + 6 + j] = c; }
+  }
+  if (o.transom) {   // a flat stern: the first ring, closed, facing aft
+    const r = rings[0], ring = [...r.pts.slice(3).map(q => [q[0], q[1]]), ...r.pts.slice(3).reverse().map(q => [-q[0], q[1]])];
+    const cy = ring.reduce((a, q) => a + q[1], 0) / ring.length, tc = SC(o.top);
+    for (let i = 0; i + 1 < ring.length; i++) { const A = [0, cy, r.z], B = [ring[i + 1][0], ring[i + 1][1], r.z], Cc = [ring[i][0], ring[i][1], r.z]; vcT(H, A, B, Cc, tc, tc, tc); vcT(H, A, Cc, B, tc, tc, tc); }   // both faces: cheap, and no winding to get wrong
+    const bi = r.pts[0][0], y = r.y, bw = r.pts[1][1] - y, ic = SC(o.inner || 0x3a3632);
+    vcQ(H, [-bi, y, r.z + 0.06], [bi, y, r.z + 0.06], [bi, y + bw, r.z + 0.06], [-bi, y + bw, r.z + 0.06], ic, ic, ic, ic);
+  }
+  return { hull: vcPart(H), deck: vcPart(D) };
+}
 function mkTrawler(x, z, a) {
-  // a steam trawler taken up as an armed patrol boat: black hull, red boot-top, cream wheelhouse, a gun on the bow
-  const p = [], hull = 0x1c2023, cream = 0xd8cfb4, grey = 0x5a5f5a, dark = 0x15171a, wood = 0x6a5a44;
-  const HB = { xb: 1.3, xf: 0.25, y: -1.9, zb: -7.2, zf: 6.4 }, HT = { xb: 2.3, xf: 0.45, yb: 0, yf: 0, zb: -7.8, zf: 8.0 };
-  p.push({ g: hexa(HB, HT), m: new THREE.Matrix4(), c: hull }, bootTop(HB, HT, -1.3, -0.95, 0x8a2a1e));
-  p.push({ g: hexa({ xb: 2.15, xf: 0.35, y: 0, zb: -7.65, zf: 7.7 }, { xb: 2.15, xf: 0.35, yb: 0.04, yf: 0.04, zb: -7.65, zf: 7.7 }), m: new THREE.Matrix4(), c: 0x6e604a });   // the deck
-  for (const s of [-1, 1]) {   // bulwarks, rising to the bow, with a wooden rail along the top
-    boxAlong(p, [s * 2.24, 0.36, -7.75], [s * 0.45, 0.5, 7.95], 0.1, 0.72, hull, [0, 1, 0]);
-    boxAlong(p, [s * 2.24, 0.74, -7.75], [s * 0.45, 0.88, 7.95], 0.17, 0.06, wood, [0, 1, 0]);
-    for (const lz of [-5.6, -3.2, 3.6, 5.6]) p.push({ g: GEO.cyl, m: M4e(s * (2.3 - (lz + 7.8) * 0.11), -0.45, lz, 0.55, 0.2, 0.55, 0, 0, Math.PI / 2), c: 0x111214 });   // tyre fenders
-  }
-  p.push({ g: GEO.box, m: M4(0, 0.36, -7.78, 4.5, 0.72, 0.1), c: hull });
-  // wheelhouse: cream, a band of windows all round, a dark roof with a searchlight; lifebelts on the sides
-  p.push({ g: GEO.box, m: M4(0, 1.15, -1.1, 2.8, 2.3, 3.0), c: cream });
-  p.push({ g: GEO.box, m: M4(0, 1.65, 0.42, 2.4, 0.55, 0.05), c: dark }, { g: GEO.box, m: M4(0, 1.65, -2.62, 2.0, 0.5, 0.05), c: dark });
+  // a steam side-trawler taken up as an armed patrol boat, after the harbour sheet: black hull and red bottom, a high bow
+  // with the gun on it, the cream wheelhouse aft of amidships with the tall black funnel behind it, two masts, a derrick,
+  // the trawl winch, a hatch, lifebelts, ventilators; moored to the quay fore and aft, a gangway across
+  const sheer = t => t < 0.5 ? 0.32 * Math.pow((0.5 - t) / 0.5, 2) : 1.05 * Math.pow((t - 0.5) / 0.5, 2.2);
+  const S = t => ({ z: -8 + 17.2 * t, y: sheer(t), bw: 0.72 + Math.max(0, t - 0.8) * 1.4,
+    b: t < 0.42 ? 2.45 * Math.pow(Math.sin(t / 0.42 * Math.PI / 2), 0.42) : 2.45 * (1 - Math.pow((t - 0.42) / 0.58, 2.1)),
+    k: t < 0.12 ? -2.15 + Math.pow((0.12 - t) / 0.12, 1.4) * 1.0 : t > 0.84 ? -2.15 + Math.pow((t - 0.84) / 0.16, 1.3) * 1.7 : -2.15 });
+  const L = loftHull(30, S, { top: 0x1b1e21, bot: 0x8a2c20, rail: 0x5a4a38, inner: 0x2e2f30, deck: 0x6e5c44, wl: -0.78 });
+  const p = [L.hull], cream = 0xdcd2b6, black = 0x141618, grey = 0x575c58, mast = 0x6a5236, lit = 0xf0c070;
+  const yAt = lz => sheer((lz + 8) / 17.2);
+  const rope = (q0, q1) => boxAlong(p, q0, q1, 0.035, 0.035, 0x2a2622);
+  // the engine casing and the wheelhouse on it, windows lit, a bridge rail round its roof
+  p.push({ g: GEO.box, m: M4(0, 0.6, -3.4, 2.4, 1.2, 2.6), c: cream }, { g: GEO.box, m: M4(0, 1.23, -3.4, 2.55, 0.08, 2.75), c: 0x3a3632 });
+  p.push({ g: GEO.box, m: M4(0, 1.15, -0.95, 2.8, 2.3, 2.5), c: cream }, { g: GEO.box, m: M4(0, 2.36, -0.95, 3.1, 0.14, 2.8), c: 0x3a3632 });
+  for (const lx of [-0.85, 0, 0.85]) p.push({ g: GEO.box, m: M4(lx, 1.72, 0.31, 0.6, 0.55, 0.04), c: lit });
   for (const s of [-1, 1]) {
-    p.push({ g: GEO.box, m: M4(s * 1.42, 1.65, -0.6, 0.05, 0.55, 1.7), c: dark }, { g: GEO.box, m: M4(s * 1.42, 0.95, -2.0, 0.05, 1.7, 0.75), c: 0x8a7e66 });
-    p.push({ g: GEO.cyl, m: M4e(s * 1.44, 1.05, -1.0, 0.62, 0.1, 0.62, 0, 0, Math.PI / 2), c: 0xe9e4d8 }, { g: GEO.cyl, m: M4e(s * 1.45, 1.05, -1.0, 0.36, 0.11, 0.36, 0, 0, Math.PI / 2), c: 0x1c2023 });
-    for (const q of [0.2, -0.2]) p.push({ g: GEO.box, m: M4(s * 1.46, 1.05 + q, -1.0 + q, 0.06, 0.12, 0.12), c: 0xa82a20 });
+    for (const lz of [-0.5, -1.4]) p.push({ g: GEO.box, m: M4(s * 1.41, 1.72, lz, 0.04, 0.5, 0.55), c: lz > -1 ? lit : 0x23292e });
+    p.push({ g: GEO.box, m: M4(s * 1.41, 0.95, -1.9, 0.05, 1.75, 0.7), c: 0x8a7e66 });   // the side doors
+    p.push({ g: GEO.cyl, m: M4e(s * 1.43, 1.0, -0.4, 0.62, 0.09, 0.62, 0, 0, Math.PI / 2), c: 0xe9e4d8 }, { g: GEO.cyl, m: M4e(s * 1.44, 1.0, -0.4, 0.34, 0.1, 0.34, 0, 0, Math.PI / 2), c: 0x1c2023 });
+    for (const q of [0.2, -0.2]) p.push({ g: GEO.box, m: M4(s * 1.45, 1.0 + q, -0.4 + q, 0.05, 0.11, 0.11), c: 0xa82a20 });
+    p.push({ g: GEO.box, m: M4(s * 1.5, 2.85, -0.95, 0.05, 0.05, 2.7), c: 0x2a2622 });
   }
-  for (const lx of [-0.4, 0.4]) p.push({ g: GEO.box, m: M4(lx, 1.65, 0.45, 0.06, 0.6, 0.06), c: cream });
-  p.push({ g: GEO.box, m: M4(0, 2.38, -1.1, 3.25, 0.16, 3.45), c: 0x3a3632 });
-  p.push({ g: GEO.cyl, m: M4(0.6, 2.62, -0.2, 0.36, 0.32, 0.36), c: 0x2a2c2e }, { g: GEO.cyl, m: M4e(0.6, 2.66, 0.0, 0.3, 0.12, 0.3, Math.PI / 2, 0, 0), c: 0xc8c4b0 });
-  // funnel with a red band, the engine casing behind it, a ventilator
-  p.push({ g: GEO.box, m: M4(0, 0.45, -4.4, 2.0, 0.9, 2.4), c: 0x8a7e66 });
-  p.push({ g: GEO.cyl, m: M4(0, 2.4, -3.6, 0.95, 2.8, 0.95), c: 0x1a1a1a }, { g: GEO.cyl, m: M4(0, 3.05, -3.6, 0.98, 0.4, 0.98), c: 0x9a2a1e }, { g: GEO.cyl, m: M4(0, 3.82, -3.6, 1.0, 0.06, 1.0), c: 0x111111 });
-  p.push({ g: GEO.cyl, m: M4(-0.8, 1.4, -5.2, 0.24, 1.2, 0.24), c: cream }, { g: GEO.cyl, m: M4e(-0.8, 2.05, -5.05, 0.42, 0.4, 0.42, Math.PI / 2, 0, 0), c: cream });
-  // masts, a derrick and the rigging
-  p.push({ g: GEO.cyl, m: M4(0, 3.6, 4.2, 0.22, 7.2, 0.22), c: 0x4a3e2e }, { g: GEO.box, m: M4(0, 5.9, 4.2, 1.7, 0.1, 0.12), c: 0x4a3e2e });
-  p.push({ g: GEO.cyl, m: M4(0, 2.8, -6.3, 0.17, 5.6, 0.17), c: 0x4a3e2e });
-  boxAlong(p, [0, 1.3, 4.0], [0, 3.6, 6.5], 0.11, 0.11, 0x4a3e2e);
-  const rope = (q0, q1) => boxAlong(p, q0, q1, 0.03, 0.03, 0x2a2622);
-  rope([0, 7.1, 4.2], [0, 0.85, 7.95]); rope([0, 7.1, 4.2], [0, 2.46, -0.2]); rope([0, 7.0, 4.2], [0, 5.5, -6.3]); rope([0, 5.5, -6.3], [0, 0.75, -7.75]);
-  for (const s of [-1, 1]) { rope([s * 0.1, 6.9, 4.2], [s * 1.95, 0.8, 3.4]); rope([s * 0.1, 5.4, -6.3], [s * 2.15, 0.8, -6.8]); }
-  // the gun on the bow, a 20 mm behind a shield on a pedestal, and its ready-use locker
-  p.push({ g: GEO.cyl, m: M4(0, 0.42, 6.1, 0.55, 0.8, 0.55), c: grey }, { g: GEO.box, m: M4(0, 0.98, 6.1, 0.42, 0.36, 0.9), c: grey });
-  p.push({ g: GEO.cyl, m: M4e(0, 1.02, 7.0, 0.1, 1.5, 0.1, Math.PI / 2, 0, 0), c: 0x3a3e3a }, { g: GEO.box, m: M4(0, 1.12, 6.45, 1.15, 0.72, 0.06, 0, 0), c: grey });
-  p.push({ g: GEO.box, m: M4(1.1, 0.3, 4.9, 0.7, 0.5, 0.5), c: grey });
-  // winch, hatch under a tarpaulin, a heap of net at the stern, a fish box or two
-  p.push({ g: GEO.box, m: M4(0, 0.25, 2.6, 1.6, 0.5, 0.7), c: 0x3a3c3e }, { g: GEO.cyl, m: M4e(0, 0.62, 2.6, 0.6, 1.4, 0.6, 0, 0, Math.PI / 2), c: 0x2a2c2e });
-  p.push({ g: GEO.box, m: M4(0, 0.22, 1.3, 1.7, 0.44, 1.5), c: 0x4c5640 });
-  p.push({ g: GEO.sph, m: M4(0.6, 0.22, -6.8, 1.9, 0.55, 1.3), c: 0x4e5238 }, { g: GEO.sph, m: M4(-0.5, 0.18, -6.6, 1.2, 0.4, 1.0), c: 0x5e4a32 });
-  for (const [lx, lz] of [[-1.5, 3.5], [-1.5, 2.9], [1.5, -0.2]]) p.push({ g: GEO.box, m: M4(lx, 0.22, lz, 0.6, 0.4, 0.5), c: 0x7a6040 });
-  // the gangway over the rail to the quay (local +x is the quay side), with a rope rail on posts
-  p.push({ g: GEO.box, m: M4(2.35, 0.95, 2.2, 1.9, 0.08, 0.8), c: 0x7a6a50 });
-  for (const s of [-1, 1]) { p.push({ g: GEO.box, m: M4(2.35, 1.0, 2.2 + s * 0.42, 1.9, 0.1, 0.06), c: 0x5a4a36 }); for (const lx of [1.5, 3.2]) p.push({ g: GEO.box, m: M4(lx, 1.45, 2.2 + s * 0.42, 0.05, 0.9, 0.05), c: 0x5a4a36 }); rope([1.5, 1.85, 2.2 + s * 0.42], [3.2, 1.85, 2.2 + s * 0.42]); }
-  const m = new THREE.Mesh(mergeGeos(p), propMat); m.castShadow = true; m.receiveShadow = true;
+  p.push({ g: GEO.box, m: M4(0, 2.85, 0.4, 3.0, 0.05, 0.05), c: 0x2a2622 });
+  p.push({ g: GEO.cyl, m: M4(0.8, 2.6, -0.2, 0.36, 0.34, 0.36), c: 0x2a2c2e }, { g: GEO.cyl, m: M4e(0.8, 2.64, 0.0, 0.3, 0.12, 0.3, Math.PI / 2, 0, 0), c: 0xd8d4c0 });
+  // the funnel, tall and black, a little raked; two cowl ventilators beside it
+  p.push({ g: GEO.cyl, m: M4e(0, 3.0, -3.3, 1.05, 3.6, 1.05, -0.06, 0, 0), c: black, grad: [0x101214, 0x262a2e, 1.2, 4.8] }, { g: GEO.cyl, m: M4(0, 4.82, -3.42, 1.12, 0.12, 1.12), c: 0x0a0a0a });
+  for (const s of [-1, 1]) p.push({ g: GEO.cyl, m: M4(s * 0.95, 1.75, -4.3, 0.24, 1.1, 0.24), c: cream }, { g: GEO.cyl, m: M4e(s * 0.95, 2.35, -4.18, 0.44, 0.42, 0.44, Math.PI / 2.4, 0, 0), c: cream });
+  // masts with crosstrees, a derrick over the hatch, and the rigging
+  const fz = 4.6, mz = -6.6, fy = yAt(fz), my = yAt(mz);
+  p.push({ g: GEO.cyl, m: M4(0, fy + 4.6, fz, 0.24, 9.2, 0.24), c: mast }, { g: GEO.box, m: M4(0, fy + 7.4, fz, 1.9, 0.1, 0.12), c: mast }, { g: GEO.cyl, m: M4(0, fy + 9.3, fz, 0.1, 0.4, 0.1), c: 0x111111 });
+  p.push({ g: GEO.cyl, m: M4(0, my + 3.7, mz, 0.2, 7.4, 0.2), c: mast }, { g: GEO.box, m: M4(0, my + 5.8, mz, 1.5, 0.08, 0.1), c: mast });
+  boxAlong(p, [0, fy + 1.2, fz - 0.2], [0, fy + 4.6, 1.7], 0.13, 0.13, mast); rope([0, fy + 7.3, fz], [0, fy + 4.6, 1.75]); rope([0, fy + 4.6, 1.7], [0, 1.0, 2.2]);
+  const bowY = yAt(9.1) + 1.0, sternY = yAt(-7.8) + 0.72;
+  rope([0, fy + 9.1, fz], [0, bowY, 9.05]); rope([0, fy + 9.0, fz], [0, my + 7.2, mz]); rope([0, my + 7.2, mz], [0, sternY, -7.9]); rope([0, fy + 8.8, fz], [0, 2.45, 0.2]);
+  for (const s of [-1, 1]) { rope([s * 0.1, fy + 7.3, fz], [s * 2.1, fy + 0.75, fz - 0.9]); rope([s * 0.1, fy + 7.3, fz], [s * 2.0, fy + 0.75, fz + 0.6]); rope([s * 0.1, my + 5.7, mz], [s * 1.6, my + 0.75, mz - 0.5]); }
+  // the gun on its bandstand at the bow
+  const gz = 7.3, gy = yAt(gz);
+  p.push({ g: GEO.cyl, m: M4(0, gy + 0.35, gz, 1.5, 0.7, 1.5), c: 0x2e3032 }, { g: GEO.cyl, m: M4(0, gy + 0.72, gz, 1.62, 0.06, 1.62), c: 0x5a4a38 });
+  p.push({ g: GEO.cyl, m: M4(0, gy + 1.0, gz, 0.4, 0.6, 0.4), c: grey }, { g: GEO.box, m: M4(0, gy + 1.38, gz, 0.42, 0.34, 0.95), c: grey });
+  p.push({ g: GEO.cyl, m: M4e(0, gy + 1.42, gz + 0.95, 0.1, 1.5, 0.1, Math.PI / 2, 0, 0), c: 0x2e322e }, { g: GEO.box, m: M4(0, gy + 1.5, gz + 0.35, 1.1, 0.7, 0.06), c: grey });
+  // the trawl winch, a hatch under a tarpaulin, fish boxes, a coil of rope, nets aft
+  p.push({ g: GEO.box, m: M4(0, 0.3, 1.0, 1.9, 0.6, 0.9), c: 0x3a3c3e });
+  for (const s of [-1, 1]) p.push({ g: GEO.cyl, m: M4e(s * 0.55, 0.62, 1.0, 0.75, 0.62, 0.75, 0, 0, Math.PI / 2), c: 0x5a4a34 }, { g: GEO.cyl, m: M4e(s * 0.55, 0.62, 1.0, 0.85, 0.06, 0.85, 0, 0, Math.PI / 2), c: 0x2a2c2e });
+  p.push({ g: GEO.box, m: M4(0, yAt(2.5) + 0.22, 2.5, 1.8, 0.44, 1.5), c: 0x4c5640 });
+  for (const [lx, lz] of [[-1.5, 2.2], [-1.5, 1.6], [1.4, -5.2]]) p.push({ g: GEO.box, m: M4(lx, yAt(lz) + 0.2, lz, 0.6, 0.4, 0.5), c: 0x7a6040 });
+  p.push({ g: GEO.sph, m: M4(0.4, yAt(-6.8) + 0.22, -6.9, 1.8, 0.5, 1.2), c: 0x4e5238 }, { g: GEO.cyl, m: M4(-0.9, yAt(-5.6) + 0.1, -5.6, 0.7, 0.18, 0.7), c: 0x8a7a52 });
+  // fenders on the quay side (local +x) and mooring lines to the quay, fore and aft
+  for (const lz of [-4.5, -1.5, 1.5, 4.5]) { const t = (lz + 8) / 17.2, b = S(t).b; p.push({ g: GEO.cyl, m: M4e(b + 0.08, -0.35, lz, 0.55, 0.2, 0.55, 0, 0, Math.PI / 2), c: 0x111214 }); }
+  rope([1.0, yAt(8.2) + 0.9, 8.2], [3.3, 0.25, 10.6]); rope([1.2, yAt(-7.2) + 0.8, -7.2], [3.3, 0.25, -9.6]);
+  // the gangway over the rail to the quay
+  const wz = 3.4, wy = yAt(wz);
+  p.push({ g: GEO.box, m: M4(2.45, wy + 0.82, wz, 2.1, 0.08, 0.8), c: 0x7a6a50 });
+  for (const s of [-1, 1]) { p.push({ g: GEO.box, m: M4(2.45, wy + 0.87, wz + s * 0.42, 2.1, 0.1, 0.06), c: 0x5a4a36 }); for (const lx of [1.5, 3.4]) p.push({ g: GEO.box, m: M4(lx, wy + 1.3, wz + s * 0.42, 0.05, 0.9, 0.05), c: 0x5a4a36 }); rope([1.5, wy + 1.72, wz + s * 0.42], [3.4, wy + 1.72, wz + s * 0.42]); }
+  const m = new THREE.Mesh(mergeGeos(p), propMat), dk = new THREE.Mesh(mergeGeos([L.deck]), deckMat);
+  m.castShadow = true; m.receiveShadow = true; dk.receiveShadow = true; m.add(dk);
   m.position.set(x, baseY(x, z) - 0.04, z); m.rotation.y = a; propRoot.add(m);
-  // the deck is walkable (the code box is aboard); the wheelhouse, funnel and casing are solid
-  const D = rotRect(x, z, a, -2.1, -7.6, 2.1, 7.6); bridgeZones.push({ ...D, deck: true });
-  bridgeZones.push({ ...rotRect(x, z, a, 1.9, 1.7, 3.6, 2.7), deck: true });   // the gangway, across to the quay
-  const W = rotRect(x, z, a, -1.45, -5.6, 1.45, 0.45);
+  bridgeZones.push({ ...rotRect(x, z, a, -1.9, -5.5, 1.9, 3.8), deck: true }, { ...rotRect(x, z, a, -1.3, 3.8, 1.3, 6.2), deck: true });   // the deck, waist and foredeck
+  bridgeZones.push({ ...rotRect(x, z, a, 1.9, wz - 0.5, 3.6, wz + 0.5), deck: true });   // the gangway, across to the quay
+  const W = rotRect(x, z, a, -1.45, -4.75, 1.45, 0.3);
   return { type: 'wheelhouse', x: W.x0, z: W.z0, w: W.x1 - W.x0, d: W.z1 - W.z0, cx: (W.x0 + W.x1) / 2, cz: (W.z0 + W.z1) / 2, mesh: m, tall: true, cover: true };
 }
-// the landing boat: a grey assault landing craft, open well, armoured sides, the ramp up at the bow, a coxswain's shelter aft
+// the landing boat, after the sheet: a small open grey-green boat, a transom stern with an outboard, thwarts, a crate.
+// Its floor sits low in the water, so its deck zone carries a drop (dy): the men stand down in it.
+const DORY_DY = -0.8;
 function mkLandingBoat(x, z, a) {
-  const p = [], hull = 0x56605f, dk = 0x3a4240;
-  const HB = { xb: 1.25, xf: 1.1, y: -1.6, zb: -4.75, zf: 4.4 }, HT = { xb: 1.62, xf: 1.52, yb: 0, yf: 0, zb: -5.0, zf: 4.85 };
-  p.push({ g: hexa(HB, HT), m: new THREE.Matrix4(), c: hull }, bootTop(HB, HT, -1.3, -0.95, 0x7a2a22));
-  p.push({ g: GEO.box, m: M4(0, 0.03, -0.1, 2.85, 0.05, 9.0), c: 0x5e5244 });
-  for (let lz = -4.3; lz < 4.4; lz += 0.6) p.push({ g: GEO.box, m: M4(0, 0.06, lz, 2.7, 0.02, 0.08), c: 0x4a4034 });   // duckboards
-  for (const s of [-1, 1]) {
-    p.push({ g: GEO.box, m: M4(s * 1.52, 0.5, -0.1, 0.14, 1.0, 9.6), c: hull }, { g: GEO.box, m: M4(s * 1.52, 1.02, -0.1, 0.24, 0.06, 9.6), c: dk });
-    for (const lz of [-2.5, 0, 2.5]) p.push({ g: GEO.cyl, m: M4e(s * 1.66, 0.2, lz, 0.45, 0.16, 0.45, 0, 0, Math.PI / 2), c: 0x111214 });
+  const S = t => ({ z: -3.4 + 7.0 * t, y: t > 0.5 ? 0.3 * Math.pow((t - 0.5) / 0.5, 2) : 0.05 * Math.pow((0.5 - t) / 0.5, 2), bw: 0.55 + Math.max(0, t - 0.75) * 0.5,
+    b: t < 0.5 ? 1.22 * (0.78 + 0.22 * Math.sin(t / 0.5 * Math.PI / 2)) : 1.22 * (1 - Math.pow((t - 0.5) / 0.5, 1.9)),
+    k: t > 0.8 ? -0.72 + Math.pow((t - 0.8) / 0.2, 1.4) * 0.55 : -0.72 });
+  const L = loftHull(16, S, { top: 0x56625a, bot: 0x343a36, rail: 0x6e6a5c, inner: 0x4c5650, deck: 0x6a5a44, wl: -0.42, th: 0.08, transom: true });
+  const p = [L.hull];
+  for (const lz of [2.6, -2.0]) { const b = S((lz + 3.4) / 7).b - 0.1; p.push({ g: GEO.box, m: M4(0, 0.32, lz, b * 2, 0.06, 0.32), c: 0x6e6050 }); }
+  p.push({ g: GEO.box, m: M4(0, 0.2, 2.9, 0.6, 0.4, 0.45), c: 0x7a6040 });
+  // the outboard on the transom: the engine, its shaft down into the water, a tiller
+  p.push({ g: GEO.box, m: M4(0, 0.78, -3.55, 0.42, 0.55, 0.5), c: 0x24272a }, { g: GEO.box, m: M4(0, 1.08, -3.55, 0.46, 0.08, 0.54), c: 0x3a3e42 });
+  p.push({ g: GEO.box, m: M4(0, 0.05, -3.62, 0.12, 1.0, 0.14), c: 0x24272a }, { g: GEO.box, m: M4(0, -0.45, -3.62, 0.3, 0.12, 0.3), c: 0x24272a });
+  boxAlong(p, [0, 0.8, -3.3], [0.1, 0.7, -2.5], 0.05, 0.05, 0x24272a);
+  const m = new THREE.Mesh(mergeGeos([...p, L.deck]), boatMat);   // a small open boat, just come in: no snow in it
+  m.castShadow = true; m.receiveShadow = true;
+  m.position.set(x, baseY(x, z) + DORY_DY, z); m.rotation.y = a; propRoot.add(m);
+  const D = { ...rotRect(x, z, a, -1.15, -3.2, 1.15, 3.3), deck: true, dy: DORY_DY };   bridgeZones.push(D); deckDrops.push(D);   // gunwale to gunwale: a man jostled to the side stays down in her
+  const R = rotRect(x, z, a, -1.3, -3.6, 1.3, 3.6);
+  return { type: 'boat', pass: true, landBoat: true, dy: DORY_DY, x: R.x0, z: R.z0, w: R.x1 - R.x0, d: R.z1 - R.z0, cx: x, cz: z, mesh: m, tall: false, cover: false };
+}
+/* v76: granite cliffs, after the terrain sheet: the ridge's map-facing sides become a wall of tall columns, grey and
+   cold, set back in a step part-way up (a ledge that holds snow), talus boulders at the foot. One merged mesh. */
+function graniteFace(p, ax, az, bx, bz, nx, nz, h, seed) {
+  const L = Math.hypot(bx - ax, bz - az), tx = (bx - ax) / L, tz = (bz - az) / L, ry = Math.atan2(nx, nz);   // local +z faces out (n), local x runs along the face
+  const top = (x, z) => groundY(x - nx * 2, z - nz * 2) + h;
+  let s = 0, i = 0;
+  while (s < L - 0.4) {
+    const k = seed + i * 1.37, w = 1.2 + hash2(k, 1.3) * 1.7, sm = Math.min(L, s + w / 2), x = ax + tx * sm, z = az + tz * sm;
+    const out = 0.15 + hash2(k, 2.7) * 0.45, dpt = 1.6 + hash2(k, 3.1) * 1.4;
+    const yb = groundY(x + nx * out, z + nz * out) - 0.9, yt = top(x, z) + 0.15 + hash2(k, 4.3) * 1.6;   // never below the top: the ground's own step is behind
+    // three tiers, each set back from the one below, each with a top that slopes down toward you (the snow lies there)
+    const y1 = yb + (yt - yb) * (0.28 + hash2(k, 5.9) * 0.18), y2 = yb + (yt - yb) * (0.58 + hash2(k, 6.3) * 0.16);
+    const shade = 0.84 + hash2(k, 7.7) * 0.3, lo = vcCol.copy(SC(0x737880)).multiplyScalar(shade).getHex(), hi = vcCol.copy(SC(0xbcc1c8)).multiplyScalar(shade).getHex();
+    const tier = (y0, ytop, o, d, j) => {
+      const hw = w / 2 * (0.9 + hash2(k, j) * 0.12), tw = hw * (0.78 + hash2(k, j + 2) * 0.18), fall = 0.25 + hash2(k, j + 4) * 0.9;
+      const g = hexa({ xb: hw, xf: hw, y: y0, zb: -d / 2, zf: d / 2 }, { xb: tw, xf: tw * (0.85 + hash2(k, j + 6) * 0.15), yb: ytop, yf: ytop - fall, zb: -d / 2, zf: d / 2 - hash2(k, j + 8) * 0.4 });
+      const c = o - d / 2;
+      p.push({ g, m: M4(x + nx * c, 0, z + nz * c, 1, 1, 1, ry + (hash2(k, j + 1) - 0.5) * 0.16), c: 0x5a5e66, grad: [lo, hi, yb, yt] });
+      return ytop - fall;
+    };
+    const l1 = tier(yb, y1, out, dpt, 11), b1 = 0.3 + hash2(k, 6.1) * 0.5;
+    const l2 = tier(y1 - 0.1, y2, out - b1, dpt, 21), b2 = b1 + 0.3 + hash2(k, 6.7) * 0.5;
+    tier(y2 - 0.1, yt, out - b2, dpt, 31);
+    if (hash2(k, 12.1) < 0.12) looseTree('pine', x + nx * (out - 0.4), l1, z + nz * (out - 0.4), 0.45 + hash2(k, 12.7) * 0.2);   // a stunted spruce on a ledge
+    else if (hash2(k, 13.3) < 0.08) looseTree('pine', x + nx * (out - b1 - 0.4), l2, z + nz * (out - b1 - 0.4), 0.4);
+    if (hash2(k, 9.3) < 0.45) { const r = 0.5 + hash2(k, 9.9) * 0.9, bo = out + 0.6 + hash2(k, 8.8) * 1.4, gy = groundY(x + nx * bo, z + nz * bo); p.push({ g: GEO.ico, m: M4(x + nx * bo + tx * (hash2(k, 4) - 0.5) * w, gy + r * 0.25, z + nz * bo + tz * (hash2(k, 4) - 0.5) * w, r * 2, r * 1.4, r * 1.8, hash2(k, 5) * 6), c: 0x676b72, grad: [0x4e5258, 0x80858c, gy - 0.3, gy + 1.2] }); }
+    s += w; i++;
   }
-  p.push({ g: GEO.box, m: M4(0, 0.62, 4.85, 3.0, 1.25, 0.16), c: dk }, { g: GEO.box, m: M4(0, 1.27, 4.85, 3.05, 0.08, 0.24), c: hull });
-  for (const lx of [-0.9, 0, 0.9]) p.push({ g: GEO.box, m: M4(lx, 0.62, 4.95, 0.1, 1.15, 0.05), c: hull });
-  p.push({ g: GEO.box, m: M4(0.55, 0.78, -4.25, 1.5, 1.55, 1.3), c: hull }, { g: GEO.box, m: M4(0.55, 1.28, -3.59, 1.1, 0.14, 0.04), c: 0x111214 }, { g: GEO.box, m: M4(0.55, 1.58, -4.25, 1.6, 0.06, 1.4), c: dk });
-  p.push({ g: GEO.box, m: M4(-0.7, 0.18, -4.3, 1.0, 0.3, 1.1), c: dk });
-  // the white ensign on a staff at the stern
-  p.push({ g: GEO.cyl, m: M4(-1.2, 1.1, -4.85, 0.06, 2.2, 0.06), c: 0x3a3632 });
-  p.push({ g: GEO.box, m: M4(-1.2, 1.95, -5.35, 0.03, 0.5, 0.9), c: 0xe8e6de }, { g: GEO.box, m: M4(-1.2, 1.95, -5.35, 0.04, 0.09, 0.9), c: 0xb02a24 }, { g: GEO.box, m: M4(-1.2, 1.95, -5.35, 0.04, 0.5, 0.09), c: 0xb02a24 });
-  p.push({ g: GEO.box, m: M4(-1.2, 2.08, -5.58, 0.045, 0.24, 0.44), c: 0x23305a });
-  const m = new THREE.Mesh(mergeGeos(p), propMat); m.castShadow = true; m.receiveShadow = true;
-  m.position.set(x, baseY(x, z), z); m.rotation.y = a; propRoot.add(m);
-  const D = rotRect(x, z, a, -1.5, -4.7, 1.5, 4.7); bridgeZones.push({ ...D, deck: true });
-  const R = rotRect(x, z, a, -1.7, -5.0, 1.7, 4.9);
-  return { type: 'boat', pass: true, landBoat: true, x: R.x0, z: R.z0, w: R.x1 - R.x0, d: R.z1 - R.z0, cx: x, cz: z, mesh: m, tall: false, cover: false };
+}
+function mkGraniteCliffs(R, all) {
+  const p = [], { x0, z0, x1, z1, h } = R, inOther = (x, z) => all.some(q => q !== R && x > q.x0 && x < q.x1 && z > q.z0 && z < q.z1);
+  const sides = [[x0, z1, x1, z1, 0, 1, z1 < MH - 0.5], [x1, z0, x1, z1, 1, 0, x1 < MW - 0.5], [x0, z0, x0, z1, -1, 0, x0 > 0.5], [x0, z0, x1, z0, 0, -1, z0 > 0.5]];
+  for (const [ax, az, bx, bz, nx, nz, ok] of sides) {
+    if (!ok) continue;
+    // clip the side to the map (and a little past), and to where no other ridge covers it
+    let a0 = nx ? Math.max(az, -6) : Math.max(ax, -6), a1 = nx ? Math.min(bz, MH + 6) : Math.min(bx, MW + 6);
+    const at = t => nx ? [ax, t] : [t, az];
+    while (a0 < a1 && inOther(...at(a0 + 0.5).map((v, j) => v + (j ? nz : nx) * 0.5))) a0 += 1;
+    while (a1 > a0 && inOther(...at(a1 - 0.5).map((v, j) => v + (j ? nz : nx) * 0.5))) a1 -= 1;
+    if (a1 - a0 < 2) continue;
+    const A = at(a0), B = at(a1);
+    graniteFace(p, A[0], A[1], B[0], B[1], nx, nz, h, x0 * 0.13 + z0 * 0.71 + nx * 3 + nz * 5);
+  }
+  if (!p.length) return;
+  const m = new THREE.Mesh(mergeGeos(p), propMat); m.userData.own = true; m.castShadow = true; m.receiveShadow = true; edgeRoot.add(m);
 }
 // a timber jetty on its pilings: planks across the run, three stringers, pilings in pairs with cross braces, bollards and a ladder at the end
 function mkJetty(r) {
@@ -9357,14 +9486,14 @@ function landingSetup(M) {
   if (!M.landing) return;
   const B = obs.find(o => o.landBoat); if (!B) return;
   landing = { B, x1: B.cx, z1: B.cz, f: 0 };
-  sol.forEach((u, i) => { u.landSlot = [(i % 2 ? 0.62 : -0.62), 2.9 - (i >> 1) * 1.3]; });
+  sol.forEach((u, i) => { u.landSlot = [(i % 2 ? 0.42 : -0.42), 1.8 - (i >> 1) * 1.15]; });   // v76: two by two in the dory
   landPose(0);
 }
 function landEnd(u) { const L = landing, s = u.landSlot, c = Math.cos(Math.PI), n = Math.sin(Math.PI); return { x: L.x1 + s[0] * c + s[1] * n, z: L.z1 - s[0] * n + s[1] * c }; }
 function landPose(f) {
   const L = landing, B = L.B, g = Math.max(0, (f - 0.45) / 0.55), e = 1 - Math.pow(1 - g, 1.5), k = 1 - e, t = performance.now() * 0.001;   // it holds offshore while the camera looks at the target, then runs in
   const q = landPath(L.x1, L.z1, e), x = q[0], z = q[1], a = Math.atan2(q[2], q[3]);
-  const y = baseY(x, z) + Math.sin(t * 2.1) * 0.05 * Math.min(1, k * 4);
+  const y = baseY(x, z) + (B.dy || 0) + Math.sin(t * 2.1) * 0.05 * Math.min(1, k * 4);
   B.mesh.position.set(x, y, z); B.mesh.rotation.set(Math.sin(t * 1.7) * 0.012 * Math.min(1, k * 4), a, Math.sin(t * 1.3) * 0.02 * Math.min(1, k * 4));
   const ca = Math.cos(a), sa = Math.sin(a);
   for (const u of sol) {
@@ -9786,10 +9915,11 @@ function initMission(idx) {
   snowApron();
 
   waterZones = (M.water || []).map(r => ({ x0: r.x1 * MW, z0: r.z1 * MH, x1: r.x2 * MW, z1: r.z2 * MH, still: !!r.still, quay: !!r.quay, ladders: r.ladders, steps: r.steps }));   // v75: still (a fjord), quay (a sheer stone edge)
+  deckDrops = [];
   bridgeZones = (M.bridge || []).map(r => ({ x0: r.x1 * MW, z0: r.z1 * MH, x1: r.x2 * MW, z1: r.z2 * MH, rail: !!r.rail, jetty: !!r.jetty }));
   extendRiversToEdge();
   setupMesas(M);
-  ridgeLifts = (M.obstacles || []).filter(o => o.t === 'ridge').map(o => ({ x0: o.x * MW, z0: o.z * MH, x1: (o.x + o.w) * MW, z1: (o.z + o.d) * MH, h: o.h || 5 }));
+  ridgeLifts = (M.obstacles || []).filter(o => o.t === 'ridge').map(o => ({ x0: o.x * MW, z0: o.z * MH, x1: (o.x + o.w) * MW, z1: (o.z + o.d) * MH, h: o.h || 5, granite: o.style === 'granite' }));   // v76: granite
   pads = (M.buildings || []).map(b => ({
     x0: b.x * MW - 1.2, z0: b.z * MH - 1.2, x1: (b.x + b.w) * MW + 1.2, z1: (b.z + b.d) * MH + 1.2,
     y: baseY((b.x + b.w / 2) * MW, (b.z + b.d / 2) * MH),
@@ -9857,7 +9987,7 @@ function initMission(idx) {
     else if (o.t === 'gate') obs.push(mkGate(x, z, o.w * MW, o.d * MH));
     else if (o.t === 'tower') { const t = mkTower(x, z); t.light.baseYaw = o.yaw || 0; t.light.speed = o.speed || 0.33; obs.push(t); }
     else if (o.t === 'thicket') obs.push(mkThicket(x, z, o.w * MW, o.d * MH));
-    else if (o.t === 'ridge') obs.push(mkRidge(x, z, o.w * MW, o.d * MH, o.h || 5));
+    else if (o.t === 'ridge') { obs.push(mkRidge(x, z, o.w * MW, o.d * MH, o.h || 5, o.style === 'granite')); if (o.style === 'granite') { const R = ridgeLifts.find(q => Math.abs(q.x0 - x) < 0.01 && Math.abs(q.z0 - z) < 0.01); if (R) mkGraniteCliffs(R, ridgeLifts); } }
     else if (o.t === 'tank') obs.push(mkHulk(x, z, o.kind || 'pz4', o.a || 0, o.burnt));
   }
   flushThickets();
