@@ -412,7 +412,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
     <button id="tset">SETTINGS <small>sound · music · graphics</small></button>
   </div>
   <div class="foot">© GAMELAB · NO GRUNTS WERE CONSULTED</div>
-  <div id="tver">v78</div>
+  <div id="tver">v79</div>
 </div>
 
 <div id="ops" class="screen">
@@ -2787,6 +2787,12 @@ let windAng = 0.6, windMag = 0.6, weatherRain = false, lightName = 'noon';
 /* v67: the Norway theatre's snow. SNOW is 1 on a snow op (M.snow): snow ground, snow on everything that faces up,
    winter whites, breath. ?snow=1 puts any op in snow, ?snow=2 adds falling snow, ?snow=3 a blizzard (dev only). */
 let SNOW = 0;
+/* v79: ?pace=slow on the URL (Max's feedback: fights end too fast to be tactical). Slower, shorter-ranged rifles for the
+   squad, so you close in or hold still to hit; their fire keeps your heads down as yours does theirs; men who stop under
+   fire get behind the nearest crate, rock or wall on their own; the enemy fires a little slower. The ambush window is
+   untouched, so the stealthy approach pays more. Off by default until Khal and Max have played both. */
+const SLOW = (() => { try { return /^slow$/i.test(new URLSearchParams(location.search).get('pace') || ''); } catch (e) { return false; } })();
+addEventListener('DOMContentLoaded', () => { if (SLOW) { const t = document.getElementById('tver'); if (t) t.textContent += ' · slow pace'; } });
 const DEV_SNOW = (() => { try { return +(new URLSearchParams(location.search).get('snow') || 0) | 0; } catch (e) { return 0; } })();
 const smokeTint = new THREE.Color(1, 1, 1);
 function applyLight(name) {
@@ -8349,6 +8355,24 @@ function detectRate(e, s) {
   r *= 1 + 0.35 * diffD;                                   // the difficulty curve
   return r;
 }
+// v79: a spot close by (7 m) behind a crate, rock, wall or vehicle, on the far side from the threat, that still sees it
+function squadCoverSpot(s, thr) {
+  let best = null, bd = 1e9;
+  for (const o of obs) {
+    if (!o.cover) continue;
+    const ox = o.cx !== undefined ? o.cx : o.x, oz = o.cz !== undefined ? o.cz : o.z, dU = Math.hypot(ox - s.x, oz - s.z);
+    if (dU > 7.5) continue;
+    const rad = (o.radius || Math.min(o.w, o.d) / 2) + 0.75, a = Math.atan2(ox - thr.x, oz - thr.z);
+    for (const side of [0, 0.5, -0.5]) {
+      const px = ox + Math.sin(a + side) * rad, pz = oz + Math.cos(a + side) * rad, d = Math.hypot(px - s.x, pz - s.z);
+      if (d >= bd || d > 8 || blocked(px, pz, 0.35) || inDeepWater(px, pz)) continue;
+      if (side === 0 ? false : !hasLOS(px, pz, thr.x, thr.z)) continue;   // straight behind it he's hidden; to the side he can lean out and shoot
+      if (side === 0 && o.tall) continue;   // dead behind a tall one he can't shoot at all
+      best = { x: px, z: pz }; bd = d;
+    }
+  }
+  return best;
+}
 function coverSpot(u, tx, tz) {
   let best = null, bestScore = -1e9;
   const want = u.range * 0.7;
@@ -9485,7 +9509,7 @@ function mkDrums(x, z, seed) {
     p.push({ g: GEO.cyl, m: M4(px, 0.9, pz, 0.54, 0.02, 0.54), c: 0x2a2622 });
   }
   tbAdd('vc', mergeGeos(p), x, groundY(x, z), z);
-  return { type: 'drums', x, z, radius: 1.0, tall: false, cover: true };
+  return { type: 'drums', x, z, radius: 1.0, tall: false, low: true, h: 0.95, cover: true };
 }
 /* v75: the squad comes in by boat. The landing boat runs in from the fjord during the flyover, the men standing in its
    well, and ties up at the jetty's end; skip the flyover and it is simply there. Alongside, its deck is a bridge zone like
@@ -11354,6 +11378,18 @@ function update(dt) {
         if (s.fpath.length && Math.hypot(tx - s.x, tz - s.z) > 2.5) { tx = s.fpath[0].x; tz = s.fpath[0].z; } else s.fpath = null;
       }
     }
+    // v79 (?pace=slow): under fire, with the leader stopped, a follower gets behind the nearest cover he can still shoot from
+    if (SLOW) {
+      s.supT = Math.max(0, (s.supT || 0) - dt);
+      const still = myL && myL !== s && !(myL.path && myL.path.length) && Math.hypot(myL.tx - myL.x, myL.tz - myL.z) < 0.8;
+      if (!still || s.prone || s.sniper) s.coverPt = null;
+      else {
+        s.coverChk = (s.coverChk || 0) - dt;
+        const thr = s.lastTarget && !s.lastTarget.dead ? s.lastTarget : null;
+        if (s.coverChk <= 0 && thr && (s.supT > 0.2 || spotted)) { s.coverChk = 2; s.coverPt = squadCoverSpot(s, thr) || s.coverPt; }
+        if (s.coverPt) { tx = s.coverPt.x; tz = s.coverPt.z; }
+      }
+    }
     // v27: while the knife is out, the rest hold where they are; the knifeman stalks his mark, then rushes
     if (knife && knife.s !== s) { tx = s.x; tz = s.z; }
     const kn = knife && knife.s === s ? knife : null;
@@ -11437,8 +11473,13 @@ function update(dt) {
       s.aimB = Math.min(1, s.aimB + dt * 7);
       if (d <= 0.35) s.angle = s.aim;
       if (engaged && s.fireT <= 0 && laneClear(s, target.x, target.z)) {
-        shoot(s, target.x, target.z, target.point ? 0.05 : amb ? 0.006 : undefined, surfY(target.x, target.z) + (target.elev || 0) + (target.point ? 0.6 : target.prone ? 0.4 : 1.0));
-        s.fireT = s.cool * (amb ? 0.30 : 1) + Math.random() * (amb ? 0.015 : 0.06);
+        let spr = target.point ? 0.05 : amb ? 0.006 : undefined;
+        if (SLOW && !amb && !target.point) {   // v79: further is harder, moving is harder, pinned is harder
+          const dT = Math.hypot(target.x - s.x, target.z - s.z);
+          spr = (s.prone ? 0.014 : 0.024) * 2.1 * (0.55 + dT / 16) * (s.moving ? 1.6 : 1) * ((s.supT || 0) > 0.35 ? 2 : 1);
+        }
+        shoot(s, target.x, target.z, spr, surfY(target.x, target.z) + (target.elev || 0) + (target.point ? 0.6 : target.prone ? 0.4 : 1.0));
+        s.fireT = s.cool * (amb ? 0.30 : SLOW ? 1.75 * ((s.supT || 0) > 0.35 ? 1.4 : 1) : 1) + Math.random() * (amb ? 0.015 : SLOW ? 0.12 : 0.06);
       }
     } else { s.aim = s.angle; s.aimB = Math.max(0, s.aimB - dt * 4); }
   });
@@ -11610,7 +11651,7 @@ function update(dt) {
             spread *= 1 - 0.2 * diffD;
             if (e.pinned) spread *= 2.4;
             shoot(e, t.x + (t.moving ? Math.sin(t.angle) * t.speed * 0.14 : 0), t.z + (t.moving ? Math.cos(t.angle) * t.speed * 0.14 : 0), spread);
-            e.fireT = e.cool * (e.pinned ? 2.4 : 1);
+            e.fireT = e.cool * (e.pinned ? 2.4 : 1) * (SLOW ? 1.25 : 1);   // v79
             if (++e.burst >= (e.rapid ? 5 : 3) + (Math.random() * 2 | 0)) { e.burst = 0; e.burstRest = 0.7 + Math.random() * 0.8; }
           }
         } else e.onTarget = Math.max(0, e.onTarget - dt * 2);
@@ -11740,6 +11781,7 @@ function update(dt) {
     }
     for (const t of sol) {
       if (t.dead || t === b.owner) continue;
+      if (SLOW && b.foe && sweep(t.x, t.z, 2.4) >= 0) t.supT = Math.min(3.2, (t.supT || 0) + 0.45);   // v79: rounds cracking past
       const h = sweep(t.x, t.z, t.prone ? 0.38 : 0.58);   // prone is a smaller target
       if (h >= 0 && h < bestT) { bestT = h; hitUnit = t; friendlyFire = !b.foe; }
     }
