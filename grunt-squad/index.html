@@ -433,7 +433,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
     <button id="tset">SETTINGS <small>sound · music · graphics</small></button>
   </div>
   <div class="foot">© GAMELAB · NO GRUNTS WERE CONSULTED</div>
-  <div id="tver">v92</div>
+  <div id="tver">v93</div>
 </div>
 
 <div id="ops" class="screen">
@@ -3070,6 +3070,7 @@ let SNOW = 0;
    (M.grounds), dry wadis cut into it (M.wadi), scrub and sandstone, khaki drill, warm light. Soft sand takes prints as
    snow does (PRINTS), and the wind fills them (M.sandFill seconds); gravel, salt, tarmac and the runway take none.
    M.haze = seconds: from then the heat haze cuts their eyes beyond half their range. */
+let culvToast = false;   // v93
 let SAND = 0, PRINTS = 0, hazeOn = false, sandZones = [], wadis = [];
 /* v79: ?pace=slow on the URL (Max's feedback: fights end too fast to be tactical). Slower, shorter-ranged rifles for the
    squad, so you close in or hold still to hit; their fire keeps your heads down as yours does theirs; men who stop under
@@ -8207,7 +8208,7 @@ const MISSIONS = [
     obstacles: [
       { t: 'house', style: 'casa', x: .70, z: .085, w: 12, d: 7.5 }, { t: 'ptruck', x: .875, z: .125, a: Math.PI / 2 },
       { t: 'drums', x: .67, z: .1 }, { t: 'crate', x: .83, z: .19 },
-      { t: 'poles', z: .19, x0: .03, x1: .98, gap: 13.5 }, { t: 'kmstone', x: .31, z: .3 }, { t: 'culvert', x: .475, z: .292, w: 5 },
+      { t: 'poles', z: .19, x0: .03, x1: .98, gap: 13.5 }, { t: 'kmstone', x: .31, z: .3 }, { t: 'culvert', x: .475, z: .302, w: 4.4, L: 11.2 },
       { t: 'hide', x: .455, z: .375, a: .15 },
       { t: 'ptruck', x: .46, z: .915, a: Math.PI, net: true }, { t: 'ptruck', x: .535, z: .925, a: Math.PI - .12, net: true },
       ...[[.62, .44], [.655, .465], [.88, .4], [.905, .42], [.74, .64], [.92, .66], [.84, .52], [.7, .56], [.14, .44], [.2, .56], [.08, .66], [.18, .48], [.3, .35], [.6, .76], [.86, .82], [.96, .9]].map(([x, z], i) => ({ t: 'rock', x, z, s: i % 3 ? 1 : 1.4 })),
@@ -9337,7 +9338,8 @@ function flashScreen(v) { const f = $('flash'); f.style.transition = 'none'; f.s
 function detectRate(e, s) {
   const d = dst(e, s);
   if (d > e.visionRange) return 0;
-  if (caves.length && inCave(s.x, s.z) && !(e.dog && d < 3)) return 0;   // v86: in the snow cave nobody sees you; the dog smells you at the door
+  if (caves.length && inCave(s.x, s.z) && !(e.dog && d < 3)) return 0;
+  if (s.inCulv) return 0;   // v93: crawling under the road   // v86: in the snow cave nobody sees you; the dog smells you at the door
   if (!e.dog && !hasLOS(e.x, e.z, s.x, s.z, e.elev)) return 0;
   const ad = Math.abs(angDiff(Math.atan2(s.x - e.x, s.z - e.z), e.angle));
   const inCone = ad < e.visionArc / 2;
@@ -10506,13 +10508,22 @@ function mkKmStone(x, z) {
   const m = new THREE.Mesh(mergeGeos(p), propMat); m.castShadow = true; m.position.set(x, groundY(x, z), z); propRoot.add(m);
   return { type: 'crate', x, z, radius: 0.35, mesh: m, tall: false, cover: false };
 }
-// a concrete culvert where a wadi runs under the road: the box mouth, its wing walls, the dark inside
-function mkCulvert(x, z, w) {
-  const p = [], y = groundY(x, z);
-  p.push({ g: GEO.box, m: M4(0, 0.55, 0, w + 1.0, 1.3, 1.2), c: 0xa8a294 }, { g: GEO.box, m: M4(0, 0.45, 0.2, w - 0.6, 0.95, 1.0), c: 0x2a2620 });
-  for (const s of [-1, 1]) p.push({ g: GEO.box, m: M4e(s * (w / 2 + 0.9), 0.4, 0.7, 0.35, 0.9, 1.6, 0, s * 0.5, 0), c: 0x9a9486 });
-  const m = new THREE.Mesh(mergeGeos(p), propMat); m.castShadow = true; m.receiveShadow = true; m.position.set(x, y, z); propRoot.add(m);
-  return { type: 'house', x: x - w / 2 - 0.5, z: z - 0.6, w: w + 1, d: 1.2, cx: x, cz: z, mesh: m, tall: false, cover: true };
+// a concrete culvert where a wadi runs under the road: a box mouth either side of it, their wing walls, the dark inside.
+// v93 (Khal: "it could be fun if it worked if the men are crawling"): it is a crawlway. A man crawling between the mouths
+// is under the road: nobody sees him and nothing runs him over, and he isn't drawn. Upright, he is just crossing the road
+let culverts = [];
+const culvAt = (x, z) => culverts.find(c => x > c.x0 && x < c.x1 && z > c.z0 && z < c.z1);
+function mkCulvert(x, z, w, L) {
+  const out = [], zn = z - (L || 0);
+  for (const [mz, a] of L ? [[z, 0], [zn, Math.PI]] : [[z, 0]]) {
+    const p = [], y = groundY(x, mz);
+    p.push({ g: GEO.box, m: M4(0, 1.05, -0.15, w + 1.0, 0.35, 1.2), c: 0xa8a294 }, { g: GEO.box, m: M4(0, 0.45, -0.3, w - 0.6, 0.95, 0.9), c: 0x1a1612 });
+    for (const sd of [-1, 1]) p.push({ g: GEO.box, m: M4(sd * (w / 2 + 0.2), 0.55, -0.15, 0.6, 1.3, 1.2), c: 0xa8a294 }, { g: GEO.box, m: M4e(sd * (w / 2 + 0.9), 0.4, 0.7, 0.35, 0.9, 1.6, 0, sd * 0.5, 0), c: 0x9a9486 });
+    const m = new THREE.Mesh(mergeGeos(p), propMat); m.castShadow = true; m.receiveShadow = true; m.position.set(x, y, mz); m.rotation.y = a; propRoot.add(m);
+    for (const sd of [-1, 1]) out.push({ type: 'wall', x: x + sd * (w / 2 + 0.2) - 0.3, z: mz - 0.75, w: 0.6, d: 1.5, tall: false, cover: true });   // the sides block; the mouth is open
+  }
+  if (L) culverts.push({ x0: x - w / 2 + 0.3, x1: x + w / 2 - 0.3, z0: zn - 0.6, z1: z + 0.6 });
+  return out;
 }
 const NORB = { rorbu: { wall: 0x8c2a20, trim: 0xe9e3d4, H: 2.7, door: 0x3a2e24, stilts: 0.85 },
   white: { wall: 0xdad5c8, trim: 0xf3f0e8, H: 5.3, door: 0x2f4a3c },
@@ -11202,7 +11213,7 @@ function initMission(idx) {
   iceZones = [];
   for (const q of (M.ice || [])) { const Z = { x: q.x * MW, z: q.z * MH, rx: q.rx * MW, rz: q.rz * MH, sq: !!q.sq, thin: !!q.thin }; Z.y = baseY(Z.x, Z.z) - 0.3 - (edgeDrop ? dropAt(Z.x, Z.z) : 0) - (gorgeZ ? gorgeAt(Z.x, Z.z) : 0) + (riseZ ? riseAt(Z.z) : 0); iceZones.push(Z); }   /* v86: and on a rising valley */
   thinZ = iceZones.some(Z => Z.thin);   // v83
-  caves = [];   // v86
+  caves = []; culverts = []; culvToast = false;   // v86 (v93: culverts)
   avZones = [].concat(M.avalanche || []).map(A => ({ x0: A.x0 * MW, x1: A.x1 * MW, z0: A.z0 * MH, z1: A.z1 * MH, noise: !!A.noise, msg: A.msg, gone: false }));
   iceTint = M.iceTint || 0;   // v86: paler ice (a stream under snow), 0 the lake's dark ice
   snowAt = M.snowAt || 0; snowT0 = 0;
@@ -11310,7 +11321,7 @@ function initMission(idx) {
     else if (o.t === 'hide') obs.push(mkHide(x, z, o.a || 0));
     else if (o.t === 'poles') mkPoles(z, (o.x0 || 0) * MW, (o.x1 === undefined ? 1 : o.x1) * MW, o.gap || 14);
     else if (o.t === 'kmstone') obs.push(mkKmStone(x, z));
-    else if (o.t === 'culvert') obs.push(mkCulvert(x, z, o.w || 5));
+    else if (o.t === 'culvert') obs.push(...mkCulvert(x, z, o.w || 5, o.L || 0));
     else if (o.t === 'crate') obs.push(mkCrate(x, z, seed++));
     else if (o.t === 'wall') obs.push(mkWall(x, z, o.w, o.d));
     else if (o.t === 'house' && NORB[o.style]) obs.push(mkNorBldg(x, z, o.w, o.d, o.style));   // v75
@@ -12375,7 +12386,7 @@ function stepTraffic(dt) {
         const dx = s.x - v.x, dz = s.z - v.z, d = Math.hypot(dx, dz);
         if (d > sight) continue;
         if (Math.abs(angDiff(Math.atan2(dx, dz), v.yaw)) > 1.25 && d > 5) continue;
-        if ((s.prone && d > 4) || (inCover(s.x, s.z) && d > 6)) continue;
+        if ((s.prone && d > 4) || (inCover(s.x, s.z) && d > 6) || s.inCulv) continue;
         if (!hasLOS(v.x, v.z, s.x, s.z)) continue;
         v.spotted = true; spotted = true;
         globalAlert = Math.max(globalAlert, 1.2);
@@ -12391,6 +12402,7 @@ function stepTraffic(dt) {
       const c = Math.cos(v.yaw), sn = Math.sin(v.yaw);
       for (const s of sol) {
         if (s.dead) continue;
+        if (s.inCulv) continue;   // v93: under the road, not in it
         const rx = s.x - v.x, rz = s.z - v.z, lx = rx * c - rz * sn, lz = rx * sn + rz * c;
         if (Math.abs(lx) < v.K.w / 2 + 0.6 && lz > 0 && lz < v.K.len / 2 + 9) {
           v.spotted = true; spotted = true; globalAlert = Math.max(globalAlert, 1.2); noiseEvent(s.x, s.z, 34, 0.6);
@@ -12414,7 +12426,7 @@ function stepTraffic(dt) {
       // under the wheels: anyone in the footprint who is not up a tower
       const c = Math.cos(v.yaw), sn = Math.sin(v.yaw);
       for (const u of [...sol, ...ens]) {
-        if (u.dead || u.elev || (tunnels.length && tunAt(u.x, u.z))) continue;   // v29: a man on the ramp over the tunnel is above it
+        if (u.dead || u.elev || u.inCulv || (tunnels.length && tunAt(u.x, u.z))) continue;   // v29: a man on the ramp over the tunnel is above it
         const rx = u.x - v.x, rz = u.z - v.z, lx = rx * c - rz * sn, lz = rx * sn + rz * c;
         if (Math.abs(lx) < v.K.w / 2 + 0.3 && Math.abs(lz) < v.K.len / 2 + 0.3) {
           spawnParts(u.x, groundY(u.x, u.z) + 0.6, u.z, 10, 0x8c2c22, 6, 0.12, 0.6);
@@ -12644,6 +12656,10 @@ function update(dt) {
   if (SAND && MD.sandFill) snowFill += dt / MD.sandFill;   // v92: the wind fills prints in sand
   if (SAND && MD.haze && !hazeOn && missionTime >= MD.haze) { hazeOn = true; showToast('HEAT HAZE', 'past half his range a sentry sees shimmer, not you'); }
   if (squall) stepSqualls(dt);
+  if (culverts.length) for (const u of sol) {   // v93: crawling through the culvert: out of sight, and not drawn on top of the road
+    const was = !!u.inCulv; u.inCulv = !u.dead && u.prone && !!culvAt(u.x, u.z);
+    if (u.inCulv !== was && !u.dead) { u.mesh.visible = !u.inCulv; if (u.inCulv && !culvToast) { culvToast = true; showToast('IN THE CULVERT', 'under the road on your belly: nobody sees a man in a drain'); } }
+  }
   quietT = Math.max(0, quietT - dt);
   globalAlert = Math.max(0, globalAlert - dt * 0.09);
   // v56: the band follows the danger, not only the shouting: inside 36 m of a German it tightens, by 12 m it's half way to a fight
