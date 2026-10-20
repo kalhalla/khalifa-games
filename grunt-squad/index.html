@@ -87,7 +87,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
 #ctd.hot{animation:pulse .3s infinite;color:#fff;background:rgba(216,72,58,.85)}
 #truck{position:fixed;right:8px;top:calc(176px + env(safe-area-inset-top));z-index:11;display:none;padding:3px 10px;border-radius:2px;font-size:12px;font-weight:bold;letter-spacing:2px;color:var(--amber);border:1px solid rgba(255,194,61,.5);background:rgba(6,12,4,.7)}
 #truck.hot{color:#ff7a68;border-color:var(--blood);animation:pulse .55s infinite}
-#bc,#bski{font-size:8.5px!important;letter-spacing:.5px;font-weight:bold}
+#bc,#bski,#bsw{font-size:8.5px!important;letter-spacing:.5px;font-weight:bold}
 #bs,#bt{font-size:8.5px!important;letter-spacing:.5px;font-weight:bold;line-height:1.15}
 #bt.tA{border-color:#ffd25a;color:#ffd25a;background:rgba(255,210,90,.14)}
 #bt.tB{border-color:#6fd8ff;color:#6fd8ff;background:rgba(111,216,255,.14)}
@@ -409,6 +409,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
   <button id="bk" data-w="knife" title="Knife (K): tap a sentry">🗡️</button>
   <button id="bc" title="Crawl (Q)">CRAWL</button>
   <button id="bski" title="Skis (B)" style="display:none">SKIS</button>
+  <button id="bsw" title="Sweep for mines (M)" style="display:none">SWEEP</button>
   <button id="bsn" data-w="snipe" title="Sniper (S): tap a sentry to mark him, the ground to move" style="display:none">🎯</button>
   <button id="bs" title="Split the squad (V)">SPLIT</button>
   <button id="bt" title="Switch team (Tab)" style="display:none">TEAM<br>B</button>
@@ -433,7 +434,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
     <button id="tset">SETTINGS <small>sound · music · graphics</small></button>
   </div>
   <div class="foot">© GAMELAB · NO GRUNTS WERE CONSULTED</div>
-  <div id="tver">v93</div>
+  <div id="tver">v94</div>
 </div>
 
 <div id="ops" class="screen">
@@ -2623,6 +2624,9 @@ const SFX = {
   heart() { if (!AC) return; thump(62, 40, 0.16, 0.30, mixMus); thump(58, 36, 0.13, 0.22, mixMus, 0, AC.currentTime + 0.22); },
   // interface: a mechanical click — a switch, not a synth
   ui() { if (!AC) return; nburst(1900, 3, 0.018, 0.16); nburst(300, 1.2, 0.04, 0.12, mixSfx, 0, AC.currentTime + 0.01, 'lowpass'); },
+  // v94: the mine detector's beep in the headphones: a short square tone, higher when it is right on top of one
+  mineBeep(hi) { if (!AC) return; const t = AC.currentTime, o = AC.createOscillator(), g = AC.createGain(); o.type = 'square'; o.frequency.value = hi ? 1320 : 980;
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.05, t + 0.004); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.07); o.connect(g); g.connect(mixSfx); o.start(t); o.stop(t + 0.08); },
   // squad chatter: a low, breathy murmur of two or three syllables, well under the music
   chirp(x, z, foe) {
     if (!AC) return; const { g, p } = place(x, z);
@@ -8216,6 +8220,31 @@ const MISSIONS = [
           [.12, .3], [.22, .38], [.06, .5], [.26, .6], [.16, .72], [.08, .84], [.58, .3], [.64, .34], [.7, .78], [.78, .86], [.9, .76], [.66, .9], [.42, .96], [.6, .97], [.97, .3], [.86, .3]].map(([x, z]) => ({ t: 'bush', x, z })),
     ],
     spawnX: .4, spawnZ: .95, grenades: 4, reinf: 2, alertThreshold: .6,
+  },
+  {
+    // v94: the mines drill (notes/north-africa-theatre.md §2A, step 2 of the build): a side op in the desert to try the mines
+    // on a phone before A2 is built on them. No enemy: a practice belt to sweep and lift from, then a live belt (unmarked)
+    // beside a marked dummy, and the flag beyond them. Nev knows the dummy.
+    name: 'Mine School', th: 'af', side: true, desert: 1, drill: true, noExtras: true, noTraffic: true, light: 'desert',
+    obj: 'Lift three mines, then through the second belt to the flag',
+    sub: "The sapper school · Morning · North Africa", drawn: "Drawn from the Eighth Army's mine schools of 1942, where sappers learned the trade on live mines, there being no other kind.",
+    brief: "The Royal Engineers would like you to learn mines, and have laid some for the purpose. The first belt is marked: wire and skull signs all round, mines inside. Press SWEEP and the man in front swings the detector: everyone slows to a crawl's pace, anything within three metres is found and flagged, and the beeping gets faster as he gets closer. They will walk round a flag. Tap one and a man lifts it: four seconds on his knees. Lift three. Crawling finds them too, with a bayonet, slowly. Then the second belt, which is two belts: the left half is live and nobody marked it, because the enemy won't either; look for disturbed sand. The right half is wired, signed, and, the instructor swears, a dummy. Nev has an opinion. The flag is beyond them. A grenade sets off any mine near where it lands, which is quicker, and noisier, and not the lesson.",
+    scatter: 4, diff: 0.1,
+    mines: { detector: true, fields: [
+      { x0: .2, z0: .54, x1: .8, z1: .74, ap: 10, at: 4, wires: 2, marked: 'all', seed: 3.3 },
+      { x0: .04, z0: .2, x1: .5, z1: .38, ap: 12, at: 3, wires: 3, marked: '', seed: 7.1 },
+      { x0: .5, z0: .2, x1: .96, z1: .38, dummy: true, marked: 'all' },
+    ] },
+    guide: { x: .545, z: .94, a: Math.PI, name: 'Nev', join: ['NEV JOINS', 'the patrol’s navigator, here to watch the sappers sweat'], line: 'Mind where you put your feet.' },
+    objectives: [{ t: 'lift', n: 3, label: 'Lift three mines in the practice belt' }, { t: 'extract', label: 'Through the second belt to the flag' }],
+    extract: { x: .5, z: .1, r: 5 },
+    enemies: [],
+    obstacles: [
+      { t: 'ptruck', x: .2, z: .9, a: Math.PI * .5, net: true }, { t: 'ptruck', x: .82, z: .92, a: -Math.PI * .45 },
+      { t: 'crate', x: .3, z: .86 }, { t: 'drums', x: .7, z: .86 }, { t: 'crate', x: .64, z: .82 },
+      ...[[.1, .5], [.9, .48], [.12, .8], [.88, .7], [.3, .45], [.7, .46], [.08, .1], [.94, .14], [.26, .06], [.76, .06]].map(([x, z], i) => ({ t: i % 2 ? 'rock' : 'bush', x, z })),
+    ],
+    spawnX: .5, spawnZ: .95, grenades: 3, reinf: 0, alertThreshold: .9,
   }
 ];
 
@@ -8487,6 +8516,7 @@ const OBIT = {
              'shot, which seems unfair given the numbers'],
   ownblast: ['stood a little too close to his own grenade', 'discovered the blast radius empirically',
              'threw a grenade, then stayed to watch'],
+  mine: ['found the mine the detector would have', 'walked where the tape wasn’t', 'stepped on a mine. Found it, technically'],   // v94
   foeblast: ['on the receiving end of enemy ordnance', 'caught by a grenade thrown with some enthusiasm'],
   friendly: ['shot by a colleague. An enquiry is thought unlikely', 'hit by supporting fire, generously applied'],
   arty: ['removed by artillery. Nothing to send home', 'caught by a shell. Command sends regrets',
@@ -8744,6 +8774,7 @@ function moveAlong(u, tx, tz, speed, dt) {
 function steerMove(u, tx, tz, speed, dt) {
   if (u.fixed) return false;
   if (SNOW) { if (!u.foe && skiChangeT > 0 && !u.sniper) return false; speed *= snowGo(u); }   // v78
+  if (sweepOn && !u.foe) speed *= 0.4;   // v94: sweeping for mines
   const dx = tx - u.x, dz = tz - u.z, d = Math.hypot(dx, dz);
   if (d < 0.001) return false;
   const want = Math.atan2(dx, dz);
@@ -9260,6 +9291,7 @@ function explode(gx, gz, fromX, fromZ, inside) {
   for (const s of sol) { if (!s.dead && dst({ x: gx, z: gz }, s) < B * 0.62) damage(s, s.prone ? 1 : 2, 'ownblast'); }
   globalAlert = 2;
   for (const v of vehs) if (!v.dead && !v.inTun && Math.hypot(v.x - gx, v.z - gz) < 4.5) wreckVehicle(v);
+  minesNear(gx, gz, 2.5);   // v94
   if (trainsLive && trainHit(gx, gz, 1.5)) showToast('NO EFFECT', 'a grenade won\'t stop an armoured train — a charge under it will');   // v43
   noiseEvent(gx, gz, 44, 0.9);
 }
@@ -9450,6 +9482,7 @@ function clearMission() {
   for (const b of bul) fxRoot.remove(b.mesh);
   for (const g of grn) fxRoot.remove(g.mesh);
   for (const o of obs) if (o.mesh) propRoot.remove(o.mesh);
+  for (const c of [...propRoot.children]) if (!c.userData.keep) propRoot.remove(c);   // v94: and every loose prop an op added (poles, culvert mouths, borders, mine wire), not only the obstacles'
   for (const b of bridges) { propRoot.remove(b); b.geometry.dispose(); }
   bridges = [];
   for (const b of builds) buildRoot.remove(b.group);
@@ -10002,7 +10035,7 @@ const OBJ_LABEL = {
   kill: () => 'Kill every enemy', commander: () => 'Kill the commander', rescue: () => 'Reach the hostage',
   liberate: () => 'Kill the guards, free the prisoners',
   free: () => { const n = prisoners.filter(h => h.rescued).length; return `Free the prisoners (${n}/${prisoners.length})`; },
-  killTag: s => { const L = ens.filter(e => e.tag === s.tag); return `Ambush the ${s.tag} (${L.filter(e => e.dead).length}/${L.length})`; }, watch: s => `${s.label || 'Note the traffic from the hide'} (${s.count || 0}/${s.n})`, take: () => 'Take the documents', extract: () => 'Get out: reach the green flare',
+  killTag: s => { const L = ens.filter(e => e.tag === s.tag); return `Ambush the ${s.tag} (${L.filter(e => e.dead).length}/${L.length})`; }, watch: s => `${s.label || 'Note the traffic from the hide'} (${s.count || 0}/${s.n})`, lift: s => `${s.label || 'Lift mines'} (${Math.min(mineLifted, s.n)}/${s.n})`, take: () => 'Take the documents', extract: () => 'Get out: reach the green flare',
   destroy: s => { const L = targets.filter(t => !s.what || t.kind === s.what), n = L.filter(t => t.dead).length, nm = { pillbox: 'pillbox', radio: 'radio', bridge: 'bridge', lorry: 'fuel lorry', gun: 'gun' }[s.what] || 'target';
     return L.length > 1 ? `Destroy the ${nm}s (${n}/${L.length})` : `Destroy the ${nm}`; },
 };
@@ -10525,6 +10558,199 @@ function mkCulvert(x, z, w, L) {
   if (L) culverts.push({ x0: x - w / 2 + 0.3, x1: x + w / 2 - 0.3, z0: zn - 0.6, z1: z + 0.6 });
   return out;
 }
+
+/* ───── v94: mines — North Africa's mechanic (notes/north-africa-theatre.md §2A) ─────
+   M.mines = { detector, fields: [{ x0, z0, x1, z1 (fractions), ap, at, wires, dummy, marked: 'all' | 'n' | 's' | '', seed }] }
+   · ap: anti-personnel mines. A man within 0.5 m of one sets it off: it kills him (a field dressing aside) and wounds
+     the next man in line. at: anti-tank mines: a man can stand on one, but the detector finds them all the same.
+     wires: tripwires, a peg at each end and an S-mine on one; an upright man crossing one sets it off.
+     dummy: the wire and the signs, and nothing in the ground.
+   · Telegraphed, never random: every mine leaves a faint patch of disturbed sand, and a marked field is fenced with a
+     single strand of wire hung with skull signs on the sides it names.
+   · Found mines carry a flag and become obstacles, so the squad paths round them. Tap one and a man goes to lift it
+     (4 s, kneeling); lifted, it's gone.
+   · SWEEP (M): the lead man sweeps a detector. The squad moves at ×0.4; any mine within 3 m of him is found; a beep that
+     quickens as he nears one; white tape behind him while he's in a field. A crawling man prods: he finds a mine within
+     1.1 m before he reaches it. A grenade or a charge sets off any mine within 2.5 m. */
+const MINE_MAX = 160, MINE_SWEEP_R = 3.0, MINE_PROD_R = 1.1, MINE_STEP_R = 0.5, MINE_LIFT_T = 4;
+let mines = [], mineFields = [], sweepOn = false, mineLifted = 0, mineBeepT = 0, mineLift = null, mineSeen = {}, tapeN = 0, tapeLast = null;
+const MINE_MAT = propMat.clone();   // instanced, no per-instance colour: its own program (r128)
+const MG = {};
+function mineMeshes() {
+  if (MG.ap) return MG;
+  const inst = (g, n) => { const m = new THREE.InstancedMesh(g, MINE_MAT, n); m.count = 0; m.frustumCulled = false; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(m); return m; };
+  MG.ap = inst(mergeGeos([{ g: GEO.cyl, m: M4(0, 0.03, 0, 0.13, 0.07, 0.13), c: 0x4a4a3c }, ...[0, 2.1, 4.2].map(a => ({ g: GEO.cyl, m: M4(Math.sin(a) * 0.03, 0.09, Math.cos(a) * 0.03, 0.012, 0.07, 0.012), c: 0x2a2a24 }))]), MINE_MAX);
+  MG.at = inst(mergeGeos([{ g: GEO.cyl, m: M4(0, 0.035, 0, 0.32, 0.07, 0.32), c: 0x50523e }, { g: GEO.cyl, m: M4(0, 0.08, 0, 0.1, 0.03, 0.1), c: 0x3a3a30 }]), MINE_MAX);
+  const flag = c => mergeGeos([{ g: GEO.cyl, m: M4(0, 0.35, 0, 0.025, 0.7, 0.025), c: 0x6a5238 }, { g: GEO.box, m: M4(0.13, 0.6, 0, 0.24, 0.16, 0.012), c }]);
+  MG.flag = inst(flag(0xc8382a), MINE_MAX); MG.flagY = inst(flag(0xe0b030), MINE_MAX);
+  MG.tape = inst(mergeGeos([{ g: GEO.box, m: M4(0, 0.025, 0, 1, 0.025, 0.07), c: 0xf4f0e4 }]), 400);
+  const pg = new THREE.CircleGeometry(0.42, 9); pg.rotateX(-Math.PI / 2);
+  MG.patch = new THREE.InstancedMesh(pg, new THREE.MeshBasicMaterial({ color: SC(0x8a6a42), transparent: true, opacity: 0.32, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }), MINE_MAX);
+  MG.patch.count = 0; MG.patch.frustumCulled = false; MG.patch.renderOrder = 2; scene.add(MG.patch);
+  MG.ring = new THREE.Mesh(new THREE.RingGeometry(MINE_SWEEP_R - 0.12, MINE_SWEEP_R, 40), basic(0x9ede5a, { transparent: true, opacity: 0.4, depthWrite: false, side: THREE.DoubleSide }).clone());
+  MG.ring.rotation.x = -Math.PI / 2; MG.ring.renderOrder = 3; MG.ring.visible = false; scene.add(MG.ring);
+  MG.lift = new THREE.Mesh(new THREE.RingGeometry(0.55, 0.72, 30, 1, 0, 0.01), basic(0xffc23d, { transparent: true, opacity: 0.85, depthWrite: false, side: THREE.DoubleSide }).clone());
+  MG.lift.rotation.x = -Math.PI / 2; MG.lift.renderOrder = 3; MG.lift.visible = false; scene.add(MG.lift);
+  return MG;
+}
+const _mm = new THREE.Matrix4(), _mq = new THREE.Quaternion(), _mv = new THREE.Vector3(), _ms = new THREE.Vector3(1, 1, 1), _me = new THREE.Euler();
+function mineSet(im, i, x, z, a, sc) {
+  _me.set(0, a || 0, 0); _mq.setFromEuler(_me); _mv.set(x, groundY(x, z) + 0.005, z); _ms.setScalar(sc === undefined ? 1 : sc);
+  im.setMatrixAt(i, _mm.compose(_mv, _mq, _ms)); im.instanceMatrix.needsUpdate = true;
+}
+function clearMines() {
+  const G = mineMeshes();
+  for (const k of ['ap', 'at', 'flag', 'flagY', 'tape', 'patch']) G[k].count = 0;
+  G.ring.visible = G.lift.visible = false;
+  mines = []; mineFields = []; sweepOn = false; mineLifted = 0; mineBeepT = 0; mineLift = null; mineSeen = {}; tapeN = 0; tapeLast = null;
+}
+function buildMines(M) {
+  clearMines();
+  const D = M.mines; if (!D) return;
+  const G = mineMeshes(), wireP = [];
+  (D.fields || []).forEach((F, fi) => {
+    const R = { x0: F.x0 * MW, z0: F.z0 * MH, x1: F.x1 * MW, z1: F.z1 * MH, dummy: !!F.dummy, nevT: false };
+    mineFields.push(R);
+    // the marking: a strand of wire at knee height on posts, a skull sign every few posts, on the sides it names
+    const sides = F.marked === 'all' ? ['n', 's', 'e', 'w'] : (F.marked || '').split('');
+    for (const sd of sides) {
+      const horiz = sd === 'n' || sd === 's', fixed = sd === 'n' ? R.z0 : sd === 's' ? R.z1 : sd === 'w' ? R.x0 : R.x1, a0 = horiz ? R.x0 : R.z0, a1 = horiz ? R.x1 : R.z1;
+      const n = Math.max(1, Math.round((a1 - a0) / 3)); let prev = null;
+      for (let i = 0; i <= n; i++) {
+        const t = a0 + (a1 - a0) * i / n, x = horiz ? t : fixed, z = horiz ? fixed : t, y = groundY(x, z);
+        wireP.push({ g: GEO.box, m: M4(x, y + 0.45, z, 0.06, 0.9, 0.06), c: 0x5a5048 });
+        if (prev) boxAlong(wireP, [prev[0], prev[1] + 0.62, prev[2]], [x, y + 0.62, z], 0.015, 0.015, 0x2e2a26);
+        if (i % 3 === 1) {   // a triangle sign, a skull on it (white on red), facing out
+          const o = horiz ? 0 : Math.PI / 2;
+          wireP.push({ g: GEO.box, m: M4(x, y + 0.8, z, horiz ? 0.4 : 0.02, 0.34, horiz ? 0.02 : 0.4), c: 0xb83026 }, { g: GEO.sph, m: M4(x, y + 0.8, z, horiz ? 0.12 : 0.03, 0.12, horiz ? 0.03 : 0.12), c: 0xeee8dc });
+        }
+        prev = [x, y, z];
+      }
+    }
+    if (R.dummy) return;
+    const seed = (F.seed || fi * 7.3 + 3.1), put = [];
+    const place = (k, tries) => {
+      for (let t = 0; t < tries; t++) {
+        const x = R.x0 + 0.9 + hash2(seed + t * 1.37, put.length * 2.11 + 0.7) * (R.x1 - R.x0 - 1.8), z = R.z0 + 0.9 + hash2(put.length * 1.93 + 0.3, seed + t * 2.71) * (R.z1 - R.z0 - 1.8);
+        if (put.some(q => Math.hypot(q.x - x, q.z - z) < 1.7) || blocked(x, z, 0.4)) continue;
+        put.push({ x, z }); return { x, z };
+      }
+      return null;
+    };
+    for (let i = 0; i < (F.at || 0); i++) { const q = place('at', 40); if (q) mines.push({ k: 'at', x: q.x, z: q.z, live: true, found: false }); }
+    for (let i = 0; i < (F.ap || 0); i++) { const q = place('ap', 40); if (q) mines.push({ k: 'ap', x: q.x, z: q.z, live: true, found: false }); }
+    for (let i = 0; i < (F.wires || 0); i++) {
+      const q = place('wire', 40); if (!q) continue;
+      const a = hash2(seed + i, 5.5) * Math.PI, L = 1.4, x0 = q.x - Math.cos(a) * L, z0 = q.z - Math.sin(a) * L, x1 = q.x + Math.cos(a) * L, z1 = q.z + Math.sin(a) * L;
+      mines.push({ k: 'wire', x: q.x, z: q.z, x0, z0, x1, z1, live: true, found: false });
+      for (const [px, pz] of [[x0, z0], [x1, z1]]) wireP.push({ g: GEO.box, m: M4(px, groundY(px, pz) + 0.15, pz, 0.05, 0.3, 0.05), c: 0x5a4a32 });
+      boxAlong(wireP, [x0, groundY(x0, z0) + 0.22, z0], [x1, groundY(x1, z1) + 0.22, z1], 0.008, 0.008, 0x6a6a62);
+      wireP.push({ g: GEO.cyl, m: M4(x1, groundY(x1, z1) + 0.06, z1, 0.12, 0.12, 0.12), c: 0x4a4a3c });   // the S-mine at its end
+    }
+  });
+  mines.forEach((m, i) => { m.i = i; if (m.k !== 'wire') mineSet(G.patch, i, m.x, m.z, hash2(i, 2.2) * 6, 0.8 + hash2(i, 4.4) * 0.5); else mineSet(G.patch, i, m.x, m.z, 0, 0.001); });
+  G.patch.count = mines.length;
+  for (const k of ['ap', 'at', 'flag', 'flagY']) { for (const m of mines) mineSet(G[k], m.i, m.x, m.z, 0, 0.0001); G[k].count = mines.length; }   // hidden until found
+  if (wireP.length) { const w = new THREE.Mesh(mergeGeos(wireP), propMat); w.castShadow = true; propRoot.add(w); }
+}
+function mineFound(m, s, how) {
+  if (m.found) return; m.found = true;
+  const G = mineMeshes();
+  if (m.k === 'wire') { m.live = false; mineSet(G.flag, m.i, m.x, m.z, 0.3); }
+  else {
+    mineSet(m.k === 'at' ? G.at : G.ap, m.i, m.x, m.z, hash2(m.i, 1) * 6);
+    mineSet(m.k === 'at' ? G.flagY : G.flag, m.i, m.x + 0.25, m.z, 0.4);
+    m.ob = { type: 'mine', x: m.x, z: m.z, radius: m.k === 'at' ? 0.5 : 0.42, tall: false, cover: false }; obs.push(m.ob); buildGrid();
+  }
+  const first = !mineSeen[m.k]; mineSeen[m.k] = true;
+  if (m.k === 'ap' && first) showToast('MINE', how === 'prod' ? 'found with a bayonet, on his belly: flagged. Tap it to lift it' : 'the detector found it: flagged, and they will walk round it. Tap it to lift it');
+  else if (m.k === 'at' && first) showToast('ANTI-TANK MINE', 'a man can stand on one; a lorry can’t. Flagged all the same');
+  else if (m.k === 'wire' && first) showToast('TRIPWIRE', 'found and cut. The next one might not be');
+  else SFX.ui();
+  if (s) bubble(s, m.k === 'wire' ? 'Wire here.' : 'Mine.', 1.0);
+}
+function mineGone(m) {
+  const G = mineMeshes(); m.live = false;
+  for (const k of ['ap', 'at', 'flag', 'flagY', 'patch']) mineSet(G[k], m.i, m.x, m.z, 0, 0.0001);
+  if (m.ob) { const j = obs.indexOf(m.ob); if (j >= 0) obs.splice(j, 1); m.ob = null; buildGrid(); }
+  if (mineLift && mineLift.m === m) { mineLift = null; G.lift.visible = false; }
+}
+// a mine goes off: at a man (victim), or set off by a blast nearby (none)
+function mineBlast(m, victim) {
+  const x = victim && m.k !== 'wire' ? victim.x : m.k === 'wire' ? m.x1 : m.x, z = victim && m.k !== 'wire' ? victim.z : m.k === 'wire' ? m.z1 : m.z, gy = groundY(x, z);
+  mineGone(m);
+  spawnParts(x, gy + 0.3, z, 22, 0xffb347, 10, 0.18, 0.5, 14); spawnParts(x, gy + 0.4, z, 16, 0x6a5a42, 7, 0.3, 1.0, 4); spawnParts(x, gy + 0.2, z, 14, 0xc8a878, 8, 0.14, 0.8, 16);
+  decal(x, z, 1.6, 0x241a10, 0.5); addSmoker(x, z, { life: 6, rate: 4, size: 1.4, col: 0x9a8a72, a: 0.55, burst: 6 });
+  SFX.boom(x, z); camShake = Math.min(camShake + 0.6, 1.2); flashScreen(0.4);
+  noiseEvent(x, z, 44, 0.9); globalAlert = Math.max(globalAlert, 1.1);
+  if (victim) {
+    bigMoment(0.7);
+    damage(victim, 99, 'mine');
+    let nx = null, nd = 4.5; for (const q of sol) { if (q.dead || q === victim) continue; const d = Math.hypot(q.x - x, q.z - z); if (d < nd) { nd = d; nx = q; } }
+    if (nx) damage(nx, 2, 'mine');
+    showToast('MINE', `${victim.name} found it the hard way${nx ? `; ${nx.name} is hit` : ''}`);
+  } else for (const q of sol) { if (!q.dead && Math.hypot(q.x - x, q.z - z) < 2.2) damage(q, 2, 'mine'); }
+}
+// a grenade or a charge: any live mine near it goes too (the field's own Bangalore torpedo)
+function minesNear(x, z, r) { if (!mines.length) return; for (const m of mines) if (m.live && m.k !== 'wire' && Math.hypot(m.x - x, m.z - z) < r) mineBlast(m, null); }
+const mineAt = (x, z, r) => { let b = null, bd = r; for (const m of mines) { if (!m.live || !m.found || m.k === 'wire') continue; const d = Math.hypot(m.x - x, m.z - z); if (d < bd) { bd = d; b = m; } } return b; };
+function liftOrder(m) {
+  const L = selLeader(); if (!L) return;
+  const a = Math.atan2(L.x - m.x, L.z - m.z), tx = m.x + Math.sin(a) * 0.8, tz = m.z + Math.cos(a) * 0.8;
+  L.tx = tx; L.tz = tz; L.path = findPath(L.x, L.z, tx, tz);
+  mineLift = { m, work: 0, arc: 0 }; const G = mineMeshes(); G.lift.position.set(m.x, groundY(m.x, m.z) + 0.08, m.z); G.lift.visible = true;
+  showToast('LIFT IT', `${L.name} goes to lift the mine: ${MINE_LIFT_T} seconds on his knees`); SFX.ui();
+}
+function setSweep(v) {
+  if (!mines.length && v) return;
+  sweepOn = v; const b = $('bsw'); b.className = v ? 'on2' : ''; b.textContent = v ? 'SWEEP OFF' : 'SWEEP';
+  if (v && !mineSeen.sweep) { mineSeen.sweep = true; showToast('SWEEPING', 'the lead man sweeps a detector: slow, and it finds anything within three metres'); }
+  SFX.ui();
+}
+function stepMines(dt) {
+  if (!mines.length || phase !== 'play') return;
+  const G = mineMeshes(), car = sweepOn ? selLeader() : null;
+  let near = 1e9;
+  for (const u of sol) {
+    if (u.dead || u.inCulv || u.elev) continue;
+    for (const m of mines) {
+      if (!m.live) continue;
+      const dx = m.x - u.x, dz = m.z - u.z; if (dx > 3.5 || dx < -3.5 || dz > 3.5 || dz < -3.5) continue;
+      const d = Math.hypot(dx, dz);
+      if (u === car) near = Math.min(near, d);
+      if (!m.found && ((u === car && d < MINE_SWEEP_R) || (u.prone && d < MINE_PROD_R))) { mineFound(m, u, u === car ? 'detector' : 'prod'); if (!m.live) continue; }
+      if (m.k === 'wire') {   // across the wire, upright
+        const ex = m.x1 - m.x0, ez = m.z1 - m.z0, t = Math.max(0, Math.min(1, ((u.x - m.x0) * ex + (u.z - m.z0) * ez) / (ex * ex + ez * ez))), wd = Math.hypot(m.x0 + ex * t - u.x, m.z0 + ez * t - u.z);
+        if (wd < 0.3 && !u.prone) { mineBlast(m, u); break; }
+      } else if (m.k === 'ap' && d < MINE_STEP_R) { mineBlast(m, u); break; }
+    }
+  }
+  // the detector: its ring round the sweeper, a beep that quickens as he closes on metal
+  G.ring.visible = !!car;
+  if (car) {
+    G.ring.position.set(car.x, groundY(car.x, car.z) + 0.07, car.z); G.ring.material.opacity = 0.25 + Math.abs(Math.sin(missionTime * 3)) * 0.2;
+    mineBeepT -= dt;
+    if (near < MINE_SWEEP_R + 0.6 && mineBeepT <= 0) { mineBeepT = 0.1 + (near / (MINE_SWEEP_R + 0.6)) * 0.75; SFX.mineBeep(near < 1.2); }
+    const inF = mineFields.some(R => car.x > R.x0 - 1 && car.x < R.x1 + 1 && car.z > R.z0 - 1 && car.z < R.z1 + 1);
+    if (inF && tapeN < 400) {   // white tape behind him: the lane
+      if (!tapeLast) tapeLast = [car.x, car.z];
+      const dx = car.x - tapeLast[0], dz = car.z - tapeLast[1], d = Math.hypot(dx, dz);
+      if (d > 0.9) { _me.set(0, Math.atan2(dx, dz) + Math.PI / 2, 0); _mq.setFromEuler(_me); _mv.set((car.x + tapeLast[0]) / 2, groundY(car.x, car.z) + 0.01, (car.z + tapeLast[1]) / 2); _ms.set(d, 1, 1);
+        G.tape.setMatrixAt(tapeN++, _mm.compose(_mv, _mq, _ms)); G.tape.count = tapeN; G.tape.instanceMatrix.needsUpdate = true; tapeLast = [car.x, car.z]; }
+    } else tapeLast = null;
+  }
+  // lifting: a man kneels by it for four seconds
+  if (mineLift) {
+    const m = mineLift.m, by = sol.find(q => !q.dead && Math.hypot(q.x - m.x, q.z - m.z) < 1.35);
+    mineLift.work = by ? mineLift.work + dt : Math.max(0, mineLift.work - dt * 0.5);
+    const arc = Math.min(1, mineLift.work / MINE_LIFT_T);
+    if (Math.abs(arc - mineLift.arc) > 0.03) { mineLift.arc = arc; G.lift.geometry.dispose(); G.lift.geometry = new THREE.RingGeometry(0.55, 0.72, 30, 1, 0, Math.max(0.01, arc * 6.283)); }
+    if (arc >= 1) { mineGone(m); mineLifted++; showToast('LIFTED', `${by ? by.name : 'he'} has it: ${mineLifted} lifted`); if (by) say(by, 'rescue'); updObjBar(); }
+  }
+  // Nev knows a dummy field when he sees one
+  const nev = sol.find(q => !q.dead && q.name === 'Nev');
+  if (nev) for (const R of mineFields) if (R.dummy && !R.nevT && nev.x > R.x0 - 8 && nev.x < R.x1 + 8 && nev.z > R.z0 - 8 && nev.z < R.z1 + 8) { R.nevT = true; showToast('NEV', '“That one’s a dummy. Signs and wire, nothing in the ground.”'); bubble(nev, 'Dummy.', 1.4); }
+}
 const NORB = { rorbu: { wall: 0x8c2a20, trim: 0xe9e3d4, H: 2.7, door: 0x3a2e24, stilts: 0.85 },
   white: { wall: 0xdad5c8, trim: 0xf3f0e8, H: 5.3, door: 0x2f4a3c },
   billet: { wall: 0xc79231, trim: 0xefe9da, H: 5.3, door: 0x3c2c20 },
@@ -11004,6 +11230,7 @@ const stepDone = s => {
     case 'killTag': { const L = ens.filter(e => e.tag === s.tag); return L.length > 0 && L.every(e => e.dead); }
     case 'hold': return (s.held || 0) >= s.time;   // v47
     case 'watch': return (s.count || 0) >= s.n;   // v92
+    case 'lift': return mineLifted >= s.n;   // v94
     // the leader in the ring and the file close behind him (they walk in single file, so the last man trails by a few metres)
     case 'extract': { const live = sol.filter(q => !q.dead); return !!extractPt && live.length > 0 && Math.hypot(live[0].x - extractPt.x, live[0].z - extractPt.z) < extractPt.r && live.every(q => Math.hypot(q.x - extractPt.x, q.z - extractPt.z) < extractPt.r + 7) && !(hostage && hostage.rescued && Math.hypot(hostage.x - extractPt.x, hostage.z - extractPt.z) > extractPt.r + 7); }
   }
@@ -11109,7 +11336,7 @@ function updObjBar() {
   const s = objSteps[objIdx];
   if (!s) { el.style.display = 'none'; objBarHTML = ''; return; }
   // counts (patrol 2/4, prisoners 1/4, guns 1/3) refresh as they change; only touch the DOM when the text does
-  const lab = (s.t === 'killTag' || s.t === 'free' || s.t === 'destroy' || s.t === 'watch') ? OBJ_LABEL[s.t](s) + (s.label && s.t !== 'destroy' ? '' : '') : (s.label || OBJ_LABEL[s.t](s));
+  const lab = (s.t === 'killTag' || s.t === 'free' || s.t === 'destroy' || s.t === 'watch' || s.t === 'lift') ? OBJ_LABEL[s.t](s) + (s.label && s.t !== 'destroy' ? '' : '') : (s.label || OBJ_LABEL[s.t](s));
   const opt = optSteps.map(o => `<div class="opt${o.done ? ' done' : ''}"><span>OPTIONAL</span> ${o.label || OPT_TXT[o.t]}${o.done ? ' ✓' : ''}</div>`).join('');   // v46
   const html = `<span>${objSteps.length > 1 ? `OBJECTIVE ${objIdx + 1}/${objSteps.length}` : 'OBJECTIVE'}</span> ${s.t === 'destroy' && s.label ? s.label + ' ' + (OBJ_LABEL.destroy(s).match(/\(\d+\/\d+\)/) || [''])[0] : lab}${opt}`;
   if (html !== objBarHTML) { objBarHTML = html; el.style.display = 'block'; el.innerHTML = html; }
@@ -11343,6 +11570,7 @@ function initMission(idx) {
   flushTexBatch();   // v39: the static textured props, one mesh per material
   buildTargets(M);
   buildGrid();
+  buildMines(M);   // v94
   buildPuddles(M); buildFlowers(M);   // v34: after the obstacles, so neither lands under a hut
 
   topUpRoster();
@@ -12535,7 +12763,7 @@ function spawnPlane() {
 function stepPlane(dt) {
   const M = MISSIONS[missionIdx];
   if (!spotter) {
-    if (M.night || phase !== 'play') return;
+    if (M.night || M.drill || phase !== 'play') return;   // v94: no spotter plane over a drill
     spotT -= dt; if (spotT <= 0) { spawnPlane(); spotT = 55 + Math.random() * 40; }
     return;
   }
@@ -12656,6 +12884,7 @@ function update(dt) {
   if (SAND && MD.sandFill) snowFill += dt / MD.sandFill;   // v92: the wind fills prints in sand
   if (SAND && MD.haze && !hazeOn && missionTime >= MD.haze) { hazeOn = true; showToast('HEAT HAZE', 'past half his range a sentry sees shimmer, not you'); }
   if (squall) stepSqualls(dt);
+  stepMines(dt);   // v94
   if (culverts.length) for (const u of sol) {   // v93: crawling through the culvert: out of sight, and not drawn on top of the road
     const was = !!u.inCulv; u.inCulv = !u.dead && u.prone && !!culvAt(u.x, u.z);
     if (u.inCulv !== was && !u.dead) { u.mesh.visible = !u.inCulv; if (u.inCulv && !culvToast) { culvToast = true; showToast('IN THE CULVERT', 'under the road on your belly: nobody sees a man in a drain'); } }
@@ -13089,7 +13318,7 @@ function update(dt) {
       if (truckT <= 0) sendTruck();
     }
     if (truck) stepTruck(dt);
-  } else if (!reinfSent && !reinfBlocked && globalAlert >= (M.alertThreshold || 0.7) + 0.95) {
+  } else if (!reinfSent && !reinfBlocked && !M.drill && globalAlert >= (M.alertThreshold || 0.7) + 0.95) {   // v94: nobody comes to a drill
     reinfSent = true;
     spawnReinforcements(Math.max(2, Math.round((M.reinf || 4) * 0.6)) + Math.round(2 * diffD));
   }
@@ -13720,6 +13949,7 @@ function detonateCharge(c) {
   SFX.boom(gx, gz); camShake = Math.min(camShake + 1.1, 1.4); hitStop = Math.max(hitStop, 0.09); flashScreen(0.7);
   muzzleT = 0.22; muzzleLight.position.set(gx, gy + 1.5, gz);
   const B = 7.5;
+  minesNear(gx, gz, 3.0);   // v94
   if (trainsLive) derailNear(gx, gz, 3.5);   // v43
   blastTargets(gx, gz, 'charge');
   for (const e of ens) { if (!e.dead && !e.inBox && dst({ x: gx, z: gz }, e) < B && !(e.tower && dst({ x: gx, z: gz }, e) > 3.2)) damage(e, dst({ x: gx, z: gz }, e) < B * 0.5 ? 6 : 3, 'blast'); }
@@ -14066,6 +14296,7 @@ function startMission() {
     initMission(missionIdx);
     $('bc').className = ''; $('bc').textContent = 'CRAWL';
     $('bski').className = ''; $('bski').textContent = 'SKIS'; $('bski').style.display = SNOW ? '' : 'none';   // v78
+    $('bsw').className = ''; $('bsw').textContent = 'SWEEP'; $('bsw').style.display = mines.length && MISSIONS[missionIdx].mines.detector !== false ? '' : 'none';   // v94
     $('bg').classList.remove('slung'); $('bn').classList.remove('slung');
     $('hst').textContent = 'UPRIGHT · ARMED'; $('hst').style.color = '';
     $('nc').textContent = grenCount;
@@ -14386,6 +14617,7 @@ function drawOpPreview(cv, M) {
   const k = M.size ? M.size[0] / M.size[1] : 1, MW = M.size ? M.size[0] : 100, MH = M.size ? M.size[1] : 100;   // v81: a long map drawn as a strip
   x.setTransform(k, 0, 0, 1, S * (1 - k) / 2, 0);
   x.fillStyle = M.snow ? '#c8d0d8' : M.desert ? '#d8bc88' : M.weather === 'fog' ? '#3a4a3a' : '#3f5a24'; x.fillRect(0, 0, S, S);
+  for (const F of ((M.mines || {}).fields || [])) { x.fillStyle = F.dummy ? 'rgba(200,150,90,.35)' : 'rgba(170,50,40,.35)'; x.fillRect(F.x0 * S, F.z0 * S, (F.x1 - F.x0) * S, (F.z1 - F.z0) * S); }   // v94
   if (M.wadi) { x.strokeStyle = '#b89a6a'; x.lineWidth = (M.wadi.w || 4) / 100 * S * 1.6; x.beginPath(); M.wadi.pts.forEach(([a, b], i) => x[i ? 'lineTo' : 'moveTo'](a * S, b * S)); x.stroke(); }   // v92
   if (M.avalanche) { const A = M.avalanche; x.fillStyle = '#f4f7fa'; x.fillRect(A.x0 * S, A.z0 * S, (A.x1 - A.x0) * S, (A.z1 - A.z0) * S); }   // v84: the slope that can come down
   if (M.gorge) { x.fillStyle = '#4a4e56'; x.fillRect(0, M.gorge.z0 * S, S, (M.gorge.z1 - M.gorge.z0) * S); }   // v83: the gorge, its walls dark
@@ -14463,6 +14695,7 @@ function showOps() {
     if (M.squalls) extras.push('squalls');   // v86
     if ((M.objectives || []).some(o => o.t === 'watch')) extras.push('road watch');   // v92
     if (M.haze) extras.push('heat haze');
+    if (M.mines) extras.push('minefields');   // v94
     if ((M.obstacles || []).some(o => o.t === 'cave')) extras.push('snow cave');
     if ((M.enemies || []).some(e => e.dog)) extras.push('dog');
     if (M.clock) extras.push('the boats leave');   // v85
@@ -14564,6 +14797,7 @@ function order(cx, cy) {
   }
   // v32: split, tapping one of your own men selects his team
   if (split) { let mine = null, md = 1.3; for (const q of sol) { if (q.dead) continue; const d = Math.hypot(q.x - p.x, q.z - p.z); if (d < md) { md = d; mine = q; } } if (mine) { selectTeam(tmOf(mine)); return; } }
+  if (mines.length) { const fm = mineAt(p.x, p.z, 1.1); if (fm) { liftOrder(fm); return; } }   // v94: tap a flagged mine to lift it
   // tap an enemy: focus him. Tap the focused one again: release.
   const e = enemyAt(cx, cy);
   if (e) { setFocus(e === focus ? null : e); return; }
@@ -14634,6 +14868,7 @@ $('wbar').addEventListener('click', e => {
   initAudio();
   if (b.id === 'bc') { setProne(!squadProne); return; }
   if (b.id === 'bski') { setSkis(!squadSkis); return; }   // v78
+  if (b.id === 'bsw') { setSweep(!sweepOn); return; }   // v94
   if (b.id === 'bs') { setSplit(!split); return; }
   if (b.id === 'bt') { selectTeam(1 - selTeam); return; }
   SFX.ui();
@@ -14644,6 +14879,7 @@ addEventListener('keydown', e => {
   if (phase !== 'play') return;
   if (e.code === 'KeyQ' && !paused) { initAudio(); setProne(!squadProne); }
   if (e.code === 'KeyB' && !paused) { initAudio(); setSkis(!squadSkis); }   // v78
+  if (e.code === 'KeyM' && !paused && phase === 'play') { initAudio(); setSweep(!sweepOn); }   // v94
   if (e.code === 'KeyV' && !paused) { initAudio(); setSplit(!split); }
   if ((e.code === 'Tab' || e.code === 'Digit1' || e.code === 'Digit2') && !paused && split) { e.preventDefault(); selectTeam(e.code === 'Digit1' ? 0 : e.code === 'Digit2' ? 1 : 1 - selTeam); }
   if (e.code === 'KeyG' && !paused) setWeapon(weapon === 'gun' ? 'grenade' : 'gun');
@@ -14930,6 +15166,7 @@ if (window.Telegram && Telegram.WebApp) {
 PF.init.then(() => { if (phase === 'title') refreshTitle(); });
 setTimeout(() => PF.loadingDone(), 0);
 resetCampaign();
+for (const c of propRoot.children) c.userData.keep = true;   // v94: the instanced banks made at boot stay; the rest is the op's
 initMission(0);
 phase = 'title';
 refreshTitle();
