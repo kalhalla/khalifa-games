@@ -434,7 +434,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
     <button id="tset">SETTINGS <small>sound · music · graphics</small></button>
   </div>
   <div class="foot">© GAMELAB · NO GRUNTS WERE CONSULTED</div>
-  <div id="tver">v95</div>
+  <div id="tver">v99</div>
 </div>
 
 <div id="ops" class="screen">
@@ -1941,8 +1941,9 @@ function terrCol(cx, cz, cy, ny, h, c) {
     else if (kind === 'bed' || kind === 'bank') cov = 0.4;
     const z = sandAt(cx, cz);
     if (z.k === 'gravel') { col.lerp(_ic.copy(LP.gravS).lerp(LP.gravD, fine * 0.7 + n * 0.3), z.f); keep = z.f; }
+    else if (z.k === 'dune') { const rp = 0.5 + 0.5 * Math.sin(cx * 0.55 + cz * 0.32 + vnoise(cx * 0.05, cz * 0.05) * 6); col.lerp(_ic.copy(LP.sandL).lerp(LP.sandD, (1 - rp) * 0.45), z.f * 0.75); }   // v98: soft dune sand, long ripples
     else if (z.k === 'salt') { col.lerp(_ic.copy(LP.salt).lerp(LP.saltD, n * 0.6 + (Math.abs(fine - 0.5) < 0.04 ? 0.6 : 0)), z.f); }
-    if (wadis.length && kind !== 'cliff') { const wd = wadiAt(cx, cz); if (wd > 0.2) { const f = Math.min(1, (wd - 0.2) * 1.6); col.lerp(_ic.copy(LP.wadi).lerp(LP.gravS, fine * 0.5), f * 0.85); keep = Math.max(keep, f * 0.8); } }   // the wadi's bed: pale, stony
+    if (wadis.length && kind !== 'cliff' && !wadis[0].trench) { const wd = wadiAt(cx, cz); if (wd > 0.2) { const f = Math.min(1, (wd - 0.2) * 1.6); col.lerp(_ic.copy(LP.wadi).lerp(LP.gravS, fine * 0.5), f * 0.85); keep = Math.max(keep, f * 0.8); } }   // the wadi's bed: pale, stony
     c.lerp(col, cov);
     const k = 1 - cov * (1 - keep * 0.8); w0 = 0; w1 *= k; w2 *= k; w3 = Math.max(w3 * k, keep * 0.9);
   }
@@ -2201,7 +2202,7 @@ function buildWater() {
       // v48: clear water — the bed, the stones and the bridge's trestles show through; it thickens with depth, foam stays white
       const al = Math.min(0.34, 0.1 + Math.max(0, dep) * 0.1) * (1 - Math.min(1, fo)) + Math.min(1, fo) * 0.9;
       if (SNOW && dep >= 0.07) c.lerp(_w2.copy(SC(r.still ? 0x15232b : 0x1d3240)), r.still ? 0.88 : 0.78);
-      if (SAND && dep >= 0.07) c.lerp(_w2.copy(SC(dep > 0.6 ? 0x1f5a7a : 0x3a8a9a)), 0.86);   // v92: the Mediterranean, blue over sand   // v75: a winter fjord is dark and deep, not clear over a snowy bed
+      if (SAND && dep >= 0.07) c.lerp(_w2.copy(SC(r.still ? (dep > 0.6 ? 0x1e4e44 : 0x3a7a62) : dep > 0.6 ? 0x1f5a7a : 0x3a8a9a)), 0.86);   // v98: an oasis pool is green   // v92: the Mediterranean, blue over sand   // v75: a winter fjord is dark and deep, not clear over a snowy bed
       depA[i] = dep; pa.setXYZ(i, x, sy, z); col[i * 4] = c.r; col[i * 4 + 1] = c.g; col[i * 4 + 2] = c.b; col[i * 4 + 3] = dep < 0.07 ? 0.85 : SNOW || SAND ? 0.9 : al;
     }
     g.setAttribute('color', new THREE.BufferAttribute(col, 4)); g.computeVertexNormals();
@@ -2627,6 +2628,12 @@ const SFX = {
   // v94: the mine detector's beep in the headphones: a short square tone, higher when it is right on top of one
   mineBeep(hi) { if (!AC) return; const t = AC.currentTime, o = AC.createOscillator(), g = AC.createGain(); o.type = 'square'; o.frequency.value = hi ? 1320 : 980;
     g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.05, t + 0.004); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.07); o.connect(g); g.connect(mixSfx); o.start(t); o.stop(t + 0.08); },
+  // v99: a farm dog: two rough yelps
+  bark(x, z) { if (!AC) return; const { g, p } = place(x, z); for (let i = 0; i < 2; i++) { const t = AC.currentTime + i * 0.24; tone('sawtooth', 560, 300, 0.11, 0.08 * g, mixSfx, p, t); nburst(1100, 2, 0.08, 0.05 * g, mixSfx, p, t); } },
+  // v96: a star shell: the pop of the mortar and a long hiss as it climbs; at the top a soft crack as the flare lights
+  starShell(top) { if (!AC) return; const t = AC.currentTime;
+    if (top) { nburst(1400, 1.2, 0.05, 0.12, mixSfx, 0, t); nburst(5200, 0.8, 0.9, 0.035, mixSfx, 0, t + 0.04, 'highpass'); return; }
+    thump(90, 50, 0.1, 0.32, mixSfx, 0, t); nburst(4200, 0.6, STAR_UP * 0.9, 0.05, mixSfx, 0, t + 0.06, 'highpass'); },
   // squad chatter: a low, breathy murmur of two or three syllables, well under the music
   chirp(x, z, foe) {
     if (!AC) return; const { g, p } = place(x, z);
@@ -3066,6 +3073,8 @@ const WEATHER = {
   // v67: falling snow. fill: how long a footprint lasts under it (s), for the tracks (v68)
   snow:     { n: 0.55, fog: [44, 126], see: 0.85, hear: [0.6, 0.8], wind: 0.9, light: 'snowlight', snow: true, fill: 120 },
   blizzard: { n: 1, fog: [16, 62], see: 0.6, hear: [0.4, 0.7], wind: 2.2, light: 'blizzard', snow: true, fill: 40 },
+  // v98: the ghibli, a sandstorm: dust instead of flakes, an ochre murk, prints filled in seconds
+  ghibli:   { n: 1, fog: [12, 46], see: 0.55, hear: [0.4, 0.7], wind: 2.6, sand: true, fill: 10 },
 };
 let wx = null;
 function lightOf(M) {
@@ -3085,7 +3094,7 @@ let SNOW = 0;
    snow does (PRINTS), and the wind fills them (M.sandFill seconds); gravel, salt, tarmac and the runway take none.
    M.haze = seconds: from then the heat haze cuts their eyes beyond half their range. */
 let culvToast = false;   // v93
-let SAND = 0, PRINTS = 0, hazeOn = false, sandZones = [], wadis = [];
+let SAND = 0, PRINTS = 0, hazeOn = false, sandZones = [], wadis = [], ITAL = 0;   // v98: ITAL, an Italian garrison (sun helmets, sahariana)
 /* v79: ?pace=slow on the URL (Max's feedback: fights end too fast to be tactical). Slower, shorter-ranged rifles for the
    squad, so you close in or hold still to hit; their fire keeps your heads down as yours does theirs; men who stop under
    fire get behind the nearest crate, rock or wall on their own; the enemy fires a little slower. The ambush window is
@@ -3263,14 +3272,15 @@ function flakeDrop(i, top) {
   flakePh[i] = Math.random() * 6.283;
 }
 function setupFlakes() {
-  const on = !!(wx && wx.snow);
+  const on = !!(wx && (wx.snow || wx.sand));
   flakeMesh.visible = on; flakeCount = on ? Math.round(FLAKE_N * wx.n) : 0; flakeGeo.setDrawRange(0, flakeCount);
-  flakeMesh.material.size = on && wx.n > 0.7 ? 0.2 : 0.16;
+  flakeMesh.material.size = on && wx.sand ? 0.26 : on && wx.n > 0.7 ? 0.2 : 0.16;
+  flakeMesh.material.color.set(on && wx.sand ? 0xc89a62 : 0xffffff); flakeMesh.material.opacity = on && wx.sand ? 0.7 : 0.9;   // v98: dust in a ghibli
   if (on) for (let i = 0; i < FLAKE_N; i++) flakeDrop(i, false);
 }
 function stepFlakes(dt) {
   if (!flakeMesh.visible) return;
-  const bl = wx && wx.n > 0.7, fall = bl ? 3.4 : 1.5, wk = bl ? 5.5 : 2.2;
+  const bl = wx && wx.n > 0.7, fall = wx && wx.sand ? 0.6 : bl ? 3.4 : 1.5, wk = wx && wx.sand ? 9 : bl ? 5.5 : 2.2;   // v98: dust flies flat
   const wdx = Math.cos(windAng) * windMag * wk, wdz = Math.sin(windAng) * windMag * wk, t = ATMO.t.value;
   for (let i = 0; i < flakeCount; i++) {
     const o = i * 3, ph = flakePh[i];
@@ -3346,7 +3356,7 @@ function clearPrints() {
   PR.live.fill(0); PR.head = 0; PR.used = 0; PR.fadeT = 0; snowFill = 0; printMesh.count = 0; printMesh.visible = !!PRINTS; tracksToast = false;
   for (const u of [...sol, ...ens]) { u.prX = undefined; u.stepD = 0; }
 }
-const packedSnow = (x, z) => { const rd = roadDist(x, z); return (rd && rd.t < 1.3) || (sandZones.length && sandAt(x, z).f > 0.5) || (wadis.length && wadiAt(x, z) > 0.55) || (iceZones.length && iceAt(x, z) > 0.5) || ((streets.length || squares.length) && onStreet(x, z, 0.3)) || padBlend(x, z) || waterFactor(x, z) > 0.02 || onBridge(x, z, 0.3); };
+const packedSnow = (x, z) => { const rd = roadDist(x, z); return (rd && rd.t < 1.3) || (sandZones.length && sandAt(x, z).f > 0.5 && _sz.k !== 'dune') || (wadis.length && wadiAt(x, z) > 0.55) || (iceZones.length && iceAt(x, z) > 0.5) || ((streets.length || squares.length) && onStreet(x, z, 0.3)) || padBlend(x, z) || waterFactor(x, z) > 0.02 || onBridge(x, z, 0.3); };
 function printStrength(i) {
   const age = missionTime - PR.t[i];   // v86: filled by the fill clock, which runs at the snowfall's rate (none falling, it stands; a squall runs it fast), so a squall's filling stays filled
   return Math.max(0, 1 - (snowFill - PR.sf[i])) * (0.78 + 0.22 * Math.exp(-age / 45));   // fresh prints are darker and sharper
@@ -4683,17 +4693,21 @@ function mkHouseFire(x, z, h) {
 // ───── v86: Run for Sweden's kit, from Khal's sheets (assets/norway/run-for-sweden-ref) ─────
 /* squalls (M.squalls = { on: [min, max], off: [min, max] } seconds): the snow thickens to a blizzard and clears again. In a
    squall they see 0.6 as far, the fog closes in, and the prints fill three times as fast (the fill clock, snowFill) */
+const _sqC = new THREE.Color();
 function stepSqualls(dt) {
   const Q = squall; Q.t -= dt;
   if (!Q.fog) { Q.fog = [scene.fog.near, scene.fog.far]; Q.base = wx; }
   if (Q.t <= 0) {
     const S = MISSIONS[missionIdx].squalls; Q.on = !Q.on;
     Q.t = Q.on ? S.on[0] + Math.random() * (S.on[1] - S.on[0]) : S.off[0] + Math.random() * (S.off[1] - S.off[0]);
-    wx = Q.on ? WEATHER.blizzard : Q.base; setupFlakes();
-    if (Q.on) showToast('A SQUALL', 'it hides you, and it fills your tracks: move'); else showToast('IT IS CLEARING', 'the whole valley can see you again');
+    const W = SAND ? WEATHER.ghibli : WEATHER.blizzard;   // v98: in the desert the squall is a ghibli
+    wx = Q.on ? W : Q.base; setupFlakes();
+    if (SAND) { if (Q.on) showToast('THE GHIBLI', 'a sandstorm: nobody sees far, and it fills your tracks in seconds. Move'); else showToast('IT IS CLEARING', 'everything is in plain sight again'); }
+    else if (Q.on) showToast('A SQUALL', 'it hides you, and it fills your tracks: move'); else showToast('IT IS CLEARING', 'the whole valley can see you again');
   }
-  const f = Q.on ? WEATHER.blizzard.fog : Q.fog, k = Math.min(1, dt * 0.6);
+  const f = Q.on ? (SAND ? WEATHER.ghibli : WEATHER.blizzard).fog : Q.fog, k = Math.min(1, dt * 0.6);
   scene.fog.near += (f[0] - scene.fog.near) * k; scene.fog.far += (f[1] - scene.fog.far) * k;
+  if (SAND) { if (!Q.col) Q.col = scene.fog.color.clone(); scene.fog.color.lerp(Q.on ? _sqC.set(0xb48a58) : Q.col, k); scene.background.copy(scene.fog.color); }
 }
 // a snow cave dug into a drift: a mound with a dark mouth. Inside, nobody sees you, and the dog only smells you from the door
 function mkSnowCave(x, z, a) {
@@ -4901,7 +4915,8 @@ function inSearchlight(x, z) {
    · a few windows lit warm from inside (not on the camera-side wall, which fades when you go in).
    Muzzle flashes keep their own light; NUM_POINT_LIGHTS goes 1 → 2 for every program, compiled once at load. */
 let lamps = [];
-const lampsOn = () => !!(night || weatherFog || ['dawn', 'dusk', 'overcast', 'heavy', 'storm', 'snowlight', 'blizzard'].includes(lightName));
+let lightsOut = false;   // v99: the generator's gone
+const lampsOn = () => !lightsOut && !!(night || weatherFog || ['dawn', 'dusk', 'overcast', 'heavy', 'storm', 'snowlight', 'blizzard'].includes(lightName));
 const LAMP = { col: 0xffb062, I: 2.4, dist: 11 };
 const lampLight = new THREE.PointLight(0xffffff, 0, LAMP.dist, 2); lampLight.color = SC(LAMP.col); scene.add(lampLight);
 const glowQ = { on: false, p: [], c: [] };   // the lit panes of the building being built
@@ -5564,6 +5579,8 @@ function rigLook(isFoe, colour, kind, who) {
   // field grey, lifted: true feldgrau reads near-black from the game camera against the grass
   const v = who || 0;
   // v67: theirs in snow: white smock and helmet cover over field-grey trousers, black webbing
+  if (ITAL) return { ours: false, kind, build: 'std', tunic: 0xbcae80, tunicD: 0xa29464, collar: 0x8a7c54, trous: 0xaa9c6e, helm: 0xe2d9ba, web: 0x5a4a32, boot: 0x3a2c22, pith: true,   // v98: Italians
+           skin: [0xd2a17a, 0xc08a5e, 0xdcae88][v % 3], hair: [HAIR.dark, HAIR.black, HAIR.brown][v % 3], mo: v % 3 === 1 ? 1 : 0, stub: v % 2, pack: 0x9a8a62 };
   return { ours: false, kind, build: 'std', tunic: SNOW ? 0xcfd2cc : SAND ? 0x9c946a : 0x8c948e, tunicD: SNOW ? 0xb6bab4 : SAND ? 0x857d58 : 0x737b76, collar: SNOW ? 0xa2a69f : SAND ? 0x6e6848 : 0x56604f, trous: SAND ? 0x8e8862 : 0x7c847f, helm: SNOW ? 0xd0d4ce : SAND ? 0xa89670 : 0x575d61, web: 0x2c2a26, boot: 0x26261f,
            skin: [0xd2a17a, 0xc8956a, 0xdcae88][v % 3], hair: [HAIR.dark, HAIR.fair, HAIR.brown][v % 3], mo: v % 4 === 3 ? 1 : 0, stub: v % 3 !== 1 ? 1 : 0, pack: 0x9a8a62 };
 }
@@ -5642,6 +5659,8 @@ function rigParts(C) {
     ] : k === 'cmd' ? [
       RP_(RG.cyl, RM4(0, 0.20, 0, 0.25, 0.10, 0.25), 0x3a4048), RP_(RG.cyl, RM4(0, 0.26, 0.02, 0.29, 0.05, 0.31), 0x3a4048),   // peaked cap
       RP_(RG.box, RM4(0, 0.17, 0.14, 0.17, 0.02, 0.08), 0x1c2130), RP_(RG.box, RM4(0, 0.215, 0.125, 0.16, 0.025, 0.02), 0xd9b23a),
+    ] : C.pith ? [   // v98: the Italian sun helmet: a tall dome, a brim all round, longer behind
+      RP_(RG.sph, RM4(0, 0.19, -0.01, 0.28, 0.24, 0.31), C.helm), RP_(RG.cyl, RM4(0, 0.13, -0.025, 0.41, 0.02, 0.47), C.helm), RP_(RG.cyl, RM4(0, 0.16, -0.01, 0.285, 0.035, 0.315), 0x9a8a62),
     ] : [
       RP_(RG.sph, RM4(0, 0.175, -0.005, 0.28, 0.25, 0.30), C.helm), RP_(RG.frust, RM4(0, 0.112, -0.015, 0.36, 0.075, 0.38), C.helm),
       RP_(RG.sph, RM4(0.135, 0.17, 0.02, 0.025, 0.025, 0.02), 0x3c4246), RP_(RG.sph, RM4(-0.135, 0.17, 0.02, 0.025, 0.025, 0.02), 0x3c4246),       // vent lugs
@@ -6315,7 +6334,7 @@ function mkUnit(cfg, isFoe) {
     alert: 0, seen: false, state: 'patrol', stateT: 0, lastX: 0, lastZ: 0,
     coverPt: null, coverT: 0, flanker: Math.random() < 0.42, onTarget: 0, react: 0,
     patrol: null, pIdx: 0, pWait: 0, cone: null, scanA: 0,
-    rapid: !!cfg.rapidFire, cmd: !!cfg.isCommander, nade: !!cfg.hasGrenade, nadeT: 4 + Math.random() * 6,
+    rapid: !!cfg.rapidFire, sleep: !!cfg.sleep, cmd: !!cfg.isCommander, nade: !!cfg.hasGrenade, nadeT: 4 + Math.random() * 6,
     barkT: 2 + Math.random() * 6, ref: cfg.ref || null,
     elev: cfg.elev || 0, light: null, dog: !!cfg.dog, handler: null, uid: (mkUnit.n = (mkUnit.n || 0) + 1),
   };
@@ -8255,6 +8274,184 @@ const MISSIONS = [
       ...[[.1, .5], [.9, .48], [.12, .8], [.88, .7], [.3, .45], [.7, .46], [.08, .1], [.94, .14], [.26, .06], [.76, .06]].map(([x, z], i) => ({ t: i % 2 ? 'rock' : 'bush', x, z })),
     ],
     spawnX: .5, spawnZ: .95, grenades: 3, reinf: 0, alertThreshold: .9,
+  },
+  {
+    // v96: North Africa, op 2 (notes/north-africa-theatre.md, A2), built from Khal's Devil's Garden sheets (assets/africa/a2-ref):
+    // a sapper party at Alamein. Night, a moon behind cloud. Our trench and wire to the south; forty metres of minefield
+    // (anti-tank mines in rows, anti-personnel between, tripwires); their wire, and beyond it the anti-tank gun in a
+    // sangar, an MG post covering their own marked gap, a listening post. Sweep and tape a lane to their wire (the bay
+    // at its end is cut), blow the gun, come back down the tape and fire the green flare. Star shells every half minute.
+    name: 'The Devil’s Garden', th: 'af', desert: 1, night: true, noExtras: true, noTraffic: true, roads: [], charges: 2,
+    obj: 'Tape a lane to their wire, blow the gun, fire the green flare',
+    sub: "Alamein · Night, the moon behind cloud · Star shells · North Africa", drawn: "Drawn from the gapping of the minefields at El Alamein, October 1942: sappers with detectors and white tape, a few yards ahead of the tanks.",
+    brief: "The enemy has sown half a million mines in front of Alamein and calls it the Devil’s Garden, which is what you call a place when you’d like nobody to walk through it. Tonight you walk through it. Sweep a lane forty metres across the field to their wire, and the tape goes down behind the detector so the tanks can follow. There is a gap of their own further along, nicely marked; their machine-gun would love you to use it. At the end of your lane the wire gets cut and the anti-tank gun gets blown. Then back down your own tape, and fire the green flare from our trench. Every so often they put up a star shell. When you hear it hiss, get down and lie still.",
+    scatter: 3, diff: 0.25,
+    wadi: { pts: [[-.05, .876], [.5, .874], [1.05, .876]], w: 2.4, d: 1.3, bank: 1.2, trench: true },   // our trench: a wadi with a sand floor
+    mines: { detector: true, fields: [
+      { x0: .01, z0: .30, x1: .56, z1: .70, ap: 40, atRows: [7, 5], wires: 6, marked: 'n', seed: 2.7 },
+      { x0: .62, z0: .30, x1: .72, z1: .70, ap: 6, atRows: [7, 5], wires: 1, marked: 'n', seed: 5.1 },
+      { x0: .72, z0: .30, x1: .99, z1: .70, dummy: true, marked: 'all' },
+    ] },
+    starShells: { every: [28, 42], dur: 6, first: 22, from: { x: .48, z: .07 }, area: { x0: .06, x1: .7, z0: .34, z1: .66 } },
+    objectives: [{ t: 'tape', label: 'Sweep and tape a lane to their wire' }, { t: 'destroy', what: 'gun', label: 'Blow the anti-tank gun' }, { t: 'flare', label: 'Back down your tape: fire the green flare from our trench' }],
+    extract: { x: .46, z: .95, r: 3.5 },
+    targets: [{ t: 'gun', x: .30, z: .12, a: 0 }],
+    enemies: [
+      { x: .275, z: .085, a: .2, range: 14, arc: Math.PI * .6, hp: 3 }, { x: .335, z: .09, a: -.3, range: 14, arc: Math.PI * .6, hp: 3 },
+      { x: .62, z: .10, a: -.05, range: 34, arc: Math.PI * .3, hp: 3, rapidFire: true },
+      { x: .84, z: .16, a: 0, range: 16, arc: Math.PI * .6, hp: 3 },
+      { x: .12, z: .11, a: .3, range: 12, arc: Math.PI * .6, hp: 3 },
+      { x: .1, z: .22, a: Math.PI * .5, range: 12, arc: Math.PI * .55, hp: 3, patrol: [{ x: .1, z: .22 }, { x: .92, z: .215 }] },
+    ],
+    obstacles: [
+      { t: 'dugout', x: .08, z: .04, w: .08, d: .04 },
+      { t: 'sangar', x: .30, z: .12, r: 3.3 }, { t: 'sangar', x: .62, z: .10, r: 2.4 }, { t: 'sangar', x: .84, z: .16, r: 2 },
+      { t: 'crate', x: .36, z: .07 }, { t: 'crate', x: .46, z: .06 }, { t: 'drums', x: .19, z: .13 },
+      { t: 'cwire', z: .262, x0: 0, x1: .56, cut: true }, { t: 'cwire', z: .262, x0: .62, x1: 1 },
+      { t: 'pegs', x: .56, z0: .30, z1: .70, step: 4 }, { t: 'pegs', x: .62, z0: .30, z1: .70, step: 4 },
+      { t: 'cwire', z: .735, x0: 0, x1: 1, gaps: [[.17, .27]] },
+      { t: 'parapet', z: .858, x0: 0, x1: 1, gaps: [[.19, .25], [.43, .49]] },
+      { t: 'crate', x: .32, z: .905 }, { t: 'crate', x: .6, z: .9 }, { t: 'drums', x: .72, z: .905 },
+      ...[[.06, .2], [.4, .18], [.55, .2], [.74, .07], [.95, .1], [.9, .3], [.04, .78], [.36, .8], [.66, .79], [.92, .8], [.1, .97], [.8, .97]].map(([x, z], i) => ({ t: i % 3 ? 'bush' : 'rock', x, z })),
+    ],
+    spawnX: .22, spawnZ: .95, grenades: 3, reinf: 1, alertThreshold: .6,
+  },
+  {
+    // v97: North Africa, op 3 (notes/north-africa-theatre.md, A3), built from Khal's Lewes Bombs sheets (assets/africa/a3-ref):
+    // an Axis airfield at night, no moon. A gravel runway west–east; five aircraft each side of it in dispersal (fighters,
+    // biplanes, three-engined transports); aircrew tents and the control hut north; a flak pit east; the fuel and bomb
+    // dumps south; the perimeter wire with a gap. A bomb on eight aircraft (the first starts a 3:00 fuse for all), then
+    // out to the red lamp before they go.
+    name: 'Lewes Bombs', th: 'af', desert: 1, night: true, noExtras: true, noTraffic: true, roads: [], fuse: 180,
+    obj: 'Bombs on eight aircraft, then out to the red lamp before they go',
+    sub: "An Axis airfield · Night, no moon · Timed bombs · North Africa", drawn: "Drawn from the December 1941 night raids on the Axis airfields at Tamet and Sirte.",
+    brief: "Ten aircraft parked either side of a gravel runway, guarded by men who think three hundred miles of desert makes a fine fence. In through the gap in the wire; a bomb on the wing root of eight of them; out again. Each bomb is a bag of plastic explosive and thermite with a time pencil in it, and the first one you place starts every fuse: three minutes, then they go up one after another, and anyone standing near one goes up with it. The aircrew are asleep in their tents and the flak crew are half awake. The guard on the south side has a dog. The trucks are waiting at the red lamp.",
+    scatter: 3, diff: 0.35,
+    grounds: [{ k: 'gravel', x0: 0, z0: .385, x1: 1, z1: .51 }],
+    targets: [
+      { t: 'plane', type: 'fighter', x: .12, z: .30, a: 0 }, { t: 'plane', type: 'biplane', x: .28, z: .31, a: 0 }, { t: 'plane', type: 'fighter', x: .44, z: .30, a: 0 },
+      { t: 'plane', type: 'transport', x: .62, z: .285, a: 0 }, { t: 'plane', type: 'fighter', x: .82, z: .31, a: 0 },
+      { t: 'plane', type: 'biplane', x: .14, z: .61, a: Math.PI }, { t: 'plane', type: 'transport', x: .32, z: .615, a: Math.PI }, { t: 'plane', type: 'fighter', x: .52, z: .61, a: Math.PI },
+      { t: 'plane', type: 'biplane', x: .70, z: .62, a: Math.PI }, { t: 'plane', type: 'transport', x: .88, z: .60, a: Math.PI },
+      { t: 'dump', x: .91, z: .735 },
+    ],
+    objectives: [{ t: 'bombs', n: 8, label: 'Bombs on the aircraft' }, { t: 'extract', label: 'Out through the gap to the red lamp' }],
+    extract: { x: .16, z: .95, r: 4 },
+    enemies: [
+      { x: .1, z: .105, a: 0, range: 12, arc: Math.PI * .6, hp: 3, sleep: true }, { x: .26, z: .105, a: .3, range: 12, arc: Math.PI * .6, hp: 3, sleep: true },
+      { x: .34, z: .135, a: -.2, range: 12, arc: Math.PI * .6, hp: 3, sleep: true }, { x: .42, z: .105, a: .1, range: 12, arc: Math.PI * .6, hp: 3, sleep: true },
+      { x: .64, z: .13, a: 0, range: 12, arc: Math.PI * .6, hp: 3 },
+      { x: .915, z: .455, a: -1.4, range: 22, arc: Math.PI * .5, hp: 3, rapidFire: true }, { x: .935, z: .44, a: -1.9, range: 12, arc: Math.PI * .6, hp: 3 },
+      { x: .06, z: .35, a: Math.PI * .5, range: 13, arc: Math.PI * .55, hp: 3, patrol: [{ x: .06, z: .35 }, { x: .96, z: .35 }] },
+      { x: .96, z: .565, a: -Math.PI * .5, range: 13, arc: Math.PI * .55, hp: 3, patrol: [{ x: .96, z: .565 }, { x: .06, z: .57 }] },
+      { x: .40, z: .72, a: -.35, range: 12, arc: Math.PI * .6, hp: 3 },
+      { x: .42, z: .735, dog: true, handler: 9, hp: 2, range: 7 },
+    ],
+    obstacles: [
+      ...[[.10, .06], [.18, .08], [.26, .06], [.34, .09], [.42, .06]].map(([x, z]) => ({ t: 'tent', x, z, a: 0 })),
+      { t: 'house', x: .555, z: .02, w: 9, d: 6 }, { t: 'mast', x: .705, z: .05 },
+      { t: 'crate', x: .52, z: .06 }, { t: 'drums', x: .67, z: .1 },
+      { t: 'sangar', x: .92, z: .46, r: 2.8, o: -Math.PI / 2 }, { t: 'flak', x: .92, z: .46, a: -1.4 },
+      { t: 'dashes', z0: .458, z1: .443, x0: .02, x1: .98 },
+      { t: 'bdump', x: .04, z: .70, w: .08, d: .05 },
+      { t: 'crate', x: .25, z: .69 }, { t: 'crate', x: .6, z: .68 }, { t: 'drums', x: .78, z: .7 },
+      { t: 'cwire', z: .80, x0: 0, x1: .36 }, { t: 'cwire', z: .80, x0: .42, x1: 1 },
+      { t: 'rlamp', x: .155, z: .925 },
+      ...[[.04, .88], [.28, .86], [.56, .9], [.7, .86], [.86, .92], [.96, .84], [.5, .97], [.02, .2], [.5, .17], [.96, .2], [.9, .03], [.3, .2]].map(([x, z], i) => ({ t: i % 3 ? 'bush' : 'rock', x, z })),
+    ],
+    spawnX: .40, spawnZ: .95, grenades: 3, reinf: 2, alertThreshold: .6,
+  },
+  {
+    // v98: North Africa, op 4 (notes/north-africa-theatre.md, A4), built from Khal's Fort sheets (assets/africa/a4-ref): the
+    // Italian fort at Murzuk. A whitewashed fort, an MG in each corner tower, a crumbled stretch of the west wall by the
+    // dunes; the airstrip, its hangar and an aircraft north-west; the oasis and its palms east; the village south-east.
+    // Afternoon heat (haze from the start), and from 3:00 the ghibli comes and goes. An Italian garrison of twelve.
+    name: 'The Fort', th: 'af', desert: 1, italian: true, light: 'desert', noExtras: true, noTraffic: true, roads: [], charges: 2, fuse: 40,
+    obj: 'Blow the wireless mast, burn the hangar and the aircraft, fire the flare',
+    sub: "Murzuk · Afternoon heat · The ghibli from 3:00 · North Africa", drawn: "Drawn from the raid on the Italian fort and airfield at Murzuk, January 1941.",
+    brief: "A whitewashed fort in the middle of nowhere, a machine-gun in each corner tower, an airfield behind it, and a garrison who reckon nobody would cross a thousand miles of sand to bother them. Somebody has. Blow the wireless mast first, so nobody can tell anyone. Then burn the hangar and the aircraft on the strip, and fire the flare to bring the trucks in. The west wall has crumbled where it meets the dunes. At three minutes the ghibli comes in: a sandstorm that blinds the towers and fills your tracks, and then clears and leaves everything in plain sight. Use it. The villagers by the oasis would rather not be involved, and you’ll oblige them.",
+    scatter: 3, diff: 0.45, haze: 1, sandFill: 70,
+    squalls: { first: 180, on: [25, 40], off: [35, 55] },
+    grounds: [{ k: 'gravel', x0: 0, z0: .045, x1: .33, z1: .135 }, { k: 'dune', x0: -.02, z0: .6, x1: .3, z1: 1.02 }],
+    water: [{ x1: .765, z1: .37, x2: .91, z2: .47, still: true }],
+    targets: [{ t: 'radio', x: .565, z: .475 }, { t: 'plane', type: 'fighter', x: .22, z: .09, a: Math.PI / 2 }, { t: 'hangar', x: .10, z: .19, w: .12, d: .08 }],
+    objectives: [{ t: 'destroy', what: 'radio', label: 'Blow the wireless mast first' }, { t: 'destroy', whats: ['plane', 'dump'], label: 'Burn the hangar and the aircraft' }, { t: 'flare', label: 'Fire the flare for the trucks' }],
+    extract: { x: .46, z: .96, r: 3.5 },
+    enemies: [
+      { x: .34, z: .30, a: -2.36, range: 24, arc: Math.PI * .5, hp: 3, tower: 'mg', rapidFire: true }, { x: .64, z: .30, a: 2.36, range: 24, arc: Math.PI * .5, hp: 3, tower: 'mg', rapidFire: true },
+      { x: .34, z: .60, a: -.785, range: 24, arc: Math.PI * .5, hp: 3, tower: 'mg', rapidFire: true }, { x: .64, z: .60, a: .785, range: 24, arc: Math.PI * .5, hp: 3, tower: 'mg', rapidFire: true },
+      { x: .29, z: .25, a: Math.PI / 2, range: 13, arc: Math.PI * .55, hp: 3, patrol: [{ x: .29, z: .25 }, { x: .69, z: .25 }, { x: .69, z: .66 }, { x: .29, z: .66 }] },
+      { x: .69, z: .66, a: -Math.PI / 2, range: 13, arc: Math.PI * .55, hp: 3, patrol: [{ x: .69, z: .66 }, { x: .29, z: .66 }, { x: .29, z: .25 }, { x: .69, z: .25 }] },
+      { x: .45, z: .43, a: 0, range: 12, arc: Math.PI * .6, hp: 3 }, { x: .58, z: .53, a: -1.2, range: 12, arc: Math.PI * .6, hp: 3 }, { x: .50, z: .55, a: 2.6, range: 12, arc: Math.PI * .6, hp: 3 },
+      { x: .49, z: .64, a: 0, range: 13, arc: Math.PI * .6, hp: 3 },
+      { x: .20, z: .145, a: .4, range: 13, arc: Math.PI * .6, hp: 3 }, { x: .16, z: .255, a: -.6, range: 11, arc: Math.PI * .6, hp: 3 },
+    ],
+    obstacles: [
+      { t: 'ftower', x: .34, z: .30 }, { t: 'ftower', x: .64, z: .30 }, { t: 'ftower', x: .34, z: .60 }, { t: 'ftower', x: .64, z: .60 },
+      { t: 'fwall', x0: .362, z0: .30, x1: .618, z1: .30 }, { t: 'fwall', x0: .64, z0: .322, x1: .64, z1: .578 },
+      { t: 'fwall', x0: .362, z0: .60, x1: .46, z1: .60 }, { t: 'fwall', x0: .52, z0: .60, x1: .618, z1: .60 },
+      { t: 'fwall', x0: .34, z0: .322, x1: .34, z1: .455 }, { t: 'fwall', x0: .34, z0: .505, x1: .34, z1: .578 },
+      { t: 'rubble', x: .337, z: .48, w: .05 },
+      { t: 'gate', x: .46, z: .594, w: .06, d: .012 },
+      { t: 'house', style: 'fortw', x: .38, z: .335, w: 10, d: 6 }, { t: 'house', style: 'fortw', x: .52, z: .36, w: 8, d: 7 }, { t: 'house', style: 'fortw', x: .40, z: .48, w: 6, d: 6 },
+      { t: 'crate', x: .5, z: .37 }, { t: 'crate', x: .6, z: .45 }, { t: 'drums', x: .37, z: .56 },
+      { t: 'drums', x: .18, z: .17 }, { t: 'crate', x: .03, z: .25 },
+      { t: 'house', style: 'mud', x: .72, z: .64, w: 5, d: 6 }, { t: 'house', style: 'mud', x: .80, z: .68, w: 5, d: 4 }, { t: 'house', style: 'mud', x: .88, z: .64, w: 5, d: 4 },
+      { t: 'house', style: 'mud', x: .76, z: .74, w: 5, d: 4 }, { t: 'house', style: 'mud', x: .86, z: .76, w: 5, d: 4 }, { t: 'house', style: 'mud', x: .94, z: .72, w: 5, d: 4 },
+      { t: 'well', x: .80, z: .58 },
+      ...[[.765, .37], [.91, .37], [.765, .47], [.91, .47], [.84, .365], [.77, .42], [.905, .42], [.83, .475]].map(([x, z], i) => ({ t: i % 2 ? 'rock' : 'bush', x, z })),
+      ...[[.74, .34], [.78, .33], [.83, .32], [.88, .33], [.92, .36], [.94, .41], [.93, .46], [.89, .49], [.84, .5], [.79, .49], [.75, .47], [.73, .41], [.86, .29], [.97, .5], [.84, .7], [.92, .7]].map(([x, z]) => ({ t: 'palm', x, z })),
+      ...[[.2, .4], [.3, .48], [.22, .7], [.4, .75], [.48, .78], [.6, .82], [.12, .5], [.5, .2], [.7, .14], [.9, .15], [.95, .9], [.7, .92]].map(([x, z], i) => ({ t: i % 3 ? 'bush' : 'rock', x, z })),
+    ],
+    spawnX: .14, spawnZ: .94, grenades: 3, reinf: 2, alertThreshold: .6,
+  },
+  {
+    // v99: North Africa, op 5 (notes/north-africa-theatre.md, A5), built from Khal's Green Mountain sheets (assets/africa/a5-ref):
+    // the Jebel Akhdar, the green hills behind the coast. Night and pouring rain. A colonial villa in a walled compound (an
+    // enterable building: the commander's office at its east end), the guardroom, staff cars, the generator shed; a
+    // cypress avenue down to a mud road; a ruined temple; terraces and a shepherd's hut. Not desert: battledress and
+    // field grey, wet green scrub. Mud takes deep prints; the rain drowns footsteps.
+    name: 'Green Mountain', th: 'af', night: true, weather: 'heavy', mud: true, noExtras: true, noTraffic: true, charges: 2,
+    obj: 'The plans from the office, the generator blown, back down to the wadi',
+    sub: "The Jebel Akhdar · Night, pouring rain · North Africa", drawn: "Drawn from the commando raid on a headquarters in the Jebel Akhdar, November 1941.",
+    brief: "Up from the beach in the wettest weather the Green Mountain has seen in years, to a colonial villa the enemy has made a headquarters. The commander keeps his plans in his office at the east end. Take them. Then blow the generator in the yard, and every lamp in the compound goes out with it. Then back down to the wadi and the beach before anyone works out which way you went. The back gate by the kitchen is the quiet way in. Mud takes deep prints, and anyone who finds yours will follow them. The rain drowns your footsteps, and the shepherd’s dog drowns everything else if you run past its hut.",
+    scatter: 16, diff: 0.55, rise: { z0: .4, z1: 1, h: 5 },
+    roads: [{ k: 'track', w: 4, pts: [[-.02, .93], [.36, .71], [.5, .57], [.51, .43]] }],
+    buildings: [
+      { x: .36, z: .10, w: .26, d: .14, doorX: .47, doorZ: .23, doorW: .05, doorD: .02, style: 'stone', wall: 0xd8c8a0, roof: 0xa04a30, floor: 0x8a6a4a, walls: [{ x: .66, z: 0, w: .03, d: .55 }] },
+    ],
+    intel: { x: .575, z: .13 },
+    targets: [{ t: 'gen', x: .695, z: .31 }],
+    barker: { x: .86, z: .765 },
+    objectives: [{ t: 'take', label: 'The plans from the commander’s office' }, { t: 'destroy', what: 'turbine', label: 'Blow the generator: lights out' }, { t: 'extract', label: 'Back down to the wadi' }],
+    extract: { x: .10, z: .95, r: 5 },
+    enemies: [
+      { x: .51, z: .455, a: 0, range: 14, arc: Math.PI * .6, hp: 3 },
+      { x: .29, z: .285, a: .7, range: 13, arc: Math.PI * .6, hp: 3 },
+      { x: .24, z: .015, a: Math.PI / 2, range: 12, arc: Math.PI * .55, hp: 3, patrol: [{ x: .24, z: .015 }, { x: .785, z: .015 }, { x: .785, z: .45 }, { x: .24, z: .45 }] },
+      { x: .785, z: .45, a: -Math.PI / 2, range: 12, arc: Math.PI * .55, hp: 3, patrol: [{ x: .785, z: .45 }, { x: .24, z: .45 }, { x: .24, z: .015 }, { x: .785, z: .015 }] },
+      { x: .08, z: .9, a: -1, range: 12, arc: Math.PI * .55, hp: 3, patrol: [{ x: .08, z: .9 }, { x: .36, z: .72 }, { x: .49, z: .48 }] },
+      { x: .60, z: .36, a: .3, range: 11, arc: Math.PI * .6, hp: 3 }, { x: .42, z: .28, a: -.5, range: 11, arc: Math.PI * .6, hp: 3 },
+      { x: .40, z: .17, a: 0, range: 9, arc: Math.PI * .6, hp: 3 }, { x: .585, z: .165, a: 2.5, range: 8, arc: Math.PI * .6, hp: 3 },
+      { x: .66, z: .355, a: -.4, range: 11, arc: Math.PI * .6, hp: 3 },
+    ],
+    obstacles: [
+      { t: 'fwall', x0: .26, z0: .04, x1: .76, z1: .04, h: 2.4, col: 0xcbb890 }, { t: 'fwall', x0: .26, z0: .04, x1: .26, z1: .42, h: 2.4, col: 0xcbb890 },
+      { t: 'fwall', x0: .76, z0: .04, x1: .76, z1: .14, h: 2.4, col: 0xcbb890 }, { t: 'fwall', x0: .76, z0: .19, x1: .76, z1: .42, h: 2.4, col: 0xcbb890 },
+      { t: 'fwall', x0: .26, z0: .42, x1: .48, z1: .42, h: 2.4, col: 0xcbb890 }, { t: 'fwall', x0: .54, z0: .42, x1: .76, z1: .42, h: 2.4, col: 0xcbb890 },
+      { t: 'gate', x: .48, z: .414, w: .06, d: .012 },
+      { t: 'house', style: 'fortw', x: .29, z: .30, w: 9, d: 7 },
+      { t: 'car', x: .45, z: .34, a: Math.PI }, { t: 'car', x: .49, z: .34, a: Math.PI }, { t: 'car', x: .53, z: .34, a: Math.PI },
+      { t: 'crate', x: .64, z: .26 }, { t: 'drums', x: .74, z: .34 }, { t: 'crate', x: .32, z: .07 },
+      { t: 'poles', z: .30, x0: .77, x1: 1, gap: 8 },
+      ...[[.40, .48], [.435, .53], [.40, .58], [.62, .48], [.62, .53], [.625, .585]].map(([x, z]) => ({ t: 'tree', x, z, kind: 'pineTall' })),
+      { t: 'temple', x: .14, z: .55, w: .14, d: .10 },
+      ...[.64, .69, .74, .79, .84, .89, .94].map((z, i) => ({ t: 'drywall', z, x0: .66 + (.94 - z) * .03, x1: 1, gaps: [i % 2 ? [.88, .91] : [.74, .77]] })),
+      { t: 'house', style: 'stone', x: .84, z: .70, w: 6, d: 5 },
+      ...[[.16, .3], [.08, .38], [.2, .44], [.06, .7], [.24, .78], [.3, .62], [.46, .7], [.55, .8], [.6, .66], [.9, .5], [.96, .4], [.86, .2], [.94, .08], [.14, .1], [.04, .2]].map(([x, z], i) => ({ t: 'tree', x, z, kind: i % 3 ? 'broad' : 'pine' })),
+      ...[[.3, .52], [.2, .66], [.4, .86], [.66, .6], [.8, .54], [.12, .82], [.5, .9]].map(([x, z], i) => ({ t: i % 2 ? 'rock' : 'bush', x, z })),
+    ],
+    spawnX: .56, spawnZ: .95, grenades: 3, reinf: 2, alertThreshold: .6,
   }
 ];
 
@@ -8785,6 +8982,7 @@ function steerMove(u, tx, tz, speed, dt) {
   if (u.fixed) return false;
   if (SNOW) { if (!u.foe && skiChangeT > 0 && !u.sniper) return false; speed *= snowGo(u); }   // v78
   if (sweepOn && !u.foe) speed *= 0.4;   // v94: sweeping for mines
+  if (SAND && sandZones.length) { const zz = sandAt(u.x, u.z); if (zz.k === 'dune') speed *= 1 - 0.3 * zz.f; }   // v98: soft sand is slow going
   const dx = tx - u.x, dz = tz - u.z, d = Math.hypot(dx, dz);
   if (d < 0.001) return false;
   const want = Math.atan2(dx, dz);
@@ -9379,6 +9577,12 @@ function flashScreen(v) { const f = $('flash'); f.style.transition = 'none'; f.s
 // how quickly this enemy builds awareness of this grunt, per second
 function detectRate(e, s) {
   const d = dst(e, s);
+  if (e.sleep && globalAlert < 2) return 0;   // v97: asleep in the tent, until the first bang
+  if (wx && wx.sand && d > 15) return 0;   // v98: in the ghibli nobody sees past fifteen metres
+  if (starOn(s) && !e.dog) {   // v96: in a star shell's light, standing: every eye is on the field (that's why they fired it), out to daylight range and more
+    const FR = e.visionRange * (night ? 1.6 / 0.6 : 1.6);
+    if (d < FR && hasLOS(e.x, e.z, s.x, s.z, e.elev)) return (2.2 * (1 - d / FR) + 0.7) * (s.moving ? 1.3 : 0.9);
+  }
   if (d > e.visionRange) return 0;
   if (caves.length && inCave(s.x, s.z) && !(e.dog && d < 3)) return 0;
   if (s.inCulv) return 0;   // v93: crawling under the road   // v86: in the snow cave nobody sees you; the dog smells you at the door
@@ -10042,11 +10246,14 @@ function mkUnderpass(T) {
    Documents are picked up by walking a man to them; the extraction point is a green flare at the map edge. */
 let targets = [], intel = null, extractPt = null, objSteps = [], objIdx = 0, pbHinted = false;
 const OBJ_LABEL = {
+  tape: s => { const c = Math.max(0, ...mineFields.filter(R => !R.dummy).map(tapeCover)); return `${s.label || 'Tape a lane through the minefield'} (${Math.round(c * 100)}%)`; },   // v96
+  flare: s => s.label || 'Fire the green flare',
+  bombs: s => { const L = targets.filter(t => t.kind === 'plane'); return `${s.label || 'Bombs on the aircraft'} (${L.filter(t => t.bombed).length}/${s.n} of ${L.length})`; },   // v97
   kill: () => 'Kill every enemy', commander: () => 'Kill the commander', rescue: () => 'Reach the hostage',
   liberate: () => 'Kill the guards, free the prisoners',
   free: () => { const n = prisoners.filter(h => h.rescued).length; return `Free the prisoners (${n}/${prisoners.length})`; },
   killTag: s => { const L = ens.filter(e => e.tag === s.tag); return `Ambush the ${s.tag} (${L.filter(e => e.dead).length}/${L.length})`; }, watch: s => `${s.label || 'Note the traffic from the hide'} (${s.count || 0}/${s.n})`, lift: s => `${s.label || 'Lift mines'} (${Math.min(mineLifted, s.n)}/${s.n})`, take: () => 'Take the documents', extract: () => 'Get out: reach the green flare',
-  destroy: s => { const L = targets.filter(t => !s.what || t.kind === s.what), n = L.filter(t => t.dead).length, nm = { pillbox: 'pillbox', radio: 'radio', bridge: 'bridge', lorry: 'fuel lorry', gun: 'gun' }[s.what] || 'target';
+  destroy: s => { const L = targets.filter(t => s.whats ? s.whats.includes(t.kind) : !s.what || t.kind === s.what), n = L.filter(t => t.dead).length, nm = { pillbox: 'pillbox', radio: 'radio', bridge: 'bridge', lorry: 'fuel lorry', gun: 'gun' }[s.what] || 'target';
     return L.length > 1 ? `Destroy the ${nm}s (${n}/${L.length})` : `Destroy the ${nm}`; },
 };
 const propMatI = propMat.clone();
@@ -10530,6 +10737,355 @@ function mkHide(x, z, a) {
   m.position.set(x, groundY(x, z), z); m.rotation.y = a || 0; propRoot.add(m);
   return { type: 'bush', x, z, radius: 2.0, mesh: m, tall: false, conceal: true, pass: true };
 }
+// v96: A2's kit, from Khal's Devil's Garden sheets (assets/africa/a2-ref)
+// a sangar: sandbags in three courses on a footing of stones, open at the back (o: the way the gap faces). Low: cover,
+// not a wall. The ring is a chain of small round obstacles, so a man walks in through the gap
+function mkSangar(x, z, r, o) {
+  const p = [], out = [], n = Math.max(8, Math.round(r * 2 * Math.PI / 0.85));
+  for (let i = 0; i < n; i++) {
+    const a = i / n * Math.PI * 2; if (Math.abs(angDiff(a, o)) < 0.6) continue;
+    const bx = Math.sin(a) * r, bz = Math.cos(a) * r;
+    for (let k = 0; k < 3; k++) p.push({ g: GEO.box, m: M4(bx, 0.16 + k * 0.28, bz, 0.8 - k * 0.06, 0.28, 0.44, a + (k % 2) * 0.14), c: [0xb49a6a, 0xa48a5c, 0xbca472][(i + k) % 3] });
+    p.push({ g: GEO.sph, m: M4(bx * 1.13, 0.1, bz * 1.13, 0.7, 0.28, 0.5, a), c: 0x9a8a70 });
+    if (i % 2 === 0) out.push({ type: 'sangar', x: x + bx, z: z + bz, radius: 0.5, tall: false, cover: true });
+  }
+  const m = new THREE.Mesh(mergeGeos(p), propMat); m.castShadow = true; m.receiveShadow = true;
+  m.position.set(x, groundY(x, z) - 0.04, z); propRoot.add(m);
+  return out;
+}
+// a dugout: a pit roofed with timber and sandbags, the roof a little above the sand, steps down at the front
+function mkDugout(x, z, w, d) {
+  const p = [];
+  p.push({ g: GEO.box, m: M4(0, 0.25, 0, w, 0.5, d), c: 0x9a8662 });
+  for (let i = 0; i < Math.round(w / 0.5); i++) p.push({ g: GEO.box, m: M4(-w / 2 + 0.25 + i * 0.5, 0.55, 0, 0.42, 0.1, d + 0.3), c: [0x6e5436, 0x7a5e3c][i % 2] });
+  for (let i = 0; i < Math.round(w / 0.9); i++) for (const s of [-1, 1]) p.push({ g: GEO.box, m: M4(-w / 2 + 0.45 + i * 0.9, 0.72, s * (d / 2 - 0.3), 0.8, 0.26, 0.44, (i % 3 - 1) * 0.1), c: [0xb49a6a, 0xa48a5c][i % 2] });
+  p.push({ g: GEO.box, m: M4e(0, 0.3, d / 2 + 0.5, 1.2, 0.05, 1.0, -0.4), c: 0x5a4632 }, { g: GEO.box, m: M4(0, 0.6, d / 2 + 0.05, 1.0, 0.9, 0.08), c: 0x2a2018 });
+  p.push({ g: GEO.box, m: M4(w / 2 - 0.6, 0.85, 0, 0.5, 0.4, 0.5), c: 0x5a5a48 });
+  const m = new THREE.Mesh(mergeGeos(p), propMat); m.castShadow = true; m.receiveShadow = true;
+  m.position.set(x + w / 2, groundY(x + w / 2, z + d / 2) - 0.05, z + d / 2); propRoot.add(m);
+  return { type: 'dugout', x, z, w, d, cx: x + w / 2, cz: z + d / 2, mesh: m, tall: false, cover: true };
+}
+// concertina wire: coils on crossed pickets, a metre high, in 6 m bays. It stops a man but not a look. A bay marked
+// `cut` (the tape objective's end) comes out when the lane reaches it: the wire is rebuilt without it
+let cwires = [], cwireMesh = null;
+const CW_GEO = new THREE.TorusGeometry(0.5, 0.022, 3, 10);
+function mkCWire(z, x0, x1, gaps, cuttable) {
+  const n = Math.max(1, Math.round((x1 - x0) / 6)), L = (x1 - x0) / n, out = [];
+  for (let i = 0; i < n; i++) {
+    const a = x0 + i * L, b = a + L, c = (a + b) / 2;
+    if ((gaps || []).some(([g0, g1]) => c > g0 && c < g1)) continue;
+    const B = { x0: a, x1: b, z, cut: false, cuttable: !!cuttable };
+    B.ob = { type: 'cwire', x: a, z: z - 0.55, w: L, d: 1.1, tall: false, cover: false, bay: B };
+    cwires.push(B); out.push(B.ob);
+  }
+  buildCWire();
+  return out;
+}
+function buildCWire() {
+  if (cwireMesh) { propRoot.remove(cwireMesh); cwireMesh.geometry.dispose(); cwireMesh = null; }
+  const p = [];
+  for (const B of cwires) {
+    if (B.cut) continue;
+    const L = B.x1 - B.x0, k = Math.max(2, Math.round(L / 0.62));
+    for (let i = 0; i < k; i++) { const x = B.x0 + (i + 0.5) * L / k, y = groundY(x, B.z); p.push({ g: CW_GEO, m: M4(x, y + 0.46, B.z + Math.sin(i * 1.7) * 0.06, 0.92, 0.92, 0.92, 0.18 * (i % 2 ? 1 : -1), Math.PI / 2), c: 0x5c5a52 }); }
+    for (const x of [B.x0 + 0.3, B.x1 - 0.3]) { const y = groundY(x, B.z); for (const s of [-1, 1]) p.push({ g: GEO.box, m: M4(x, y + 0.5, B.z, 0.06, 1.15, 0.06, 0, s * 0.35), c: 0x4a3c2c }); }
+    boxAlong(p, [B.x0, groundY(B.x0, B.z) + 0.95, B.z], [B.x1, groundY(B.x1, B.z) + 0.95, B.z], 0.012, 0.012, 0x3a3a34);
+  }
+  if (!p.length) return;
+  cwireMesh = new THREE.Mesh(mergeGeos(p), metalMat); cwireMesh.castShadow = true; propRoot.add(cwireMesh);
+}
+// the bay nearest x on a cuttable line: out of the wire, out of the way
+function cutCWire(x, z) {
+  let B = null, bd = 1e9;
+  for (const q of cwires) { if (q.cut || !q.cuttable) continue; const d = Math.abs((q.x0 + q.x1) / 2 - x) + Math.abs(q.z - z) * 0.5; if (d < bd) { bd = d; B = q; } }
+  if (!B) return null;
+  B.cut = true; const j = obs.indexOf(B.ob); if (j >= 0) obs.splice(j, 1);
+  buildCWire(); buildGrid(); SFX.ui(); spawnParts((B.x0 + B.x1) / 2, groundY(B.x0, B.z) + 0.5, B.z, 8, 0x8a8a80, 3, 0.05, 0.5, 6);
+  return B;
+}
+// a line of short posts, white-topped: the marked edge of a lane
+function mkPegs(x, z0, z1, step) {
+  const p = [];
+  for (let z = z0; z <= z1 + 0.01; z += step) { const y = groundY(x, z); p.push({ g: GEO.box, m: M4(x, y + 0.4, z, 0.1, 0.8, 0.1), c: 0x4a3a2a }, { g: GEO.box, m: M4(x, y + 0.82, z, 0.12, 0.08, 0.12), c: 0xe8e2d4 }); }
+  const m = new THREE.Mesh(mergeGeos(p), propMat); m.castShadow = true; propRoot.add(m);
+}
+// our trench's parapet: sandbags along the lip, with the gaps the plan gives
+function mkParapet(z, x0, x1, gaps) {
+  const p = [], out = []; let run = null;
+  for (let x = x0; x < x1; x += 0.82) {
+    if ((gaps || []).some(([g0, g1]) => x > g0 && x < g1)) { run = null; continue; }
+    const y = groundY(x, z), i = Math.round(x / 0.82);
+    for (let k = 0; k < 2; k++) p.push({ g: GEO.box, m: M4(x + (k ? 0.4 : 0), y + 0.15 + k * 0.27, z + Math.sin(i) * 0.05, 0.78, 0.27, 0.44, (i % 3 - 1) * 0.06), c: [0xb49a6a, 0xa48a5c, 0xbca472][(i + k) % 3] });
+    if (!run) { run = { type: 'parapet', x, z: z - 0.3, w: 0.82, d: 0.6, tall: false, cover: true }; out.push(run); } else run.w = x + 0.82 - run.x;
+  }
+  const m = new THREE.Mesh(mergeGeos(p), propMat); m.castShadow = true; m.receiveShadow = true; propRoot.add(m);
+  return out;
+}
+// v97: A3's kit, from Khal's Lewes Bombs sheets (assets/africa/a3-ref). No markings on anything.
+// parked aircraft, three types, nose toward local +z (a: 0 faces south). hw: the fuselage's half-width, L its length,
+// wz: where the wing roots are along it (a bomb goes on one)
+const AC_DIM = { fighter: { hw: 0.55, L: 8.6, wz: 1.0 }, biplane: { hw: 0.5, L: 7.4, wz: 0.8 }, transport: { hw: 1.05, L: 15, wz: 1.2 } };
+function mkAircraft(T, type) {
+  const p = [], D = AC_DIM[type] || AC_DIM.fighter, H = Math.PI / 2;
+  const prop = (y, z, n, r) => { for (let k = 0; k < n; k++) p.push({ g: GEO.box, m: M4e(0, y, z, 0.1, r, 0.04, 0, 0, k * Math.PI * 2 / n + 0.3), c: 0x2a2826 }); };
+  const wheels = (xs, z, r) => { for (const x of xs) p.push({ g: GEO.box, m: M4(x, r + 0.3, z, 0.08, 0.8, 0.08), c: 0x3a3a34 }, { g: GEO.cyl, m: M4e(x, r, z, r * 2, 0.18, r * 2, 0, 0, H), c: 0x1e1e1c }); };
+  if (type === 'transport') {   // a three-engined transport, corrugated skin, grey
+    const C = 0x8c8a80, Dk = 0x6c6a62;
+    p.push({ g: GEO.box, m: M4(0, 2.1, 0.6, 2.1, 2.2, 9), c: C }, { g: GEO.box, m: M4(0, 2.05, 5.5, 1.6, 1.8, 1.2), c: C });
+    p.push({ g: GEO.cone, m: M4e(0, 2.35, -6.1, 1.9, 4.2, 2.0, -H), c: C });
+    for (let i = 0; i < 5; i++) p.push({ g: GEO.box, m: M4(-0.8 + i * 0.4, 3.22, 0.6, 0.03, 0.03, 9), c: Dk });
+    for (const s of [-1, 1]) for (let i = 0; i < 6; i++) p.push({ g: GEO.box, m: M4(s * 1.06, 2.5, 3.6 - i * 1.15, 0.02, 0.34, 0.5), c: 0x2a2e30 });
+    p.push({ g: GEO.box, m: M4(0, 1.45, 1.2, 18, 0.22, 3.3), c: C }, { g: GEO.box, m: M4(0, 1.47, 1.2, 18.1, 0.05, 0.5), c: Dk });
+    p.push({ g: GEO.cyl, m: M4e(0, 2.0, 6.3, 1.15, 0.9, 1.15, H), c: 0x4a4a44 }); prop(2.0, 6.8, 3, 2.6);
+    for (const s of [-1, 1]) { p.push({ g: GEO.cyl, m: M4e(s * 4.2, 1.55, 3.0, 1.0, 1.8, 1.0, H), c: 0x4a4a44 }); p.push({ g: GEO.box, m: M4e(s * 4.2, 1.55, 3.95, 0.1, 2.4, 0.04, 0, 0, 0.6), c: 0x2a2826 }); }
+    p.push({ g: GEO.box, m: M4(0, 2.6, -7.4, 6.2, 0.1, 1.7), c: C }, { g: GEO.box, m: M4(0, 3.6, -7.7, 0.1, 2.2, 1.9), c: C });
+    wheels([-4.2, 4.2], 2.6, 0.5); wheels([0], -7.6, 0.2);
+  } else if (type === 'biplane') {   // a biplane fighter, sand yellow
+    const C = 0xb8a062, Dk = 0x8a7848;
+    p.push({ g: GEO.box, m: M4(0, 1.45, 0.4, 0.95, 1.05, 4.8), c: C }, { g: GEO.cone, m: M4e(0, 1.55, -2.9, 0.9, 3.0, 0.9, -H), c: C });
+    p.push({ g: GEO.cyl, m: M4e(0, 1.45, 3.0, 1.2, 0.5, 1.2, H), c: 0x4a4a40 }); prop(1.45, 3.3, 2, 2.4);
+    p.push({ g: GEO.box, m: M4(0, 2.75, 0.9, 9.2, 0.1, 1.5), c: C }, { g: GEO.box, m: M4(0, 1.0, 0.8, 8.6, 0.1, 1.4), c: C });
+    for (const s of [-1, 1]) { p.push({ g: GEO.box, m: M4e(s * 3.0, 1.88, 0.85, 0.06, 1.75, 0.06, 0, 0, -s * 0.06), c: 0x5a4a32 }); p.push({ g: GEO.box, m: M4(s * 0.5, 2.25, 0.9, 0.05, 0.95, 0.05), c: 0x5a4a32 }); }
+    p.push({ g: GEO.box, m: M4(0, 1.9, -0.2, 0.6, 0.3, 0.6), c: 0x2a2e30 });
+    p.push({ g: GEO.box, m: M4(0, 1.6, -3.7, 3.0, 0.07, 0.8), c: C }, { g: GEO.box, m: M4(0, 2.2, -3.9, 0.07, 1.1, 0.9), c: Dk });
+    wheels([-0.9, 0.9], 1.4, 0.35);
+  } else {   // a single-engined fighter, low wing, olive grey
+    const C = 0x7c7a62, Dk = 0x5e5c48;
+    p.push({ g: GEO.cyl, m: M4e(0, 1.35, 1.2, 1.05, 4.2, 1.05, H), c: C }, { g: GEO.cone, m: M4e(0, 1.45, -2.6, 1.0, 3.6, 0.9, -H), c: C });
+    p.push({ g: GEO.cyl, m: M4e(0, 1.35, 3.5, 1.12, 0.6, 1.12, H), c: 0x3a3a34 }, { g: GEO.cone, m: M4e(0, 1.35, 3.95, 0.3, 0.4, 0.3, H), c: 0x3a3a34 }); prop(1.35, 3.9, 3, 2.3);
+    p.push({ g: GEO.box, m: M4(0, 1.0, 1.0, 10, 0.12, 1.9), c: C }, { g: GEO.box, m: M4(0, 1.02, 0.3, 10.05, 0.04, 0.3), c: Dk });
+    p.push({ g: GEO.sph, m: M4(0, 1.95, 0.4, 0.6, 0.55, 1.5), c: 0x2a3036 });
+    p.push({ g: GEO.box, m: M4(0, 1.55, -3.9, 3.4, 0.08, 0.9), c: C }, { g: GEO.box, m: M4(0, 2.2, -4.0, 0.08, 1.3, 1.1), c: Dk });
+    wheels([-1.3, 1.3], 1.4, 0.32); wheels([0], -3.9, 0.14);
+  }
+  const yaw = T.a || 0, m = new THREE.Mesh(mergeGeos(p), propMat); m.castShadow = true; m.receiveShadow = true;
+  m.position.set(T.x, groundY(T.x, T.z), T.z); m.rotation.y = yaw; propRoot.add(m);
+  // the progress ring at the wing root nearest the runway side (the side men come from is either; the ring is a marker)
+  const rx = T.x + Math.cos(yaw) * (D.hw + 0.9) + Math.sin(yaw) * D.wz, rz = T.z - Math.sin(yaw) * (D.hw + 0.9) + Math.cos(yaw) * D.wz;
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.7, 0.85, 30, 1, 0, 0.001), basic(0xffb347, { transparent: true, opacity: 0.85, depthWrite: false, side: THREE.DoubleSide }).clone());
+  ring.rotation.x = -Math.PI / 2; ring.position.set(rx, groundY(rx, rz) + 0.08, rz); ring.renderOrder = 3; fxRoot.add(ring);
+  Object.assign(T, { mesh: m, ring, work: 0, D, type });
+  const ns = Math.abs(Math.cos(yaw)) > 0.7, hw = ns ? D.hw : D.L / 2, hd = ns ? D.L / 2 : D.hw;
+  return { type: 'plane', x: T.x - hw, z: T.z - hd, w: hw * 2, d: hd * 2, tall: false, cover: true, cx: T.x, cz: T.z };
+}
+// a man is at the wing root: beside the fuselage, within the wing's chord or so
+function atWingRoot(T, u) {
+  const dx = u.x - T.x, dz = u.z - T.z, c = Math.cos(T.a || 0), s = Math.sin(T.a || 0), lx = dx * c - dz * s, lz = dx * s + dz * c;
+  return Math.abs(lx) < T.D.hw + 2.2 && Math.abs(lz - T.D.wz) < 2.6;
+}
+// the fuel dump: drums on pallets, jerrycans, a target that burns like the lorry
+function mkFuelDump(T) {
+  const p = [];
+  p.push({ g: GEO.box, m: M4(0, 0.06, 0, 4.4, 0.12, 3.2), c: 0x6a5238 });
+  for (let i = 0; i < 4; i++) for (let j = 0; j < 3; j++) { const x = -1.6 + i * 1.05, z = -1.0 + j * 1.0, c = [0x4a5240, 0x5a5a48, 0x6b4a2a][(i + j) % 3];
+    p.push({ g: GEO.cyl, m: M4(x, 0.57, z, 0.66, 0.9, 0.66), c }, { g: GEO.cyl, m: M4(x, 0.95, z, 0.6, 0.03, 0.6), c: 0x2a2622 }); }
+  for (let i = 0; i < 3; i++) p.push({ g: GEO.box, m: M4(2.6 + (i % 2) * 0.35, 0.25, -0.8 + i * 0.6, 0.18, 0.5, 0.36, i * 0.3), c: 0x4a5236 });
+  const m = new THREE.Mesh(mergeGeos(p), propMat); m.castShadow = true; m.receiveShadow = true;
+  m.position.set(T.x, groundY(T.x, T.z), T.z); propRoot.add(m);
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.7, 0.85, 30, 1, 0, 0.001), basic(0xffb347, { transparent: true, opacity: 0.85, depthWrite: false, side: THREE.DoubleSide }).clone());
+  ring.rotation.x = -Math.PI / 2; ring.position.set(T.x - 3, groundY(T.x, T.z) + 0.08, T.z); ring.renderOrder = 3; fxRoot.add(ring);
+  Object.assign(T, { mesh: m, ring, work: 0 });
+  return { type: 'dump', x: T.x - 2.2, z: T.z - 1.6, w: 4.4, d: 3.2, tall: false, cover: true, cx: T.x, cz: T.z };
+}
+// an aircrew tent: a ridge tent of sun-faded canvas, guy ropes, a dark doorway at the front (+z)
+function mkTent(x, z, a) {
+  const p = [], w = 3.4, d = 4.2, H = 2.2, sl = Math.hypot(w / 2, H), ang = Math.atan2(H, w / 2);
+  for (const s of [-1, 1]) p.push({ g: GEO.box, m: M4(s * w / 4, H / 2, 0, sl, 0.05, d, 0, s * -ang), c: s < 0 ? 0xa89a6a : 0x988a5c });
+  p.push({ g: GEO.box, m: M4(0, H * 0.4, d / 2 - 0.02, 0.9, H * 0.8, 0.04), c: 0x2a241a }, { g: GEO.box, m: M4(0, H * 0.45, -d / 2, w * 0.7, H * 0.85, 0.04), c: 0x9a8c60 });
+  p.push({ g: GEO.box, m: M4(0, H + 0.02, 0, 0.08, 0.08, d + 0.3), c: 0x5a4a32 });
+  for (const zz of [-d / 2 - 0.15, d / 2 + 0.15]) p.push({ g: GEO.box, m: M4(0, H / 2, zz, 0.07, H, 0.07), c: 0x5a4a32 });
+  for (const s of [-1, 1]) for (const zz of [-1.4, 0, 1.4]) boxAlong(p, [s * w / 2, 0.15, zz], [s * (w / 2 + 0.9), 0.02, zz], 0.015, 0.015, 0x8a7e60);
+  const m = new THREE.Mesh(mergeGeos(p), propMat); m.castShadow = true; m.receiveShadow = true;
+  m.position.set(x, groundY(x, z), z); m.rotation.y = a || 0; propRoot.add(m);
+  return { type: 'tent', x: x - w / 2, z: z - d / 2, w, d, cx: x, cz: z, tall: true, cover: true };
+}
+// the control hut's radio mast with its guys, and the windsock on its own pole
+function mkMast(x, z) {
+  const p = [], y = 0;
+  p.push({ g: GEO.box, m: M4(0, 4.5, 0, 0.12, 9, 0.12), c: 0x4a4a44 });
+  for (let k = 0; k < 3; k++) { const a = k * 2.094; boxAlong(p, [0, 8.6, 0], [Math.sin(a) * 3.2, 0, Math.cos(a) * 3.2], 0.012, 0.012, 0x3a3a34); }
+  p.push({ g: GEO.box, m: M4(2.6, 2.6, -1.2, 0.07, 5.2, 0.07), c: 0x6a5a40 });
+  for (let i = 0; i < 4; i++) p.push({ g: GEO.cyl, m: M4e(2.6 + 0.3 + i * 0.35, 5.0 - i * 0.06, -1.2, 0.5 - i * 0.07, 0.36, 0.5 - i * 0.07, 0, 0, -Math.PI / 2 + 0.15), c: i % 2 ? 0xe8e2d4 : 0xc83a2a });
+  const m = new THREE.Mesh(mergeGeos(p), propMat); m.castShadow = true;
+  m.position.set(x, groundY(x, z), z); propRoot.add(m);
+  return { type: 'mast', x: x - 0.3, z: z - 0.3, w: 0.6, d: 0.6, tall: false, cover: false };
+}
+// a 20 mm flak gun on its pedestal, barrel up, a shield (for the flak pit's sangar)
+function mkFlak(x, z, a) {
+  const p = [];
+  p.push({ g: GEO.cyl, m: M4(0, 0.35, 0, 1.4, 0.2, 1.4), c: 0x4a4a40 }, { g: GEO.cyl, m: M4(0, 0.75, 0, 0.35, 0.8, 0.35), c: 0x5a5a4c });
+  p.push({ g: GEO.box, m: M4(0, 1.2, 0, 0.6, 0.4, 1.0), c: 0x6a684e }, { g: GEO.box, m: M4(0, 1.35, 0.55, 1.2, 0.8, 0.05), c: 0x7a7858 });
+  p.push({ g: GEO.cyl, m: M4e(0, 1.9, 1.1, 0.09, 2.4, 0.09, 0.75), c: 0x2a2a26 }, { g: GEO.box, m: M4(0.4, 1.25, -0.1, 0.2, 0.4, 0.3), c: 0x3a3a30 });
+  for (let i = 0; i < 4; i++) p.push({ g: GEO.box, m: M4(-1.1 + (i % 2) * 0.4, 0.15 + Math.floor(i / 2) * 0.22, -0.9, 0.36, 0.2, 0.26), c: 0x4a5236 });
+  const m = new THREE.Mesh(mergeGeos(p), propMat); m.castShadow = true;
+  m.position.set(x, groundY(x, z), z); m.rotation.y = a || 0; propRoot.add(m);
+  return { type: 'flak', x: x - 0.8, z: z - 0.8, w: 1.6, d: 1.6, tall: false, cover: true, cx: x, cz: z };
+}
+// the bomb dump: bombs on pallets under a tarpaulin on a pole frame
+function mkBombDump(x, z, w, d) {
+  const p = [];
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) p.push({ g: GEO.box, m: M4(sx * (w / 2 - 0.2), 0.8, sz * (d / 2 - 0.2), 0.12, 1.6, 0.12), c: 0x6a5238 });
+  p.push({ g: GEO.box, m: M4(0, 1.7, 0, w + 0.3, 0.06, d + 0.3), c: 0x8a8058 });
+  for (const s of [-1, 1]) p.push({ g: GEO.box, m: M4(0, 1.15, s * (d / 2 + 0.12), w + 0.3, 1.1, 0.05), c: 0x7e7450 });
+  p.push({ g: GEO.box, m: M4(0, 0.1, 0, w - 0.6, 0.2, d - 0.6), c: 0x6a5238 });
+  for (let i = 0; i < 5; i++) for (let j = 0; j < 2; j++) p.push({ g: GEO.cyl, m: M4e(-w / 2 + 0.9 + i * (w - 1.8) / 4, 0.42, -0.5 + j * 1.0, 0.42, 1.4, 0.42, Math.PI / 2), c: 0x4a5040 });
+  const m = new THREE.Mesh(mergeGeos(p), propMat); m.castShadow = true; m.receiveShadow = true;
+  m.position.set(x + w / 2, groundY(x + w / 2, z + d / 2), z + d / 2); propRoot.add(m);
+  return { type: 'bdump', x, z, w, d, cx: x + w / 2, cz: z + d / 2, tall: true, cover: true };
+}
+// the rendezvous: a red lamp on a post, a red pool of light on the sand (no light added: an additive disc)
+function mkRLamp(x, z) {
+  const y = groundY(x, z), p = [{ g: GEO.box, m: M4(0, 0.8, 0, 0.08, 1.6, 0.08), c: 0x3a3a34 }, { g: GEO.box, m: M4(0.18, 1.55, 0, 0.36, 0.05, 0.05), c: 0x3a3a34 }];
+  const m = new THREE.Mesh(mergeGeos(p), propMat); m.position.set(x, y, z); propRoot.add(m);
+  const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 6), basic(0xff3a28, { fog: false }).clone()); bulb.position.set(x + 0.36, y + 1.42, z); propRoot.add(bulb);
+  const pool = new THREE.Mesh(new THREE.CircleGeometry(2.6, 24), basic(0xff4a30, { transparent: true, opacity: 0.2, depthWrite: false, blending: THREE.AdditiveBlending, fog: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }).clone());
+  pool.rotation.x = -Math.PI / 2; pool.position.set(x + 0.3, y + 0.3, z); pool.renderOrder = 2; propRoot.add(pool);
+}
+// the runway's centre line: white dashes on the gravel
+function mkDashes(z0, z1, x0, x1) {
+  const p = [];
+  for (let x = x0; x < x1; x += 7) { const t = (x - x0) / (x1 - x0), z = z0 + (z1 - z0) * t; p.push({ g: GEO.box, m: M4(x, groundY(x, z) + 0.02, z, 3.2, 0.03, 0.35, Math.atan2(z0 - z1, x1 - x0)), c: 0xe8e2d4 }); }
+  const m = new THREE.Mesh(mergeGeos(p), propMat); m.receiveShadow = true; propRoot.add(m);
+}
+// v98: A4's kit, from Khal's Fort sheets (assets/africa/a4-ref): a whitewashed desert fort, crenellated, with square corner
+// towers; the hangar on the strip; the oasis palms and the well; the village's mud-brick houses (NORB 'mud')
+const FORT_W = 0xe6dfcc, FORT_D = 0xcfc5ac, FORT_H = 4;
+// a straight run of fort wall from (x0, z0) to (x1, z1), 1.4 m thick, merlons along the top. Blocks sight and men
+function mkFWall(x0, z0, x1, z1, O) {
+  O = O || {}; const FH = O.h || FORT_H, FC = O.col || FORT_W, FD = O.col ? new THREE.Color(O.col).multiplyScalar(0.85).getHex() : FORT_D, th = O.h ? 0.7 : 1.4;   // v99: O = { h, col, plain }: the villa's compound wall
+  const L = Math.hypot(x1 - x0, z1 - z0), a = Math.atan2(x1 - x0, z1 - z0), p = [], cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
+  p.push({ g: GEO.box, m: M4(0, FH / 2 - 0.3, 0, th, FH + 0.6, L), c: FC });
+  p.push({ g: GEO.box, m: M4(0, 0.25, 0, th + 0.3, 0.5, L + 0.2), c: FD });
+  if (O.plain) { for (let t = -L / 2; t <= L / 2 + 0.01; t += 4) p.push({ g: GEO.box, m: M4(0, FH / 2, t, th + 0.25, FH + 0.3, 0.6), c: FD }); p.push({ g: GEO.box, m: M4(0, FH + 0.05, 0, th + 0.12, 0.12, L), c: FD }); }
+  else for (let t = -L / 2 + 0.5; t < L / 2 - 0.3; t += 1.3) p.push({ g: GEO.box, m: M4(0.45, FORT_H + 0.3, t, 0.5, 0.6, 0.7), c: FORT_W }, { g: GEO.box, m: M4(-0.45, FORT_H + 0.3, t, 0.5, 0.6, 0.7), c: FORT_W });
+  if (!O.plain) for (let t = -L / 2 + 2; t < L / 2 - 1; t += 5.5) for (const s of [-1, 1]) p.push({ g: GEO.box, m: M4(s * 0.71, FORT_H * 0.6, t, 0.03, 0.4, 0.22), c: 0x2a2620 }, { g: GEO.cyl, m: M4e(s * 0.8, FORT_H - 0.4, t + 1.2, 0.09, 0.5, 0.09, 0, 0, Math.PI / 2), c: 0x6a5238 });
+  const m = new THREE.Mesh(mergeGeos(p), propMat); m.castShadow = true; m.receiveShadow = true;
+  m.position.set(cx, Math.min(groundY(x0, z0), groundY(x1, z1)) - 0.05, cz); m.rotation.y = a; propRoot.add(m);
+  const ns = Math.abs(x1 - x0) < Math.abs(z1 - z0);
+  return { type: 'fwall', x: ns ? cx - th / 2 - 0.05 : Math.min(x0, x1), z: ns ? Math.min(z0, z1) : cz - th / 2 - 0.05, w: ns ? th + 0.1 : L, d: ns ? L : th + 0.1, cx, cz, tall: true, cover: true, h: FH };
+}
+// a corner tower: a square whitewashed keep the height of a watchtower (TOWER_H), merlons, an MG slit. Its obstacle is a
+// 'tower', so an enemy given `tower: 'mg'` stands on top of it
+function mkFTower(x, z) {
+  const S = 4.4, H = TOWER_H, p = [];
+  p.push({ g: GEO.box, m: M4(0, H / 2 - 0.3, 0, S, H + 0.6, S), c: FORT_W }, { g: GEO.box, m: M4(0, 0.3, 0, S + 0.5, 0.6, S + 0.5), c: FORT_D });
+  p.push({ g: GEO.box, m: M4(0, H + 0.02, 0, S - 0.5, 0.06, S - 0.5), c: 0x9a8a66 });
+  for (let i = 0; i < 4; i++) for (const s of [-1, 1]) { const t = -S / 2 + 0.45 + i * (S - 0.9) / 3; p.push({ g: GEO.box, m: M4(t, H + 0.35, s * (S / 2 - 0.25), 0.55, 0.7, 0.5), c: FORT_W }, { g: GEO.box, m: M4(s * (S / 2 - 0.25), H + 0.35, t, 0.5, 0.7, 0.55), c: FORT_W }); }
+  for (const [u, v] of [[0, 1], [1, 0], [0, -1], [-1, 0]]) p.push({ g: GEO.box, m: M4(u * (S / 2 + 0.01), H * 0.62, v * (S / 2 + 0.01), v ? 0.6 : 0.03, 0.3, u ? 0.6 : 0.03), c: 0x2a2620 });
+  p.push({ g: GEO.box, m: M4(0.8, H + 0.55, -0.6, 0.6, 0.4, 0.5), c: 0x6a5238 });
+  const m = new THREE.Mesh(mergeGeos(p), propMat); m.castShadow = true; m.receiveShadow = true;
+  m.position.set(x, groundY(x, z) - 0.05, z); propRoot.add(m);
+  return { type: 'tower', x: x - S / 2, z: z - S / 2, w: S, d: S, cx: x, cz: z, mesh: m, tall: true, cover: true, h: H };
+}
+// rubble where the wall has fallen: low cover, walkable round
+function mkRubble(x, z, w) {
+  const p = [];
+  for (let i = 0; i < 16; i++) { const u = (hash2(i, x) - 0.5) * w, v = (hash2(z, i) - 0.5) * 3, s = 0.35 + hash2(i, 3.3) * 0.5; p.push({ g: GEO.box, m: M4(u, s * 0.4, v, s, s * 0.7, s * 0.9, i), c: [FORT_W, FORT_D, 0xb8ae98][i % 3] }); }
+  const m = new THREE.Mesh(mergeGeos(p), propMat); m.castShadow = true; m.receiveShadow = true; m.position.set(x, groundY(x, z), z); propRoot.add(m);
+}
+// the hangar: a half-round roof of corrugated iron on ribs, plank doors half open at the front (+z). A target (`hangar`:
+// it takes a bomb and burns like the dump)
+function mkHangar(T, w, d) {
+  const p = [], R = w / 2, n = 9;
+  for (let i = 0; i < n; i++) {
+    const a0 = Math.PI * i / n, a1 = Math.PI * (i + 1) / n, am = (a0 + a1) / 2, x = Math.cos(am) * R, y = Math.sin(am) * R * 0.75;
+    p.push({ g: GEO.box, m: M4(x, y, 0, R * Math.PI / n * 1.05, 0.08, d, 0, am - Math.PI / 2), c: i % 2 ? 0x8a7e66 : 0x7e735c });
+  }
+  for (let k = 0; k <= 4; k++) for (let i = 0; i < n; i++) { const am = Math.PI * (i + 0.5) / n; p.push({ g: GEO.box, m: M4(Math.cos(am) * (R + 0.05), Math.sin(am) * R * 0.75, -d / 2 + k * d / 4, R * Math.PI / n, 0.1, 0.1, 0, am - Math.PI / 2), c: 0x4a4038 }); }
+  p.push({ g: GEO.box, m: M4(0, R * 0.36, -d / 2, w - 0.4, R * 0.72, 0.1), c: 0x7a6e58 });
+  for (const s of [-1, 1]) p.push({ g: GEO.box, m: M4(s * (R - 1.4), R * 0.33, d / 2 + 0.1, 2.6, R * 0.66, 0.1, s * 0.25), c: 0x8a7a5a });
+  p.push({ g: GEO.box, m: M4(0, 0.03, d / 2 + 1.5, w, 0.06, 3), c: 0x9a907a });
+  for (let i = 0; i < 4; i++) p.push({ g: GEO.cyl, m: M4(R + 0.8, 0.45, d / 2 - 0.6 - i * 0.7, 0.6, 0.9, 0.6), c: [0x4a5240, 0x5a5a48][i % 2] });
+  const m = new THREE.Mesh(mergeGeos(p), propMat); m.castShadow = true; m.receiveShadow = true;
+  m.position.set(T.x, groundY(T.x, T.z), T.z); propRoot.add(m);
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.7, 0.85, 30, 1, 0, 0.001), basic(0xffb347, { transparent: true, opacity: 0.85, depthWrite: false, side: THREE.DoubleSide }).clone());
+  ring.rotation.x = -Math.PI / 2; ring.position.set(T.x, groundY(T.x, T.z) + 0.08, T.z + d / 2 + 1.2); ring.renderOrder = 3; fxRoot.add(ring);
+  Object.assign(T, { mesh: m, ring, work: 0, hangar: true, reach: Math.max(w, d) / 2 + 2 });
+  return { type: 'hangar', x: T.x - R, z: T.z - d / 2, w, d, cx: T.x, cz: T.z, tall: true, cover: true };
+}
+// the well: a ring of stone, a timber frame, a bucket on a rope
+function mkWell(x, z) {
+  const p = [];
+  for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2; p.push({ g: GEO.box, m: M4(Math.sin(a) * 0.8, 0.4, Math.cos(a) * 0.8, 0.55, 0.8, 0.3, a), c: [0xb8a888, 0xa89878][i % 2] }); }
+  p.push({ g: GEO.cyl, m: M4(0, 0.05, 0, 1.3, 0.1, 1.3), c: 0x1e2a2a });
+  for (const s of [-1, 1]) p.push({ g: GEO.box, m: M4(s * 1.0, 1.1, 0, 0.12, 2.2, 0.12), c: 0x5a4632 });
+  p.push({ g: GEO.box, m: M4(0, 2.15, 0, 2.3, 0.12, 0.12), c: 0x5a4632 }, { g: GEO.box, m: M4(0, 1.65, 0, 0.02, 1.0, 0.02), c: 0x8a7a5a }, { g: GEO.cyl, m: M4(0, 1.1, 0, 0.3, 0.3, 0.3), c: 0x6a5238 });
+  const m = new THREE.Mesh(mergeGeos(p), propMat); m.castShadow = true; m.position.set(x, groundY(x, z), z); propRoot.add(m);
+  return { type: 'well', x, z, radius: 1.0, tall: false, cover: true };
+}
+// date palms: a ringed, leaning trunk and a crown of drooping fronds, a few with dates. Batched into one mesh per op
+let palmBatch = [];
+function mkPalm(x, z, seed) {
+  const h = 5.5 + hash2(seed, 1) * 3, lean = (hash2(seed, 2) - 0.5) * 0.35, la = hash2(seed, 3) * 6.28, y = groundY(x, z);
+  const tx = x + Math.cos(la) * lean * h, tz = z + Math.sin(la) * lean * h;
+  for (let i = 0; i < 6; i++) { const t0 = i / 6, t1 = (i + 1) / 6; cylAlong(palmBatch, [x + (tx - x) * t0, y + h * t0, z + (tz - z) * t0], [x + (tx - x) * t1, y + h * t1, z + (tz - z) * t1], 0.2 - i * 0.015, i % 2 ? 0x7a6448 : 0x6a5640); }
+  const top = [tx, y + h, tz];
+  for (let k = 0; k < 9; k++) {
+    const a = k / 9 * 6.28 + seed, L = 2.4 + hash2(seed, k) * 0.8, dx = Math.cos(a), dz = Math.sin(a);
+    const mid = [top[0] + dx * L * 0.5, top[1] + 0.35, top[2] + dz * L * 0.5], end = [top[0] + dx * L, top[1] - 0.9, top[2] + dz * L];
+    boxAlong(palmBatch, top, mid, 0.75, 0.04, k % 2 ? 0x4e6a2e : 0x5e7a36, [0, 1, 0]); boxAlong(palmBatch, mid, end, 0.6, 0.04, k % 2 ? 0x4e6a2e : 0x5e7a36, [0, 1, 0]);
+  }
+  if (hash2(seed, 9) < 0.5) for (let k = 0; k < 3; k++) palmBatch.push({ g: GEO.sph, m: M4(top[0] + Math.cos(k * 2) * 0.35, top[1] - 0.35, top[2] + Math.sin(k * 2) * 0.35, 0.3, 0.45, 0.3), c: 0xc8762a });
+  return { type: 'palm', x, z, radius: 0.35, tall: false, cover: true };
+}
+function flushPalms() {
+  if (!palmBatch.length) return;
+  const m = new THREE.Mesh(mergeGeos(palmBatch), propMat); m.castShadow = true; propRoot.add(m); palmBatch = [];
+}
+// v99: A5's kit, from Khal's Green Mountain sheets (assets/africa/a5-ref): the villa compound's stone wall, the generator
+// shed (a charge target: lights out), a staff car parked, the ruined temple, dry-stone terrace walls
+// the generator shed: rendered stone, a corrugated lean-to roof, doors open on the generator. Target 'gen' (it works like
+// the turbine: it needs a charge); blown, the compound's lamps go out
+function mkGenShed(T) {
+  const p = [], w = 5, d = 4, H = 2.6;
+  p.push({ g: GEO.box, m: M4(0, H / 2, -d / 2 + 0.15, w, H, 0.3), c: 0xcbb890 });
+  for (const s of [-1, 1]) p.push({ g: GEO.box, m: M4(s * (w / 2 - 0.15), H / 2, 0, 0.3, H, d), c: 0xc0ac84 });
+  p.push({ g: GEO.box, m: M4(0, H + 0.15, 0, w + 0.5, 0.08, d + 0.6, 0, 0.05), c: 0x7a7468 });
+  p.push({ g: GEO.box, m: M4(0, 0.6, -0.3, 2.6, 0.9, 1.3), c: 0x3e5a44 }, { g: GEO.cyl, m: M4e(-0.6, 0.9, -0.3, 0.9, 1.0, 0.9, 0, 0, Math.PI / 2), c: 0x2e443a }, { g: GEO.cyl, m: M4(1.0, 1.4, -0.6, 0.18, 1.2, 0.18), c: 0x2a2a28 });
+  for (const s of [-1, 1]) p.push({ g: GEO.box, m: M4(s * 1.9, H * 0.45, d / 2 + 0.5, 1.2, H * 0.9, 0.08, s * 0.9), c: 0x6a5238 });
+  for (let i = 0; i < 2; i++) p.push({ g: GEO.cyl, m: M4(w / 2 + 0.6, 0.45, -0.8 + i * 0.7, 0.6, 0.9, 0.6), c: 0x4a5240 });
+  const m = new THREE.Mesh(mergeGeos(p), propMat); m.castShadow = true; m.receiveShadow = true;
+  m.position.set(T.x, groundY(T.x, T.z), T.z); propRoot.add(m);
+  const ring = new THREE.Mesh(new THREE.RingGeometry(3.0, 3.2, 36), basic(0xff8a3a, { transparent: true, opacity: 0.7, depthWrite: false, side: THREE.DoubleSide }).clone());
+  ring.rotation.x = -Math.PI / 2; ring.position.set(T.x, groundY(T.x, T.z) + 0.08, T.z); ring.renderOrder = 3; fxRoot.add(ring);
+  Object.assign(T, { mesh: m, ring, gen: true });
+  return { type: 'crate', x: T.x - w / 2, z: T.z - d / 2, w, d, tall: false, low: true, h: H, cover: true };
+}
+// a staff car, parked: the Kübelwagen model, still
+function mkStaffCar(x, z, a) {
+  const m = new THREE.Mesh(vehGeo('jeep', true), propMat); m.castShadow = true; m.receiveShadow = true;
+  m.position.set(x, groundY(x, z), z); m.rotation.y = a || 0; propRoot.add(m);
+  const ns = Math.abs(Math.cos(a || 0)) > 0.7, hw = ns ? 0.85 : 1.8, hd = ns ? 1.8 : 0.85;
+  return { type: 'car', x: x - hw, z: z - hd, w: hw * 2, d: hd * 2, cx: x, cz: z, tall: false, cover: true };
+}
+// the ruined temple: a stepped platform of pale blocks, two rows of columns (some broken), drums of fallen ones. Each
+// standing column hides a man
+function mkTemple(x, z, w, d) {
+  const p = [], out = [], C = [0xd8d0bc, 0xc8c0aa, 0xe2dccb];
+  p.push({ g: GEO.box, m: M4(0, 0.2, 0, w, 0.4, d), c: 0xb8b09a }, { g: GEO.box, m: M4(0, 0.5, 0, w - 1, 0.2, d - 1), c: 0xc8c0aa });
+  for (let i = 0; i < 4; i++) for (const s of [-1, 1]) {
+    const cx = -w / 2 + 1 + i * (w - 2) / 3, cz = s * (d / 2 - 0.6), h = hash2(i, s) < 0.35 ? 1.1 + hash2(s, i) : 4.2;
+    p.push({ g: GEO.cyl, m: M4(cx, 0.6 + h / 2, cz, 0.75, h, 0.75), c: C[(i + (s > 0 ? 1 : 0)) % 3] });
+    if (h > 3) p.push({ g: GEO.box, m: M4(cx, 0.6 + h + 0.12, cz, 1.0, 0.24, 1.0), c: C[2] });
+    out.push({ type: 'column', x: x + cx, z: z + cz, radius: 0.45, tall: h > 3, cover: true });
+  }
+  for (let k = 0; k < 5; k++) { const u = (hash2(k, 7) - 0.5) * (w + 4), v = (hash2(7, k) - 0.5) * (d + 4), a = hash2(k, 3) * 3; p.push({ g: GEO.cyl, m: M4e(u, 0.35, v, 0.7, 1.1, 0.7, 0, a, Math.PI / 2), c: C[k % 3] }); }
+  const m = new THREE.Mesh(mergeGeos(p), propMat); m.castShadow = true; m.receiveShadow = true;
+  m.position.set(x, groundY(x, z), z); propRoot.add(m);
+  return out;
+}
+// a dry-stone terrace wall along z from x0 to x1, waist-high, gaps where the steps are. Low cover; it stops a man
+function mkDryWall(z, x0, x1, gaps) {
+  const p = [], out = []; let run = null;
+  for (let x = x0; x < x1; x += 0.7) {
+    if ((gaps || []).some(([g0, g1]) => x > g0 && x < g1)) { run = null; continue; }
+    const y = groundY(x, z), i = Math.round(x / 0.7);
+    for (let k = 0; k < 2; k++) p.push({ g: GEO.box, m: M4(x + (k ? 0.3 : 0), y + 0.18 + k * 0.32, z + (hash2(i, k) - 0.5) * 0.1, 0.62, 0.32, 0.6, hash2(k, i) * 0.4 - 0.2), c: [0x9a917e, 0x8a826e, 0xa8a08a][(i + k) % 3] });
+    if (!run) { run = { type: 'drywall', x, z: z - 0.35, w: 0.7, d: 0.7, tall: false, cover: true }; out.push(run); } else run.w = x + 0.7 - run.x;
+  }
+  const m = new THREE.Mesh(mergeGeos(p), propMat); m.castShadow = true; m.receiveShadow = true; propRoot.add(m);
+  return out;
+}
 // telegraph poles along the road, wires slung between them; one leaning
 function mkPoles(z, x0, x1, gap) {
   const p = [], n = Math.max(1, Math.round((x1 - x0) / gap));
@@ -10583,7 +11139,7 @@ function mkCulvert(x, z, w, L) {
      quickens as he nears one; white tape behind him while he's in a field. A crawling man prods: he finds a mine within
      1.1 m before he reaches it. A grenade or a charge sets off any mine within 2.5 m. */
 const MINE_MAX = 160, MINE_SWEEP_R = 3.0, MINE_PROD_R = 1.1, MINE_STEP_R = 0.5, MINE_LIFT_T = 4;
-let mines = [], mineFields = [], sweepOn = false, mineLifted = 0, mineBeepT = 0, mineLift = null, mineSeen = {}, tapeN = 0, tapeLast = null;
+let mines = [], mineFields = [], sweepOn = false, mineLifted = 0, mineBeepT = 0, mineLift = null, mineSeen = {}, tapeN = 0, tapeLast = null, tapePts = [];
 const MINE_MAT = propMat.clone();   // instanced, no per-instance colour: its own program (r128)
 const MG = {};
 function mineMeshes() {
@@ -10612,7 +11168,7 @@ function clearMines() {
   const G = mineMeshes();
   for (const k of ['ap', 'at', 'flag', 'flagY', 'tape', 'patch']) G[k].count = 0;
   G.ring.visible = G.lift.visible = false;
-  mines = []; mineFields = []; sweepOn = false; mineLifted = 0; mineBeepT = 0; mineLift = null; mineSeen = {}; tapeN = 0; tapeLast = null;
+  mines = []; mineFields = []; sweepOn = false; mineLifted = 0; mineBeepT = 0; mineLift = null; mineSeen = {}; tapeN = 0; tapeLast = null; tapePts = [];
 }
 function buildMines(M) {
   clearMines();
@@ -10647,6 +11203,13 @@ function buildMines(M) {
       }
       return null;
     };
+    if (F.atRows) {   // v96: anti-tank mines in rows, as they were laid at Alamein: [row spacing, spacing along the row]
+      const [dz, dx] = F.atRows;
+      for (let z = R.z0 + dz / 2, j = 0; z < R.z1 - 1; z += dz, j++) for (let x = R.x0 + dx / 2 + (j % 2) * dx / 2; x < R.x1 - 1; x += dx) {
+        const qx = x + (hash2(x, z) - 0.5) * 0.8, qz = z + (hash2(z, x) - 0.5) * 0.8;
+        if (blocked(qx, qz, 0.4)) continue; put.push({ x: qx, z: qz }); mines.push({ k: 'at', x: qx, z: qz, live: true, found: false });
+      }
+    }
     for (let i = 0; i < (F.at || 0); i++) { const q = place('at', 40); if (q) mines.push({ k: 'at', x: q.x, z: q.z, live: true, found: false }); }
     for (let i = 0; i < (F.ap || 0); i++) { const q = place('ap', 40); if (q) mines.push({ k: 'ap', x: q.x, z: q.z, live: true, found: false }); }
     for (let i = 0; i < (F.wires || 0); i++) {
@@ -10702,6 +11265,12 @@ function mineBlast(m, victim) {
     showToast('MINE', `${victim.name} found it the hard way${nx ? `; ${nx.name} is hit` : ''}`);
   } else for (const q of sol) { if (!q.dead && Math.hypot(q.x - x, q.z - z) < 2.2) damage(q, 2, 'mine'); }
 }
+// v96: how much of a field's depth the tape covers, in 2 m bands (1 = a lane right through, unbroken)
+function tapeCover(R) {
+  const n = Math.max(1, Math.round((R.z1 - R.z0) / 2)), got = new Array(n).fill(false);
+  for (const [x, z] of tapePts) if (x > R.x0 - 1 && x < R.x1 + 1 && z > R.z0 - 1 && z < R.z1 + 1) got[Math.max(0, Math.min(n - 1, Math.floor((z - R.z0) / 2)))] = true;
+  return got.filter(Boolean).length / n;
+}
 // a grenade or a charge: any live mine near it goes too (the field's own Bangalore torpedo)
 function minesNear(x, z, r) { if (!mines.length) return; for (const m of mines) if (m.live && m.k !== 'wire' && Math.hypot(m.x - x, m.z - z) < r) mineBlast(m, null); }
 const mineAt = (x, z, r) => { let b = null, bd = r; for (const m of mines) { if (!m.live || !m.found || m.k === 'wire') continue; const d = Math.hypot(m.x - x, m.z - z); if (d < bd) { bd = d; b = m; } } return b; };
@@ -10747,7 +11316,7 @@ function stepMines(dt) {
       if (!tapeLast) tapeLast = [car.x, car.z];
       const dx = car.x - tapeLast[0], dz = car.z - tapeLast[1], d = Math.hypot(dx, dz);
       if (d > 0.9) { _me.set(0, Math.atan2(dx, dz) + Math.PI / 2, 0); _mq.setFromEuler(_me); _mv.set((car.x + tapeLast[0]) / 2, groundY(car.x, car.z) + 0.01, (car.z + tapeLast[1]) / 2); _ms.set(d, 1, 1);
-        G.tape.setMatrixAt(tapeN++, _mm.compose(_mv, _mq, _ms)); G.tape.count = tapeN; G.tape.instanceMatrix.needsUpdate = true; tapeLast = [car.x, car.z]; }
+        G.tape.setMatrixAt(tapeN++, _mm.compose(_mv, _mq, _ms)); G.tape.count = tapeN; G.tape.instanceMatrix.needsUpdate = true; tapePts.push([(car.x + tapeLast[0]) / 2, (car.z + tapeLast[1]) / 2]); tapeLast = [car.x, car.z]; }
     } else tapeLast = null;
   }
   // lifting: a man kneels by it for four seconds
@@ -10762,6 +11331,71 @@ function stepMines(dt) {
   const nev = sol.find(q => !q.dead && q.name === 'Nev');
   if (nev) for (const R of mineFields) if (R.dummy && !R.nevT && nev.x > R.x0 - 8 && nev.x < R.x1 + 8 && nev.z > R.z0 - 8 && nev.z < R.z1 + 8) { R.nevT = true; showToast('NEV', '“That one’s a dummy. Signs and wire, nothing in the ground.”'); bubble(nev, 'Dummy.', 1.4); }
 }
+/*───────────────────── v96: star shells ─────────────────────
+   A2's night counterpart of the heat haze (notes/north-africa-theatre.md §2C). Every half a minute or so the enemy
+   fires a star shell over the field: a pop and a hiss as it climbs (two seconds' warning), then a white glare on a
+   parachute for six. Anyone standing in its light is seen at daylight range and more; a prone man is only what he
+   always is, close to. The light is the lightning's trick (the ambient light pulsed), so no light is added and nothing
+   recompiles. M.starShells = { every: [lo, hi] s, dur, from: {x, z}, area: {x0, x1, z0, z1} } */
+const STAR_R = 26, STAR_UP = 2;
+let star = null, starT = 0, starLit = false, starToast = false;
+const starMesh = new THREE.Mesh(new THREE.SphereGeometry(0.5, 8, 6), new THREE.MeshBasicMaterial({ color: 0xfffbe8, fog: false }));
+const starPool = new THREE.Mesh(new THREE.CircleGeometry(STAR_R, 40), new THREE.MeshBasicMaterial({ color: 0xdfe8ff, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
+starPool.rotation.x = -Math.PI / 2; starPool.renderOrder = 2; starMesh.visible = starPool.visible = false; scene.add(starMesh); scene.add(starPool);
+function starOff() {
+  starLit = false; star = null; starMesh.visible = starPool.visible = false;
+  amb.intensity = nightMode ? 0.13 : LIGHT[lightName] && LIGHT[lightName].ai !== undefined ? LIGHT[lightName].ai : 0.16;
+}
+function resetStars(M) { starOff(); starToast = false; starT = M.starShells ? M.starShells.first || 20 : 1e9; }
+function stepStars(dt) {
+  const S = MISSIONS[missionIdx].starShells;
+  if (!S || phase !== 'play' || outcome) { if (star) starOff(); return; }
+  if (!star) {
+    starT -= dt; if (starT > 0) return;
+    const A = S.area, F = S.from;
+    star = { t: 0, fx: F.x * MW, fz: F.z * MH, x: (A.x0 + Math.random() * (A.x1 - A.x0)) * MW, z: (A.z0 + Math.random() * (A.z1 - A.z0)) * MH, popped: false };
+    starMesh.visible = true; starMesh.scale.setScalar(0.5); SFX.starShell(false);
+    if (!starToast) { starToast = true; showToast('STAR SHELL', 'going up: anyone standing in its light is seen. CRAWL, and lie still till it fades'); }
+  }
+  star.t += dt;
+  const t = star.t;
+  if (t < STAR_UP) {   // climbing, a spark and a trail of smoke
+    const k = t / STAR_UP, y = groundY(star.fx, star.fz) + 2 + (36 - 2) * Math.sin(k * Math.PI / 2);
+    starMesh.position.set(star.fx + (star.x - star.fx) * k, y, star.fz + (star.z - star.fz) * k);
+    if (Math.random() < dt * 30) spawnParts(starMesh.position.x, y - 0.4, starMesh.position.z, 1, 0xc8c4b8, 0.4, 0.18, 1.2, -0.5);
+    return;
+  }
+  if (!star.popped) {
+    star.popped = true; SFX.starShell(true); starMesh.scale.setScalar(1.6); starPool.visible = true;
+  }
+  const lt = t - STAR_UP;
+  if (lt > S.dur) { starOff(); starT = S.every[0] + Math.random() * (S.every[1] - S.every[0]); return; }
+  // on its parachute: drifting down, swinging, flickering; bright at once, fading over the last second and a half
+  const k = Math.min(1, lt / 0.25) * Math.min(1, (S.dur - lt) / 1.5) * (0.92 + Math.random() * 0.08);
+  starLit = k > 0.35;
+  const y = groundY(star.x, star.z) + 36 - lt * 2.6;
+  starMesh.position.set(star.x + Math.sin(lt * 1.3) * 0.8, y, star.z);
+  starPool.position.set(star.x, groundY(star.x, star.z) + 0.15, star.z); starPool.material.opacity = k * 0.16;
+  amb.intensity = (nightMode ? 0.13 : 0.16) + k * 1.5;
+}
+// v96: the green flare: fired up from the man in the ring, a string of green stars going up, and the tanks can come
+function fireGreen(u) {
+  SFX.starShell(false);
+  for (let i = 0; i < 7; i++) setTimeout(() => spawnParts(u.x, groundY(u.x, u.z) + 2 + i * 4, u.z, 6, 0x6cff5a, 1.5, 0.22, 1.4, -0.6), i * 110);
+}
+// v99: the shepherd's dog (M.barker = { x, z }): a man running past within 14 m sets it off. It is heard round the
+// hillside, and it carries on while he keeps running
+let barkT = 0, barkToast = false;
+function stepBarker(dt) {
+  const B = MISSIONS[missionIdx].barker; if (!B || phase !== 'play' || outcome) return;
+  barkT -= dt; if (barkT > 0) return;
+  const bx = B.x * MW, bz = B.z * MH;
+  if (!sol.some(q => !q.dead && !q.prone && q.moving && Math.hypot(q.x - bx, q.z - bz) < 14)) return;
+  barkT = 2.5; SFX.bark(bx, bz); noiseEvent(bx, bz, 45, 0.6);
+  if (!barkToast) { barkToast = true; showToast('THE SHEPHERD’S DOG', 'it doesn’t like men running past in the dark. Crawl, or walk wide'); }
+}
+// in the star shell's light, upright
+const starOn = s => starLit && !s.prone && Math.hypot(s.x - star.x, s.z - star.z) < STAR_R;
 const NORB = { rorbu: { wall: 0x8c2a20, trim: 0xe9e3d4, H: 2.7, door: 0x3a2e24, stilts: 0.85 },
   white: { wall: 0xdad5c8, trim: 0xf3f0e8, H: 5.3, door: 0x2f4a3c },
   billet: { wall: 0xc79231, trim: 0xefe9da, H: 5.3, door: 0x3c2c20 },
@@ -10785,7 +11419,10 @@ const NORB = { rorbu: { wall: 0x8c2a20, trim: 0xe9e3d4, H: 2.7, door: 0x3a2e24, 
   hotel: { wall: 0xdcd6c8, trim: 0xf3f0e8, H: 8.0, door: 0x3a2e24, rows: [1.5, 4.1, 6.6] },
   church: { wall: 0xe4dfd2, trim: 0xf6f3ec, H: 4.4, door: 0x3a2e24, spire: true, rows: [2.0], win: [0.8, 1.9] },
   // v92, from Khal's Road Watch sheet: the Italian roadhouse, faded red render, a flat roof, a water tank on legs
-  casa: { wall: 0xa8503e, trim: 0xd8ccb2, H: 3.6, door: 0x3e4a3a, solid: true, flat: true, tank: true } };
+  casa: { wall: 0xa8503e, trim: 0xd8ccb2, H: 3.6, door: 0x3e4a3a, solid: true, flat: true, tank: true },
+  fortw: { wall: 0xe2dbc6, trim: 0xcbc1a6, H: 3.3, door: 0x4a3a28, solid: true, flat: true, noChim: true },   // v98: whitewashed, inside the fort
+  mud: { wall: 0xb48e60, trim: 0x9a7650, H: 2.9, door: 0x4a3626, solid: true, flat: true, noChim: true },
+  stone: { wall: 0xa89a80, trim: 0x8a7e66, H: 2.6, door: 0x4a3626, solid: true, flat: true, noChim: true } };   // v99: the shepherd's hut   // v98: the village
 function mkNorBldg(x, z, w, d, kind) {
   const K = NORB[kind], H = K.H, seed = hash2(x * 0.37, z * 0.53), parts = [], tins = [], Q = { p: [], c: [] }, cx = x + w / 2, cz = z + d / 2;
   let gmin = 1e9, gmax = -1e9;
@@ -10874,7 +11511,7 @@ function mkNorBldg(x, z, w, d, kind) {
     parts.push({ g: GEO.box, m: M4(sx, 1.35, sz, 0.75, 0.6, 0.6), c: 0xece8de }, { g: GEO.prism, m: M4(sx, 1.65, sz, 0.85, 0.16, 0.7), c: 0xd8d4c8 });
   }
   let chimney = null;
-  if (kind !== 'shed') {
+  if (kind !== 'shed' && !K.noChim) {   // v98: no chimneys in the desert
     const chx = (seed > 0.5 ? 1 : -1) * w * 0.25, ch = R.rh + (K.turf ? 0.7 : 1.0);
     parts.push({ g: GEO.box, m: M4(chx, H + ch / 2, 0, 0.62, ch, 0.62), c: K.turf ? 0x6e6c66 : 0x6a3a2c }, { g: GEO.box, m: M4(chx, H + ch + 0.05, 0, 0.76, 0.1, 0.76), c: K.turf ? 0x55534e : 0x4a2a20 });
     chimney = [chx, H + ch + 0.15];
@@ -11096,8 +11733,12 @@ function buildTargets(M) {
     else if (t.t === 'otank') { T.kind = 'lorry'; T.oil = true; obs.push(mkOilTank(T)); }   // v75: burns like the lorry
     else if (t.t === 'fstore') { T.kind = 'lorry'; T.oil = true; obs.push(mkFishStore(T)); }   // v85: Måløy's warehouses, the same
     else if (t.t === 'gun') obs.push(mkGun(T));
+    else if (t.t === 'plane') obs.push(mkAircraft(T, t.type));   // v97
+    else if (t.t === 'dump') obs.push(mkFuelDump(T));
+    else if (t.t === 'hangar') { T.kind = 'dump'; obs.push(mkHangar(T, (t.w || .12) * MW, (t.d || .08) * MH)); }   // v98: burns like the dump
     else if (t.t === 'pipe') mkPipeT(T);   // v82
     else if (t.t === 'turbine') obs.push(mkTurbine(T));
+    else if (t.t === 'gen') { T.kind = 'turbine'; obs.push(mkGenShed(T)); }   // v99: the villa's generator: a charge target like the turbines
     else if (t.t === 'cells') obs.push(mkCells(T));   // v83
     else if (t.t === 'cornice') mkCornice(T);   // v84
     else if (t.t === 'bridge') { const r = bridgeZones[t.b || 0]; T.zone = r; T.mesh = bridges[t.b || 0]; T.x = (r.x0 + r.x1) / 2; T.z = (r.z0 + r.z1) / 2; }
@@ -11147,7 +11788,7 @@ function bigMoment(k) { slowT = Math.max(slowT, 0.75 * (k || 1)); camPull = Math
 function destroyTarget(T, how) {
   if (T.dead) return;
   T.dead = true;
-  if (how !== 'quiet' && T.kind !== 'radio') bigMoment(T.kind === 'bridge' || T.kind === 'lorry' ? 1.2 : 0.8);
+  if (how !== 'quiet' && T.kind !== 'radio' && !((T.kind === 'plane' || T.kind === 'dump') && targets.some(t => t !== T && t.fire))) bigMoment(T.kind === 'bridge' || T.kind === 'lorry' ? 1.2 : 0.8);
   if (T.kind === 'pillbox') {
     for (const u of T.crew) if (!u.dead) { u.inBox = null; u.boxed = true; killUnit(u, 'blast'); u.mesh.visible = false; if (u.F.rifle) u.F.rifle.visible = false; }
     T.mesh.material = pbScorch; T.smokeT = 30;
@@ -11163,6 +11804,12 @@ function destroyTarget(T, how) {
     lorryFireball(T); addSmoker(T.x, T.z, { life: 70, rate: 5, size: 2.2, col: 0x1e1d1c, a: 0.65, rise: 2.6, burst: 8 });   // v31
     if (T.oil) { const left = targets.filter(t => t.oil && !t.dead).length; showToast('FISH OIL ALIGHT', left ? `${left} still to go` : 'the whole harbour smells of it'); }   // v75
     else showToast('FUEL LORRY GONE', 'they will be walking tomorrow');
+  } else if (T.kind === 'plane' || T.kind === 'dump') {   // v97
+    lorryFireball(T); T.fire = true; T.ring.visible = false; if (T.bag) { fxRoot.remove(T.bag); T.bag = null; }
+    if (T.kind === 'plane') { T.mesh.rotation.z = 0.08; T.mesh.position.y -= 0.35; }
+    addSmoker(T.x, T.z, { life: 60, rate: 4, size: 2.4, col: 0x1e1d1c, a: 0.6, rise: 3, burst: 8 });
+    const L = targets.filter(t => t.kind === 'plane'), n = L.filter(t => t.dead).length;
+    if (missionTime - lewesToastT > 1.6 || n === L.length) { lewesToastT = missionTime; showToast(T.hangar ? 'HANGAR ALIGHT' : T.kind === 'dump' ? 'FUEL DUMP GOES UP' : 'AIRCRAFT BURNING', T.hangar ? 'and everything in it' : T.kind === 'dump' ? 'a fine orange glow over the whole airfield' : `${n} of ${L.length}`); }
   } else if (T.kind === 'gun') {
     T.mesh.rotation.z = how === 'quiet' ? 0 : 0.3; if (how !== 'quiet') { T.mesh.material = pbScorch; addSmoker(T.x, T.z, { life: 30, rate: 2.5, size: 1.3, col: 0x363431, a: 0.55 }); } T.ring.visible = false;
     spawnParts(T.x, groundY(T.x, T.z) + 1, T.z, how === 'quiet' ? 6 : 24, how === 'quiet' ? 0xd8d0b0 : 0xffa040, 6, 0.12, 0.6, 8);
@@ -11182,6 +11829,12 @@ function destroyTarget(T, how) {
     addSmoker(T.x, T.z, { life: 1e9, rate: 7, size: 2.6, col: 0xdfe6ec, a: 0.5, rise: 3.2, burst: 10, y: gy + 1.2 });   // the spray, for the rest of the op
     const left = targets.filter(t => t.kind === 'pipe' && !t.dead).length;
     showToast('PIPE BURST', left ? 'one to go' : 'the lake is coming down the mountain the quick way');
+  } else if (T.kind === 'turbine' && T.gen) {   // v99: the villa's generator. The lamps go out, and the sentries see less
+    T.ring.visible = false; T.mesh.material = pbScorch;
+    spawnParts(T.x, groundY(T.x, T.z) + 1.4, T.z, 30, 0xffa040, 9, 0.2, 0.8, 10);
+    addSmoker(T.x, T.z, { life: 60, rate: 3, size: 1.6, col: 0x24221f, a: 0.6, rise: 2.2, burst: 5 });
+    lightsOut = true; lampRoot.visible = false; for (const e of ens) if (!e.dead && !e.dog) e.visionRange *= 0.75;
+    showToast('LIGHTS OUT', 'every window in the compound goes dark');
   } else if (T.kind === 'turbine') {
     T.ring.visible = false; T.mesh.material = pbScorch; T.mesh.rotation.z = 0.08;
     spawnParts(T.x, groundY(T.x, T.z) + 1.6, T.z, 34, 0xffa040, 10, 0.2, 0.8, 10);
@@ -11216,6 +11869,7 @@ function blastTargets(x, z, kind, fromX, fromZ) {
     } else if (T.kind === 'radio' && kind !== 'shot' && Math.hypot(x - T.x, z - T.z) < 3.6) destroyTarget(T, 'blast');
     else if (T.kind === 'lorry' && kind !== 'shot' && Math.hypot(x - T.x, z - T.z) < 4.2) destroyTarget(T, 'blast');
     else if (T.kind === 'gun' && kind !== 'shot' && Math.hypot(x - T.x, z - T.z) < 3.4) destroyTarget(T, 'blast');
+    else if ((T.kind === 'plane' || T.kind === 'dump') && kind !== 'shot' && Math.hypot(x - T.x, z - T.z) < (T.reach ? T.reach + 0.5 : 3.6)) destroyTarget(T, 'blast');   // v97
     else if (T.kind === 'bridge' && kind === 'charge' && inRect(T.zone, x, z, 2.5)) destroyTarget(T, 'charge');
     else if (T.kind === 'cornice' && Math.hypot(x - T.x, z - T.z) < 4.5) { if (kind === 'charge') destroyTarget(T, 'charge'); else if (!T.hinted) { T.hinted = true; showToast('NEEDS A CHARGE', 'a grenade only dusts it: a charge in the lip'); } }   // v84
     else if ((T.kind === 'pipe' || T.kind === 'turbine' || T.kind === 'cells') && Math.hypot(x - T.x, z - T.z) < (T.kind === 'pipe' ? 3.4 : T.kind === 'cells' ? 5.2 : 4.2)) {   // v82 (v83: the cells)
@@ -11234,7 +11888,7 @@ const stepDone = s => {
     case 'rescue': return !!(hostage && hostage.rescued);
     case 'liberate': return !ens.some(e => !e.dead && !e.dog) && prisoners.every(h => h.rescued);
     case 'destroy': { if (s.alt && targets.some(t => t.kind === s.alt && t.dead)) return true;   // v84: or the other way (Ore Line: bury the line)
-      const L = targets.filter(t => !t.optional && (!s.what || t.kind === s.what)); return L.length > 0 && L.every(t => t.dead); }
+      const L = targets.filter(t => !t.optional && (s.whats ? s.whats.includes(t.kind) : !s.what || t.kind === s.what)); return L.length > 0 && L.every(t => t.dead); }
     case 'take': return !!(intel && intel.taken);
     case 'guide': return guideJoined;   // v81
     case 'free': return prisoners.length > 0 && prisoners.every(h => h.rescued);
@@ -11242,6 +11896,11 @@ const stepDone = s => {
     case 'hold': return (s.held || 0) >= s.time;   // v47
     case 'watch': return (s.count || 0) >= s.n;   // v92
     case 'lift': return mineLifted >= s.n;   // v94
+    case 'bombs': return targets.filter(t => t.kind === 'plane' && t.bombed).length >= s.n;   // v97
+    // v96: a lane taped right through a field, and a man at its far edge
+    case 'tape': { for (const R of mineFields) { if (R.dummy || tapeCover(R) < 0.9) continue;
+        const u = sol.find(q => !q.dead && q.x > R.x0 - 1.5 && q.x < R.x1 + 1.5 && q.z < R.z0 + 1.5 && q.z > R.z0 - 6); if (u) { s.at = u; return true; } } return false; }
+    case 'flare': { const u = extractPt && sol.find(q => !q.dead && Math.hypot(q.x - extractPt.x, q.z - extractPt.z) < extractPt.r); if (u) s.at = u; return !!u; }
     // the leader in the ring and the file close behind him (they walk in single file, so the last man trails by a few metres)
     case 'extract': { const live = sol.filter(q => !q.dead); return !!extractPt && live.length > 0 && Math.hypot(live[0].x - extractPt.x, live[0].z - extractPt.z) < extractPt.r && live.every(q => Math.hypot(q.x - extractPt.x, q.z - extractPt.z) < extractPt.r + 7) && !(hostage && hostage.rescued && Math.hypot(hostage.x - extractPt.x, hostage.z - extractPt.z) > extractPt.r + 7); }
   }
@@ -11347,10 +12006,35 @@ function updObjBar() {
   const s = objSteps[objIdx];
   if (!s) { el.style.display = 'none'; objBarHTML = ''; return; }
   // counts (patrol 2/4, prisoners 1/4, guns 1/3) refresh as they change; only touch the DOM when the text does
-  const lab = (s.t === 'killTag' || s.t === 'free' || s.t === 'destroy' || s.t === 'watch' || s.t === 'lift') ? OBJ_LABEL[s.t](s) + (s.label && s.t !== 'destroy' ? '' : '') : (s.label || OBJ_LABEL[s.t](s));
+  const lab = (s.t === 'killTag' || s.t === 'free' || s.t === 'destroy' || s.t === 'watch' || s.t === 'lift' || s.t === 'tape' || s.t === 'bombs') ? OBJ_LABEL[s.t](s) + (s.label && s.t !== 'destroy' ? '' : '') : (s.label || OBJ_LABEL[s.t](s));
   const opt = optSteps.map(o => `<div class="opt${o.done ? ' done' : ''}"><span>OPTIONAL</span> ${o.label || OPT_TXT[o.t]}${o.done ? ' ✓' : ''}</div>`).join('');   // v46
   const html = `<span>${objSteps.length > 1 ? `OBJECTIVE ${objIdx + 1}/${objSteps.length}` : 'OBJECTIVE'}</span> ${s.t === 'destroy' && s.label ? s.label + ' ' + (OBJ_LABEL.destroy(s).match(/\(\d+\/\d+\)/) || [''])[0] : lab}${opt}`;
   if (html !== objBarHTML) { objBarHTML = html; el.style.display = 'block'; el.innerHTML = html; }
+}
+/* v97: Lewes bombs (A3). A man at a wing root for a second and a half puts a bomb on (a bag of plastic and thermite with
+   a time pencil). The first one placed starts every fuse (M.fuse, 3:00); when it runs out, the bombed aircraft go up one
+   after another, each a fireball that hurts anyone within 9 m, and the whole airfield wakes. A bomb placed after that
+   has its own 25 s. Reaching the rendezvous with bombs still ticking brings them forward, so it's watched from the lamp. */
+let lewesEnd = -1, lewesN = 0, lewesToastT = -9;
+const LEWES_T = 1.5;
+function bombPlace(T, u) {
+  T.bombed = true; lewesN++; T.ring.visible = false;
+  const bag = new THREE.Mesh(mergeGeos([{ g: GEO.box, m: M4(0, 0, 0, 0.42, 0.22, 0.3), c: 0x8a7650 }, { g: GEO.cyl, m: M4e(0.24, 0, 0, 0.06, 0.3, 0.06, 0, 0, Math.PI / 2), c: 0xb83a2a }]), propMat);
+  bag.position.copy(T.ring.position); bag.position.y += T.kind === 'plane' ? (T.type === 'transport' ? 1.55 : T.type === 'biplane' ? 1.1 : 1.12) : 1.0; fxRoot.add(bag); T.bag = bag;
+  const fuse = MISSIONS[missionIdx].fuse || 180;
+  if (lewesEnd < 0) { lewesEnd = missionTime + fuse; showToast('FUSES SET', `the first pencil is crushed: ${mmss(fuse)} for all of them. Keep going`); }
+  else showToast('BOMB ON', `${targets.filter(t => t.bombed).length} placed${missionTime < lewesEnd ? `, ${mmss(lewesEnd - missionTime)} left` : ': 25 seconds on this one'}`);
+  T.blowAt = missionTime < lewesEnd ? lewesEnd + (lewesN - 1) * 0.45 : missionTime + 25;
+  SFX.ui(); if (u) bubble(u, T.hangar ? 'One for the shed.' : T.kind === 'dump' ? 'One for the petrol.' : 'On.', 1.0); updObjBar();
+}
+function lewesNow() {   // at the rendezvous: the rest go now, one after another
+  let k = 0; for (const T of targets) if (T.bombed && !T.dead) T.blowAt = missionTime + 0.5 + (k++) * 0.4;
+}
+function stepLewes(dt) {
+  if (lewesEnd < 0 || phase !== 'play') return;
+  let soon = 1e9;
+  for (const T of targets) if (T.bombed && !T.dead) { if (missionTime >= T.blowAt) destroyTarget(T, 'bomb'); else soon = Math.min(soon, T.blowAt - missionTime); }
+  if (!outcome) objTimer(soon < 1e8 ? `FUSES ${mmss(soon)}` : null, soon < 20);
 }
 function stepObjectives(dt) {
   // pillboxes smoke when done; radios take a few seconds of a man's attention; documents are walked up to
@@ -11363,6 +12047,13 @@ function stepObjectives(dt) {
       const need = T.kind === 'gun' ? 3 : 2.5, arc = Math.max(0.001, Math.min(1, T.work / need)); if (Math.abs(arc - (T.arc || 0)) > 0.02) { T.arc = arc; T.ring.geometry.dispose(); T.ring.geometry = new THREE.RingGeometry(1.15, 1.35, 30, 1, 0, arc * Math.PI * 2); }
       if (T.work >= need) destroyTarget(T, 'quiet');
     }
+    if ((T.kind === 'plane' || T.kind === 'dump') && !T.dead && !T.bombed) {   // v97: a man kneels at the wing root
+      const by = sol.find(q => !q.dead && (T.kind === 'plane' ? atWingRoot(T, q) : Math.hypot(q.x - T.x, q.z - T.z) < (T.reach || 3.4)));
+      T.work = by ? T.work + dt : Math.max(0, T.work - dt * 0.5);
+      const arc = Math.max(0.001, Math.min(1, T.work / LEWES_T)); if (Math.abs(arc - (T.arc || 0)) > 0.03) { T.arc = arc; T.ring.geometry.dispose(); T.ring.geometry = new THREE.RingGeometry(0.7, 0.85, 30, 1, 0, arc * Math.PI * 2); }
+      if (T.work >= LEWES_T) bombPlace(T, by);
+    }
+    if (T.fire && T.dead && T.burnT > 0) { T.burnT -= dt; if (Math.random() < dt * 12) spawnParts(T.x + (Math.random() - 0.5) * 3, groundY(T.x, T.z) + 1.4, T.z + (Math.random() - 0.5) * 3, 1, Math.random() < 0.4 ? 0xffd27a : 0xff6a20, 2.2, 0.32, 0.7, -2.5); }
   }
   if (intel && !intel.taken) {
     intel.ring.scale.setScalar(1 + Math.sin(missionTime * 3) * 0.08);
@@ -11377,7 +12068,7 @@ function stepObjectives(dt) {
   if (!pbHinted && targets.some(T => T.kind === 'pillbox' && !T.dead && T.crew.some(u => !u.dead && u.state === 'engage'))) pillboxHint();
   const s = objSteps[objIdx];
   if (extractPt) {
-    const on = !!s && s.t === 'extract';
+    const on = !!s && (s.t === 'extract' || s.t === 'flare');   // v96: the flare is fired from the extraction ring
     if (on && !extractPt.on) { extractPt.on = true; extractPt.ring.visible = extractPt.flare.visible = true; }
     if (extractPt.on) {
       extractPt.ring.material.opacity = 0.35 + Math.abs(Math.sin(missionTime * 2.4)) * 0.4;
@@ -11390,6 +12081,9 @@ function stepObjectives(dt) {
   updObjBar();
   if (stepDone(s)) {
     objTimer(null); if (holdMark) holdMark.visible = false;
+    if (s.t === 'tape' && s.at) { cutCWire(s.at.x, s.at.z - 3); showToast('LANE THROUGH', 'taped all the way: the wire at the end of it is cut'); say(s.at, 'rescue'); }   // v96
+    if (s.t === 'flare' && s.at) fireGreen(s.at);
+    if (s.t === 'extract' && lewesEnd >= 0) lewesNow();   // v97
     objIdx++;
     const n = objSteps[objIdx];
     if (!n) { endMission(true); return; }
@@ -11433,11 +12127,12 @@ function initMission(idx) {
   if (DEV_SNOW) { M.snow = M.snow || 1; if (DEV_SNOW >= 2 && !M.night && (!M.weather || WEATHER[M.weather])) M.weather = DEV_SNOW >= 3 ? 'blizzard' : 'snow'; }
   if (M.snow && WEATHER[M.weather] && !WEATHER[M.weather].snow) M.weather = WEATHER[M.weather].n >= 1 ? 'blizzard' : 'snow';   // v67: in snow, rain falls as snow
   SNOW = M.snow ? 1 : 0; ATMO.snow.value = SNOW;
-  SAND = M.desert ? 1 : 0; PRINTS = SNOW || SAND; hazeOn = false;   // v92
+  SAND = M.desert ? 1 : 0; PRINTS = SNOW || SAND || (M.mud ? 1 : 0); hazeOn = false; lightsOut = false; lampRoot.visible = true;   // v92 (v99: mud takes prints; the lights come on again)
+  ITAL = M.italian ? 1 : 0;
   sandZones = (M.grounds || []).map(Z => Z.rx ? { k: Z.k, x: Z.x * MW, z: Z.z * MH, rx: Z.rx * MW, rz: Z.rz * MH } : { k: Z.k, x0: Z.x0 * MW, z0: Z.z0 * MH, x1: Z.x1 * MW, z1: Z.z1 * MH });
   wadis = [].concat(M.wadi || []).map(W => { const pts = W.pts.map(([x, z]) => [x * MW, z * MH]), w = W.w || 4, bank = W.bank || 4, m = w / 2 + bank + 1;
-    return { pts, w, bank, d: W.d || 1.6, bx0: Math.min(...pts.map(p => p[0])) - m, bx1: Math.max(...pts.map(p => p[0])) + m, bz0: Math.min(...pts.map(p => p[1])) - m, bz1: Math.max(...pts.map(p => p[1])) + m }; });
-  printMesh.material.color.copy(SAND ? SC(0x8c6c48) : SC(0x5b6678));   // a warm shadow in sand, blue-grey in snow
+    return { pts, w, bank, d: W.d || 1.6, trench: !!W.trench, bx0: Math.min(...pts.map(p => p[0])) - m, bx1: Math.max(...pts.map(p => p[0])) + m, bz0: Math.min(...pts.map(p => p[1])) - m, bz1: Math.max(...pts.map(p => p[1])) + m }; });
+  printMesh.material.color.copy(SAND ? SC(0x8c6c48) : M.mud ? SC(0x4a3626) : SC(0x5b6678));   // v99: deep prints in mud   // a warm shadow in sand, blue-grey in snow
   clearPrints();   // v71
   INST.tree[TREE_KINDS.indexOf('bare')].geometry = SNOW ? BIRCH_GEO : BARE_GEO;   // v88: birch in the Norwegian winter
   INST.bush.forEach((im, v) => { im.geometry = SNOW ? BUSH_GEO_SNOW[v] : SAND ? BUSH_GEO_SAND[v] : BUSH_GEO[v]; });   // v92: camel-thorn and saltbush in the desert
@@ -11452,10 +12147,11 @@ function initMission(idx) {
   for (const q of (M.ice || [])) { const Z = { x: q.x * MW, z: q.z * MH, rx: q.rx * MW, rz: q.rz * MH, sq: !!q.sq, thin: !!q.thin }; Z.y = baseY(Z.x, Z.z) - 0.3 - (edgeDrop ? dropAt(Z.x, Z.z) : 0) - (gorgeZ ? gorgeAt(Z.x, Z.z) : 0) + (riseZ ? riseAt(Z.z) : 0); iceZones.push(Z); }   /* v86: and on a rising valley */
   thinZ = iceZones.some(Z => Z.thin);   // v83
   caves = []; culverts = []; culvToast = false;   // v86 (v93: culverts)
+  cwires = []; cwireMesh = null;   // v96: the wire's mesh went with propRoot's children
   avZones = [].concat(M.avalanche || []).map(A => ({ x0: A.x0 * MW, x1: A.x1 * MW, z0: A.z0 * MH, z1: A.z1 * MH, noise: !!A.noise, msg: A.msg, gone: false }));
   iceTint = M.iceTint || 0;   // v86: paler ice (a stream under snow), 0 the lake's dark ice
   snowAt = M.snowAt || 0; snowT0 = 0;
-  squall = M.squalls ? { on: false, t: M.squalls.off[0], fog: null, base: null } : null;   // v86: the first squall after a clear spell; the clear weather and fog are read on the first frame
+  squall = M.squalls ? { on: false, t: M.squalls.first || M.squalls.off[0], fog: null, base: null, col: null } : null;   // v98: `first`, the first clear spell   // v86: the first squall after a clear spell; the clear weather and fog are read on the first frame
   wx = WEATHER[M.weather] || null; weatherRain = !!(wx && !wx.snow);   // v34: early, the ground and the roads are coloured wet
   night = !!M.night;
   setNightLighting(night);
@@ -11474,6 +12170,10 @@ function initMission(idx) {
   if (SNOW) {   // v67: snow throws the light back up — a pale ground bounce instead of green; a blue moonlit night
     hemi.groundColor = SC(night ? 0x3c4a66 : 0xd2dae4); hemi.intensity = Math.max(hemi.intensity, night ? 0.42 : 0.5);
     if (night) { R.toneMappingExposure = 1.22; sun.intensity = 0.42; sun.color = SC(0xb4c8ee); hemi.intensity = 0.62; }   // v81: moonlight on snow is bright (v67: 0.96, and the moon at 0.22)
+  }
+  if (SAND && night) {   // v96: moonlight on sand (Khal's Devil's Garden sheets): pale sand under a navy sky, a warm bounce off the ground
+    R.toneMappingExposure = 1.2; sun.intensity = 0.46; sun.color = SC(0xc4cce4); hemi.intensity = 0.6; hemi.color = SC(0x5a6a90); hemi.groundColor = SC(0x6a5a40);
+    scene.background.copy(SC(0x18243c)); scene.fog.color.copy(SC(0x18243c)); scene.fog.near = 40; scene.fog.far = 130;
   }
   snowApron();
   auroraOn = !!(M.aurora && night); if (auroraOn) { auroraBase.copy(hemi.color); auroraG.copy(SC(0x2fe0a0)); }   // v81
@@ -11557,6 +12257,25 @@ function initMission(idx) {
     else if (o.t === 'bush') obs.push(mkBush(x, z, seed++));
     else if (o.t === 'ptruck') obs.push(mkParkedTruck(x, z, o.a || 0, !!o.net));   // v92
     else if (o.t === 'hide') obs.push(mkHide(x, z, o.a || 0));
+    else if (o.t === 'sangar') obs.push(...mkSangar(x, z, o.r || 2.4, o.o === undefined ? Math.PI : o.o));   // v96
+    else if (o.t === 'dugout') obs.push(mkDugout(x, z, o.w * MW, o.d * MH));
+    else if (o.t === 'cwire') obs.push(...mkCWire(z, (o.x0 || 0) * MW, (o.x1 === undefined ? 1 : o.x1) * MW, (o.gaps || []).map(([a, b]) => [a * MW, b * MW]), o.cut));
+    else if (o.t === 'pegs') mkPegs(x, o.z0 * MH, o.z1 * MH, o.step || 3);
+    else if (o.t === 'tent') obs.push(mkTent(x, z, o.a || 0));   // v97
+    else if (o.t === 'fwall') obs.push(mkFWall(o.x0 * MW, o.z0 * MH, o.x1 * MW, o.z1 * MH, o.h ? { h: o.h, col: o.col, plain: true } : null));   // v98 (v99: a lower plain wall)
+    else if (o.t === 'temple') obs.push(...mkTemple(x, z, (o.w || .14) * MW, (o.d || .08) * MH));   // v99
+    else if (o.t === 'drywall') obs.push(...mkDryWall(z, (o.x0 || 0) * MW, (o.x1 === undefined ? 1 : o.x1) * MW, (o.gaps || []).map(([a, b]) => [a * MW, b * MW])));
+    else if (o.t === 'car') obs.push(mkStaffCar(x, z, o.a || 0));
+    else if (o.t === 'ftower') obs.push(mkFTower(x, z));
+    else if (o.t === 'rubble') mkRubble(x, z, (o.w || .04) * MW);
+    else if (o.t === 'well') obs.push(mkWell(x, z));
+    else if (o.t === 'palm') obs.push(mkPalm(x, z, seed++));
+    else if (o.t === 'mast') obs.push(mkMast(x, z));
+    else if (o.t === 'flak') obs.push(mkFlak(x, z, o.a || 0));
+    else if (o.t === 'bdump') obs.push(mkBombDump(x, z, o.w * MW, o.d * MH));
+    else if (o.t === 'rlamp') mkRLamp(x, z);
+    else if (o.t === 'dashes') mkDashes(o.z0 * MH, o.z1 * MH, (o.x0 || 0) * MW, (o.x1 === undefined ? 1 : o.x1) * MW);
+    else if (o.t === 'parapet') obs.push(...mkParapet(z, (o.x0 || 0) * MW, (o.x1 === undefined ? 1 : o.x1) * MW, (o.gaps || []).map(([a, b]) => [a * MW, b * MW])));
     else if (o.t === 'poles') mkPoles(z, (o.x0 || 0) * MW, (o.x1 === undefined ? 1 : o.x1) * MW, o.gap || 14);
     else if (o.t === 'kmstone') obs.push(mkKmStone(x, z));
     else if (o.t === 'culvert') obs.push(...mkCulvert(x, z, o.w || 5, o.L || 0));
@@ -11574,7 +12293,7 @@ function initMission(idx) {
     else if (o.t === 'ridge') { obs.push(mkRidge(x, z, o.w * MW, o.d * MH, o.h || 5, o.style === 'granite')); if (o.style === 'granite') { const R = ridgeLifts.find(q => Math.abs(q.x0 - x) < 0.01 && Math.abs(q.z0 - z) < 0.01); if (R) mkGraniteCliffs(R, ridgeLifts); } }
     else if (o.t === 'tank') obs.push(mkHulk(x, z, o.kind || 'pz4', o.a || 0, o.burnt));
   }
-  flushThickets();
+  flushThickets(); flushPalms();   // v98: the palms, one mesh
   if (gorgeZ) obs.push(...mkGorge());   // v83
   obs.push(...mesaObstacles());
   for (const b of (M.buildings || [])) mkBuilding(b, obs);
@@ -11582,6 +12301,9 @@ function initMission(idx) {
   buildTargets(M);
   buildGrid();
   buildMines(M);   // v94
+  resetStars(M);   // v96
+  lewesEnd = -1; lewesN = 0; lewesToastT = -9;   // v97
+  barkT = 0; barkToast = false;   // v99
   buildPuddles(M); buildFlowers(M);   // v34: after the obstacles, so neither lands under a hut
 
   topUpRoster();
@@ -12890,12 +13612,15 @@ function update(dt) {
   pathBudget = 2;
   missionTime += dt;
   if (snowAt && missionTime >= snowAt) startSnow();   // v81
-  if (wx && wx.snow) snowFill += dt / wx.fill;   // v86
+  if (wx && wx.fill) snowFill += dt / wx.fill;   // v86 (v98: a sandstorm's too)
   const MD = MISSIONS[missionIdx];
   if (SAND && MD.sandFill) snowFill += dt / MD.sandFill;   // v92: the wind fills prints in sand
   if (SAND && MD.haze && !hazeOn && missionTime >= MD.haze) { hazeOn = true; showToast('HEAT HAZE', 'past half his range a sentry sees shimmer, not you'); }
   if (squall) stepSqualls(dt);
   stepMines(dt);   // v94
+  stepStars(dt);   // v96
+  stepLewes(dt);   // v97
+  stepBarker(dt);   // v99
   if (culverts.length) for (const u of sol) {   // v93: crawling through the culvert: out of sight, and not drawn on top of the road
     const was = !!u.inCulv; u.inCulv = !u.dead && u.prone && !!culvAt(u.x, u.z);
     if (u.inCulv !== was && !u.dead) { u.mesh.visible = !u.inCulv; if (u.inCulv && !culvToast) { culvToast = true; showToast('IN THE CULVERT', 'under the road on your belly: nobody sees a man in a drain'); } }
@@ -14384,6 +15109,7 @@ const WIN_TOAST = {
   rescue:    ['HOSTAGE OUT', 'nobody asks how'],
   liberate:  ['CAMP LIBERATED', 'the wire comes down in the morning'],
   all:       ['OBJECTIVE CLEAR', 'stand down'],
+  flare:     ['GREEN FLARE', 'the lane is open, and the tanks are coming up it'],   // v96
 };
 function endMission(won) {
   outcome = won ? 'won' : 'lost';
