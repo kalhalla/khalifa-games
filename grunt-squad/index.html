@@ -438,7 +438,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
     <button id="tset">SETTINGS <small>sound · music · graphics</small></button>
   </div>
   <div class="foot">© GAMELAB · NO GRUNTS WERE CONSULTED</div>
-  <div id="tver">v107</div>
+  <div id="tver">v109</div>
 </div>
 
 <div id="ops" class="screen">
@@ -2224,12 +2224,13 @@ function buildWater() {
       for (const q of riverRocks) { const e = Math.hypot(x - q.x, z - q.z) - q.r; if (e < 0.3) fo = Math.max(fo, e < 0.08 ? 0.5 : 0.25 * (0.3 - e) / 0.22); }   // v50: a faint static collar; the moving foam sheet does the rest
       { const a = w >= d ? x : z, b = w >= d ? z : x, st = vnoise(a * 0.22 + 4, b * 1.7 + 2);   // flow lines run with the river
         if (st > 0.72 && dep > 0.3) fo = Math.max(fo, Math.min(0.32, (st - 0.72) * 1.6)); }
+      if (r.canal) { fo = 0; c.copy(SC(dep < 0.07 ? 0x6a6c64 : dep < 0.6 ? 0x48635e : 0x34504e)); }   // v108: a canal is still and the colour of slate, no flow lines
       if (fo > 0) c.lerp(foam, Math.min(1, fo));
       // v48: clear water — the bed, the stones and the bridge's trestles show through; it thickens with depth, foam stays white
       const al = Math.min(0.34, 0.1 + Math.max(0, dep) * 0.1) * (1 - Math.min(1, fo)) + Math.min(1, fo) * 0.9;
       if (SNOW && dep >= 0.07) c.lerp(_w2.copy(SC(r.still ? 0x15232b : 0x1d3240)), r.still ? 0.88 : 0.78);
       if (SAND && dep >= 0.07) c.lerp(_w2.copy(SC(r.still ? (dep > 0.6 ? 0x1e4e44 : 0x3a7a62) : dep > 0.6 ? 0x1f5a7a : 0x3a8a9a)), 0.86);   // v98: an oasis pool is green   // v92: the Mediterranean, blue over sand   // v75: a winter fjord is dark and deep, not clear over a snowy bed
-      depA[i] = dep; pa.setXYZ(i, x, sy, z); col[i * 4] = c.r; col[i * 4 + 1] = c.g; col[i * 4 + 2] = c.b; col[i * 4 + 3] = dep < 0.07 ? 0.85 : SNOW || SAND ? 0.9 : al;
+      depA[i] = dep; pa.setXYZ(i, x, sy, z); col[i * 4] = c.r; col[i * 4 + 1] = c.g; col[i * 4 + 2] = c.b; col[i * 4 + 3] = dep < 0.07 ? 0.85 : SNOW || SAND || r.canal ? 0.9 : al;
     }
     g.setAttribute('color', new THREE.BufferAttribute(col, 4)); g.computeVertexNormals();
     const m = new THREE.Mesh(g, waterMat);
@@ -2238,8 +2239,11 @@ function buildWater() {
     waterMeshes.push(m);
     if (r.still) {   // v75: a fjord does not run: no foam sheet; ice instead, and the quay wall along its edge
       const M = MISSIONS[missionIdx];
-      if (!SAND) for (const im of buildFloes(r, M)) { waterRoot.add(im); waterMeshes.push(im); }   // v92: no ice in the Mediterranean
+      if (!SAND && !r.canal) for (const im of buildFloes(r, M)) { waterRoot.add(im); waterMeshes.push(im); }   // v92: no ice in the Mediterranean (v108: nor in a canal in May)
       if (r.quay) { const q = mkQuayWall(r, M); waterRoot.add(q); waterMeshes.push(q); }
+      if (r.canal) {   // v108: a canal has a quay on both banks: the same wall turned round about the middle for the south side
+        const q = mkQuayWall(r, M), cx = (r.x0 + r.x1) / 2, cz = (r.z0 + r.z1) / 2; q.rotation.y = Math.PI; q.position.set(cx * 2, 0, cz * 2); waterRoot.add(q); waterMeshes.push(q);
+      }
       continue;
     }
     // v50: the moving foam over it
@@ -8694,6 +8698,94 @@ const MISSIONS = [
       ...[[0.015, 0.564], [0.045, 0.562], [0.045, 0.502], [0.075, 0.560], [0.105, 0.558], [0.105, 0.498], [0.135, 0.556], [0.165, 0.553], [0.165, 0.493], [0.195, 0.551], [0.225, 0.549], [0.225, 0.489], [0.255, 0.547], [0.285, 0.545], [0.285, 0.485], [0.315, 0.543], [0.345, 0.541], [0.345, 0.481], [0.375, 0.539], [0.405, 0.537], [0.405, 0.477], [0.525, 0.528], [0.525, 0.468], [0.555, 0.526], [0.585, 0.524], [0.585, 0.464], [0.615, 0.522], [0.645, 0.520], [0.645, 0.460], [0.675, 0.518], [0.705, 0.516], [0.705, 0.456], [0.735, 0.514], [0.765, 0.511], [0.765, 0.451], [0.795, 0.509], [0.825, 0.507], [0.825, 0.447], [0.855, 0.505], [0.885, 0.503], [0.885, 0.443], [0.915, 0.501], [0.945, 0.499], [0.945, 0.439], [0.975, 0.497], [1.005, 0.495], [1.005, 0.435]].map(([x, z]) => ({ t: 'bush', x, z })),
     ],
     spawnX: .09, spawnZ: .955,
+  },
+  // v108: Dunkirk, op 4 (notes/france-1940-theatre.md, B4), built from Khal's Canal Line sheets (assets/dunkirk/b4-ref) and the
+  // plan: the rearguard. Hold the canal while they come at the lift bridge, blow it, fall back on the signal to the railway
+  // cutting and hold there while they come round by the lock, then out to the lorries (M.rearguard, 'line', 'withdraw')
+  {
+    name: 'The Canal Line', th: 'dk', noExtras: true, noTraffic: true, noTrains: true, charges: 2,
+    obj: 'Hold the canal, blow the bridge, fall back to the cutting, hold again',
+    sub: "The La Bassée canal · Afternoon into evening · The rearguard", drawn: "Drawn from the rearguard on the La Bassée canal, May 1940.",
+    brief: "Everybody else is going back to the coast, and somebody has to stand on this canal while they do. That is us. They will come across the fields from the north, a section at a time, running and dropping, and they will go for the lift bridge. Hold the canal bank for three minutes. Then they will be on the far bank in strength, and the bridge goes: a charge on it. When you see the green Very light, fall back to the railway cutting, all of you, and quickly: anyone still on the canal when it is over stays there, in the bag. They will come round by the lock. Hold the cutting, then out to the lorries.",
+    scatter: 1, diff: 0.45, grenades: 8, reinf: 0, alertThreshold: 1.2,
+    roads: [{ k: 'road', w: 5, pts: [[.56, -.02], [.56, .5], [.56, 1.02]] }],
+    railPts: [[-.1, .802], [1.1, .772]],
+    water: [{ x1: 0, z1: .38, x2: 1, z2: .475, still: true, quay: true, canal: true }],
+    bridge: [{ x1: .535, z1: .37, x2: .585, z2: .485 }, { x1: .125, z1: .37, x2: .175, z2: .485 }],
+    targets: [{ t: 'bridge', b: 0 }],
+    grounds: [{ k: 'crop', x0: 0, z0: 0, x1: .53, z1: .32 }, { k: 'crop', x0: .59, z0: 0, x1: 1, z1: .32 }, { k: 'crop', x0: 0, z0: .85, x1: .45, z1: 1 }, { k: 'crop', x0: .68, z0: .85, x1: 1, z1: 1 }],
+    guide: { x: .42, z: .62, a: Math.PI, attach: true, name: 'Dai', join: ['DAI', 'still with us, and still carrying the charges'], line: 'Another bridge. They do keep building them.' },
+    rearguard: { waves: [
+      { t: 6, n: 4, x0: .06, x1: .45 }, { t: 38, n: 4, x0: .6, x1: .95 }, { t: 72, n: 5, x0: .2, x1: .62, mg: true, msg: ['ANOTHER SECTION', 'and an MG with them'] },
+      { t: 108, n: 4, x0: .55, x1: .92 }, { t: 145, n: 5, x0: .08, x1: .5, mg: true, msg: ['THEY’RE MASSING', 'on the far bank'] },
+      { t: 232, n: 5, x0: .03, x1: .35, msg: ['ROUND BY THE LOCK', 'they have found the other way over'] }, { t: 268, n: 5, x0: .05, x1: .4, mg: true }, { t: 302, n: 4, x0: .0, x1: .3 },
+    ] },
+    objectives: [
+      { t: 'line', z: .5, time: 180, across: 3, label: 'Hold the canal: keep them off the lift bridge', doneT: ['THEY’RE ON THE FAR BANK', 'in strength. The bridge goes now'] },
+      { t: 'destroy', what: 'bridge', time: 60, clock: 'BRIDGE', fail: ['THEY’RE ACROSS', 'the bridge is theirs'], label: 'Blow the lift bridge: a charge on it' },
+      { t: 'withdraw', z: .735, time: 40, label: 'Green Very light: back to the railway cutting, everybody' },
+      { t: 'line', z: .735, time: 90, across: 3, label: 'Hold the cutting while they come round by the lock', doneT: ['THE LINE HELD', 'long enough. The lorries are waiting'] },
+      { t: 'extract', label: 'Out to the lorries, south' },
+    ],
+    extract: { x: .5, z: .95, r: 7 },
+    enemies: [],
+    obstacles: [
+      { t: 'house', style: 'ruin', x: .8, z: .1, w: 9, d: 6 }, { t: 'fire', x: .845, z: .13 },
+      { t: 'house', style: 'farm', x: .2, z: .52, w: 5.5, d: 4.2 }, { t: 'house', style: 'farm', x: .3, z: .56, w: 5.5, d: 4.5 },
+      { t: 'house', style: 'farm', x: .395, z: .56, w: 5.5, d: 4.5 }, { t: 'house', style: 'farm', x: .475, z: .56, w: 4.8, d: 4.5 }, { t: 'house', style: 'farm', x: .6, z: .56, w: 5, d: 4.5 },
+      { t: 'house', x: .7, z: .545, w: 15, d: 11 }, { t: 'chimney', x: .845, z: .565, h: 17 },
+      { t: 'sangar', x: .14, z: .505, r: 1.8, o: 0 }, { t: 'sangar', x: .36, z: .505, r: 1.8, o: 0 }, { t: 'sangar', x: .64, z: .505, r: 1.8, o: 0 },
+      ...[[0.04, .34], [0.12, .34], [0.20, .34], [0.28, .34], [0.36, .34], [0.44, .34], [0.62, .34], [0.70, .34], [0.78, .34], [0.86, .34], [0.94, .34]].map(([x, z]) => ({ t: 'tree', x, z, kind: 'poplar' })),
+      ...[[0.015, 0.765], [0.045, 0.764], [0.045, 0.834], [0.075, 0.763], [0.105, 0.762], [0.105, 0.832], [0.135, 0.762], [0.165, 0.761], [0.165, 0.831], [0.195, 0.760], [0.225, 0.759], [0.225, 0.829], [0.255, 0.759], [0.285, 0.758], [0.285, 0.828], [0.315, 0.757], [0.345, 0.756], [0.345, 0.826], [0.375, 0.756], [0.405, 0.755], [0.405, 0.825], [0.435, 0.754], [0.465, 0.753], [0.465, 0.823], [0.495, 0.753], [0.615, 0.750], [0.645, 0.749], [0.645, 0.819], [0.675, 0.748], [0.705, 0.747], [0.705, 0.817], [0.735, 0.747], [0.765, 0.746], [0.765, 0.816], [0.795, 0.745], [0.825, 0.744], [0.825, 0.814], [0.855, 0.744], [0.885, 0.743], [0.885, 0.813], [0.915, 0.742], [0.945, 0.741], [0.945, 0.811], [0.975, 0.741], [1.005, 0.740], [1.005, 0.810]].map(([x, z]) => ({ t: 'bush', x, z })),
+      ...[[.1, .6], [.27, .64], [.66, .69], [.9, .7], [.12, .9], [.86, .92], [.48, .66]].map(([x, z]) => ({ t: 'tree', x, z, kind: 'broad' })),
+      ...[[.06, .52], [.5, .52], [.68, .51], [.95, .53]].map(([x, z]) => ({ t: 'crate', x, z })),
+    ],
+    spawnX: .42, spawnZ: .64,
+  },
+  // v109: Dunkirk, op 5 (notes/france-1940-theatre.md, B5), built from Khal's Cassel sheets (assets/dunkirk/b5-ref) and the plan.
+  // A hill town, the only hill in Flanders: hold the square until dark against attacks up the slopes (M.rearguard, from the
+  // east and the south), then, in the dark (nightAfter), out down the sunken track to the south-west past the panzers on the plain
+  {
+    name: 'Cassel', th: 'dk', noExtras: true, noTraffic: true, charges: 1, size: [100, 120],
+    obj: 'Hold the square until dark, then out down the sunken track',
+    sub: "Cassel · Dusk into night · The hill in Flanders", drawn: "Drawn from the defence of Cassel and its night breakout, May 1940.",
+    brief: "Cassel is the only hill in Flanders, and from the square you can see the sea and most of the German army. We are to hold it until dark, so that everybody else gets a night's start on the road to the coast. They will come up the slopes at us from the plain. Hold the square. Then, when it is dark, we go: down the sunken track to the south-west, between the hedges, past their tanks laagered in the fields, and anybody they see stays on the plain. Quietly is the only way.",
+    scatter: 1, diff: 0.5, grenades: 6, reinf: 0, alertThreshold: 1.2,
+    rise: { z0: .42, z1: .78, h: 9 },
+    roads: [{ k: 'track', w: 3.6, pts: [[0.49, 0.39], [0.4, 0.53], [0.33, 0.66], [0.2, 0.83], [0.07, 0.98], [0.03, 1.02]] }, { k: 'road', w: 4.6, pts: [[0.59, 0.4], [0.7, 0.58], [0.84, 0.8], [0.95, 0.99], [0.97, 1.02]] }, { k: 'road', w: 4, pts: [[.49, .39], [.5, .2], [.56, .05]] }],
+    squares: [{ x: .41, z: .28, w: .2, d: .13 }],
+    grounds: [{ k: 'crop', x0: 0, z0: .82, x1: .14, z1: 1 }, { k: 'crop', x0: .42, z0: .85, x1: .78, z1: 1 }, { k: 'crop', x0: .55, z0: .62, x1: .72, z1: .78 }],
+    guide: { x: .53, z: .27, a: Math.PI, attach: true, name: 'Dai', join: ['DAI', 'with us to the end of this, by the look of it'], line: 'Lovely view. Pity about the company.' },
+    rearguard: { nightAfter: 0, night: ['DARK', 'now we go: down the sunken track, quietly. Their tanks are on the plain'], waves: [
+      { t: 8, n: 4, from: 'e', x0: .3, x1: .5 }, { t: 34, n: 5, from: 's', x0: .55, x1: .9, mg: true, msg: ['UP THE ROAD', 'a section with an MG, from the plain'] },
+      { t: 62, n: 4, from: 'e', x0: .15, x1: .45 }, { t: 90, n: 5, from: 's', x0: .3, x1: .7 }, { t: 118, n: 5, from: 'e', x0: .25, x1: .55, mg: true, msg: ['ANOTHER ATTACK', 'up the east slope'] },
+    ] },
+    objectives: [
+      { t: 'hold', x: .51, z: .345, r: 11, time: 150, nWaves: -1, label: 'Hold the square until dark', done: 'it is dark' },
+      { t: 'extract', label: 'Down the sunken track to the south-west, past the panzers' },
+    ],
+    extract: { x: .07, z: .97, r: 6 },
+    enemies: [
+      { x: .82, z: .72, a: Math.PI * .8, range: 13, arc: Math.PI * .55, hp: 3 }, { x: .69, z: .84, a: -Math.PI * .6, range: 13, arc: Math.PI * .55, hp: 3 },
+      { x: .33, z: .88, a: Math.PI * .7, range: 13, arc: Math.PI * .55, hp: 3 }, { x: .27, z: .925, a: -Math.PI * .3, range: 12, arc: Math.PI * .55, hp: 3, sleep: true },
+      { x: .96, z: .83, a: -Math.PI / 2, range: 13, arc: Math.PI * .55, hp: 3, patrol: [{ x: .96, z: .83 }, { x: .6, z: .88 }, { x: .2, z: .93 }] },
+    ],
+    obstacles: [
+      { t: 'swall', x: .24, z: .105, w: 46, d: .8 }, { t: 'windmill', x: .64, z: .16, a: .3 },
+      { t: 'house', style: 'bchurch', x: .465, z: .305, w: 8, d: 8 },
+      { t: 'house', style: 'farm', x: .28, z: .22, w: 7, d: 6 }, { t: 'house', style: 'farm', x: .7, z: .28, w: 7, d: 6 },
+      { t: 'house', style: 'farm', x: .34, z: .375, w: 7, d: 6 }, { t: 'house', style: 'farm', x: .3, z: .48, w: 7, d: 6 },
+      { t: 'house', style: 'ruin', x: .56, z: .5, w: 7, d: 6 }, { t: 'house', style: 'farm', x: .72, z: .47, w: 7, d: 6 },
+      { t: 'house', style: 'ruin', x: .62, z: .42, w: 6, d: 5 }, { t: 'house', style: 'farm', x: .41, z: .53, w: 6, d: 6 },
+      { t: 'house', style: 'farm', x: .44, z: .67, w: 3, d: 4 },
+      { t: 'fire', x: .66, z: .45 }, { t: 'fire', x: .6, z: .53 },
+      ...[[.43, .295], [.44, .4], [.58, .405], [.6, .3]].map(([x, z]) => ({ t: 'crate', x, z })),
+      { t: 'tank', kind: 'pz4', x: .84, z: .76, a: Math.PI * .6 }, { t: 'tank', kind: 'pz4', x: .7, z: .87, a: Math.PI * .5 }, { t: 'tank', kind: 'pz4', x: .3, z: .9, a: Math.PI * .5 },
+      ...[[0.432, 0.542], [0.368, 0.518], [0.420, 0.564], [0.356, 0.540], [0.409, 0.585], [0.345, 0.561], [0.397, 0.607], [0.333, 0.583], [0.385, 0.629], [0.321, 0.605], [0.374, 0.650], [0.310, 0.626], [0.360, 0.676], [0.300, 0.644], [0.343, 0.697], [0.284, 0.666], [0.327, 0.718], [0.268, 0.687], [0.311, 0.739], [0.252, 0.708], [0.295, 0.761], [0.235, 0.729], [0.278, 0.782], [0.219, 0.751], [0.262, 0.803], [0.203, 0.772], [0.246, 0.824], [0.187, 0.793], [0.228, 0.847], [0.172, 0.813], [0.210, 0.869], [0.153, 0.834], [0.191, 0.890], [0.134, 0.856], [0.173, 0.911], [0.116, 0.877], [0.154, 0.933], [0.097, 0.899], [0.136, 0.954], [0.079, 0.920], [0.117, 0.976], [0.060, 0.941], [0.043, 0.961], [0.023, 0.981], [0.030, 0.770], [0.060, 0.765], [0.090, 0.760], [0.120, 0.755], [0.150, 0.750], [0.180, 0.745], [0.360, 0.830], [0.390, 0.826], [0.420, 0.823], [0.450, 0.819], [0.480, 0.815], [0.510, 0.811], [0.540, 0.807], [0.570, 0.804], [0.600, 0.800]].map(([x, z]) => ({ t: 'bush', x, z })),
+      ...[[.15, .12], [.85, .14], [.12, .4], [.9, .38], [.2, .6], [.6, .68], [.9, .62]].map(([x, z]) => ({ t: 'tree', x, z, kind: 'broad' })),
+      ...[[.05, .7], [.08, .74], [.52, .78], [.55, .82], [.94, .7]].map(([x, z]) => ({ t: 'tree', x, z, kind: 'poplar' })),
+    ],
+    spawnX: .5, spawnZ: .25,
   }
 ];
 
@@ -8979,6 +9071,7 @@ const OBIT = {
   drowned: ['walked into the river', 'drowned, which was entirely avoidable', 'attempted the crossing without the bridge',
             'went into the water and did not come out', 'discovered the river was deeper than it looked'],
   avalanche: ['buried by the avalanche he started', 'under the snow until the spring', 'brought the mountain down, and was under it'],   // v84
+  captured: ['taken prisoner, 1940', 'cut off on the canal, and marched east', 'left behind when the line went back'],   // v108
   ice: ['went through the ice', 'tested the ice. It failed', 'walked where the river said not to', 'found the thin ice the hard way'],   // v83
 };
 function pickObit(kind, kills) {
@@ -9644,7 +9737,7 @@ let killCredit = null, foeCryT = -1e9;   // v60: foeCryT spaces the Germans' dea
 function killUnit(u, kind, byFriendly) {
   u.dead = true; u.dying = 0; u.toppleDir = Math.random() < 0.5 ? 1 : -1;
   // v60: a man dies with a cry; a German shot dead with the same takes, deeper and quieter, and not every one (a firefight is many)
-  if (u.friendly && kind !== 'drowned' && kind !== 'ice') voxPlay(Math.random() < 0.5 ? 'die1' : 'die2', u.x, u.z, voxRate(u));
+  if (u.friendly && kind !== 'drowned' && kind !== 'ice' && kind !== 'captured') voxPlay(Math.random() < 0.5 ? 'die1' : 'die2', u.x, u.z, voxRate(u));
   else if (u.foe && kind !== 'knife' && missionTime - foeCryT > 1.5) { foeCryT = missionTime; voxPlay(Math.random() < 0.5 ? 'die1' : 'die2', u.x, u.z, 0.82, 0.55); }
   if (u.cmd && u.foe && !ens.some(e => !e.dead && e.cmd) && objSteps.some(q => q.t === 'extract')) {
     wavering = true; reinfSent = true;
@@ -9870,7 +9963,7 @@ function detectRate(e, s) {
   if (flashT > 0 && !inCover(s.x, s.z)) r *= 2.5;   // v34: the lightning shows everyone standing in the open
   r *= s.moving ? 1.25 : 0.65;
   if (weatherFog) r *= 0.8;
-  if (e.state === 'engage' || e.state === 'search') r *= 1.6; // already looking for you
+  if (e.state === 'engage' || e.state === 'search' || e.state === 'assault') r *= 1.6; // already looking for you (v108: or coming for you)
   if (rallyX !== null && Math.hypot(e.x - rallyX, e.z - rallyZ) < 20) r *= 1.25;   // an officer is watching
   if (s.friendly) r *= Math.pow(0.85, upgLvl('camo'));   // scrim nets
   r *= 1 + 0.35 * diffD;                                   // the difficulty curve
@@ -12166,6 +12259,103 @@ function stepEscort(dt) {
   }
   escortPlace(dt);
 }
+/*───────────────────── v108: the rearguard (notes/france-1940-theatre.md §2B): an enemy that attacks ─────────────────────
+   M.rearguard = { waves: [{ t, n, x0, x1, mg, msg }] }: at op time t a section of n comes in off the north edge between x0
+   and x1. Its men are in the 'assault' state: they go for the squad by bounds, half the section dashing about ten metres
+   along its route while the other half lies down, then the other way about, every 3.2 s. Fire near one pins him flat. A man
+   who sees us fights as any other (engage), and goes back to the assault when he loses us. They cross water only where a
+   bridge is, so blowing one sends them round by another (Canal Line: the lock).
+   Objectives that go with it: 'line' { z, time, across } holds a line for a time, lost if `across` of them get past it;
+   'withdraw' { z, time } is the signal to fall back behind z within the time, and a man still short of it is taken. */
+let rgSt = null;
+function rgInit(M) { rgSt = M.rearguard ? { W: M.rearguard.waves || [], next: 0, clock: 0 } : null; }
+function rgSpawn(w) {
+  const n = w.n || 4;
+  for (let i = 0; i < n; i++) {
+    const u = mkUnit({ name: 'Rifleman', hp: w.hp || 2, range: 26, visionArc: Math.PI * 0.75, rapidFire: !!(w.mg && i === 0) }, true);
+    const f = w.x0 + (w.x1 - w.x0) * (n > 1 ? i / (n - 1) : 0.5), off = 1.5 + Math.random() * 4, j = (Math.random() - 0.5) * 3;   // v109: w.from, the edge they come off ('n' by default)
+    if (w.from === 'e') { u.x = MW + off; u.z = f * MH + j; } else if (w.from === 'w') { u.x = -off; u.z = f * MH + j; } else if (w.from === 's') { u.x = f * MW + j; u.z = MH + off; } else { u.x = f * MW + j; u.z = -off; }
+    u.tx = u.x; u.tz = u.z; u.angle = u.aim = 0; u.homeA = 0;
+    u.alert = 0.6; u.seen = true; u.state = 'assault'; u.rg = true; u.bgrp = i % 2; u.bPt = null;
+    u.lastX = u.x; u.lastZ = u.z + 20;
+    mkCone(u); ens.push(u);
+  }
+  showToast(w.msg ? w.msg[0] : 'THEY’RE COMING', w.msg ? w.msg[1] : 'a section across the fields, by bounds');
+}
+function rgStep(dt) {
+  const R = rgSt; if (!R || phase !== 'play' || outcome) return;
+  R.clock += dt;
+  while (R.next < R.W.length && missionTime >= R.W[R.next].t) rgSpawn(R.W[R.next++]);
+  // v109: M.rearguard.nightAfter = n: once step n is done, it is dark. The lights go down, they see less, and the attack stops
+  const NA = MISSIONS[missionIdx].rearguard.nightAfter;
+  if (NA !== undefined && objIdx > NA && !R.dark) {
+    R.dark = true; R.next = R.W.length; night = true; setNightLighting(true);
+    for (const e of ens) { if (e.dead || e.tower || e.dog) continue; e.visionRange *= 0.6; e.range *= 0.85; if (e.rg) { e.rg = false; e.state = 'search'; e.stateT = 0; } }
+    const N = MISSIONS[missionIdx].rearguard.night; showToast(N ? N[0] : 'DARK', N ? N[1] : 'and now we go');
+  }
+}
+// the squad's middle: where an assault is going
+function rgGoal() { let x = 0, z = 0, n = 0; for (const q of sol) if (!q.dead) { x += q.x; z += q.z; n++; } return n ? { x: x / n, z: z / n } : { x: MW / 2, z: MH }; }
+function stepAssault(e, dt) {
+  e.alert = Math.max(e.alert, 0.6);
+  e.supT = Math.max(0, (e.supT || 0) - dt);
+  const g = rgGoal();
+  if (e.supT > 0.35) { e.prone = true; e.angle = e.aim = Math.atan2(g.x - e.x, g.z - e.z); return; }   // pinned: flat, not going anywhere
+  const go = Math.floor(rgSt.clock / 3.2) % 2 === e.bgrp;
+  if (!go) {   // down, covering the others: firing at whichever of us he can see
+    e.prone = true; e.bPt = null;
+    let t = null, td = e.range;
+    for (const q of sol) { if (q.dead) continue; const d = Math.hypot(q.x - e.x, q.z - e.z); if (d < td && hasLOS(e.x, e.z, q.x, q.z)) { t = q; td = d; } }
+    e.angle = e.aim = t ? Math.atan2(t.x - e.x, t.z - e.z) : Math.atan2(g.x - e.x, g.z - e.z);
+    e.fireT = Math.max(0, (e.fireT || 0) - dt);
+    if (t && e.fireT <= 0) { shoot(e, t.x, t.z, (0.09 + td / e.range * 0.07) * (t.prone ? 1.7 : 1) * (inCover(t.x, t.z) ? 1.5 : 1)); e.fireT = e.cool * (e.rapid ? 0.6 : 2.2) * (0.8 + Math.random() * 0.5); }
+    return;
+  }
+  if (!e.bPt) {   // the next bound: about ten metres along his route to us, a little to one side
+    let tx = g.x, tz = g.z;
+    const p = pathBudget > 0 ? (pathBudget--, findPath(e.x, e.z, g.x, g.z)) : null;
+    if (p && p.length) { let px = e.x, pz = e.z, run = 0; for (const w of p) { const L = Math.hypot(w.x - px, w.z - pz); if (run + L >= 10) { const f = (10 - run) / L; tx = px + (w.x - px) * f; tz = pz + (w.z - pz) * f; break; } run += L; px = w.x; pz = w.z; tx = w.x; tz = w.z; } }
+    else { const a = Math.atan2(g.x - e.x, g.z - e.z), d = Math.min(10, Math.hypot(g.x - e.x, g.z - e.z)); tx = e.x + Math.sin(a) * d; tz = e.z + Math.cos(a) * d; }
+    e.bPt = { x: tx, z: tz };
+  }
+  e.prone = false;
+  if (Math.hypot(e.bPt.x - e.x, e.bPt.z - e.z) > 1.2) { moveAlong(e, e.bPt.x, e.bPt.z, e.speed * 0.55, dt); e.walk += dt * 10; e.angle = e.aim = Math.atan2(e.bPt.x - e.x, e.bPt.z - e.z); }
+}
+// the objectives' side of it: called from stepObjRules for a 'line' or 'withdraw' step
+function rgLine(s) {   // a dashed line on the ground across the map at the step's z: amber to hold, green to fall back behind
+  const zl = s.z * MH, p = [];
+  for (let x = 1; x < MW - 1; x += 2.6) p.push({ g: GEO.box, m: M4(x, groundY(x, zl) + 0.07, zl, 1.5, 0.06, 0.32), c: s.t === 'line' ? 0xffc23d : 0x9eff8a });
+  const m = new THREE.Mesh(mergeGeos(p), basic(0xffffff, { vertexColors: true, transparent: true, opacity: 0.75, depthWrite: false }).clone()); m.renderOrder = 3; fxRoot.add(m); s.mark = m;
+}
+function rgObj(s, dt) {
+  const zl = s.z * MH;
+  if (!s.mark) rgLine(s);
+  if (s.t === 'line') {
+    s.held = (s.held || 0) + dt;
+    objTimer(`HOLD ${mmss(s.time - s.held)}`, s.time - s.held < 20);
+    const over = ens.filter(e => !e.dead && e.rg && e.z > zl + 2).length;
+    if (over >= (s.across || 3)) failOp(s.fail || ['THEY’RE ACROSS', 'the line is turned, and the road behind it is theirs']);
+    else if (s.held >= s.time) { objTimer(null); s.mark.visible = false; showToast(s.doneT ? s.doneT[0] : 'HELD', s.doneT ? s.doneT[1] : 'long enough'); }
+    return;
+  }
+  // withdraw: the signal, then back behind z in time; any man still short of it when the time is up is taken
+  if (!s.fired) {
+    s.fired = true; s.left = s.time;
+    const L = sol.find(q => !q.dead) || { x: MW / 2, z: zl };
+    for (let i = 0; i < 3; i++) spawnParts(L.x, groundY(L.x, L.z) + 3 + i * 4, L.z, 18, 0x9eff8a, 3, 0.3, 2.2, -0.6);
+    SFX.ui(); showToast('THE SIGNAL', s.label || 'green Very light: fall back');
+    const L2 = sol.find(q => !q.dead); if (L2) bubble(L2, 'That’s us. Back, back!', 1.6);
+  }
+  s.left -= dt;
+  const back = sol.filter(q => !q.dead && q.z >= zl), short = sol.filter(q => !q.dead && q.z < zl && !back.some(o => Math.hypot(o.x - q.x, o.z - q.z) < 12));   // a man in the file behind those already over is with them; one still back on the canal is not
+  objTimer(`FALL BACK ${mmss(s.left)}`, s.left < 15);
+  if (!short.length) { s.done = true; objTimer(null); s.mark.visible = false; return; }
+  if (s.left <= 0) {
+    for (const q of short) { killUnit(q, 'captured'); q.mesh.visible = false; if (q.F && q.F.rifle) q.F.rifle.visible = false; }
+    showToast('TAKEN PRISONER', short.map(q => q.name).join(' and ') + (short.length > 1 ? ' were' : ' was') + ' cut off. The war is over for them');
+    s.done = true; objTimer(null); s.mark.visible = false;
+  }
+}
 // v99: the shepherd's dog (M.barker = { x, z }): a man running past within 14 m sets it off. It is heard round the
 // hillside, and it carries on while he keeps running
 let barkT = 0, barkToast = false;
@@ -12472,6 +12662,23 @@ function mkBlockhouse(x, z, w, d, a) {
   m.position.set(x, groundY(x, z), z); m.rotation.y = a || 0; propRoot.add(m);
   return [{ type: 'bhouse', x: x - w / 2, z: z - d / 2 - 0.8, w, d: d + 0.8, tall: true, cover: true }];
 }
+// v108: a factory chimney (Khal's Canal Line sheet): a tall tapering brick stack on a square plinth, a dark band at the top
+function mkChimney(x, z, h) {
+  const p = [{ g: GEO.box, m: M4(0, 1.2, 0, 2.6, 2.4, 2.6), c: 0x7c3a28 }, { g: GEO.taper, m: M4(0, 2.4 + h / 2, 0, 1.9, h, 1.9), c: 0x8e4430 }, { g: GEO.cyl, m: M4(0, 2.4 + h, 0, 1.45, 0.5, 1.45), c: 0x3a2a22 }];
+  const m = new THREE.Mesh(mergeGeos(p), propMat); m.castShadow = true; m.position.set(x, groundY(x, z), z); propRoot.add(m);
+  return { type: 'chimney', x: x - 1.3, z: z - 1.3, w: 2.6, d: 2.6, tall: true, cover: true };
+}
+// v109: a Flanders post mill (Khal's Cassel sheet): a weatherboarded body on a trestle, a pitched roof, four lattice sails
+function mkWindmill(x, z, a) {
+  const p = [], W = 0x8a7a62, D = 0x5e5040;
+  for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) p.push({ g: GEO.box, m: M4e(sx * 1.1, 1.0, sz * 1.1, 0.28, 2.4, 0.28, sz * 0.32, 0, -sx * 0.32), c: D });
+  p.push({ g: GEO.cyl, m: M4(0, 1.6, 0, 0.6, 3.2, 0.6), c: D }, { g: GEO.box, m: M4(0, 4.6, 0, 3.0, 3.6, 3.6), c: W }, { g: GEO.prism, m: M4e(0, 6.4, 0, 3.2, 1.3, 3.8, 0, 0, 0), c: 0x4a4440 });
+  p.push({ g: GEO.box, m: M4(0, 3.9, 2.2, 0.8, 0.12, 2.2, 0, 0.5), c: D });   // the steps up
+  for (let k = 0; k < 4; k++) { const r = k * Math.PI / 2 + 0.4; p.push({ g: GEO.box, m: M4e(Math.sin(r) * 3.3, 5.2 + Math.cos(r) * 3.3, -2.1, 1.0, 6.4, 0.08, 0, 0, -r), c: 0xb8aa8e }, { g: GEO.box, m: M4e(Math.sin(r) * 3.3, 5.2 + Math.cos(r) * 3.3, -2.15, 0.12, 6.6, 0.12, 0, 0, -r), c: D }); }
+  p.push({ g: GEO.cyl, m: M4e(0, 5.2, -1.9, 0.3, 0.6, 0.3, Math.PI / 2, 0, 0), c: D });
+  const m = new THREE.Mesh(mergeGeos(p), propMat); m.castShadow = true; m.position.set(x, groundY(x, z), z); m.rotation.y = a || 0; propRoot.add(m);
+  return { type: 'mill', x: x - 1.6, z: z - 1.6, w: 3.2, d: 3.2, tall: true, cover: true };
+}
 // a French soldier at his post: horizon blue, scenery for now (friendly soldiers who act come with the rearguard, step 2)
 function mkPoilu(x, z, a) {
   const F = buildFigure(0x7d8ca4, 0x6c7a8c, 0xd8a97e, 0x3a3428, false);
@@ -12706,6 +12913,8 @@ const stepDone = s => {
     case 'guide': return guideJoined;   // v81
     case 'sapper': return !!(sapperSt && sapperSt.done);   // v106
     case 'escort': return !!(escortSt && escortSt.arrived);   // v107
+    case 'line': return (s.held || 0) >= s.time;   // v108
+    case 'withdraw': return !!s.done;   // v108
     case 'free': return prisoners.length > 0 && prisoners.every(h => h.rescued);
     case 'killTag': { const L = ens.filter(e => e.tag === s.tag); return L.length > 0 && L.every(e => e.dead); }
     case 'hold': return (s.held || 0) >= s.time;   // v47
@@ -12773,9 +12982,10 @@ function stepObjRules(s, dt) {
       const x = s.x * MW, z = s.z * MH; s.px = x; s.pz = z; holdMark.scale.setScalar(s.r); holdMark.position.set(x, groundY(x, z) + 0.09, z); holdMark.visible = true;
       showToast('HOLD', s.label || 'hold this ground');
     }
-    if (s.time && s.t !== 'hold' && s.t !== 'lielow') showToast('THE CLOCK IS RUNNING', `${mmss(s.time)} — ${s.clockNote || 'do it in time'}`);
+    if (s.time && s.t !== 'hold' && s.t !== 'lielow' && s.t !== 'line' && s.t !== 'withdraw') showToast('THE CLOCK IS RUNNING', `${mmss(s.time)} — ${s.clockNote || 'do it in time'}`);
   }
   if (s.unseen && !s.seen0 && (spotted || everSpotted)) { failOp(s.fail || ['SEEN', 'and that was the whole point']); return; }
+  if (s.t === 'line' || s.t === 'withdraw') { rgObj(s, dt); return; }   // v108
   if (s.t === 'lielow') {   // v100: the spotter comes over; stay hidden till it has gone
     if (!s.armed) { s.armed = true; spotT = Math.min(spotT, 4); }
     s.held = (s.held || 0) + dt; objTimer(spotter ? 'PLANE OVERHEAD' : `LIE LOW ${mmss(Math.max(0, s.time - s.held))}`, !!spotter); return;
@@ -13003,7 +13213,7 @@ function initMission(idx) {
   auroraOn = !!(M.aurora && night); if (auroraOn) { auroraBase.copy(hemi.color); auroraG.copy(SC(0x2fe0a0)); }   // v81
   buildIceOverlay(M);   // v87
 
-  waterZones = (M.water || []).map(r => ({ x0: r.x1 * MW, z0: r.z1 * MH, x1: r.x2 * MW, z1: r.z2 * MH, still: !!r.still, quay: !!r.quay, ladders: r.ladders, steps: r.steps }));   // v75: still (a fjord), quay (a sheer stone edge)
+  waterZones = (M.water || []).map(r => ({ x0: r.x1 * MW, z0: r.z1 * MH, x1: r.x2 * MW, z1: r.z2 * MH, still: !!r.still, quay: !!r.quay, canal: !!r.canal, ladders: r.ladders, steps: r.steps }));   // v108: canal   // v75: still (a fjord), quay (a sheer stone edge)
   deckDrops = [];
   if (gorgeZ && gorgeZ.bridge) deckDrops.push({ x0: gorgeZ.bridge.x0, x1: gorgeZ.bridge.x1, z0: gorgeZ.z0 - 0.5, z1: gorgeZ.z1 + 0.5, dy: 0 });   // v83: the bridge's deck is the rim's level
   bridgeZones = (M.bridge || []).map(r => ({ x0: r.x1 * MW, z0: r.z1 * MH, x1: r.x2 * MW, z1: r.z2 * MH, rail: !!r.rail, jetty: !!r.jetty }));
@@ -13119,6 +13329,8 @@ function initMission(idx) {
     else if (o.t === 'tank') obs.push(mkHulk(x, z, o.kind || 'pz4', o.a || 0, o.burnt));
     else if (o.t === 'bhouse') obs.push(...mkBlockhouse(x, z, o.w || 6, o.d || 4.4, o.a));   // v105
     else if (o.t === 'poilu') mkPoilu(x, z, o.a);   // v105
+    else if (o.t === 'chimney') obs.push(mkChimney(x, z, o.h || 16));   // v108
+    else if (o.t === 'windmill') obs.push(mkWindmill(x, z, o.a));   // v109
   }
   flushThickets(); flushPalms();   // v98: the palms, one mesh
   if (gorgeZ) obs.push(...mkGorge());   // v83
@@ -13134,6 +13346,7 @@ function initMission(idx) {
   resetCanteen(M);   // v101
   refInit(M);   // v102
   escortInit(M);   // v107
+  rgInit(M);   // v108
   jeepRun = null; trcList.length = 0; tracerMesh.visible = false;   // v100: the jeeps went with propRoot
   buildPuddles(M); buildFlowers(M);   // v34: after the obstacles, so neither lands under a hut
 
@@ -14455,6 +14668,7 @@ function update(dt) {
   stepCanteen(dt);   // v101
   stepRefugees(dt);   // v102
   stepEscort(dt);   // v107
+  rgStep(dt);   // v108
   if (MISSIONS[missionIdx].jeeps && !jeepRun && phase === 'play' && !outcome) jeepInit(MISSIONS[missionIdx]);   // v100
   stepJeeps(dt);
   if (culverts.length) for (const u of sol) {   // v93: crawling through the culvert: out of sight, and not drawn on top of the road
@@ -14696,6 +14910,7 @@ function update(dt) {
     }
     if (e.state === 'engage') spotted = true;
     readTracks(e, dt);   // v71
+    if (e.rg && e.state !== 'engage' && e.state !== 'assault') { e.state = 'assault'; e.bPt = null; }   // v108: lost us: back to the attack
 
     // ---- behaviour
     if (e.dog) {
@@ -14740,7 +14955,10 @@ function update(dt) {
         if (e.state === 'suspect' || e.state === 'search') { e.angle = e.aim = Math.atan2(e.lastX - e.x, e.lastZ - e.z); if (e.stateT > 5 && e.alert < 0.25) { e.state = 'patrol'; e.stateT = 0; } }
         if (e.towerRole === 'light' && e.tower.light && e.tower.light.speed === 0) e.tower.light.speed = 0.33;
       }
+    } else if (e.state === 'assault') {   // v108
+      stepAssault(e, dt);
     } else if (e.state === 'engage') {
+      if (e.rg && !e.pinned) e.prone = false;   // v108: up off the ground to fight
       const t = e.target && !e.target.dead ? e.target : live.reduce((a, s) => (!a || dst(e, s) < dst(e, a) ? s : a), null);
       if (!t) { e.state = 'search'; e.stateT = 0; }
       else {
