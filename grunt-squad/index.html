@@ -438,7 +438,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
     <button id="tset">SETTINGS <small>sound · music · graphics</small></button>
   </div>
   <div class="foot">© GAMELAB · NO GRUNTS WERE CONSULTED</div>
-  <div id="tver">v105</div>
+  <div id="tver">v107</div>
 </div>
 
 <div id="ops" class="screen">
@@ -1481,7 +1481,7 @@ const LP = { lush: SC(0x5c8c34), mid: SC(0x6a9840), deep: SC(0x4c7c2e), dry: SC(
              snow: SC(0xe8eef4), snowD: SC(0xc6d2e0), snowP: SC(0xbcc0c4), snowT: SC(0xb8ae9e), slush: SC(0x908c86),
              ice: SC(0x40667e), iceD: SC(0x24425a), iceG: SC(0x3a9a86),
              // v92: the desert, after Khal's Road Watch sheets: pale gold sand, its wind ripples, grey-buff gravel, salt crust, sandstone
-             sand: SC(0xe2c48e), sandD: SC(0xcfa86e), sandL: SC(0xecd6a6), gravS: SC(0xb8a88a), gravD: SC(0x9a8c72), salt: SC(0xf6f2ea), saltD: SC(0xe0d8c8), stone: SC(0xc8a274), stoneD: SC(0x9c7a52), wadi: SC(0xd8c4a0) };   // v81: lake ice, and the aurora's green on it
+             sand: SC(0xe2c48e), sandD: SC(0xcfa86e), sandL: SC(0xecd6a6), gravS: SC(0xb8a88a), gravD: SC(0x9a8c72), salt: SC(0xf6f2ea), saltD: SC(0xe0d8c8), crop: SC(0xc9a656), cropD: SC(0x9e8240), stone: SC(0xc8a274), stoneD: SC(0x9c7a52), wadi: SC(0xd8c4a0) };   // v81: lake ice, and the aurora's green on it
 /* splat detail, after the three.js forum's terrain-splatting thread: ONE 256 px texture with four greyscale
    details packed in RGBA (grass streaks, mud cracks, road grit, pebbles), weighted per facet by the same
    splat weights that pick its colour. One texture, two reads a pixel, scaled for the game camera. */
@@ -1963,6 +1963,15 @@ function terrCol(cx, cz, cy, ny, h, c) {
     if (wadis.length && kind !== 'cliff' && !wadis[0].trench) { const wd = wadiAt(cx, cz); if (wd > 0.2) { const f = Math.min(1, (wd - 0.2) * 1.6); col.lerp(_ic.copy(LP.wadi).lerp(LP.gravS, fine * 0.5), f * 0.85); keep = Math.max(keep, f * 0.8); } }   // the wadi's bed: pale, stony
     c.lerp(col, cov);
     const k = 1 - cov * (1 - keep * 0.8); w0 = 0; w1 *= k; w2 *= k; w3 = Math.max(w3 * k, keep * 0.9);
+  }
+  // v106: fields of ripe corn on a green op (M.grounds k 'crop'; Dunkirk's Flanders and Picardy): gold in drilled rows, the grass gone under it
+  else if (sandZones.length) {
+    const z = sandAt(cx, cz);
+    if (z.k === 'crop' && kind !== 'road' && kind !== 'track') {
+      const n = vnoise(cx * 0.21 + 2.3, cz * 0.21 - 6.1), row = Math.sin(cx * 2.6 + n * 1.5) * 0.5 + 0.5;
+      const col = _sn.copy(LP.crop).lerp(LP.cropD, n * 0.5 + row * 0.3), f = z.f * 0.9;
+      c.lerp(col, f); const k = 1 - f; w0 *= k; w1 *= k; w2 *= k; w3 *= k;
+    }
   }
   // v35: no longer "every facet a shade apart" — a soft mottle that blends between vertices
   c.multiplyScalar(0.95 + vnoise(cx * 1.9 + 3.3, cz * 1.9 - 7.7) * (SNOW ? 0.06 : SAND ? 0.07 : 0.1));
@@ -4111,7 +4120,7 @@ const slab = (w, y0, y1, z0, z1, o) => hexa({ xb: w, xf: w, y: y0, zb: z0, zf: z
 // faceted crown, and a bare dead tree. Each stands on a root flare with a stone or two and a few blades of
 // grass. Authored 7–9 units tall, then squashed by TREE_H/TREE_W to about 4–5 m.
 const TREE_H = 0.6, TREE_W = 0.7;
-const TREE_KINDS = ['pine', 'broad', 'pineTall', 'broadBig', 'bare'];
+const TREE_KINDS = ['pine', 'broad', 'pineTall', 'broadBig', 'bare', 'poplar'];   // v106: poplar, the Flanders roadside tree (placed only)
 // which kind a placed tree gets, by a hash of where it stands: one in twelve is dead
 const TREE_PICK = [0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 3, 4];
 const TREE_PICK_SNOW = [0, 4, 2, 2, 0, 4, 2, 0, 0, 2, 4, 4];   // v67: a Norwegian winter wood — spruce and bare birch, no leaf
@@ -4242,6 +4251,17 @@ function treeGeo(kind) {
       parts.push({ g: GEO.clump[i % 3], m: M4(x, cy + y, z, s, s * 0.85, s, hash2(z, i) * 3), grad: [TV.leafLo, TV.leafHi, lo, hi] });
     }
     for (const [x, y, z] of tips) parts.push({ g: GEO.clump[1], m: M4(x * 1.1, y + 0.3, z * 1.1, 1.3 * sc, 1.1 * sc, 1.3 * sc), grad: [TV.leafLo, TV.leafHi, lo, hi] });
+  } else if (kind === 'poplar') {
+    // v106: a Lombardy poplar, after Khal's Dyle Bridge sheet: a short bare trunk and a tall narrow column of leaf, tapering to a point
+    treeBase(parts, k, TV.barkD, 0.5);
+    parts.push({ g: GEO.taper, m: M4(0, 1.2, 0, 0.55, 2.4, 0.55), c: TV.bark, grad: [TV.barkD, TV.bark, 0, 2.4] });
+    const lo = 1.6, hi = 11.5, N = 22;
+    for (let i = 0; i < N; i++) {
+      const f = i / (N - 1), y = lo + 0.6 + f * (hi - lo - 1.6), r = 1.25 * Math.sin(Math.PI * (0.12 + f * 0.82)) + 0.25, th = i * 2.399 + k;
+      const s = (0.95 + hash2(i, k) * 0.35) * (0.6 + r * 0.5);
+      parts.push({ g: GEO.clump[i % 3], m: M4(Math.cos(th) * r * 0.45, y, Math.sin(th) * r * 0.45, s * 1.1, s * 1.5, s * 1.1, hash2(i, 3) * 3), grad: [TV.leafLo, TV.leafHi, lo, hi] });
+    }
+    parts.push({ g: GEO.clump[0], m: M4(0, (lo + hi) / 2, 0, 1.7, hi - lo - 1.4, 1.7), c: 0x36602a });   // the dark heart
   } else {
     // bare: a thick trunk that forks, and forks again, every branch ending in a spike
     treeBase(parts, k, TV.barkD, 0.8);
@@ -8592,20 +8612,27 @@ const MISSIONS = [
     ],
     spawnX: .45, spawnZ: .96,
   },
-  // v102: the Dunkirk theatre's first op, as a test bed for the refugees (notes/france-1940-theatre.md §2A, §4 step 1)
+  // v102: refugees' test bed; v106: built from Khal's Dyle Bridge sheets (assets/dunkirk/b2-ref) and the plan. Dunkirk, op 2 (B2).
+  // Dawn on the Dyle: the road north to south over a stone bridge, refugees on it all the way, fields of corn north of the river,
+  // a brick village south round a cobbled square. Dai joins at the start and wires the piers; the exploder fires it
   {
-    name: 'The Dyle Bridge', th: 'dk', noExtras: true, charges: 0,
-    obj: 'Blow the bridge before the tanks, with nobody on it',
+    name: 'The Dyle Bridge', th: 'dk', noExtras: true, noTraffic: true, charges: 0,
+    obj: 'Dai wires the bridge; blow it before the tanks, with nobody on it',
     sub: "The Dyle, Belgium · Dawn · The roads full of people", drawn: "Drawn from the bridges blown on the Dyle, May 1940.",
-    brief: "We came up to this river four days ago to hold it, and now we are going back the way we came, and so is everybody else in Belgium. The bridge is wired and the exploder is by the road. Their tanks will be on the far bank in about four minutes, and the people coming over it will not stop on their own: stand in the road at the far end and they halt. Blow it when it is clear. Not before.",
-    scatter: 30, diff: 0.2,
-    roads: [{ k: 'road', w: 4, pts: [[.5, -.02], [.5, .3], [.5, .7], [.5, 1.02]] }],
-    water: [{ x1: 0, z1: .41, x2: 1, z2: .48 }],
-    bridge: [{ x1: .465, z1: .4, x2: .535, z2: .49 }],
+    brief: "We came up to this river four days ago to hold it, and now we are going back the way we came, and so is everybody else in Belgium. Dai, the sapper, has the charges: get him to the far end of the bridge and he will put them on the piers and run the wire back to the exploder by the road. While you stand there, nobody else comes over. Their tanks will be on the far bank in about four minutes. The people coming over the bridge will not stop on their own: a man standing in the road at the far end halts them. Blow it when it is clear. Not before, and not with any of us on the wrong side.",
+    scatter: 14, diff: 0.2, grenades: 4, reinf: 2, alertThreshold: .6,
+    roads: [{ k: 'road', w: 4.2, pts: [[.5, -.02], [.5, .3], [.5, .7], [.5, 1.02]] }, { k: 'road', w: 4, pts: [[-.02, .705], [.36, .72], [.64, .76], [1.02, .795]] }],
+    squares: [{ x: .36, z: .64, w: .28, d: .18 }],
+    water: [{ x1: 0, z1: .385, x2: 1, z2: .505 }],
+    bridge: [{ x1: .465, z1: .37, x2: .535, z2: .52 }],
     targets: [{ t: 'bridge', b: 0 }],
+    grounds: [{ k: 'crop', x0: 0, z0: 0, x1: .43, z1: .37 }, { k: 'crop', x0: .57, z0: 0, x1: 1, z1: .37 }],
     refugees: { path: [[.5, -.02], [.5, 1.02]], every: 6, speed: 1.1 },
-    exploder: { x: .565, z: .56, b: 0 },
-    objectives: [{ t: 'destroy', what: 'bridge', label: 'Blow the bridge from the exploder, with nobody on it', time: 240, clock: 'TANKS', fail: ["THEY'RE ACROSS", 'the panzers have the bridge'] }, { t: 'extract', label: 'Back through the village to the lorries' }],
+    guide: { x: .52, z: .955, a: Math.PI, attach: true, name: 'Dai', join: ['DAI JOINS', 'Royal Engineers: the charges are in his pack, and he is far too calm about it'], line: 'Bridge, is it? Lovely.' },
+    sapper: { x: .5, z: .345, r: 4, t: 6, by: 'Dai' },   // at the far end: standing there to wire it also stops the column short of the bridge
+    exploder: { x: .59, z: .59, b: 0 },   // a little further off than the plan, so a file of five at it is clear of the bridge
+    clock: { t: 240, label: 'TANKS', steps: 2, fail: ["THEY'RE ACROSS", 'the panzers have the bridge'] },
+    objectives: [{ t: 'sapper', label: 'Get Dai to the far end of the bridge: he wires the piers' }, { t: 'destroy', what: 'bridge', label: 'Blow it from the exploder, with nobody on it' }, { t: 'extract', label: 'Back through the village to the lorries' }],
     extract: { x: .5, z: .96, r: 7 },
     enemies: [
       { x: .5, z: .2, a: 0, range: 14, arc: Math.PI * .5, hp: 3 },
@@ -8614,15 +8641,59 @@ const MISSIONS = [
       { x: .64, z: .12, a: 0, range: 13, arc: Math.PI * .6, hp: 3, patrol: [{ x: .64, z: .12 }, { x: .8, z: .14 }] },
     ],
     obstacles: [
-      { t: 'house', style: 'farm', x: .4, z: .68, w: 7, d: 5 }, { t: 'house', style: 'farm', x: .6, z: .68, w: 7, d: 5 },
-      { t: 'house', style: 'church', x: .38, z: .8, w: 6, d: 9 }, { t: 'house', style: 'farm', x: .62, z: .8, w: 6.5, d: 5 },
-      { t: 'house', style: 'barn', x: .2, z: .2, w: 8, d: 5 }, { t: 'house', style: 'farm', x: .8, z: .3, w: 6, d: 4.5 },
-      { t: 'crate', x: .44, z: .56 }, { t: 'crate', x: .45, z: .58 },
-      ...[[.1, .52], [.16, .56], [.24, .54], [.76, .53], [.84, .56], [.92, .52]].map(([x, z]) => ({ t: 'tree', x, z, kind: 'broadBig' })),
-      ...[[.08, .1], [.14, .36], [.9, .12], [.86, .38], [.12, .74], [.88, .76], [.2, .9], [.82, .92]].map(([x, z]) => ({ t: 'tree', x, z, kind: 'broad' })),
-      ...[[.3, .58], [.36, .6], [.66, .6], [.7, .58], [.26, .72], [.74, .72], [.35, .25], [.6, .3]].map(([x, z]) => ({ t: 'bush', x, z })),
+      { t: 'house', style: 'farm', x: .22, z: .56, w: 10, d: 7 }, { t: 'house', style: 'farm', x: .22, z: .655, w: 10, d: 7 },
+      { t: 'house', style: 'farm', x: .295, z: .745, w: 7, d: 5 },
+      { t: 'house', style: 'farm', x: .24, z: .84, w: 9, d: 7 }, { t: 'house', style: 'farm', x: .365, z: .86, w: 8, d: 7 },
+      { t: 'house', style: 'farm', x: .6, z: .84, w: 10, d: 7 }, { t: 'house', style: 'farm', x: .72, z: .785, w: 9, d: 6 },
+      { t: 'house', style: 'bchurch', x: .66, z: .6, w: 6, d: 16 },
+      { t: 'sangar', x: .44, z: .555, r: 1.8, o: Math.PI },
+      ...[[0.455, 0.04], [0.545, 0.04], [0.455, 0.1], [0.545, 0.1], [0.455, 0.16], [0.545, 0.16], [0.455, 0.22], [0.545, 0.22], [0.455, 0.28], [0.545, 0.28], [0.455, 0.34], [0.545, 0.34]].map(([x, z]) => ({ t: 'tree', x, z, kind: 'poplar' })),
+      ...[[.1, .54], [.06, .62], [.16, .9], [.08, .8], [.86, .58], [.92, .66], [.88, .9], [.8, .94], [.3, .52], [.62, .53]].map(([x, z]) => ({ t: 'tree', x, z, kind: 'broadBig' })),
+      ...[[.4, .54], [.58, .54], [.14, .6], [.86, .7], [.45, .9], [.56, .93], [.2, .97]].map(([x, z]) => ({ t: 'bush', x, z })),
+      ...[[.15, .2], [.3, .1], [.75, .25], [.85, .1]].map(([x, z]) => ({ t: 'bush', x, z })),
     ],
-    spawnZ: .93, grenades: 4, reinf: 2, alertThreshold: .6,
+    spawnZ: .96,
+  },
+  // v107: Dunkirk, op 3 (notes/france-1940-theatre.md, B3), built from Khal's Arras sheets (assets/dunkirk/b3-ref) and the plan.
+  // A hot afternoon: two Matildas drive a sunken lane north-east, under the railway, up to the village on the ridge; three
+  // anti-tank guns (the copse, the orchard, the farm) cover the lane. The squad goes ahead and silences them (M.matildas)
+  {
+    name: 'Arras', th: 'dk', noExtras: true, noTraffic: true, noTrains: true, charges: 2,
+    obj: 'Ahead of the Matildas: silence the guns so one reaches the ridge',
+    sub: "South of Arras · Afternoon · Hot, the corn high", drawn: "Drawn from the Arras counter-attack, 21 May 1940.",
+    brief: "For once we are the ones attacking. Two Matildas are going up that lane to the village on the ridge, and nothing the Germans have in this field can get through their armour quickly. Quickly is the word. Three anti-tank guns cover the lane: one by the copse, one in the orchard, one in the farmyard past the railway. Any gun that has a tank in its sights stops it and keeps hitting it until it burns. Get ahead of them. A gun is silent when you spike it, blow it, or put its crew down. One tank on the ridge and the attack has worked. None, and it hasn't.",
+    scatter: 1, diff: 0.3, grenades: 6, reinf: 2, alertThreshold: .9,
+    roads: [{ k: 'track', w: 4, pts: [[0.04, 0.99], [0.12, 0.92], [0.28, 0.76], [0.4, 0.58], [0.47, 0.49], [0.6, 0.34], [0.7, 0.24], [0.765, 0.17]] }],
+    railPts: [[-.1, .542], [1.1, .458]],
+    grounds: [{ k: 'crop', x0: 0, z0: 0, x1: .53, z1: .47 }, { k: 'crop', x0: .58, z0: .56, x1: 1, z1: 1 }, { k: 'crop', x0: 0, z0: .6, x1: .2, z1: .82 }],
+    matildas: { path: [[0.04, 0.99], [0.12, 0.92], [0.28, 0.76], [0.4, 0.58], [0.47, 0.49], [0.6, 0.34], [0.7, 0.24], [0.765, 0.17]], n: 2, gap: 10, speed: .85, hp: 6, wait: 15 },
+    targets: [
+      { t: 'gun', x: .30, z: .40, a: .24, at: true, range: 42, arc: .95, tag: 'copse' },
+      { t: 'gun', x: .66, z: .22, a: -.55, at: true, range: 42, arc: .95, tag: 'orchard' },
+      { t: 'gun', x: .90, z: .475, a: -1.5, at: true, range: 45, arc: 1.0, tag: 'farm' },
+    ],
+    objectives: [{ t: 'escort', label: 'Get a Matilda up the lane to the village on the ridge' }],
+    enemies: [
+      { x: .285, z: .385, a: .24, range: 15, arc: Math.PI * .55, hp: 3, tag: 'copse' }, { x: .318, z: .392, a: .3, range: 15, arc: Math.PI * .55, hp: 3, tag: 'copse' },
+      { x: .645, z: .205, a: -.55, range: 15, arc: Math.PI * .55, hp: 3, tag: 'orchard' }, { x: .675, z: .21, a: -.6, range: 15, arc: Math.PI * .55, hp: 3, tag: 'orchard' },
+      { x: .885, z: .465, a: -1.5, range: 15, arc: Math.PI * .55, hp: 3, tag: 'farm' }, { x: .91, z: .49, a: -1.6, range: 15, arc: Math.PI * .55, hp: 3, tag: 'farm' },
+      { x: .22, z: .43, a: Math.PI * .9, range: 14, arc: Math.PI * .55, hp: 3 },
+      { x: .62, z: .14, a: -.4, range: 14, arc: Math.PI * .55, hp: 3 },
+      { x: .2, z: .57, a: 0, range: 13, arc: Math.PI * .55, hp: 3, patrol: [{ x: .2, z: .57 }, { x: .4, z: .555 }, { x: .7, z: .53 }] },
+      { x: .78, z: .19, a: Math.PI * .8, range: 14, arc: Math.PI * .55, hp: 3, rapidFire: true }, { x: .85, z: .16, a: Math.PI, range: 13, arc: Math.PI * .55, hp: 3 },
+    ],
+    obstacles: [
+      { t: 'house', style: 'farm', x: .74, z: .05, w: 10, d: 7 }, { t: 'house', style: 'farm', x: .87, z: .1, w: 8, d: 7 },
+      { t: 'house', style: 'bchurch', x: .8, z: .22, w: 6, d: 14 }, { t: 'house', style: 'farm', x: .885, z: .22, w: 8, d: 6.5 },
+      { t: 'house', style: 'farm', x: .625, z: .015, w: 8, d: 5 }, { t: 'house', style: 'barn', x: .87, z: .36, w: 9, d: 6 },
+      { t: 'swall', x: .84, z: .43, w: 10, d: .7 }, { t: 'swall', x: .935, z: .43, w: .7, d: 9 }, { t: 'swall', x: .875, z: .515, w: 6.5, d: .7 }, { t: 'swall', x: .84, z: .43, w: .7, d: 3.5 },
+      ...[[.26, .34], [.34, .36], [.24, .38], [.31, .33], [.36, .41], [.27, .44]].map(([x, z]) => ({ t: 'tree', x, z, kind: 'broadBig' })),
+      ...[[0.58, 0.08], [0.58, 0.115], [0.58, 0.15], [0.58, 0.185], [0.58, 0.22], [0.58, 0.255], [0.61, 0.08], [0.61, 0.115], [0.61, 0.185], [0.61, 0.22], [0.61, 0.255], [0.64, 0.08], [0.64, 0.115], [0.64, 0.15], [0.64, 0.185], [0.64, 0.255], [0.67, 0.08], [0.67, 0.115], [0.67, 0.15], [0.67, 0.185], [0.67, 0.255], [0.7, 0.08], [0.7, 0.115], [0.7, 0.15], [0.7, 0.185], [0.7, 0.22], [0.7, 0.255]].map(([x, z]) => ({ t: 'tree', x, z, kind: 'broad' })),
+      ...[[.06, .3], [.1, .56], [.56, .82], [.9, .7], [.95, .9], [.5, .2], [.42, .08], [.15, .1]].map(([x, z]) => ({ t: 'tree', x, z, kind: 'poplar' })),
+      ...[[0.016, 0.963], [0.070, 0.916], [0.095, 0.895], [0.117, 0.872], [0.140, 0.849], [0.186, 0.803], [0.209, 0.780], [0.232, 0.757], [0.250, 0.740], [0.270, 0.710], [0.290, 0.680], [0.330, 0.620], [0.350, 0.590], [0.372, 0.558], [0.452, 0.572], [0.443, 0.466], [0.486, 0.416], [0.529, 0.366], [0.551, 0.341], [0.575, 0.315], [0.600, 0.290], [0.625, 0.265], [0.674, 0.216], [0.695, 0.192], [0.717, 0.169]].map(([x, z]) => ({ t: 'bush', x, z })),
+      ...[[0.015, 0.564], [0.045, 0.562], [0.045, 0.502], [0.075, 0.560], [0.105, 0.558], [0.105, 0.498], [0.135, 0.556], [0.165, 0.553], [0.165, 0.493], [0.195, 0.551], [0.225, 0.549], [0.225, 0.489], [0.255, 0.547], [0.285, 0.545], [0.285, 0.485], [0.315, 0.543], [0.345, 0.541], [0.345, 0.481], [0.375, 0.539], [0.405, 0.537], [0.405, 0.477], [0.525, 0.528], [0.525, 0.468], [0.555, 0.526], [0.585, 0.524], [0.585, 0.464], [0.615, 0.522], [0.645, 0.520], [0.645, 0.460], [0.675, 0.518], [0.705, 0.516], [0.705, 0.456], [0.735, 0.514], [0.765, 0.511], [0.765, 0.451], [0.795, 0.509], [0.825, 0.507], [0.825, 0.447], [0.855, 0.505], [0.885, 0.503], [0.885, 0.443], [0.915, 0.501], [0.945, 0.499], [0.945, 0.439], [0.975, 0.497], [1.005, 0.495], [1.005, 0.435]].map(([x, z]) => ({ t: 'bush', x, z })),
+    ],
+    spawnX: .09, spawnZ: .955,
   }
 ];
 
@@ -8695,7 +8766,7 @@ Object.assign(SQUAD_LOOK, {
   Bert:  { build: 'stocky', hair: 'ginger', skin: 0xe2b48c, mo: 1, stub: 0, cheeks: 1 },
   Dixon: { build: 'small',  hair: 'dark',   skin: 0xe2b48c, mo: 0, stub: 1 },
 });
-const TRAIT_OF = { Sarge: 'tough', Stan: 'eye', Cal: 'quiet', Bob: 'arm', Tug: 'eye', Tor: 'keen', Nev: 'keen',
+const TRAIT_OF = { Sarge: 'tough', Stan: 'eye', Cal: 'quiet', Bob: 'arm', Tug: 'eye', Tor: 'keen', Nev: 'keen', Dai: 'quick',
   Max: 'keen', Rik: 'quick', Tom: 'quiet', Sam: 'eye', Lee: 'quiet', Jay: 'tough', Ned: 'tough', Gus: 'arm', Wilf: 'quick',
   Alf: 'tough', Herb: 'arm', Cyril: 'eye', Norm: 'quick', Reg: 'tough', Sid: 'keen', Vern: 'eye', Ollie: 'arm', Bert: 'tough', Dixon: 'quick' };
 function traitOf(g) {
@@ -8706,6 +8777,7 @@ function traitOf(g) {
 }
 SQUAD_LOOK.Tug = { build: 'tall', hair: 'black', skin: 0x5a3a26, mo: 0, stub: 0 };
 SQUAD_LOOK.Tor = { build: 'tall', hair: 'fair', skin: 0xe2b48c, mo: 0, stub: 1, cap: 1, pipe: 1 };
+SQUAD_LOOK.Dai = { build: 'tall', hair: 'black', skin: 0xe0b08c, mo: 1, stub: 1 };   // v106: Dai, the Welsh sapper (Dunkirk): lean, dark, a moustache, so nobody takes him for Bob
 SQUAD_LOOK.Nev = { build: 'tall', hair: 'fair', skin: 0xd08a62, mo: 1, stub: 1, slouch: 1 };   // v92: the New Zealand navigator, after his portrait: sunburnt, a sandy beard, a slouch hat   // v81: the Norwegian guide, after his portrait
 function addSniper(M) {
   const ref = { ...newGrunt('Tug', sniperRec.kills), sniper: true };
@@ -11802,7 +11874,7 @@ function stepCanteen(dt) {
 /*───────────────────── v102: refugees (Dunkirk, notes/france-1940-theatre.md §2A) ─────────────────────
    The game's first civilians. M.refugees = { path: [[x, z], ...] (fractions), every: s between groups, speed }: groups walk
    the road in single file, keeping their distance, and never stop coming. Neither side shoots at them. A man of ours
-   standing still in the road just ahead of a group halts it, and everything behind it queues; it stays halted 25 s after he goes
+   standing still in the road just ahead of a group halts it, and everything behind it queues; it stays halted 30 s after he goes (v106; 25 in v102)
    (long enough for him to get back over the bridge to the exploder and for the ones already on it to clear).
    A shot or a blast nearby scatters them off the road for a while. The squad holds its fire with one in the line of it;
    a grenade, a charge or a fireball that catches one fails the op (Khal, 21 Oct 2026). One instanced mesh per kind of
@@ -11812,7 +11884,7 @@ const REF_K = {   // length on the road (m), speed factor
   cart: { L: 6.2, v: 0.85 }, hand: { L: 3.2, v: 1 }, walk: { L: 2.4, v: 1.05 }, car: { L: 4.6, v: 0.9 }, bike: { L: 2.8, v: 1.1 },
 };
 const REF_N = 30;
-let refs = [], refPath = null, refT = 0, refMeshes = null, refToast = 0, exploder = null;
+let refs = [], refPath = null, refT = 0, refMeshes = null, refToast = 0, exploder = null, sapperSt = null;
 // a person: legs, coat, a head under a hat or a scarf (faces +z, stands on y = 0)
 function refPerson(p, x, z, coat, hat, s) {
   s = s || 1;
@@ -11853,6 +11925,7 @@ function refInit(M) {
   }
   for (const k in refMeshes) refMeshes[k].count = 0;
   if (exploder) { fxRoot.remove(exploder.ring); exploder.ring.geometry.dispose(); }
+  if (sapperSt) { fxRoot.remove(sapperSt.ring); sapperSt.ring.geometry.dispose(); sapperSt = null; }
   refs = []; refT = 0; refToast = 0; refPath = null; exploder = null;
   const R = M.refugees; if (R) {
     const pts = R.path.map(([x, z]) => [x * MW, z * MH]), cum = [0];
@@ -11860,6 +11933,16 @@ function refInit(M) {
     refPath = { pts, cum, total: cum[cum.length - 1], every: R.every || 6, speed: R.speed || 1.1 };
     for (let d = refPath.total * 0.85; d > 2; d -= 9 + Math.random() * 4) refSpawn(d);   // the road is already full when we arrive
     refs.sort((a, b) => b.d - a.d);
+  }
+  // v106: M.sapper = { x, z, r, t, by }: the charges go on the piers, and only the sapper knows how. With him within r metres
+  // of the spot for t seconds the bridge is wired, and only then will the exploder fire it. If he dies first, nobody can
+  if (M.sapper) {
+    const P = M.sapper, x = P.x * MW, z = P.z * MH, r = P.r || 5;
+    const ring = new THREE.Mesh(new THREE.RingGeometry(r - 0.25, r, 40, 1, 0, 0.001), basic(0xffd24a, { transparent: true, opacity: 0.8, depthWrite: false, side: THREE.DoubleSide }).clone());
+    ring.rotation.x = -Math.PI / 2; ring.position.set(x, surfY(x, z) + 0.1, z); ring.renderOrder = 3; fxRoot.add(ring);
+    const dash = new THREE.Mesh(new THREE.RingGeometry(r - 0.12, r, 40), basic(0xffd24a, { transparent: true, opacity: 0.3, depthWrite: false, side: THREE.DoubleSide }).clone());
+    dash.rotation.x = -Math.PI / 2; ring.add(dash); dash.rotation.x = 0;
+    sapperSt = { x, z, r, t: P.t || 6, by: P.by || 'Dai', work: 0, arc: 0, ring, done: false, hint: false };
   }
   if (M.exploder) {
     const E = M.exploder, x = E.x * MW, z = E.z * MH;
@@ -11899,6 +11982,22 @@ function civScare(x, z, r) {
 }
 function stepRefugees(dt) {
   if (!refPath && !exploder) return;
+  const W = sapperSt;
+  if (W && !W.done && phase === 'play' && !outcome) {
+    const dai = sol.find(q => q.name === W.by);
+    if (dai && dai.dead) failOp(['NO SAPPER', 'nobody else knows which wire goes where']);
+    else if (dai) {   // (until he joins, nothing)
+      // the squad stopped near the spot: he goes forward to it himself, wherever he is in the file
+      const ld = sol.find(q => !q.dead && !q.sniper && q !== dai && tmOf(q) === tmOf(dai)) || dai, still = !(ld.path && ld.path.length) && Math.hypot(ld.tx - ld.x, ld.tz - ld.z) < 0.8;
+      dai.workAt = still && Math.hypot(ld.x - W.x, ld.z - W.z) < W.r + 4 ? { x: W.x, z: W.z } : null;
+      const on = Math.hypot(dai.x - W.x, dai.z - W.z) < W.r;
+      W.work = on ? W.work + dt : Math.max(0, W.work - dt * 0.5);
+      if (!on && !W.hint && sol.some(q => !q.dead && Math.hypot(q.x - W.x, q.z - W.z) < W.r)) { W.hint = true; showToast('ONLY ' + W.by.toUpperCase() + ' CAN WIRE IT', 'bring him here with you'); }
+      const arc = Math.max(0.001, Math.min(1, W.work / W.t)); if (Math.abs(arc - W.arc) > 0.01) { W.arc = arc; W.ring.geometry.dispose(); W.ring.geometry = new THREE.RingGeometry(W.r - 0.25, W.r, 40, 1, 0, arc * Math.PI * 2); }
+      if (on && W.work > 0.3 && W.work - dt <= 0.3) bubble(dai, 'Charges on the piers. Two minutes.', 1.6);
+      if (W.work >= W.t) { W.done = true; W.ring.visible = false; dai.workAt = null; showToast('BRIDGE WIRED', 'the wire runs back to the exploder by the road'); bubble(dai, 'Wired. Mind your ears.', 1.6); updObjBar(); }
+    }
+  }
   const P = refPath;
   if (P && phase === 'play' && !outcome) {
     // once the bridge is down nobody new comes, and the ones short of it stop at the bank
@@ -11909,7 +12008,8 @@ function stepRefugees(dt) {
       if (r.sc > 0) { r.sc -= dt; continue; }   // off the road, waiting
       // a man of ours standing in the road just ahead stops them (one walking through, they go round); they wait a while after he goes
       const [px, pz] = refPos(Math.min(P.total, r.d + REF_K[r.k].L / 2 + 2.5));
-      if (sol.some(q => !q.dead && !q.riding && !q.moving && Math.hypot(q.x - px, q.z - pz) < 2.8)) { if (r.halt <= 0 && refToast < 2 && !mineSeen.refHalt) { mineSeen.refHalt = true; showToast('HALTED', 'a man in the road stops them, and they wait a while after he goes: time to get back over and let it clear'); } r.halt = 25; }
+      if (!onBridge(r.x, r.z, 1) && sol.some(q => !q.dead && !q.riding && !q.moving && Math.hypot(q.x - px, q.z - pz) < 2.8))   // v106: nobody stops on a bridge: on it, they keep going
+        { if (r.halt <= 0 && refToast < 2 && !mineSeen.refHalt) { mineSeen.refHalt = true; showToast('HALTED', 'a man in the road stops them, and they wait a while after he goes: time to get back over and let it clear'); } r.halt = 30; }
       if (r.halt > 0) { r.halt -= dt; continue; }
       let step = r.v * dt;
       if (ahead) step = Math.min(step, Math.max(0, ahead.d - r.d - (REF_K[ahead.k].L + REF_K[r.k].L) / 2 - 1.4));
@@ -11934,15 +12034,18 @@ function stepRefugees(dt) {
   const E = exploder;
   if (E && !outcome && phase === 'play') {
     const T = targets.find(t => t.kind === 'bridge' && t.b === E.b);
-    if (T && !T.dead) {
+    if (T && !T.dead && sapperSt && !sapperSt.done) {   // not wired yet: the exploder does nothing
+      const by = sol.find(q => !q.dead && Math.hypot(q.x - E.x, q.z - E.z) < 2.5); E.warnT -= dt;
+      if (by && E.warnT <= 0) { E.warnT = 5; showToast('NOT WIRED YET', sapperSt.by + ' has to put the charges on the piers first'); }
+    } else if (T && !T.dead) {
       const by = sol.find(q => !q.dead && Math.hypot(q.x - E.x, q.z - E.z) < 2.5);
       E.work = by ? E.work + dt : Math.max(0, E.work - dt); E.warnT -= dt;
       const arc = Math.max(0.001, Math.min(1, E.work / 1.5)); if (Math.abs(arc - E.arc) > 0.01) { E.arc = arc; E.ring.geometry.dispose(); E.ring.geometry = new THREE.RingGeometry(1.15, 1.35, 30, 1, 0, arc * Math.PI * 2); }
       if (E.work >= 1.5) {
-        const Z = T.zone, on = refs.some(r => r.x > Z.x0 - 2 && r.x < Z.x1 + 2 && r.z > Z.z0 - 3 && r.z < Z.z1 + 3);
+        const Z = T.zone, on = refs.some(r => r.x > Z.x0 - 2 && r.x < Z.x1 + 2 && r.z > Z.z0 - 0.5 && r.z < Z.z1 + 0.5);   // v106: on the deck (it was ±3 m, which counted the queue halted at its mouth)
         // our own on it or over the far side: the far side is the one away from the exploder, along the bridge
         const cx = (Z.x0 + Z.x1) / 2, cz = (Z.z0 + Z.z1) / 2, alongZ = Z.z1 - Z.z0 > Z.x1 - Z.x0;
-        const far = q => alongZ ? (E.z > cz ? q.z < Z.z1 + 1 : q.z > Z.z0 - 1) : (E.x > cx ? q.x < Z.x1 + 1 : q.x > Z.x0 - 1);
+        const far = q => alongZ ? (E.z > cz ? q.z < Z.z1 - 0.5 : q.z > Z.z0 + 0.5) : (E.x > cx ? q.x < Z.x1 - 0.5 : q.x > Z.x0 + 0.5);   // v106: on the deck proper, not its last half-metre
         const ours = sol.find(q => !q.dead && far(q));
         if (on || ours) { E.work = 1.2; if (E.warnT <= 0) { E.warnT = 4;
           if (on) { showToast('PEOPLE ON THE BRIDGE', 'stop them at the far end and let it clear, then blow it'); if (by) bubble(by, 'Not with them on it.', 1.4); }
@@ -11955,6 +12058,113 @@ function stepRefugees(dt) {
       }
     }
   }
+}
+/*───────────────────── v107: Matildas on our side (Arras, notes/france-1940-theatre.md §2D) ─────────────────────
+   M.matildas = { path: [[x, z], ...] (fractions), n, gap, speed, hp, wait }: our tanks drive the lane on rails, nose to tail.
+   An anti-tank gun (a 'gun' target with at: true, range, arc, tag) that has one in its arc and range stops it there and hits it
+   every 5–6 s; six hits and it burns. A gun is silent once it is spiked or blown, or its crew (enemies with its tag) are all
+   down. The tanks stop for a man of ours in front rather than run him down, and their machine guns rake infantry ahead.
+   One tank at the end of the lane wins the op (objective 'escort'); both burning loses it. */
+const MAT_C = { body: 0x59603e, light: 0x6b7249, dark: 0x3c412b };
+let escortSt = null, matGeo = null;
+function mkMatildaGeo() {
+  const p = [], C = MAT_C;
+  for (const sx of [-1, 1]) {
+    trackP(p, sx * 1.22, 0.5, -2.9, 2.9, 1.0, 8, 0.26, 4);
+    p.push({ g: GEO.box, m: M4(sx * 1.36, 0.78, 0, 0.12, 0.72, 5.5), c: C.body });   // the side skirts, with their mud chutes
+    for (let i = 0; i < 5; i++) p.push({ g: GEO.box, m: M4(sx * 1.43, 0.6, -2.1 + i * 1.05, 0.03, 0.22, 0.38), c: C.dark });
+  }
+  p.push({ g: GEO.box, m: M4(0, 1.0, 0.05, 2.1, 0.8, 5.3), c: C.body });                                   // the hull
+  p.push({ g: GEO.box, m: M4(0, 1.55, 0.2, 1.75, 0.38, 3.6), c: C.light }, { g: GEO.box, m: M4(0, 1.2, 2.7, 1.7, 0.5, 0.5, 0, 0), c: C.body });
+  p.push({ g: GEO.cyl, m: M4(0, 2.05, 0.25, 1.75, 0.7, 1.75), c: C.body }, { g: GEO.cyl, m: M4(0, 2.43, 0.25, 1.5, 0.08, 1.5), c: C.light });   // the cast turret
+  p.push({ g: GEO.cyl, m: M4(-0.35, 2.58, 0.0, 0.55, 0.26, 0.55), c: C.light }, { g: GEO.box, m: M4(0, 2.05, 1.12, 0.62, 0.42, 0.26), c: C.dark });   // cupola, mantlet
+  p.push({ g: GEO.cyl, m: M4e(0, 2.06, 1.85, 0.11, 1.5, 0.11, Math.PI / 2, 0, 0), c: C.dark });             // the 2-pounder
+  p.push({ g: GEO.box, m: M4(0, 1.3, -2.75, 1.9, 0.5, 0.3), c: C.dark }, { g: GEO.box, m: M4(0.6, 1.8, -1.4, 0.5, 0.25, 0.9), c: 0x6c6347 });   // engine deck, stowage
+  return mergeGeos(p);
+}
+function escortInit(M) {
+  if (escortSt) for (const t of escortSt.tanks) { propRoot.remove(t.mesh); }
+  escortSt = null;
+  const E = M.matildas; if (!E) return;
+  if (!matGeo) matGeo = mkMatildaGeo();
+  const pts = E.path.map(([x, z]) => [x * MW, z * MH]), cum = [0];
+  for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+  const S = { pts, cum, total: cum[cum.length - 1], speed: E.speed || 0.85, gap: E.gap || 10, wait: E.wait === undefined ? 15 : E.wait, tanks: [], arrived: false, firstHalt: false, mgT: 0 };
+  for (let i = 0; i < (E.n || 2); i++) {
+    const mesh = new THREE.Mesh(matGeo, propMat); mesh.castShadow = true; mesh.receiveShadow = true; propRoot.add(mesh);
+    S.tanks.push({ mesh, d: Math.max(0, 6 - i * S.gap), hp: E.hp || 6, hpMax: E.hp || 6, dead: false, halt: 0, x: 0, z: 0, yaw: 0, name: i ? 'second Matilda' : 'leading Matilda' });
+  }
+  escortSt = S;
+  escortPlace(0);
+}
+function escortPos(d) {
+  const P = escortSt; let i = 1; while (i < P.cum.length - 1 && P.cum[i] < d) i++;
+  const a = P.pts[i - 1], b = P.pts[i], seg = P.cum[i] - P.cum[i - 1], t = seg > 0 ? Math.min(1, (d - P.cum[i - 1]) / seg) : 0;
+  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, Math.atan2(b[0] - a[0], b[1] - a[1])];
+}
+function escortPlace(dt) {
+  for (const t of escortSt.tanks) {
+    const [x, z, yaw] = escortPos(t.d); t.x = x; t.z = z;
+    t.yaw += angDiff(yaw, t.yaw) * Math.min(1, dt * 2 || 1);
+    t.mesh.position.set(x, groundY(x, z) + (t.dead ? -0.1 : 0), z); t.mesh.rotation.y = t.yaw;
+  }
+}
+function stepEscort(dt) {
+  const S = escortSt; if (!S || phase !== 'play') return;
+  if (!S.crewed) { S.crewed = true; for (const T of targets) if (T.at) { T.crew = ens.filter(e => e.tag === T.tag); T.fireT = 3 + Math.random() * 2; T.silent = false; } }   // the enemy is placed after the props
+  if (!outcome) {
+    // the guns: each picks the nearest tank in its arc and range, stops it and hits it every 5–6 s
+    for (const T of targets) {
+      if (!T.at || T.dead || T.silent) continue;
+      if (T.crew && T.crew.length && T.crew.every(e => e.dead)) { T.silent = true; showToast('GUN SILENT', 'its crew are down. The tanks can pass it'); continue; }
+      let best = null, bd = T.range;
+      for (const t of S.tanks) { if (t.dead) continue; const d = Math.hypot(t.x - T.x, t.z - T.z); if (d < bd && Math.abs(angDiff(Math.atan2(t.x - T.x, t.z - T.z), T.a || 0)) < T.arc) { best = t; bd = d; } }
+      if (!best) continue;
+      best.halt = 0.6;
+      if (!S.firstHalt) { S.firstHalt = true; showToast('UNDER FIRE', 'an anti-tank gun has them. Find it and silence it'); }
+      T.fireT -= dt;
+      if (T.fireT <= 0) {
+        T.fireT = 5 + Math.random() * 1.2;
+        const gy = groundY(T.x, T.z), ty = groundY(best.x, best.z);
+        spawnParts(T.x + Math.sin(T.a || 0) * 2, gy + 1.1, T.z + Math.cos(T.a || 0) * 2, 8, 0xffd27a, 6, 0.14, 0.25, 2);
+        spawnParts(best.x, ty + 1.6, best.z, 14, 0xffb060, 7, 0.16, 0.4, 6); spawnParts(best.x, ty + 1.6, best.z, 6, 0x4a4640, 3, 0.3, 1.2, -1);
+        SFX.arty(T.x, T.z); noiseEvent(T.x, T.z, 50, 1); camShake = Math.min(camShake + 0.12, 0.6);
+        if (--best.hp <= 0) {
+          best.dead = true; best.mesh.material = pbScorch; best.mesh.rotation.z = 0.04;
+          addSmoker(best.x, best.z, { life: 9999, rate: 3, size: 1.6, col: 0x2a2826, a: 0.6, rise: 2.2, y: ty + 2 });
+          spawnParts(best.x, ty + 2, best.z, 40, 0xff8a3a, 9, 0.24, 0.8, 4); SFX.boom(best.x, best.z);
+          const left = S.tanks.filter(t => !t.dead).length;
+          if (left) showToast('MATILDA KNOCKED OUT', 'the ' + best.name + ' is burning. One left'); else failOp(['BOTH MATILDAS KNOCKED OUT', 'the attack stops in the lane, as it did']);
+        }
+      }
+    }
+    // the tanks: on along the lane unless a gun has them, the one ahead is too close, or one of ours is in the way
+    const live = S.tanks.filter(t => !t.dead), go = missionTime > S.wait;
+    for (let i = 0; i < S.tanks.length; i++) {
+      const t = S.tanks[i]; if (t.dead) continue;
+      t.halt -= dt; if (t.halt > 0 || !go) continue;
+      const ahead = S.tanks.slice(0, i).reverse().find(q => !q.dead);
+      let step = S.speed * dt;
+      if (ahead) step = Math.min(step, Math.max(0, ahead.d - t.d - S.gap));
+      const [fx, fz] = escortPos(Math.min(S.total, t.d + 3.4));
+      if (sol.some(q => !q.dead && Math.hypot(q.x - fx, q.z - fz) < 2.2)) step = 0;
+      t.d = Math.min(S.total, t.d + step);
+      if (t.d >= S.total - 0.5 && !S.arrived) { S.arrived = true; showToast('ON THE RIDGE', 'a Matilda is in the village'); updObjBar(); }
+    }
+    // their machine guns: a burst now and then at a German in front of them, and quite often it tells
+    S.mgT -= dt;
+    if (S.mgT <= 0) {
+      S.mgT = 1.4 + Math.random() * 0.6;
+      for (const t of live) {
+        const e = ens.find(q => !q.dead && !q.inBox && Math.hypot(q.x - t.x, q.z - t.z) < 24 && Math.abs(angDiff(Math.atan2(q.x - t.x, q.z - t.z), t.yaw)) < 0.9 && hasLOS(t.x, t.z, q.x, q.z));
+        if (!e) continue;
+        SFX.shot(t.x, t.z, 'lmg'); spawnParts(t.x + Math.sin(t.yaw) * 2.4, groundY(t.x, t.z) + 1.4, t.z + Math.cos(t.yaw) * 2.4, 2, 0xffcf80, 4, 0.1, 0.12, 2);
+        if (Math.random() < 0.35) damage(e, 2, 'shot', true); else if (e.alert < 0.9) { e.alert = 0.9; e.lastX = t.x; e.lastZ = t.z; }
+      }
+    }
+    objTimer('MATILDAS ' + S.tanks.map(t => t.dead ? '✕' : '■'.repeat(t.hp) + '□'.repeat(t.hpMax - t.hp)).join('  '), S.tanks.some(t => !t.dead && t.hp <= 2));
+  }
+  escortPlace(dt);
 }
 // v99: the shepherd's dog (M.barker = { x, z }): a man running past within 14 m sets it off. It is heard round the
 // hillside, and it carries on while he keeps running
@@ -11995,7 +12205,11 @@ const NORB = { rorbu: { wall: 0x8c2a20, trim: 0xe9e3d4, H: 2.7, door: 0x3a2e24, 
   casa: { wall: 0xa8503e, trim: 0xd8ccb2, H: 3.6, door: 0x3e4a3a, solid: true, flat: true, tank: true },
   fortw: { wall: 0xe2dbc6, trim: 0xcbc1a6, H: 3.3, door: 0x4a3a28, solid: true, flat: true, noChim: true },   // v98: whitewashed, inside the fort
   mud: { wall: 0xb48e60, trim: 0x9a7650, H: 2.9, door: 0x4a3626, solid: true, flat: true, noChim: true },
-  stone: { wall: 0xa89a80, trim: 0x8a7e66, H: 2.6, door: 0x4a3626, solid: true, flat: true, noChim: true } };   // v99: the shepherd's hut   // v98: the village
+  stone: { wall: 0xa89a80, trim: 0x8a7e66, H: 2.6, door: 0x4a3626, solid: true, flat: true, noChim: true },
+  // v106, from Khal's Dyle Bridge sheet: Flemish red brick, the café in cream render with green shutters, the brick church with its tower
+  brick: { wall: 0x94452e, trim: 0xe2d8c4, H: 5.2, door: 0x3a4a3c, solid: true },
+  cafe: { wall: 0xd8cdb4, trim: 0x4e6a46, H: 5.0, door: 0x3a4a3c, solid: true },
+  bchurch: { wall: 0x8e4a34, trim: 0xd8ccb4, H: 5.0, door: 0x3a2e24, solid: true, spire: true, rows: [2.2], win: [0.8, 2.0] } };   // v99: the shepherd's hut   // v98: the village
 function mkNorBldg(x, z, w, d, kind) {
   const K = NORB[kind], H = K.H, seed = hash2(x * 0.37, z * 0.53), parts = [], tins = [], Q = { p: [], c: [] }, cx = x + w / 2, cz = z + d / 2;
   let gmin = 1e9, gmax = -1e9;
@@ -12327,7 +12541,7 @@ function buildTargets(M) {
     else if (t.t === 'lorry') obs.push(mkLorry(T));
     else if (t.t === 'otank') { T.kind = 'lorry'; T.oil = true; obs.push(mkOilTank(T)); }   // v75: burns like the lorry
     else if (t.t === 'fstore') { T.kind = 'lorry'; T.oil = true; obs.push(mkFishStore(T)); }   // v85: Måløy's warehouses, the same
-    else if (t.t === 'gun') obs.push(mkGun(T));
+    else if (t.t === 'gun') { obs.push(mkGun(T)); if (t.at) Object.assign(T, { at: true, range: t.range || 42, arc: t.arc || 1.0, tag: t.tag }); }   // v107: at, an anti-tank gun that stops our tanks
     else if (t.t === 'plane') obs.push(mkAircraft(T, t.type));   // v97
     else if (t.t === 'dump') obs.push(mkFuelDump(T));
     else if (t.t === 'hangar') { T.kind = 'dump'; obs.push(mkHangar(T, (t.w || .12) * MW, (t.d || .08) * MH)); }   // v98: burns like the dump
@@ -12490,6 +12704,8 @@ const stepDone = s => {
       const L = targets.filter(t => !t.optional && (s.whats ? s.whats.includes(t.kind) : !s.what || t.kind === s.what)); return L.length > 0 && L.every(t => t.dead); }
     case 'take': return !!(intel && intel.taken);
     case 'guide': return guideJoined;   // v81
+    case 'sapper': return !!(sapperSt && sapperSt.done);   // v106
+    case 'escort': return !!(escortSt && escortSt.arrived);   // v107
     case 'free': return prisoners.length > 0 && prisoners.every(h => h.rescued);
     case 'killTag': { const L = ens.filter(e => e.tag === s.tag); return L.length > 0 && L.every(e => e.dead); }
     case 'hold': return (s.held || 0) >= s.time;   // v47
@@ -12600,7 +12816,7 @@ function stepObjRules(s, dt) {
       s.left -= dt; objTimer(`${s.clock || 'TIME'} ${mmss(s.left)}`, s.left < 30);
       if (s.left <= 0) failOp(s.fail || ['TOO LATE', 'the moment has gone']);
     }
-  } else if (MISSIONS[missionIdx].clock) {   // v85: the op's own clock, over every step (Måløy: the boats leave)
+  } else if (MISSIONS[missionIdx].clock && !(MISSIONS[missionIdx].clock.steps <= objIdx)) {   // v85: the op's own clock, over every step (Måløy: the boats leave); v106: or its first `steps` steps
     const C = MISSIONS[missionIdx].clock, left = C.t - missionTime;
     objTimer(`${C.label} ${mmss(left)}`, left < 60);
     if (left <= 0) failOp(C.fail);
@@ -12917,6 +13133,7 @@ function initMission(idx) {
   barkT = 0; barkToast = false;   // v99
   resetCanteen(M);   // v101
   refInit(M);   // v102
+  escortInit(M);   // v107
   jeepRun = null; trcList.length = 0; tracerMesh.visible = false;   // v100: the jeeps went with propRoot
   buildPuddles(M); buildFlowers(M);   // v34: after the obstacles, so neither lands under a hut
 
@@ -14237,6 +14454,7 @@ function update(dt) {
   stepBarker(dt);   // v99
   stepCanteen(dt);   // v101
   stepRefugees(dt);   // v102
+  stepEscort(dt);   // v107
   if (MISSIONS[missionIdx].jeeps && !jeepRun && phase === 'play' && !outcome) jeepInit(MISSIONS[missionIdx]);   // v100
   stepJeeps(dt);
   if (culverts.length) for (const u of sol) {   // v93: crawling through the culvert: out of sight, and not drawn on top of the road
@@ -14293,6 +14511,7 @@ function update(dt) {
         if (s.fpath.length && Math.hypot(tx - s.x, tz - s.z) > 2.5) { tx = s.fpath[0].x; tz = s.fpath[0].z; } else s.fpath = null;
       }
     }
+    if (s.workAt) { tx = s.workAt.x; tz = s.workAt.z; }   // v106: a specialist goes to his job (Dai to the piers) and comes back when it's done
     // v79 (?pace=slow): under fire, with the leader stopped, a follower gets behind the nearest cover he can still shoot from
     if (SLOW) {
       s.supT = Math.max(0, (s.supT || 0) - dt);
@@ -14789,7 +15008,7 @@ function update(dt) {
   // v81: Tor waits at his hut, pipe going, until one of ours reaches him
   if (guideWait) {
     const g = guideWait; animateRig(g, dt);
-    if (sol.some(s => !s.dead && !s.sniper && dst(s, g) < 2.4)) joinGuide();
+    if (MISSIONS[missionIdx].guide.attach || sol.some(s => !s.dead && !s.sniper && dst(s, g) < 2.4)) joinGuide();   // v106: attach, with the squad from the start (Dai)
   }
   // v46: an optional prisoner — one of ours, in their hands. Reach him and he picks up a rifle and joins the squad
   for (const h of recruits) {
