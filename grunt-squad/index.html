@@ -438,7 +438,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
     <button id="tset">SETTINGS <small>sound · music · graphics</small></button>
   </div>
   <div class="foot">© GAMELAB · NO GRUNTS WERE CONSULTED</div>
-  <div id="tver">v109</div>
+  <div id="tver">v111</div>
 </div>
 
 <div id="ops" class="screen">
@@ -1967,7 +1967,11 @@ function terrCol(cx, cz, cy, ny, h, c) {
   // v106: fields of ripe corn on a green op (M.grounds k 'crop'; Dunkirk's Flanders and Picardy): gold in drilled rows, the grass gone under it
   else if (sandZones.length) {
     const z = sandAt(cx, cz);
-    if (z.k === 'crop' && kind !== 'road' && kind !== 'track') {
+    if ((z.k === 'sand' || z.k === 'marram') && kind !== 'road') {   // v110: the beach and the dunes behind it
+      const n = vnoise(cx * 0.19 + 4.1, cz * 0.19 - 2.7), col = _sn.copy(LP.sand).lerp(LP.sandD, n * 0.5);
+      if (z.k === 'marram') col.lerp(_ic.copy(LP.sandD).lerp(SC(0x7a8a4a), 0.5), vnoise(cx * 0.6, cz * 0.6) * 0.8);
+      const f = z.f; c.lerp(col, f); const k = 1 - f * (z.k === 'sand' ? 1 : 0.6); w0 *= k; w1 *= k; w2 *= k; w3 *= k;
+    } else if (z.k === 'crop' && kind !== 'road' && kind !== 'track') {
       const n = vnoise(cx * 0.21 + 2.3, cz * 0.21 - 6.1), row = Math.sin(cx * 2.6 + n * 1.5) * 0.5 + 0.5;
       const col = _sn.copy(LP.crop).lerp(LP.cropD, n * 0.5 + row * 0.3), f = z.f * 0.9;
       c.lerp(col, f); const k = 1 - f; w0 *= k; w1 *= k; w2 *= k; w3 *= k;
@@ -2224,13 +2228,14 @@ function buildWater() {
       for (const q of riverRocks) { const e = Math.hypot(x - q.x, z - q.z) - q.r; if (e < 0.3) fo = Math.max(fo, e < 0.08 ? 0.5 : 0.25 * (0.3 - e) / 0.22); }   // v50: a faint static collar; the moving foam sheet does the rest
       { const a = w >= d ? x : z, b = w >= d ? z : x, st = vnoise(a * 0.22 + 4, b * 1.7 + 2);   // flow lines run with the river
         if (st > 0.72 && dep > 0.3) fo = Math.max(fo, Math.min(0.32, (st - 0.72) * 1.6)); }
-      if (r.canal) { fo = 0; c.copy(SC(dep < 0.07 ? 0x6a6c64 : dep < 0.6 ? 0x48635e : 0x34504e)); }   // v108: a canal is still and the colour of slate, no flow lines
+      if (r.canal) { fo = 0; c.copy(SC(dep < 0.07 ? 0x6a6c64 : dep < 0.6 ? 0x48635e : 0x34504e)); }
+      if (r.sea) { fo = dep < 0.25 ? 0.5 : 0; c.copy(SC(dep < 0.6 ? 0x4e7e8e : dep < 2 ? 0x356678 : 0x264f64)); }   // v110: the Channel, grey-blue, a line of surf at the edge   // v108: a canal is still and the colour of slate, no flow lines
       if (fo > 0) c.lerp(foam, Math.min(1, fo));
       // v48: clear water — the bed, the stones and the bridge's trestles show through; it thickens with depth, foam stays white
       const al = Math.min(0.34, 0.1 + Math.max(0, dep) * 0.1) * (1 - Math.min(1, fo)) + Math.min(1, fo) * 0.9;
       if (SNOW && dep >= 0.07) c.lerp(_w2.copy(SC(r.still ? 0x15232b : 0x1d3240)), r.still ? 0.88 : 0.78);
       if (SAND && dep >= 0.07) c.lerp(_w2.copy(SC(r.still ? (dep > 0.6 ? 0x1e4e44 : 0x3a7a62) : dep > 0.6 ? 0x1f5a7a : 0x3a8a9a)), 0.86);   // v98: an oasis pool is green   // v92: the Mediterranean, blue over sand   // v75: a winter fjord is dark and deep, not clear over a snowy bed
-      depA[i] = dep; pa.setXYZ(i, x, sy, z); col[i * 4] = c.r; col[i * 4 + 1] = c.g; col[i * 4 + 2] = c.b; col[i * 4 + 3] = dep < 0.07 ? 0.85 : SNOW || SAND || r.canal ? 0.9 : al;
+      depA[i] = dep; pa.setXYZ(i, x, sy, z); col[i * 4] = c.r; col[i * 4 + 1] = c.g; col[i * 4 + 2] = c.b; col[i * 4 + 3] = dep < 0.07 ? 0.85 : SNOW || SAND || r.canal || r.sea ? 0.9 : al;
     }
     g.setAttribute('color', new THREE.BufferAttribute(col, 4)); g.computeVertexNormals();
     const m = new THREE.Mesh(g, waterMat);
@@ -2239,7 +2244,7 @@ function buildWater() {
     waterMeshes.push(m);
     if (r.still) {   // v75: a fjord does not run: no foam sheet; ice instead, and the quay wall along its edge
       const M = MISSIONS[missionIdx];
-      if (!SAND && !r.canal) for (const im of buildFloes(r, M)) { waterRoot.add(im); waterMeshes.push(im); }   // v92: no ice in the Mediterranean (v108: nor in a canal in May)
+      if (!SAND && !r.canal && !r.sea) for (const im of buildFloes(r, M)) { waterRoot.add(im); waterMeshes.push(im); }   // v92: no ice in the Mediterranean (v108: nor in a canal in May)
       if (r.quay) { const q = mkQuayWall(r, M); waterRoot.add(q); waterMeshes.push(q); }
       if (r.canal) {   // v108: a canal has a quay on both banks: the same wall turned round about the middle for the south side
         const q = mkQuayWall(r, M), cx = (r.x0 + r.x1) / 2, cz = (r.z0 + r.z1) / 2; q.rotation.y = Math.PI; q.position.set(cx * 2, 0, cz * 2); waterRoot.add(q); waterMeshes.push(q);
@@ -3748,6 +3753,8 @@ function buildGrass(M) {
       if (waterFactor(px, pz, true) > 0 || padBlend(px, pz) || roadFootAt(px, pz) || blocked(px, pz, 0.12)) continue;
       if (waterZones.length) { const q = riverInset(px, pz); if (q > -1.8) continue; }
       if (grassSlope(px, pz) > 0.75) continue;
+      if (sandZones.length) { const sz = sandAt(px, pz); if (sz.k === 'sand' && sz.f > 0.15) continue; if (sz.k === 'marram' && r0 > 0.3 + (1 - sz.f) * 0.7) continue; }   // v110: none on the beach, tufts of marram in the dunes
+      if ((streets.length || squares.length) && r0 > 0.06 && onStreet(px, pz, 0.2)) continue;   // v110: on the cobbles, only the odd tuft in the cracks
       // density: clumps a few metres across, thicker in the meadow swathes, thin on the dry patches
       const clump = vnoise(px * 0.21 + 3.1, pz * 0.21 - 8.4), macro = fbm(px * 0.016 + 5.3, pz * 0.016 - 9.1);
       const dry = Math.max(0, Math.min(1, (fbm(px * 0.035 + 21, pz * 0.035 + 33) - 0.5) * 2.4));
@@ -3774,7 +3781,7 @@ function buildGrass(M) {
       for (let k = 0; k < n; k++) {
         const x = fx + (hash2(fx + k * 0.37, 1.1) - 0.5) * 2 * sp, z = fz + (hash2(2.2, fz + k * 0.53) - 0.5) * 2 * sp;
         if (x < x0 || x >= x0 + CH || z < z0 || z >= z0 + CH) continue;
-        if (waterFactor(x, z, true) > 0 || padBlend(x, z) || roadFootAt(x, z) || blocked(x, z, 0.2) || grassSlope(x, z) > 0.75 || mudAt(x, z) > 0.3) continue;
+        if (waterFactor(x, z, true) > 0 || padBlend(x, z) || roadFootAt(x, z) || blocked(x, z, 0.2) || grassSlope(x, z) > 0.75 || mudAt(x, z) > 0.3 || (sandZones.length && sandAt(x, z).k === 'sand')) continue;
         const y = terrainVisY(x, z); c.copy(fc).multiplyScalar(0.88 + hash2(x * 3, z) * 0.24);
         L.flower.push([x, y, z, hash2(x, z) * 6.283, 0.85 + hash2(z, x) * 0.6, 0.7 + hash2(x * 2, z) * 0.6, c.r, c.g, c.b, (hash2(z * 3, x) - 0.5) * 0.4]);
         y0 = Math.min(y0, y); y1 = Math.max(y1, y);
@@ -8786,6 +8793,88 @@ const MISSIONS = [
       ...[[.05, .7], [.08, .74], [.52, .78], [.55, .82], [.94, .7]].map(([x, z]) => ({ t: 'tree', x, z, kind: 'poplar' })),
     ],
     spawnX: .5, spawnZ: .25,
+  },
+  // v110: Dunkirk, op 6, the finale (notes/france-1940-theatre.md, B6), built from Khal's Beaches sheets (assets/dunkirk/b6-ref)
+  // and the plan: a long map, 100 × 160. Through the burning town, over the dunes, across the beach past the queues, along
+  // the mole to the ship before she sails (M.clock), Stukas every minute or so (M.stukas), our army waiting (M.crowd)
+  {
+    name: 'The Beaches', th: 'dk', noExtras: true, noTraffic: true, charges: 0, size: [100, 160],
+    obj: 'Through the town, over the dunes, along the mole to the ship',
+    sub: "Dunkirk · Day under smoke · The beaches", drawn: "Drawn from Dunkirk, May–June 1940.",
+    brief: "The whole army is on that beach, waiting its turn, and the Navy is taking it off a boatload at a time from the end of the mole. We have a place on the destroyer alongside it, if we are there when she sails, which is in eight minutes. Through the town, over the dunes, across the sand and along the mole. The Stukas come over about once a minute: when you hear the siren, get flat or get under something, because they go for a man standing in the open. The Germans are at the perimeter behind us and they know we are leaving.",
+    scatter: 1, diff: 0.55, grenades: 6, reinf: 0, alertThreshold: 1.2,
+    water: [{ x1: -.02, z1: -.02, x2: 1.02, z2: .195, still: true, sea: true }],
+    bridge: [{ x1: .6, z1: .005, x2: .645, z2: .235 }],
+    streets: [{ pts: [[.5, 1.02], [.5, .42]], w: 7 }, { pts: [[-.02, .565], [1.02, .565]], w: 6 }, { pts: [[-.02, .72], [1.02, .72]], w: 6 }],
+    roads: [{ k: 'track', w: 3.5, pts: [[.5, .42], [.53, .34], [.6, .25]] }],
+    grounds: [{ k: 'sand', x0: -.02, z0: .17, x1: 1.02, z1: .335 }, { k: 'marram', x0: -.02, z0: .335, x1: 1.02, z1: .43 }],
+    guide: { x: .52, z: .965, a: Math.PI, attach: true, name: 'Dai', join: ['DAI', 'nearly home, and not believing it yet'], line: 'Is that the sea? I was starting to think they made it up.' },
+    clock: { t: 480, label: 'SHIP SAILS', fail: ['SHE SAILED', 'without us. There may be another tomorrow, and there may not'] },
+    stukas: { first: 32, every: [50, 70] },
+    crowd: [[.19, .325, .19, .205, 11], [.24, .325, .235, .205, 11], [.31, .33, .3, .205, 12], [.45, .335, .45, .245, 8], [.75, .33, .76, .24, 8], [.86, .325, .855, .25, 7],
+      [.612, .225, .612, .04, 18], [.36, .39, .58, .385, 10], [.66, .4, .8, .395, 8]],
+    rearguard: { waves: [
+      { t: 22, n: 4, from: 's', x0: .62, x1: .95, msg: ['THE PERIMETER', 'they are through it, behind us'] }, { t: 75, n: 4, from: 'e', x0: .7, x1: .95 },
+      { t: 135, n: 5, from: 's', x0: .5, x1: .9, mg: true }, { t: 200, n: 4, from: 'e', x0: .5, x1: .8 }, { t: 270, n: 5, from: 'e', x0: .35, x1: .65, mg: true }, { t: 340, n: 4, from: 'e', x0: .25, x1: .45 },
+    ] },
+    objectives: [{ t: 'extract', label: 'Through the town and the dunes, along the mole to the ship' }],
+    extract: { x: .623, z: .03, r: 3.2 },
+    enemies: [
+      { x: .82, z: .66, a: Math.PI, range: 14, arc: Math.PI * .55, hp: 3 }, { x: .2, z: .67, a: Math.PI * .8, range: 13, arc: Math.PI * .55, hp: 3 },
+    ],
+    obstacles: [
+      { t: 'house', style: 'farm', x: 0.04, z: 0.462, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.18, z: 0.462, w: 9.5, d: 7.5 }, { t: 'house', style: 'ruin', x: 0.32, z: 0.462, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.6, z: 0.462, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.74, z: 0.462, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.88, z: 0.462, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.04, z: 0.612, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.18, z: 0.612, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.32, z: 0.612, w: 9.5, d: 7.5 }, { t: 'house', style: 'ruin', x: 0.6, z: 0.612, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.74, z: 0.612, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.88, z: 0.612, w: 9.5, d: 7.5 }, { t: 'house', style: 'ruin', x: 0.04, z: 0.768, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.18, z: 0.768, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.32, z: 0.768, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.6, z: 0.768, w: 9.5, d: 7.5 }, { t: 'house', style: 'ruin', x: 0.74, z: 0.768, w: 9.5, d: 7.5 },
+      { t: 'oiltank', x: .86, z: .86, r: 4.4 }, { t: 'oiltank', x: .935, z: .8, r: 3.6 },
+      { t: 'trawler', x: .555, z: .085, a: Math.PI },
+      { t: 'ptruck', x: .155, z: .185, a: 0 }, { t: 'ptruck', x: .22, z: .185, a: 0 }, { t: 'ptruck', x: .29, z: .185, a: 0 },
+      { t: 'wreck', x: .3, z: .565, a: 1.6 }, { t: 'wreck', x: .66, z: .72, a: -1.4 }, { t: 'ptruck', x: .47, z: .84, a: .2 }, { t: 'wreck', x: .4, z: .3, a: .7 }, { t: 'wreck', x: .82, z: .29, a: -.5 },
+      { t: 'fire', x: .14, z: .5 }, { t: 'fire', x: .7, z: .64 },
+      ...[[.2, .4], [.3, .41], [.7, .41], [.9, .4], [.1, .39], [.55, .41]].map(([x, z]) => ({ t: 'bush', x, z })),
+      ...[[.12, .59], [.88, .58], [.55, .62], [.3, .74]].map(([x, z]) => ({ t: 'tree', x, z, kind: 'broad' })),
+    ],
+    spawnX: .5, spawnZ: .975,
+  },
+  // v111: Dunkirk side op 1 (notes/france-1940-theatre.md, BS1), built from Khal's Calais Citadel sheets (assets/dunkirk/bs1-ref) and
+  // the plan. Hold the citadel's gate bridge until dark against attacks from the south (M.rearguard), then out by the north-west
+  // footbridge over the moat, through the old town to the quay, where a boat may or may not be waiting. The plan's pentagon
+  // is a square here: the game's water is rectangles
+  {
+    name: 'Calais Citadel', th: 'dk', side: true, noExtras: true, noTraffic: true, charges: 0,
+    obj: 'Hold the gate until dark, then out to the quay',
+    sub: "Calais · Smoky afternoon into dusk · The citadel", drawn: "Drawn from the defence of Calais, May 1940.",
+    brief: "Calais is to be held to the last, which is the sort of order that sounds better in London. We hold the citadel's gate bridge until dark, so they cannot get in at us while the rest of the town is held. Then we go out the back: over the little bridge at the north-west corner of the moat, through the old town, and down to the quay, where there may be a boat. There may not. Hold the gate first.",
+    scatter: 1, diff: 0.55, grenades: 8, reinf: 0, alertThreshold: 1.2,
+    water: [{ x1: -.02, z1: -.02, x2: 1.02, z2: .14, still: true, sea: true }, { x1: -.02, z1: .14, x2: .3, z2: .195, still: true, sea: true }, { x1: .8, z1: .14, x2: 1.02, z2: .185, still: true, sea: true },
+      { x1: .12, z1: .33, x2: .87, z2: .37, still: true, canal: true }, { x1: .12, z1: .77, x2: .87, z2: .81, still: true, canal: true }, { x1: .12, z1: .37, x2: .16, z2: .77, still: true, canal: true }, { x1: .83, z1: .37, x2: .87, z2: .77, still: true, canal: true }],
+    bridge: [{ x1: .47, z1: .76, x2: .53, z2: .82 }, { x1: .2, z1: .32, x2: .245, z2: .38 }],
+    squares: [{ x: .3, z: .145, w: .5, d: .055 }],
+    roads: [{ k: 'road', w: 4.5, pts: [[.5, .82], [.5, 1.02]] }, { k: 'road', w: 4, pts: [[.22, .32], [.24, .26], [.38, .2]] }],
+    guide: { x: .52, z: .63, a: Math.PI, attach: true, name: 'Dai', join: ['DAI', 'who has never cared for the phrase "to the last"'], line: 'To the last, is it. Last what, I wonder.' },
+    rearguard: { nightAfter: 0, night: ['DUSK', 'now: out by the north-west bridge, through the old town to the quay'], waves: [
+      { t: 10, n: 4, from: 's', x0: .3, x1: .7, msg: ['THEY’RE COMING', 'from the town, for the gate'] }, { t: 45, n: 5, from: 's', x0: .55, x1: .95, mg: true },
+      { t: 85, n: 4, from: 's', x0: .05, x1: .45 }, { t: 120, n: 5, from: 's', x0: .35, x1: .75, mg: true, msg: ['ANOTHER RUSH', 'at the gate bridge'] }, { t: 155, n: 5, from: 's', x0: .2, x1: .8 },
+    ] },
+    objectives: [
+      { t: 'line', z: .745, side: 's', time: 180, across: 3, label: 'Hold the gate bridge until dark', doneT: ['THE GATE HELD', 'long enough'] },
+      { t: 'extract', label: 'Over the north-west bridge, through the old town to the quay' },
+    ],
+    extract: { x: .42, z: .165, r: 5 },
+    enemies: [{ x: .3, z: .27, a: Math.PI * .1, range: 12, arc: Math.PI * .55, hp: 3 }, { x: .6, z: .24, a: 0, range: 12, arc: Math.PI * .55, hp: 3, patrol: [{ x: .6, z: .24 }, { x: .3, z: .24 }] }],
+    obstacles: [
+      { t: 'ridge', x: .265, z: .38, w: .565, d: .045, h: 3.2 },   // the north rampart, with the sally port at its west end for the footbridge
+       { t: 'ridge', x: .17, z: .705, w: .29, d: .045, h: 3.2 }, { t: 'ridge', x: .54, z: .705, w: .29, d: .045, h: 3.2 },
+      { t: 'ridge', x: .17, z: .425, w: .045, d: .28, h: 3.2 }, { t: 'ridge', x: .785, z: .425, w: .045, d: .28, h: 3.2 },
+      { t: 'lighthouse', x: .88, z: .16 }, { t: 'boat', x: .44, z: .11, a: 0 },
+      { t: 'house', style: 'farm', x: .06, z: .23, w: 8, d: 6 }, { t: 'house', style: 'farm', x: .16, z: .25, w: 8, d: 6 }, { t: 'house', style: 'farm', x: .84, z: .25, w: 8, d: 6 },
+      { t: 'house', style: 'farm', x: .9, z: .5, w: 7, d: 6 }, { t: 'house', style: 'ruin', x: .08, z: .56, w: 7, d: 6 },
+      { t: 'house', style: 'ruin', x: .06, z: .83, w: 8, d: 6 }, { t: 'house', style: 'farm', x: .9, z: .83, w: 7, d: 6 }, { t: 'house', style: 'farm', x: .3, z: .88, w: 8, d: 6 }, { t: 'house', style: 'ruin', x: .64, z: .88, w: 8, d: 6 },
+      { t: 'house', style: 'farm', x: .5, z: .23, w: 8, d: 5 }, { t: 'house', style: 'farm', x: .66, z: .23, w: 8, d: 5 },
+      { t: 'fire', x: .1, z: .59 }, { t: 'fire', x: .68, z: .91 },
+      ...[[.44, .73], [.47, .735], [.53, .735], [.56, .73], [.35, .21], [.36, .225]].map(([x, z]) => ({ t: 'crate', x, z })),
+      ...[[.3, .5], [.45, .45], [.6, .55], [.7, .48], [.35, .62], [.66, .64]].map(([x, z]) => ({ t: 'tree', x, z, kind: 'broad' })),
+      ...[[.1, .45], [.92, .42], [.2, .9], [.8, .9], [.04, .32], [.96, .3]].map(([x, z]) => ({ t: 'tree', x, z, kind: 'poplar' })),
+    ],
+    spawnX: .5, spawnZ: .66,
   }
 ];
 
@@ -12265,7 +12354,7 @@ function stepEscort(dt) {
    along its route while the other half lies down, then the other way about, every 3.2 s. Fire near one pins him flat. A man
    who sees us fights as any other (engage), and goes back to the assault when he loses us. They cross water only where a
    bridge is, so blowing one sends them round by another (Canal Line: the lock).
-   Objectives that go with it: 'line' { z, time, across } holds a line for a time, lost if `across` of them get past it;
+   Objectives that go with it: 'line' { z, time, across, side } holds a line for a time, lost if `across` of them get past it (side 's': they come from the south);
    'withdraw' { z, time } is the signal to fall back behind z within the time, and a man still short of it is taken. */
 let rgSt = null;
 function rgInit(M) { rgSt = M.rearguard ? { W: M.rearguard.waves || [], next: 0, clock: 0 } : null; }
@@ -12333,7 +12422,7 @@ function rgObj(s, dt) {
   if (s.t === 'line') {
     s.held = (s.held || 0) + dt;
     objTimer(`HOLD ${mmss(s.time - s.held)}`, s.time - s.held < 20);
-    const over = ens.filter(e => !e.dead && e.rg && e.z > zl + 2).length;
+    const over = ens.filter(e => !e.dead && e.rg && (s.side === 's' ? e.z < zl - 2 : e.z > zl + 2)).length;   // v111: side, which side of the line they come from (north unless 's')
     if (over >= (s.across || 3)) failOp(s.fail || ['THEY’RE ACROSS', 'the line is turned, and the road behind it is theirs']);
     else if (s.held >= s.time) { objTimer(null); s.mark.visible = false; showToast(s.doneT ? s.doneT[0] : 'HELD', s.doneT ? s.doneT[1] : 'long enough'); }
     return;
@@ -12354,6 +12443,79 @@ function rgObj(s, dt) {
     for (const q of short) { killUnit(q, 'captured'); q.mesh.visible = false; if (q.F && q.F.rifle) q.F.rifle.visible = false; }
     showToast('TAKEN PRISONER', short.map(q => q.name).join(' and ') + (short.length > 1 ? ' were' : ' was') + ' cut off. The war is over for them');
     s.done = true; objTimer(null); s.mark.visible = false;
+  }
+}
+/*───────────────────── v110: the beaches (Dunkirk, notes/france-1940-theatre.md §2C, §2E) ─────────────────────
+   M.stukas = { first, every: [lo, hi] }: Stukas come over every so often. The siren first (and the crowd goes flat), then two
+   dive in, each on a man of ours standing in the open, or on the empty sand if there is none: prone or in cover is safe, a
+   man upright within six metres is not. M.crowd = [[x0, z0, x1, z1, n], ...]: our own army queuing for the boats, one
+   instanced mesh, scenery that lies down when the Stukas come. */
+let stukaSt = null, crowdIM = null;
+SFX.siren = (x, z) => { if (!AC) return; const { g, p } = place(x, z); tone('sawtooth', 340, 1150, 2.9, 0.07 * g, mixSfx, p); tone('sawtooth', 355, 1210, 2.9, 0.05 * g, mixSfx, p); };
+function crowdGeo() {
+  const p = [], KH = 0x8a7a52, KD = 0x6e6040;
+  for (const s of [-1, 1]) p.push({ g: GEO.box, m: M4(s * 0.1, 0.4, 0, 0.14, 0.8, 0.16), c: KD });
+  p.push({ g: GEO.box, m: M4(0, 1.05, 0, 0.46, 0.66, 0.3), c: KH }, { g: GEO.box, m: M4(0, 1.08, -0.2, 0.36, 0.42, 0.16), c: 0x5e5638 });   // battledress, the big pack
+  p.push({ g: GEO.sph, m: M4(0, 1.52, 0, 0.24, 0.26, 0.24), c: 0xd8a882 }, { g: GEO.cyl, m: M4(0, 1.66, 0, 0.48, 0.07, 0.48), c: 0x5a5a3a }, { g: GEO.sph, m: M4(0, 1.68, 0, 0.3, 0.14, 0.3), c: 0x5a5a3a });   // Brodie helmet
+  p.push({ g: GEO.box, m: M4(0.27, 1.1, 0.06, 0.06, 0.9, 0.06, 0, 0.2), c: 0x4a3a28 });   // the rifle, slung
+  return mergeGeos(p);
+}
+function beachInit(M) {
+  if (stukaSt) for (const B of stukaSt.bombs) scene.remove(B.m);
+  stukaSt = M.stukas ? { next: M.stukas.first || 40, every: M.stukas.every || [55, 80], bombs: [], flat: 0, n: 0 } : null;
+  if (crowdIM) crowdIM.count = 0;
+  if (!M.crowd) return;
+  if (!crowdIM) { crowdIM = new THREE.InstancedMesh(crowdGeo(), propMatI, 320); crowdIM.frustumCulled = false; crowdIM.castShadow = true; crowdIM.userData.keep = true; scene.add(crowdIM); }
+  const pts = [];
+  for (const [x0, z0, x1, z1, n] of M.crowd) for (let i = 0; i < n; i++) { const t = n > 1 ? i / (n - 1) : 0.5, x = (x0 + (x1 - x0) * t) * MW + (hash2(i, x0 * 9) - 0.5) * 0.7, z = (z0 + (z1 - z0) * t) * MH + (hash2(z0 * 7, i) - 0.5) * 0.5; pts.push([x, z, Math.PI + (hash2(i, z0) - 0.5) * 0.6]); }
+  crowdIM.userData.pts = pts.slice(0, 320); crowdPlace(false);
+}
+function crowdPlace(flat) {
+  const P = crowdIM.userData.pts; crowdIM.count = P.length;
+  P.forEach(([x, z, a], i) => {
+    _me.set(flat ? -Math.PI / 2 : 0, a, 0, 'YXZ'); _mq.setFromEuler(_me); _mv.set(x, surfY(x, z) + (flat ? 0.18 : 0), z); _ms.set(1, 1, 1);
+    crowdIM.setMatrixAt(i, _mm.compose(_mv, _mq, _ms));
+  });
+  crowdIM.instanceMatrix.needsUpdate = true; crowdIM.userData.flat = flat;
+}
+function stukaDive(x, z) {
+  const P_ = mkPlane(), a = Math.random() * Math.PI * 2;
+  P_.m.scale.setScalar(1.3); scene.add(P_.m);
+  stukaSt.bombs.push({ x, z, t: 3.2, m: P_.m, dx: Math.sin(a), dz: Math.cos(a) });
+}
+function stepBeach(dt) {
+  const S = stukaSt; if (!S || phase !== 'play') return;
+  if (!outcome) {
+    S.next -= dt;
+    if (S.next <= 0) {   // the siren: then each of two comes down on a man upright in the open, or on the sand
+      S.next = S.every[0] + Math.random() * (S.every[1] - S.every[0]); S.n++;
+      const L = sol.find(q => !q.dead) || { x: MW / 2, z: MH / 2 };
+      SFX.siren(L.x, L.z); showToast('STUKAS', S.n === 1 ? 'the siren: get flat, or under cover. They go for a man standing in the open' : 'down!');
+      S.flat = 9; if (crowdIM && crowdIM.count && !crowdIM.userData.flat) crowdPlace(true);
+      S.pending = [{ t: 3.5 }, { t: 4.7 }]; S.picked = [];   // the dives start 3.5 s after the siren: time to get down
+    }
+    if (S.pending) for (let i = S.pending.length - 1; i >= 0; i--) {
+      const q = S.pending[i]; q.t -= dt; if (q.t > 0) continue; S.pending.splice(i, 1);
+      const open = sol.filter(u => !u.dead && !u.prone && !inCover(u.x, u.z) && !S.picked.some(o => Math.hypot(o.x - u.x, o.z - u.z) < 6));   // each goes for a different man, not the same huddle
+      const t = open.length ? open[(Math.random() * open.length) | 0] : null, L = sol.find(u => !u.dead) || { x: MW / 2, z: MH / 2 };
+      if (t && S.n === 1) { const a = Math.random() * 6.28, r = 9 + Math.random() * 3; S.picked.push(t); stukaDive(clamp(t.x + Math.sin(a) * r, 3, MW - 3), clamp(t.z + Math.cos(a) * r, 3, MH - 3)); }   // the first time, a near miss: you learn the siren
+      else if (t) { S.picked.push(t); stukaDive(t.x + (Math.random() - 0.5) * 3, t.z + (Math.random() - 0.5) * 3); }
+      else { const a = Math.random() * 6.28, r = 14 + Math.random() * 10; stukaDive(clamp(L.x + Math.sin(a) * r, 4, MW - 4), clamp(L.z + Math.cos(a) * r, 4, MH - 4)); }
+    }
+    if (S.flat > 0) { S.flat -= dt; if (S.flat <= 0 && crowdIM && crowdIM.userData.flat) crowdPlace(false); }
+  }
+  for (let i = S.bombs.length - 1; i >= 0; i--) {
+    const B = S.bombs[i]; B.t -= dt;
+    const k = Math.max(0, B.t / 3.2); B.m.position.set(B.x - B.dx * k * 60, groundY(B.x, B.z) + 2 + k * 45, B.z - B.dz * k * 60); B.m.rotation.set(-0.6, Math.atan2(B.dx, B.dz), 0, 'YXZ');
+    if (B.t <= 0) {
+      S.bombs.splice(i, 1); scene.remove(B.m);
+      const gy = groundY(B.x, B.z);
+      spawnParts(B.x, gy + 0.5, B.z, 50, 0xffb060, 13, 0.24, 0.7, 10); spawnParts(B.x, gy + 0.6, B.z, 30, 0xc8b88a, 8, 0.3, 1.4, 6);
+      decal(B.x, B.z, 3.2, 0x2a2016, 0.55); addSmoker(B.x, B.z, { life: 8, rate: 5, size: 2.2, col: 0x6a6258, a: 0.55, burst: 8 });
+      SFX.boom(B.x, B.z); camShake = Math.min(camShake + 0.9, 1.3); flashScreen(0.35);
+      if (!outcome) for (const u of sol) { if (u.dead) continue; const d = Math.hypot(u.x - B.x, u.z - B.z); if (d < 6 && !u.prone && !inCover(u.x, u.z)) damage(u, d < 2 ? 5 : 2, 'arty'); else if (d < 2) damage(u, 1, 'arty'); }
+      for (const e of ens) if (!e.dead && Math.hypot(e.x - B.x, e.z - B.z) < 5) damage(e, 4, 'blast');
+    }
   }
 }
 // v99: the shepherd's dog (M.barker = { x, z }): a man running past within 14 m sets it off. It is heard round the
@@ -12678,6 +12840,21 @@ function mkWindmill(x, z, a) {
   p.push({ g: GEO.cyl, m: M4e(0, 5.2, -1.9, 0.3, 0.6, 0.3, Math.PI / 2, 0, 0), c: D });
   const m = new THREE.Mesh(mergeGeos(p), propMat); m.castShadow = true; m.position.set(x, groundY(x, z), z); m.rotation.y = a || 0; propRoot.add(m);
   return { type: 'mill', x: x - 1.6, z: z - 1.6, w: 3.2, d: 3.2, tall: true, cover: true };
+}
+// v110: a burning oil tank (Khal's Beaches sheet): a squat rusting cylinder with a ring of rail, and a fire on top of it
+function mkOilTankProp(x, z, r) {
+  const p = [{ g: GEO.cyl, m: M4(0, 2.4, 0, r * 2, 4.8, r * 2), c: 0x8a7a68 }, { g: GEO.cyl, m: M4(0, 4.85, 0, r * 2.04, 0.15, r * 2.04), c: 0x4a3a2e }, { g: GEO.cyl, m: M4(0, 0.15, 0, r * 2.3, 0.3, r * 2.3), c: 0x7a746a }];
+  for (let i = 0; i < 6; i++) { const a = i / 6 * 6.28; p.push({ g: GEO.box, m: M4(Math.sin(a) * r * 0.98, 2.4, Math.cos(a) * r * 0.98, 0.1, 4.8, 0.1, a), c: 0x6a4a34 }); }
+  const m = new THREE.Mesh(mergeGeos(p), propMat); m.castShadow = true; m.position.set(x, groundY(x, z), z); propRoot.add(m);
+  mkHouseFire(x, z, 4.9);   // its flames and smoke, from the top
+  return { type: 'oiltank', x: x - r, z: z - r, w: r * 2, d: r * 2, tall: true, cover: true };
+}
+// v111: a harbour lighthouse (Khal's Calais sheet): a white tapering tower on a rock plinth, a gallery, a red lantern
+function mkLighthouse(x, z) {
+  const p = [{ g: GEO.cyl, m: M4(0, 0.5, 0, 5.2, 1, 5.2), c: 0x7a766c }, { g: GEO.taper, m: M4(0, 7, 0, 3.0, 12, 3.0), c: 0xe8e4da }, { g: GEO.cyl, m: M4(0, 13.1, 0, 3.4, 0.25, 3.4), c: 0x3a3a3a },
+    { g: GEO.cyl, m: M4(0, 13.9, 0, 1.9, 1.4, 1.9), c: 0xfff0b0 }, { g: GEO.cone, m: M4(0, 15.1, 0, 2.4, 1.2, 2.4), c: 0xa83228 }, { g: GEO.box, m: M4(1.4, 2, 1.4, 3, 2.4, 2.6), c: 0xe0dccf }, { g: GEO.prism, m: M4(1.4, 3.2, 1.4, 3.2, 1.0, 2.8), c: 0xa84a32 }];
+  const m = new THREE.Mesh(mergeGeos(p), propMat); m.castShadow = true; m.position.set(x, groundY(x, z), z); propRoot.add(m);
+  return { type: 'lighthouse', x: x - 2.6, z: z - 2.6, w: 5.2 + 1.5, d: 5.2 + 1.5, tall: true, cover: true };
 }
 // a French soldier at his post: horizon blue, scenery for now (friendly soldiers who act come with the rearguard, step 2)
 function mkPoilu(x, z, a) {
@@ -13213,7 +13390,7 @@ function initMission(idx) {
   auroraOn = !!(M.aurora && night); if (auroraOn) { auroraBase.copy(hemi.color); auroraG.copy(SC(0x2fe0a0)); }   // v81
   buildIceOverlay(M);   // v87
 
-  waterZones = (M.water || []).map(r => ({ x0: r.x1 * MW, z0: r.z1 * MH, x1: r.x2 * MW, z1: r.z2 * MH, still: !!r.still, quay: !!r.quay, canal: !!r.canal, ladders: r.ladders, steps: r.steps }));   // v108: canal   // v75: still (a fjord), quay (a sheer stone edge)
+  waterZones = (M.water || []).map(r => ({ x0: r.x1 * MW, z0: r.z1 * MH, x1: r.x2 * MW, z1: r.z2 * MH, still: !!r.still, quay: !!r.quay, canal: !!r.canal, sea: !!r.sea, ladders: r.ladders, steps: r.steps }));   // v108: canal   // v75: still (a fjord), quay (a sheer stone edge)
   deckDrops = [];
   if (gorgeZ && gorgeZ.bridge) deckDrops.push({ x0: gorgeZ.bridge.x0, x1: gorgeZ.bridge.x1, z0: gorgeZ.z0 - 0.5, z1: gorgeZ.z1 + 0.5, dy: 0 });   // v83: the bridge's deck is the rim's level
   bridgeZones = (M.bridge || []).map(r => ({ x0: r.x1 * MW, z0: r.z1 * MH, x1: r.x2 * MW, z1: r.z2 * MH, rail: !!r.rail, jetty: !!r.jetty }));
@@ -13331,6 +13508,8 @@ function initMission(idx) {
     else if (o.t === 'poilu') mkPoilu(x, z, o.a);   // v105
     else if (o.t === 'chimney') obs.push(mkChimney(x, z, o.h || 16));   // v108
     else if (o.t === 'windmill') obs.push(mkWindmill(x, z, o.a));   // v109
+    else if (o.t === 'oiltank') obs.push(mkOilTankProp(x, z, o.r || 4));   // v110
+    else if (o.t === 'lighthouse') obs.push(mkLighthouse(x, z));   // v111
   }
   flushThickets(); flushPalms();   // v98: the palms, one mesh
   if (gorgeZ) obs.push(...mkGorge());   // v83
@@ -13347,6 +13526,7 @@ function initMission(idx) {
   refInit(M);   // v102
   escortInit(M);   // v107
   rgInit(M);   // v108
+  beachInit(M);   // v110
   jeepRun = null; trcList.length = 0; tracerMesh.visible = false;   // v100: the jeeps went with propRoot
   buildPuddles(M); buildFlowers(M);   // v34: after the obstacles, so neither lands under a hut
 
@@ -14669,6 +14849,7 @@ function update(dt) {
   stepRefugees(dt);   // v102
   stepEscort(dt);   // v107
   rgStep(dt);   // v108
+  stepBeach(dt);   // v110
   if (MISSIONS[missionIdx].jeeps && !jeepRun && phase === 'play' && !outcome) jeepInit(MISSIONS[missionIdx]);   // v100
   stepJeeps(dt);
   if (culverts.length) for (const u of sol) {   // v93: crawling through the culvert: out of sight, and not drawn on top of the road
