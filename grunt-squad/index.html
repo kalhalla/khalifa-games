@@ -144,6 +144,10 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
 .memo-b .sub{font-size:10px;letter-spacing:2px;color:#6d6a45;text-transform:uppercase;margin-bottom:12px}
 .memo-b .row{display:flex;gap:8px;margin:3px 0}
 .memo-b .row .k{width:88px;flex:none;color:#6d6a45;font-size:10.5px;letter-spacing:1px;text-transform:uppercase;padding-top:2px}
+/* v115 (Khal: hard to read on a phone): the briefing in a bigger hand, and on a narrow screen each heading above its text, not beside it */
+#brief .memo-b{font-size:14.5px;line-height:1.5}
+#brief .memo-b #bobj{font-weight:bold;color:#20280f}
+@media (max-width:560px){#brief .memo-b{font-size:16px} #brief .memo-b .row{display:block;margin:10px 0 0} #brief .memo-b .row .k{width:auto;font-size:11px;padding:0;margin-bottom:1px}}
 .memo-b .row .v{flex:1}
 .rule{height:1px;background:#20280f;opacity:.22;margin:12px 0}
 .stamp{position:absolute;right:16px;top:64px;transform:rotate(-13deg);border:3px solid var(--blood);color:var(--blood);
@@ -438,7 +442,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
     <button id="tset">SETTINGS <small>sound · music · graphics</small></button>
   </div>
   <div class="foot">© GAMELAB · NO GRUNTS WERE CONSULTED</div>
-  <div id="tver">v114</div>
+  <div id="tver">v115</div>
 </div>
 
 <div id="ops" class="screen">
@@ -506,10 +510,10 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
     <div class="memo-b">
       <h3 id="bname">The Ruperts</h3>
       <div class="sub" id="bsub">Normandy · Dawn · Visibility good</div>
-      <div class="row"><div class="k">Objective</div><div class="v" id="bobj"></div></div>
-      <div class="row"><div class="k">Notes</div><div class="v" id="btxt"></div></div>
-      <div class="row"><div class="k">Opposition</div><div class="v" id="bopp"></div></div>
-      <div class="row"><div class="k">Doctrine</div><div class="v">Press <b>Q</b> or <b>CRAWL</b> to go prone. Down <span id="bdocw">in the grass</span> you are silent and all but invisible — only a sentry looking straight at you from a few metres will make you out — but weapons are slung: no rifles, no grenades until you are back on your feet, and standing up costs you half a second. Crawl into position, stand, and kill — and for the first <b>two seconds</b> after you come up out of a crawl, your grunts fire faster and shoot straighter than anything facing them. That window is the whole reward for the approach. Or use the knife: pick <b>🗡️</b> (or <b>K</b>) and <b>tap a sentry</b>. The nearest man goes after him alone — crawling if you are down — while the rest hold, then rises for the last few metres and does it with the stiletto. Nobody hears a thing. Send him in from behind: if the sentry turns and sees him coming, it is rifles after all. Tap the ground to call him back.<span id="bdocski"></span> Sentries hear rifles and shout to each other, so take the outliers first. Stripes are not decoration: a lance-corporal takes a fourth round, a sergeant a fifth, and every rank shoots a little straighter.</div></div>
+      <div class="row"><div class="k">Intention</div><div class="v" id="bobj"></div></div>
+      <div class="row"><div class="k">Information</div><div class="v" id="btxt"></div></div>
+      <div class="row"><div class="k">Enemy</div><div class="v" id="bopp"></div></div>
+      <div class="row"><div class="k">Method</div><div class="v"><b>CRAWL</b> (Q): down <span id="bdocw">in the grass</span> you are silent and hard to see, but you can't shoot. Stand up out of a crawl and for two seconds your men fire fast and true: that's the ambush. <b>🗡️</b> (K), then tap a sentry: one man knifes him from behind, silently. A shot carries, and a shout turns out the whole garrison. Take them one at a time.<span id="bdocski"></span></div></div>
       <div class="rule"></div>
       <div class="row"><div class="k">Assigned</div><div class="v"><div class="crew" id="bcrew"></div></div></div>
       <button class="btn" id="bgo">DEPLOY</button>
@@ -3143,6 +3147,12 @@ let SAND = 0, PRINTS = 0, hazeOn = false, sandZones = [], wadis = [], ITAL = 0; 
    fire get behind the nearest crate, rock or wall on their own; the enemy fires a little slower. The ambush window is
    untouched, so the stealthy approach pays more. Off by default until Khal and Max have played both. */
 const SLOW = (() => { try { return /^slow$/i.test(new URLSearchParams(location.search).get('pace') || ''); } catch (e) { return false; } })();
+/* v115 (Khal: "I can wander around shooting people and still win"): v79's slow pace is the game's firefight from the third op of
+   each theatre on. gritG (0..1) ramps it in by the op's diff: 0 up to diff .12 (the teaching ops), 1 from diff .32. ?pace=slow
+   forces 1, ?pace=fast forces 0. At 1: our rifles are range-based and worse on the move, fire 1.75× slower and shoot to 16 m (was
+   20); their rounds pin us; followers find cover. The ambush (standing up out of a crawl) is untouched, so stealth pays. */
+const PACE = (() => { try { return (new URLSearchParams(location.search).get('pace') || '').toLowerCase(); } catch (e) { return ''; } })();
+let gritG = 0;
 addEventListener('DOMContentLoaded', () => { if (SLOW) { const t = document.getElementById('tver'); if (t) t.textContent += ' · slow pace'; } });
 const DEV_SNOW = (() => { try { return +(new URLSearchParams(location.search).get('snow') || 0) | 0; } catch (e) { return 0; } })();
 const smokeTint = new THREE.Color(1, 1, 1);
@@ -7325,7 +7335,7 @@ const MISSIONS = [
     name: "The Ruperts",
     obj: 'Get through the wood to the pickup',
     sub: "Normandy · Dawn · Visibility good", drawn: "Drawn from the D-Day deception drops, the night of 5–6 June 1944.",   // v69
-    brief: "Last night the RAF dropped four hundred dummy paratroopers over Normandy to make the Germans think the invasion had come here. They also dropped you, possibly by accident. The wood is full of men looking for paratroopers, and so far they have found mostly sacking. Keep it that way. A forward post, a scout on the treeline and a pair working the flanks are between you and a lorry on the far side. Nobody here needs to die. Crawl through the scrub, keep out of the cones and get to the green flare: the moment one of them shouts, the whole wood knows.",
+    brief: "Last night the RAF dropped four hundred dummy parachutists over Normandy to fool Jerry. They dropped you as well, possibly by accident. The wood is full of Germans looking for paratroops. So far they have found sacking. Keep it that way. Crawl through the scrub, keep out of their sight and make for the green flare. Nobody need die here. One shout and the whole wood knows.",
     weather: null, scatter: 62, mist: true,
     enemies: [
       { x: .5, z: .22, a: Math.PI * .55, range: 21, arc: Math.PI * .72, hp: 3 },
@@ -7351,7 +7361,7 @@ const MISSIONS = [
     roads: [{ k: 'track', pts: [[.5, 1.0], [.5, .62], [.5, .44]] }],
     obj: 'Destroy the pillbox',
     sub: "Normandy · Morning · One gun, one slit", drawn: "Drawn from the Merville Battery, 6 June 1944.",   // v69
-    brief: "Six hundred men, a squadron of sappers and three gliders were meant for this. What arrived was you. A concrete pillbox sits on the track with a machine gun behind a slit, and the whole field in front of it is its business. Rifles will not scratch it. What it cannot see is its own flanks and back: get round in the scrub, come up to the side and post a grenade through the slit from close in. A sentry walks the yard behind it. You have one charge, if you would rather knock at the back door. The sappers were bringing the rest.",
+    brief: "Six hundred men and three gliders were meant for this. What arrived was you. A pillbox with a machine gun covers the track and the field in front of it. Rifles won't scratch it, but it can't see its own flanks or back. Work round through the scrub and post a grenade through the slit from close in. You have one charge, if you'd rather knock at the back door. A sentry walks the yard behind.",
     weather: null, scatter: 40, diff: 0.05, noExtras: true, charges: 1,
     targets: [{ t: 'pillbox', x: .5, z: .38, a: 0 }],
     objectives: [{ t: 'destroy', what: 'pillbox' }],
@@ -7372,7 +7382,7 @@ const MISSIONS = [
     roads: [{ k: 'track', pts: [[.5, 1.0], [.5, .7], [.49, .38]] }],
     obj: 'Take the documents and get out',
     sub: "Caen · Afternoon · Rain · A hut and its guards", drawn: "Drawn from the theft of the Atlantic Wall plans from a German headquarters in Caen, 1942.",   // v69
-    brief: "In 1942 a decorator in Caen walked out of a German headquarters with the plans of the Atlantic Wall rolled up in his wallpaper samples. The Army has decided that what one Frenchman with a paintbrush can do, four British soldiers with rifles can do better. There is a map table in the back room of that hut with a satchel of orders on it. One man at the door, one inside, one walking the walls and a pair covering the yard. Get a man to the table and bring the papers back to our lines: the whole point is that they never know the papers have gone. The roof lifts when you are through the door.",
+    brief: "In 1942 a decorator in Caen walked out of a German headquarters with the Atlantic Wall plans in his wallpaper samples. The Army reckons four soldiers can do as well. A satchel of orders lies on the map table in the back room of that hut. One man on the door, one inside, one on the walls, two in the yard. Take the papers and bring them back. Jerry must never know they've gone.",
     weather: 'rain', scatter: 46, diff: 0.1, noExtras: true,
     buildings: [
       { x: .38, z: .2, w: .24, d: .16, doorX: .47, doorZ: .35, doorW: .05, doorD: .02,
@@ -7399,7 +7409,7 @@ const MISSIONS = [
     roads: [{ k: 'road', w: 3.6, pts: [[.5, 0.0], [.5, .3], [.5, .7], [.5, 1.0]] }],
     obj: 'Blow the bridge',
     sub: "The Dives · Morning · Heavy rain · River in spate", drawn: "Drawn from the demolition of the bridges over the Dives, 6 June 1944.",   // v69
-    brief: "One bridge, and their armour needs it tomorrow, so today it needs to stop being a bridge. Two men guard our end, a gun watches from the far bank and a patrol walks this side of the water. Get a charge onto the planks or right at the foot of them, then get clear: thirty seconds, and the river takes anyone still standing on it. Then back to our lines. Down the road a major has just driven a borrowed ambulance jeep full of explosives through a German-held village to do the same job. Nobody is suggesting you do that. Yet.",
+    brief: "One bridge. Their armour needs it tomorrow, so today it stops being a bridge. Two men guard our end, a gun watches from the far bank and a patrol walks this side. Put a charge on the planks or at their foot, then get clear: thirty seconds, and the river takes anyone still on it. Then back to our lines.",
     weather: 'heavy', scatter: 46, diff: 0.15, noExtras: true, charges: 2,
     water: [{ x1: 0, z1: .42, x2: 1, z2: .5 }],
     bridge: [{ x1: .465, z1: .415, x2: .535, z2: .505 }],
@@ -7425,7 +7435,7 @@ const MISSIONS = [
     roads: [{ k: 'track', pts: [[.5, 1.0], [.4, .7], [.34, .56], [.34, .4], [.5, .25], [.5, 0.0]] }],
     obj: 'Cross, wreck the radio, get out',
     sub: "Caen Canal · Midday · A pillbox on the far bank", drawn: "Drawn from the glider landing at the Caen Canal bridge, 6 June 1944.",   // v69
-    brief: "Six gliders landed by these bridges in the dark, some of them close enough to hit them. Yours landed in the next field, which in fairness was nearer than some. The pillbox on the far bank has not been told the bridge is ours, and beyond it a radio post is calling in everything we do. Get across: flat on the planks they will not see you, but you cannot fight from there. Deal with the pillbox or slip past it, then wreck the radio. A man standing over the set can smash it quietly in a few seconds. The pickup is on the far side. There is a café. Don't.",
+    brief: "Six gliders landed by these bridges in the dark. Yours landed in the next field. The pillbox on the far bank hasn't heard the bridge is ours, and past it a radio post is reporting our every move. Cross flat on the planks: they won't see you, but you can't fight from there. Deal with the pillbox or slip past it. A man at the set wrecks it in seconds. Pickup on the far side. There is a café. Don't.",
     weather: null, scatter: 42, diff: 0.25, noExtras: true, charges: 1,
     water: [{ x1: 0, z1: .45, x2: 1, z2: .53 }],
     bridge: [{ x1: .305, z1: .445, x2: .375, z2: .535 }],
@@ -7450,7 +7460,7 @@ const MISSIONS = [
     optional: [{ t: 'prisoner', x: .65, z: .35 }],   // v46: an optional objective
     obj: 'Ambush the patrol, then get out',
     sub: "The bocage · Morning · Too thick to see through", drawn: "Drawn from the fighting in the bocage, June–July 1944.",   // v69
-    brief: "Normandy is a great many small fields with a hedge round each the height of a house, and between them woods so thick the only ways through are the rides cut between the stands. A four-man patrol walks a circuit of them, and they are the job: all four. Pick your ride, lie up where the path pinches and let them walk into you. In here a man sees three metres of path and a great deal of hedge. They have a dog: lie up close and it will smell you. Two more watch the crossings. Then out through the narrow gap at the top.",
+    brief: "The bocage: little fields, hedges the height of a house, woods cut by narrow rides. A four-man patrol walks a circuit through them. They are the job, all four. Pick your ride, lie up where the path narrows and let them walk into you. They have a dog, and it will smell you if you lie up too close. Two more watch the crossings. Out through the gap at the top.",
     weather: null, scatter: 14, diff: 0.3, noExtras: true, mist: true,
     objectives: [{ t: 'killTag', tag: 'patrol' }, { t: 'extract', label: 'Out through the narrow gap at the top' }], extract: { x: .57, z: .06, r: 4.5 },
     enemies: [
@@ -7476,7 +7486,7 @@ const MISSIONS = [
     roads: [{ k: 'road', w: 4.0, pts: [[0.0, .3], [.35, .3], [.65, .3], [1.0, .3]] }, { k: 'track', pts: [[.49, 1.0], [.49, .7], [.49, .3]] }],
     obj: 'Burn the fuel lorry, then get out',
     sub: "The Vienne · Dusk · Storm · Traffic on the road", drawn: "Drawn from the SAS behind the lines in the Vienne, June 1944.",   // v69
-    brief: "An SS panzer division is driving to Normandy and plans to get there on what is in one fuel lorry, parked in a wired depot across the main road. Stop it and they walk. Traffic comes and goes on that road and the crews look about them. A pillbox covers the road where the ride comes out of the trees; a pair walks the verge. Get a blast near the lorry: it does the rest, and it does not care whose men are standing beside it. Then back through the trees.",
+    brief: "An SS panzer division is driving to Normandy on one lorry-load of fuel, parked in a wired depot over the main road. Burn it and they walk. Traffic uses the road and the crews keep their eyes open. A pillbox covers the road where the ride leaves the trees, and a pair walks the verge. A blast near the lorry does the rest, to whoever is standing by it. Then back through the trees.",
     weather: 'storm', scatter: 28, diff: 0.38, noExtras: true, charges: 1,
     targets: [{ t: 'lorry', x: .7, z: .165, a: Math.PI * .5 }, { t: 'pillbox', x: .6, z: .37, a: 0 }],
     objectives: [{ t: 'destroy', what: 'lorry' }, { t: 'extract', label: 'Back through the trees to our lines' }], extract: { x: .49, z: .95, r: 7 },
@@ -7504,7 +7514,7 @@ const MISSIONS = [
     optional: [{ t: 'prisoner', x: .52, z: .25 }],   // v46: an optional objective
     obj: 'Get through the canyon',
     sub: "Provence · Noon · Rock walls, men on top", drawn: "Drawn from the landings in Provence, August 1944.",   // v69
-    brief: "There is a second invasion of France, which nobody at home has heard of either. You have been dropped into it ten miles from where you were meant to be, which the Army calls scattered by fog and Sarge calls something else. The only way north is a dry gorge that doglegs twice. Men on the rims will make out a man crawling well before he would be seen on the flat, so move between the scrub, which hides you, and time your dashes to their heads turning. One walks the floor. At the top a checkpoint with a gun covers the mouth. Get past it to the pickup in the east.",
+    brief: "The second invasion of France. You've been dropped ten miles wide, which the Army calls fog and Sarge calls something else. The only way north is a dry gorge. Men on the rims see a crawling man sooner than on the flat: move from scrub to scrub and time your dashes to their heads turning. One walks the floor. A checkpoint with a gun guards the mouth. Pickup in the east.",
     weather: null, scatter: 6, diff: 0.45, noExtras: true,
     objectives: [{ t: 'extract', label: 'Through the canyon and past the checkpoint to the pickup' }], extract: { x: .86, z: .04, r: 5 },
     enemies: [
@@ -7534,7 +7544,7 @@ const MISSIONS = [
     name: 'Fog of War',
     obj: 'Find the pilot, bring him home',
     sub: "Northern France · Pre-dawn · Visibility poor", drawn: "Drawn from the escape lines that walked Allied airmen to Spain, 1941–44.",   // v69
-    brief: "A fighter came down in the fog last night and its pilot is sitting in their camp with his hands on his head. Get him out, and people we will never meet will walk him to Spain. Your part is the first four hundred yards. Thick fog cuts their eyes as much as yours, but they can still hear a rifle, and in this soup you will be inside their range before you see them. A handler walks his dog round the pilot. Get a man to him and he will follow you out. Back to our lines with him. Nobody else here needs to die, and that includes him.",
+    brief: "A fighter came down in last night's fog, and its pilot is sitting in their camp with his hands on his head. Get him out and others will walk him to Spain. The fog blinds them as much as you, but they can hear a rifle, and you'll be inside their range before you see them. A handler walks a dog round the pilot. Reach him and he follows you home. Nobody else need die. That includes him.",
     weather: 'fog', scatter: 58,
     enemies: [
       { x: .3, z: .3, a: Math.PI * .5, range: 13.5, arc: Math.PI * .66, hp: 3, patrol: [{ x: .2, z: .28 }, { x: .42, z: .34 }] },
@@ -7564,7 +7574,7 @@ const MISSIONS = [
     roads: [{ k: 'road', w: 3.8, pts: [[.5, 1.0], [.52, .62], [.5, .30]] }],
     obj: 'Eliminate the commander',
     sub: "The Seine · Dawn · Fog", drawn: "Drawn from an SAS raid on a German headquarters, July 1944.",   // v69
-    brief: "A walled headquarters in thick fog, a full garrison, and an officer in the middle of it who is the only one that matters. The last men sent after a German commander in his headquarters walked all the way there and found the RAF had got him first. Sarge would like it known that this will not be happening to us. The officer keeps two men at his elbow. Kill him and the rest is somebody else's problem. He has a peaked cap and a gold cone: you will know him. So will they, which is why he is not standing near the gate.",
+    brief: "A walled headquarters in fog, a full garrison, and one officer who matters. Peaked cap, gold cone: you'll know him. So will they, which is why he keeps two men at his elbow and stays clear of the gate. Kill him. The rest is somebody else's problem. The last party sent after a German general found the RAF had got him first. Sarge says not this time.",
     weather: 'fog', scatter: 48,
     win: 'commander',
     objectives: [{ t: 'commander', label: 'Kill the officer before his car comes', time: 360, clock: 'CAR', clockNote: 'his car comes for him', fail: ['HE GOT AWAY', 'his car came and he was in it'] }, { t: 'extract', label: 'Back out the way you came' }], extract: { x: .5, z: .95, r: 7 },   // v47: against the clock
@@ -7610,7 +7620,7 @@ const MISSIONS = [
     name: 'The Cliff Path', sniper: true,
     obj: 'Silence the battery',
     sub: "The Calvados coast · Morning · One way up", drawn: "Drawn from the climb at Pointe du Hoc, 6 June 1944.",   // v69
-    brief: "Three field guns in the emplacements on the cliff top are shelling the low ground every eighteen seconds, and you are standing in it. There is one way up: a track cut into the cliff on the west. A pillbox sits near the top of it facing out over the field. Its back is to the path, and you will come up beside it. Wreck the guns with a grenade or spike them quietly, three seconds a gun. Once they stop, the pickup is at the far end of the plateau. Intelligence is confident the guns are in those emplacements. Intelligence is often confident.",
+    brief: "Three field guns on the cliff top are shelling the low ground every eighteen seconds, and you are standing in it. There is one way up: a track cut into the cliff on the west. A pillbox near the top faces out over the field, its back to the path. Wreck the guns with a grenade, or spike them quietly, three seconds a gun. Then the pickup is at the far end of the plateau.",
     weather: null, scatter: 36, diff: 0.68, noExtras: true, charges: 2, artillery: true, mist: true,
     mesas: [{ x: 0, z: 0, w: 1, d: .44, h: 6, ramps: [{ fx: .14, fz: .68, tx: .14, tz: .4, w: 3.6 }] }],
     // v70, Pointe du Hoc: the emplacements on the edge are empty. The guns were towed inland to an orchard; their tyre tracks lead there
@@ -7643,7 +7653,7 @@ const MISSIONS = [
     roads: [{ k: 'road', w: 3.6, pts: [[.62, 0.0], [.62, .22], [.62, .50], [.6, .66], [.52, .78], [.5, .97]] }],
     obj: 'Free the prisoners and get them out',
     sub: "Picardy · Night · Storm · Wire · Dogs · Charges", drawn: "Drawn from the raid on Amiens prison, February 1944.",   // v69
-    brief: "A holding camp in the trees. Two towers at the gate, a lamp and a gun in each, and a dog that does not care how flat you are lying. Our people are in the two long huts; get a man through each door and they will do the rest. The gate is timber. You have three charges, thirty seconds each. The RAF offered to do this from the air. That would make a mess, so you are doing it from the ground, which will make a different mess. The moment they are alarmed they are on the radio, and a truck with six men is six minutes down that road. Get every prisoner out of the wire and back to our lines. Kill the guards you must and leave the rest asleep: a camp that never wakes never calls the truck.",
+    brief: "A prison camp in the trees. Two towers at the gate, each with a lamp and a gun, and a dog that doesn't care how flat you lie. Our men are in the two long huts: get a man through each door. The gate is timber. Three charges, thirty seconds each. Raise the alarm and they radio for a lorry of six men, six minutes away. Get every prisoner out. A camp that never wakes never calls.",
     scatter: 28,
     win: 'liberate',
     objectives: [{ t: 'free', label: 'Free the prisoners: a man through each hut door' }, { t: 'extract', label: 'Out with them: back to our lines' }], extract: { x: .5, z: .95, r: 7 },
@@ -7694,7 +7704,7 @@ const MISSIONS = [
     roads: [{ k: 'road', w: 3.8, pts: [[.5, 1.0], [.5, .60], [.5, .30]] }],
     obj: 'Kill the General',
     sub: "Chambois · Fog · Everything at once", drawn: "Drawn from the closing of the Falaise Pocket, August 1944.",   // v69
-    brief: "The German army in Normandy is in a bag, and the neck of the bag is here. Rivers, three lines of wall, fog, artillery, and every man they have left standing between you and one old man with a great deal of braid, who is trying very hard to be somewhere else. A pillbox watches the west bridge and two guns behind the compound are shelling the approaches: wreck them and the shelling stops, or live with it. Kill him, then get home. Nothing else on this map needs to die, though a great deal of it will.",
+    brief: "The German army in Normandy is in a bag, and this is the neck of it. Rivers, three walls, fog, guns, and every man they have left between you and one old general with a great deal of braid. A pillbox watches the west bridge. Two guns behind the compound shell the approaches: wreck them and the shelling stops. Kill him, then come home.",
     weather: 'fog', scatter: 46,
     win: 'commander',
     artillery: true,
@@ -7749,7 +7759,7 @@ const MISSIONS = [
     roads: [{ k: 'road', w: 4.0, pts: [[.5, 1.0], [.5, .80], [.75, .80], [1.0, .80]] }, { k: 'track', pts: [[.5, .80], [.5, .62]] }],
     obj: 'Clear the warehouse',
     sub: "Caen · Afternoon · Indoors", drawn: "Drawn from the house-to-house fighting in Caen, July 1944.",   // v69
-    brief: "Caen has a great many rooms like these. You only need to do four. One door, four rooms, five men inside who know the corners better than you do. The roof lifts when you are through the doorway. There is no crawling out of a room you have already entered, so pick your moment on the threshold rather than after it.",
+    brief: "Caen has a great many rooms like these. You need only do four. One door, four rooms, five men inside who know the corners. The roof lifts when you're in. There is no crawling out of a room once you've entered it, so choose your moment on the threshold.",
     weather: null, scatter: 34,
     buildings: [
       { x: .25, z: .1, w: .5, d: .55, doorX: .47, doorZ: .625, doorW: .06, doorD: .04,
@@ -7782,7 +7792,7 @@ const MISSIONS = [
     roads: [{ k: 'road', w: 4.2, pts: [[0.0, .84], [.5, .84], [1.0, .84]] }, { k: 'track', pts: [[.5, .84], [.5, .66]] }],
     obj: "Rescue the agent",
     sub: "A château in Brittany · Fog · Three buildings", drawn: "Drawn from the agents of the Special Operations Executive, 1941–44.",   // v69
-    brief: "Three buildings, fog between them, and one of ours tied to a chair in the last room of the last one. He knows the names of everyone he works with, and they would like them. You do not have to kill everybody. You have to reach him before he runs out of reasons to say nothing. Those are different problems, and the second one is quicker.",
+    brief: "Three buildings in the fog, and one of ours tied to a chair in the last room of the last one. He knows names, and they want them. You don't have to kill everybody. You have to reach him before he runs out of reasons to say nothing. Different problems. The second is quicker.",
     weather: 'fog', scatter: 34,
     win: 'rescue',
     buildings: [
@@ -7829,10 +7839,7 @@ const MISSIONS = [
     squares: [{ x: .38, z: .40, w: .24, d: .18 }],
     obj: 'Take the square, then the town hall',
     sub: "Villers-Bocage · Dusk · A town in the bocage", drawn: "Drawn from the fighting in Villers-Bocage, 13 June 1944.",   // v69
-    brief: 'One street in, a barricade across it, a square at the top with an anti-tank gun that has already stopped two of our tanks, and the town hall behind ' +
-           'it where the officer who sited the gun is keeping his head down. The houses are full of them. You can go in through the doors and fire out through ' +
-           'the windows, and so can they: a man at a window is hard to hit and harder to see, and a garden wall stops a round below its top. Clear the street ' +
-           'house by house if you like, or go round the back gardens. Wreck or spike the gun, find the officer, and come back down the street. Tug is with you.',
+    brief: "One street, a barricade across it, and a square at the top where an anti-tank gun has already stopped two of our tanks. The officer who sited it is in the town hall behind. The houses are full of them. Go in by the doors and fire from the windows; so can they. A garden wall stops a round below its top. Wreck the gun, find the officer, come back down. Tug is with you.",
     weather: null, scatter: 22, diff: 0.7, noExtras: false, charges: 1,
     buildings: [
       { style: 'stone', x: .35, z: .61, w: .11, d: .12, doorX: .455, doorZ: .70, doorW: .015, doorD: .025, walls: [{ x: .45, z: 0, w: .05, d: .5 }] },
@@ -7903,7 +7910,7 @@ const MISSIONS = [
     roads: [{ k: 'track', pts: [[.5, 1.0], [.5, .82], [.53, .64], [.55, .54]] }],
     obj: 'Drop the rail bridge',
     sub: "The line to Normandy · Dusk · Rain", drawn: "Drawn from the Resistance's sabotage of the railways before D-Day, 1944.",   // v69
-    brief: "The armoured train that has been shooting up our positions all week comes and goes over this bridge: steel, riveted, built to last. The French railwaymen have offered to do this themselves, and frankly they would make a better job of it, but they have a great many other bridges tonight. A pillbox and a sentry hold our end of it, and there is a gun on the far bank. Two charges: one on the deck or right at the foot of it brings it down. The train runs through every minute or so and its machine-gunners look out of both sides, so keep off the bank when it passes, and keep off the line altogether. If the train happens to be on the bridge when it goes, nobody here will complain.",
+    brief: "The armoured train that's shot up our positions all week crosses this bridge. Steel, riveted, built to last. A pillbox and a sentry hold our end, and a gun covers it from the far bank. Two charges: one on the deck or at its foot brings it down. The train runs every minute or so with gunners at both sides, so keep off the bank when it passes. If it's on the bridge when it goes, nobody will complain.",
     weather: 'rain', light: 'dusk', scatter: 40, diff: 0.45, noExtras: true, charges: 2,
     water: [{ x1: .62, z1: 0, x2: .72, z2: 1 }],
     bridge: [{ x1: .612, z1: .372, x2: .728, z2: .428, rail: true }],
@@ -7933,7 +7940,7 @@ const MISSIONS = [
     name: 'Landfall', th: 'no', snow: 1, noTraffic: true,
     obj: 'Burn the oil, take the code box, back to the boat',
     sub: "Lofoten · Dawn · Light snow · Norway", drawn: "Drawn from the commando raid on the Lofoten Islands, March 1941.",
-    brief: "The Navy has put you ashore in a Norwegian fishing village at dawn, which the Navy calls a pleasant morning's work. The garrison is asleep. Keep it that way. Three tanks of fish oil keep the German war effort lubricated and smell appalling: set them alight, a charge or a grenade beside each will do. A trawler at the quay has a box of code wheels aboard that the boffins want more than they want you. Then back down the jetty to the boat. It is snowing, lightly, and every step you take is written in it. Their patrol can read. The road along the quay and the jetty take no prints.",
+    brief: "The Navy has put you ashore in a fishing village at dawn. The garrison is asleep: keep it that way. Fire the three fish-oil tanks, a charge or a grenade beside each. A trawler at the quay has a box of code wheels the boffins want more than they want you. Then back down the jetty to the boat. It's snowing and every step shows. Their patrol can read. The quay road and the jetty take no prints.",
     weather: 'snow', scatter: 12, diff: 0.3, charges: 3,
     roads: [{ k: 'road', w: 4.4, pts: [[0.0, .765], [.3, .765], [.7, .765], [1.0, .765]] }, { k: 'track', pts: [[.5, .765], [.5, .6], [.47, .48], [.46, .385]] }],
     // v75: the fjord is still and the quay is stone; the jetty runs out on pilings; the landing boat ties up at its end
@@ -7985,7 +7992,7 @@ const MISSIONS = [
     name: 'The Plateau', th: 'no', snow: 1, night: true, aurora: true, snowAt: 180, noTraffic: true, noExtras: true, size: [100, 250],
     obj: 'Find Tor, take the drop, off the edge',
     sub: "Hardangervidda · Night · Clear, then snow · Norway", drawn: "Drawn from the Grouse party on the Hardangervidda plateau, winter 1942–43.",
-    brief: "Somewhere on this plateau, in a hut the size of a wardrobe, a Norwegian called Tor has been waiting for you since Tuesday. He knows the way down, reads tracks the way you read the racing results, and will not be impressed by any of you. Find him. The RAF dropped your supplies last night with its usual precision, which is to say north of the lake and some way from where it meant to: three containers in the snow, and the German weather post has probably noticed. Take them. Then follow Tor down the gully off the edge before their ski patrols follow you. It is a clear night, and every step you take is written in the snow; the ice on the lake takes none. In about three minutes it will snow. Up here the snow is your only friend, and it is not a close one.",
+    brief: "Somewhere on this plateau a Norwegian called Tor has been waiting in a hut since Tuesday. He knows the way down. Find him. The RAF dropped your supplies north of the lake with its usual precision: three containers in the snow. Take them, then follow Tor down the gully before their ski patrols follow you. On a clear night every step shows; the lake ice takes none. Snow comes in about three minutes.",
     weather: null, scatter: 10, diff: 0.25, charges: 0, roads: [],   // roads: none, or the game lays a track to the enemy (a track takes no prints)
     edge: { z: .06, h: 11, gully: { x: .64, w: 7 } },
     valley: { towns: [{ x: .15, z: -19, r: 7, n: 6 }, { x: .5, z: -25, r: 6, n: 5 }, { x: .84, z: -17, r: 5, n: 4 }], road: [[-.1, -14], [.15, -19], [.5, -25], [.84, -17], [1.1, -12]],
@@ -8027,7 +8034,7 @@ const MISSIONS = [
     name: 'Power Station', th: 'no', snow: 1, noTraffic: true, noExtras: true, roads: [{ k: 'road', w: 4.2, pts: [[0.06, .775], [.3, .765], [.55, .745], [.78, .73], [.9, .69], [1.0, .64]] }],
     obj: 'Blow the pipes, clear the hall, wreck the turbines',
     sub: "Glomfjord · Dusk · Snow on the heights · Norway", drawn: "Drawn from the commando raid on the Glomfjord power station, September 1942.",
-    brief: "The Navy has put you in a cove under a cliff with a rubber boat and a set of instructions that begin 'first, climb'. Above you, two steel pipes as wide as a man is tall carry a lake down the mountain into the turbines of a power station the Germans are very fond of. Put a ring charge round each pipe, then a charge on the turbines. The night staff are Norwegians doing their jobs: get them out of the machine hall before it goes up, and do not shoot them. The way up from the cove is a goat path along the foot of the cliff, behind the rocks; the goats recommend it. The pipes can only be crossed at the stile. The tunnel is the only road out of here, so their friends will come by boat. Back to the dinghy when it's done.",
+    brief: "Two steel pipes carry a lake down the mountain into the turbines of a power station Jerry is fond of. A ring charge round each pipe, then a charge on the turbines. The night staff are Norwegians: get them out of the hall first and don't shoot them. Up from the cove by the goat path behind the rocks, and over the pipes only at the stile. Their friends will come by boat. Then back to the dinghy.",
     weather: null, scatter: 12, diff: 0.45, charges: 4, grenades: 6, reinf: 3,
     rise: { z0: .12, z1: .74, h: 4.5 },
     spawnX: .14, spawnZ: .785, reinfAt: { x: .66, z: .86, r: 4 }, muster: { x: .42, z: .745 },
@@ -8076,7 +8083,7 @@ const MISSIONS = [
     roads: [{ k: 'road', w: 4.2, pts: [[0.52, -0.02], [0.52, 0.05], [0.2, 0.098], [0.78, 0.154], [0.22, 0.209], [0.7, 0.263], [0.56, 0.31], [0.5, 0.36], [0.5, 0.43]] }, { k: 'road', w: 4.6, pts: [[-0.05, .7], [.3, .705], [.6, .7], [1.05, .695]] }],
     obj: 'Down the gorge, in by the cable tunnel, charges on the cells, up the mountain',
     sub: "Vemork · Night · Bitter cold · Norway", drawn: "Drawn from the 1943 raid on the Vemork heavy-water plant.",
-    brief: "The Germans are making heavy water in a plant on a shelf above a gorge, and somebody in London has decided they should stop. The plant is guarded, the bridge to it is floodlit and guarded, and the gorge is seventy-five metres deep in the real one and merely unpleasant in ours. So: down the south side of the gorge, across the frozen river, up the climb on the far side to the railway spur, and in through the cable tunnel, which nobody guards because nobody would be so silly. Charges on the electrolysis cells in the basement. Keep off the dark ice by the rapids: it is thin, and so will you be. When the cells go, the whole valley wakes up. Do not go back the way you came. Go up the mountain beside the switchback road to the plateau, and keep going.",
+    brief: "Jerry is making heavy water in a plant above a gorge, and London wants it stopped. The bridge is floodlit and guarded, so go round: down the gorge, over the frozen river, up to the railway spur and in by the cable tunnel. Nobody guards it; nobody would be so silly. Charges on the cells in the basement. Keep off the dark ice by the rapids. Then out up the mountain, not back the way you came.",
     weather: null, scatter: 0, diff: 0.7, charges: 3, grenades: 6, reinf: 3,
     rise: { z0: .03, z1: .32, h: 10 },
     spawnX: .48, spawnZ: .968,
@@ -8127,7 +8134,7 @@ const MISSIONS = [
     roads: [{ k: 'track', pts: [[0.62, 0.83], [0.6, 0.72], [0.66, 0.66], [0.55, 0.6], [0.64, 0.54], [0.53, 0.47], [0.5, 0.42]] }],
     obj: 'Drop the bridge or bring the mountain down, before the armoured train',
     sub: "The Narvik ore line · Grey day · Snow squalls · Norway", drawn: "Drawn from the fighting along the Narvik ore railway, 1940.",
-    brief: "Every ton of Swedish iron ore that feeds the German war comes down this railway to Narvik, and very shortly an armoured train with a snowplough on the front is coming with it. The line clings to a shelf above the fjord. Drop the steel bridge over the torrent: charges on the piers. If that cannot be done, there is a cornice of snow above the gallery that the mountain troops are very careful not to disturb. Disturb it, and the whole slope comes down on the line, and on anyone standing on it, so do not stand on it. The Navy will put you on the jetty below the cliff path and wait for you there, nervously. The mountain troops are on skis, and they read tracks.",
+    brief: "Swedish iron ore for the German war comes down this railway, and an armoured train is coming with it. Drop the steel bridge over the torrent: charges on the piers. Failing that, a cornice of snow hangs above the gallery. Bring it down and the slope buries the line, and anyone on it. The Navy waits at the jetty below the cliff path, nervously. Their mountain troops ski, and they read tracks.",
     weather: 'snow', scatter: 0, diff: 0.85, charges: 3, grenades: 6, reinf: 4,
     rise: { z0: .0, z1: .3, h: 6 },
     water: [{ x1: .335, z1: .27, x2: .41, z2: .86 }, { x1: -0.1, z1: .845, x2: 1.1, z2: 1.05, still: true }],
@@ -8172,7 +8179,7 @@ const MISSIONS = [
     name: 'Måløy', th: 'no', snow: 1, noTraffic: true, noExtras: true, landing: true,
     obj: 'Burn the fish-oil stores, silence the guns, back to the boats',
     sub: "Vågsøy · Dawn · After the bombardment · Norway", drawn: "Drawn from the commando raid on Vågsøy, December 1941.",
-    brief: "The Navy has spent the dawn shelling the town, which has woken it up. Up the main street from the landing, house by house: the garrison is mountain troops home on leave, and they have taken their rifles to the windows. Burn the three fish-oil stores on the quay. Then across the footbridge to Måløy island, where three coastal guns in concrete casemates are pointing at the Navy: silence all three. The footbridge is narrow and one of the guns can see it. The boats leave at fourteen hundred whether you are in them or not.",
+    brief: "The Navy has shelled the town since dawn, which has woken it up. Up the main street, house by house: the garrison are mountain troops home on leave, and they've taken their rifles to the windows. Burn the three fish-oil stores on the quay. Then over the footbridge to the island and silence the three coastal guns. One gun can see the footbridge. The boats leave at fourteen hundred, with or without you.",
     weather: null, scatter: 0, diff: 0.55, charges: 3, grenades: 8, reinf: 4,
     clock: { t: 600, label: 'BOATS LEAVE', fail: ['THE BOATS HAVE GONE', 'the Navy waited, and then it did not'] },
     streets: [{ pts: [[.52, -.04], [.52, .9]], w: 7 }, { pts: [[-.04, .26], [.5, .26]], w: 5.5 }, { pts: [[-.04, .52], [.5, .52]], w: 5.5 }, { pts: [[-.04, .785], [.5, .785]], w: 5.5 }],
@@ -8234,7 +8241,7 @@ const MISSIONS = [
     name: 'Run for Sweden', side: true, th: 'no', snow: 1, noTraffic: true, noExtras: true, size: [100, 250],
     obj: 'Across the snow to the border cairn. Evasion only',
     sub: "The Lyngen Alps · Grey day · Squalls · Norway", drawn: "Drawn from a 1943 escape across the Lyngen Alps to Sweden.",
-    brief: "The boat is gone, and so is the plan. Sweden is neutral, and it is at the top of this valley. Get there. You will not win a fight up here and you are not meant to try: there are ski patrols across the valley that read tracks for a living, a lookout on the ridge, and a border post with a dog who reads them faster. The weather is your friend in fits and starts. When a squall comes in, move: they cannot see far and your tracks fill behind you. When it clears, the whole valley can see you, so lie still or get into the snow cave under the drift. Walk on the frozen stream and you leave no prints, but it winds about in the open. The slopes either side of the pass are loaded with snow, and one shot will bring them down on whoever is under them.",
+    brief: "The boat's gone and so is the plan. Sweden is neutral, and it's at the top of this valley. Get there. You can't win a fight up here: ski patrols, a lookout on the ridge, a border post with a dog. When a squall comes in, move: it blinds them and fills your tracks. When it clears, lie still or get into the snow cave. The frozen stream takes no prints. One shot brings the loaded slopes down.",
     weather: 'snow', scatter: 0, diff: 0.6, charges: 0, grenades: 4, reinf: 3,
     squalls: { on: [18, 28], off: [35, 55] }, rise: { z0: .2, z1: .9, h: 8 },
     spawnX: .46, spawnZ: .888, reinfAt: { x: .75, z: .08, r: 6, boat: true },
@@ -8278,7 +8285,7 @@ const MISSIONS = [
     name: 'Road Watch', th: 'af', desert: 1, noExtras: true,
     obj: 'Relieve Nev, note the traffic, back to the trucks',
     sub: "The coast road · Dawn · Heat haze from 3:00 · North Africa", drawn: "Drawn from the Long Range Desert Group's road watch on the coast road, 1942.",
-    brief: "Nev has been lying in a scrape beside the coast road for three days, counting Axis lorries, and would like a turn at something else. Up the wadi to the hide, relieve him, and lie there while the enemy drives past: note four vehicles, which way they go and what they carry, and do it without the people doing the carrying noticing you. A sentry walks the verge looking for footprints, because he has done this before. The tarmac, the gravel plain and the wadi's stony bed take no prints; the sand takes every one, until the wind has had it. By mid-morning the heat haze comes up and nobody can see further than their own sweat. Then back down the wadi to the trucks, and the trucks back to wherever trucks go.",
+    brief: "Nev has lain in a scrape by the coast road for three days, counting Axis lorries. Go up the wadi, relieve him, and note four vehicles going by without being noticed. A sentry walks the verge looking for footprints. Tarmac, gravel and the wadi bed take no prints; sand takes every one until the wind has it. Mid-morning the heat haze comes up and hides you. Then back to the trucks.",
     scatter: 6, diff: 0.1, haze: 180, sandFill: 90,
     roads: [{ k: 'road', w: 7, pts: [[-0.33, .251], [.5, .249], [1.33, .246]] }],
     water: [{ x1: 0, z1: -.3, x2: 1, z2: .065, still: true }],
@@ -8313,7 +8320,7 @@ const MISSIONS = [
     name: 'Mine School', th: 'af', side: true, desert: 1, drill: true, noExtras: true, noTraffic: true, light: 'desert',
     obj: 'Lift three mines, then through the second belt to the flag',
     sub: "The sapper school · Morning · North Africa", drawn: "Drawn from the Eighth Army's mine schools of 1942, where sappers learned the trade on live mines, there being no other kind.",
-    brief: "The Royal Engineers would like you to learn mines, and have laid some for the purpose. The first belt is marked: wire and skull signs all round, mines inside. Press SWEEP and the man in front swings the detector: everyone slows to a crawl's pace, anything within three metres is found and flagged, and the beeping gets faster as he gets closer. They will walk round a flag. Tap one and a man lifts it: four seconds on his knees. Lift three. Crawling finds them too, with a bayonet, slowly. Then the second belt, which is two belts: the left half is live and nobody marked it, because the enemy won't either; look for disturbed sand. The right half is wired, signed, and, the instructor swears, a dummy. Nev has an opinion. The flag is beyond them. A grenade sets off any mine near where it lands, which is quicker, and noisier, and not the lesson.",
+    brief: "The Royal Engineers will now teach you mines. The first belt is marked, wired and live. Press SWEEP and the man in front swings the detector: mines within three metres are flagged, and the squad walks round them. Tap a flag and he lifts it: four seconds. Lift three. In the second belt the left half is live and unmarked, so look for disturbed sand; the right is signed and, the instructor swears, a dummy. The flag is beyond.",
     scatter: 4, diff: 0.1,
     mines: { detector: true, fields: [
       { x0: .2, z0: .54, x1: .8, z1: .74, ap: 10, at: 4, wires: 2, marked: 'all', seed: 3.3 },
@@ -8340,7 +8347,7 @@ const MISSIONS = [
     name: 'The Devil’s Garden', th: 'af', desert: 1, night: true, noExtras: true, noTraffic: true, roads: [], charges: 2,
     obj: 'Tape a lane to their wire, blow the gun, fire the green flare',
     sub: "Alamein · Night, the moon behind cloud · Star shells · North Africa", drawn: "Drawn from the gapping of the minefields at El Alamein, October 1942: sappers with detectors and white tape, a few yards ahead of the tanks.",
-    brief: "The enemy has sown half a million mines in front of Alamein and calls it the Devil’s Garden, which is what you call a place when you’d like nobody to walk through it. Tonight you walk through it. Sweep a lane forty metres across the field to their wire, and the tape goes down behind the detector so the tanks can follow. There is a gap of their own further along, nicely marked; their machine-gun would love you to use it. At the end of your lane the wire gets cut and the anti-tank gun gets blown. Then back down your own tape, and fire the green flare from our trench. Every so often they put up a star shell. When you hear it hiss, get down and lie still.",
+    brief: "Half a million mines lie in front of Alamein. Jerry calls it the Devil's Garden. Tonight you walk through it. Sweep a lane forty metres to their wire; the tape goes down behind the detector for the tanks. Their own marked gap is covered by a machine gun. Don't. At the end of your lane, cut the wire and blow the anti-tank gun. Back down your tape and fire the green flare. When a star shell hisses, get flat.",
     scatter: 3, diff: 0.25,
     wadi: { pts: [[-.05, .876], [.5, .874], [1.05, .876]], w: 2.4, d: 1.3, bank: 1.2, trench: true },   // our trench: a wadi with a sand floor
     mines: { detector: true, fields: [
@@ -8381,7 +8388,7 @@ const MISSIONS = [
     name: 'Lewes Bombs', th: 'af', desert: 1, night: true, noExtras: true, noTraffic: true, roads: [], fuse: 180,
     obj: 'Bombs on eight aircraft, then out to the red lamp before they go',
     sub: "An Axis airfield · Night, no moon · Timed bombs · North Africa", drawn: "Drawn from the December 1941 night raids on the Axis airfields at Tamet and Sirte.",
-    brief: "Ten aircraft parked either side of a gravel runway, guarded by men who think three hundred miles of desert makes a fine fence. In through the gap in the wire; a bomb on the wing root of eight of them; out again. Each bomb is a bag of plastic explosive and thermite with a time pencil in it, and the first one you place starts every fuse: three minutes, then they go up one after another, and anyone standing near one goes up with it. The aircrew are asleep in their tents and the flak crew are half awake. The guard on the south side has a dog. The trucks are waiting at the red lamp.",
+    brief: "Ten aircraft either side of a gravel runway, guarded by men who think the desert is a fence. In through the gap in the wire, a bomb on the wing root of eight, and out. The first bomb starts every fuse: three minutes, then they go one after another, and anyone near one goes with it. The aircrew are asleep, the flak crews half awake. The south guard has a dog. Trucks at the red lamp.",
     scatter: 3, diff: 0.35,
     grounds: [{ k: 'gravel', x0: 0, z0: .385, x1: 1, z1: .51 }],
     targets: [
@@ -8425,7 +8432,7 @@ const MISSIONS = [
     name: 'The Fort', th: 'af', desert: 1, italian: true, light: 'desert', noExtras: true, noTraffic: true, roads: [], charges: 2, fuse: 40,
     obj: 'Blow the wireless mast, burn the hangar and the aircraft, fire the flare',
     sub: "Murzuk · Afternoon heat · The ghibli from 3:00 · North Africa", drawn: "Drawn from the raid on the Italian fort and airfield at Murzuk, January 1941.",
-    brief: "A whitewashed fort in the middle of nowhere, a machine-gun in each corner tower, an airfield behind it, and a garrison who reckon nobody would cross a thousand miles of sand to bother them. Somebody has. Blow the wireless mast first, so nobody can tell anyone. Then burn the hangar and the aircraft on the strip, and fire the flare to bring the trucks in. The west wall has crumbled where it meets the dunes. At three minutes the ghibli comes in: a sandstorm that blinds the towers and fills your tracks, and then clears and leaves everything in plain sight. Use it. The villagers by the oasis would rather not be involved, and you’ll oblige them.",
+    brief: "A whitewashed fort, a machine gun in each corner tower, an airfield behind it, and a garrison who reckon nobody would cross a thousand miles of sand to bother them. Blow the wireless mast first. Then burn the hangar and the aircraft, and fire the flare for the trucks. The west wall has crumbled by the dunes. At three minutes the ghibli blows in: the towers go blind and your tracks fill. Then it clears.",
     scatter: 3, diff: 0.45, haze: 1, sandFill: 70,
     squalls: { first: 180, on: [25, 40], off: [35, 55] },
     grounds: [{ k: 'gravel', x0: 0, z0: .045, x1: .33, z1: .135 }, { k: 'dune', x0: -.02, z0: .6, x1: .3, z1: 1.02 }],
@@ -8470,7 +8477,7 @@ const MISSIONS = [
     name: 'Green Mountain', th: 'af', night: true, weather: 'heavy', mud: true, noExtras: true, noTraffic: true, charges: 2,
     obj: 'The plans from the office, the generator blown, back down to the wadi',
     sub: "The Jebel Akhdar · Night, pouring rain · North Africa", drawn: "Drawn from the commando raid on a headquarters in the Jebel Akhdar, November 1941.",
-    brief: "Up from the beach in the wettest weather the Green Mountain has seen in years, to a colonial villa the enemy has made a headquarters. The commander keeps his plans in his office at the east end. Take them. Then blow the generator in the yard, and every lamp in the compound goes out with it. Then back down to the wadi and the beach before anyone works out which way you went. The back gate by the kitchen is the quiet way in. Mud takes deep prints, and anyone who finds yours will follow them. The rain drowns your footsteps, and the shepherd’s dog drowns everything else if you run past its hut.",
+    brief: "Up from the beach in the worst rain the Green Mountain has seen in years, to a villa the enemy uses as a headquarters. The plans are in the commander's office at the east end. Take them. Blow the generator in the yard and every lamp goes out. The kitchen gate is the quiet way in. Mud takes deep prints, and they will follow them. The shepherd's dog hears everything. Then back down to the wadi.",
     scatter: 16, diff: 0.55, rise: { z0: .4, z1: 1, h: 5 },
     roads: [{ k: 'track', w: 4, pts: [[-.02, .93], [.36, .71], [.5, .57], [.51, .43]] }],
     buildings: [
@@ -8517,7 +8524,7 @@ const MISSIONS = [
     name: 'The Jeep Run', th: 'af', desert: 1, night: true, size: [100, 180], noExtras: true, noTraffic: true,
     obj: 'Shoot up the airfield from the jeeps, then hide them in the wadi at dawn',
     sub: "An Axis airfield · Night, a bright moon, then dawn · The finale · North Africa", drawn: "Drawn from the jeep raid on the airfield at Sidi Haneish, July 1942.",
-    brief: "Eighteen jeeps did this once, in two columns, at night, straight down the middle of an enemy airfield with every gun firing. You have two. They drive; you choose. Tap a target and both pairs of twin Vickers swing onto it. Leave them be and they spray whatever aircraft is nearest, slowly. The flak pits will be shooting back, harder when a searchlight has you, so shoot them first or don’t be where they are. Ten aircraft burning by the top of the runway, or it wasn’t worth the petrol. Then it’s dawn, and every aeroplane that’s left wants to know where you went. Into the wadi, nets over the jeeps, and lie still until the spotter has gone.",
+    brief: "Eighteen jeeps once drove straight down an enemy airfield at night, every gun firing. You have two. They drive; you choose. Tap a target and both pairs of twin Vickers swing onto it. Shoot the flak pits first, or keep out of their way. Ten aircraft burning by the top of the runway, or it wasn't worth the petrol. At dawn, into the wadi, nets over the jeeps, and lie still until the spotter has gone.",
     scatter: 2, diff: 0.6,
     roads: [{ k: 'road', w: 12, pts: [[.5, .92], [.5, .2]] }],
     grounds: [{ k: 'gravel', x0: 0, z0: 0, x1: 1, z1: .16 }],
@@ -8572,7 +8579,7 @@ const MISSIONS = [
     name: 'The Sand Sea', th: 'af', side: true, desert: 1, italian: true, light: 'desert', size: [100, 250], noExtras: true,
     obj: 'Walk out to the rendezvous before the water runs out',
     sub: "The Sand Sea · Blazing day · Water is the clock · North Africa", drawn: "Drawn from the long walks out after the first parachute raid, November 1941.",
-    brief: "The trucks have been strafed and are burning nicely, which leaves your feet. The rendezvous is at the rocks two hundred and fifty metres north, across a sea of dunes. You have nine minutes of water. The flat corridors between the dunes are quick going and the dunes are slow, and a man standing on a crest can be seen from a long way off. There is a well in the middle with an Italian patrol camped round it: six more minutes of water if you can fill the canteens there. A spotter plane comes back every minute or so; when it does, lie flat. A truck patrol drives the eastern corridor. When the sand blows, use it.",
+    brief: "The trucks have been strafed and are burning nicely. That leaves your feet. The rendezvous is at the rocks, two hundred and fifty metres north over the dunes. You have nine minutes of water. The corridors between the dunes are quick; the dunes are slow, and a man on a crest is seen for miles. Italians are camped round the well in the middle: six more minutes of water if you can fill up. When the spotter plane comes, lie flat.",
     scatter: 2, diff: 0.4, haze: 1, sandFill: 60,
     squalls: { first: 120, on: [20, 30], off: [60, 90] },
     seifs: [{ x0: -.02, x1: .215, h: 5 }, { x0: .325, x1: .555, h: 5.5 }, { x0: .68, x1: .89, h: 5 }],
@@ -8604,7 +8611,7 @@ const MISSIONS = [
     name: 'Saar Patrol', th: 'dk', snow: 1, noSkis: true, night: true, noTraffic: true, noExtras: true, roads: [], charges: 0,
     obj: 'Out over the stream, take their field telephone, back before dawn',
     sub: "The Saar · Night · Deep snow, a big moon · France", drawn: "Drawn from the patrols forward of the Maginot Line, winter 1939–40.",
-    brief: "Nobody is fighting this war yet, except at night out here, where both sides send a few men across the snow to find out whether the other side is still there. Ours is a German listening post in the hedge by their wire, with a field telephone in it that the French would very much like to have. Over the top, past the frozen stream, round the farm, take the telephone and come back. The ice holds a man crawling and not one standing. The snow keeps every footprint, and a patrol of theirs walks the fields between the stream and the farm: if it finds your tracks it will follow them. Quietly, all the way.",
+    brief: "Nobody is fighting this war yet, except out here at night. Jerry has a listening post in the hedge by his wire, with a field telephone the French would like. Go over the stream and round the farm, take the telephone and come back. The ice holds a man crawling, not one standing. The snow keeps every footprint, and their patrol follows tracks. Quietly, all the way.",
     scatter: 1, diff: 0.05, grenades: 4, reinf: 1, alertThreshold: .7,   // scatter 1: 0 reads as the default 45, and the plan's cover is all placed
     ice: [{ x: -0.030, z: 0.600, rx: .03, rz: .028, thin: true, crawl: true }, { x: -0.004, z: 0.598, rx: .03, rz: .028, thin: true, crawl: true }, { x: 0.021, z: 0.596, rx: .03, rz: .028, thin: true, crawl: true }, { x: 0.047, z: 0.593, rx: .03, rz: .028, thin: true, crawl: true }, { x: 0.072, z: 0.591, rx: .03, rz: .028, thin: true, crawl: true }, { x: 0.098, z: 0.589, rx: .03, rz: .028, thin: true, crawl: true }, { x: 0.123, z: 0.587, rx: .03, rz: .028, thin: true, crawl: true }, { x: 0.149, z: 0.584, rx: .03, rz: .028, thin: true, crawl: true }, { x: 0.174, z: 0.582, rx: .03, rz: .028, thin: true, crawl: true }, { x: 0.200, z: 0.580, rx: .03, rz: .028, thin: true, crawl: true }, { x: 0.225, z: 0.584, rx: .03, rz: .028, thin: true, crawl: true }, { x: 0.250, z: 0.588, rx: .03, rz: .028, thin: true, crawl: true }, { x: 0.275, z: 0.592, rx: .03, rz: .028, thin: true, crawl: true }, { x: 0.300, z: 0.596, rx: .03, rz: .028, thin: true, crawl: true }, { x: 0.325, z: 0.600, rx: .03, rz: .028, thin: true, crawl: true }, { x: 0.350, z: 0.604, rx: .03, rz: .028, thin: true, crawl: true }, { x: 0.375, z: 0.608, rx: .03, rz: .028, thin: true, crawl: true }, { x: 0.400, z: 0.612, rx: .03, rz: .028, thin: true, crawl: true }, { x: 0.425, z: 0.616, rx: .03, rz: .028, thin: true, crawl: true }, { x: 0.450, z: 0.620, rx: .03, rz: .028, thin: true, crawl: true }, { x: 0.475, z: 0.614, rx: .03, rz: .028, thin: true, crawl: true }, { x: 0.500, z: 0.608, rx: .03, rz: .028, thin: true, crawl: true }, { x: 0.525, z: 0.602, rx: .03, rz: .028, thin: true, crawl: true }, { x: 0.550, z: 0.596, rx: .03, rz: .028, thin: true, crawl: true }, { x: 0.575, z: 0.590, rx: .03, rz: .028, thin: true, crawl: true }, { x: 0.600, z: 0.584, rx: .03, rz: .028, thin: true, crawl: true }, { x: 0.625, z: 0.578, rx: .03, rz: .028, thin: true, crawl: true }, { x: 0.650, z: 0.572, rx: .03, rz: .028, thin: true, crawl: true }, { x: 0.675, z: 0.566, rx: .03, rz: .028, thin: true, crawl: true }, { x: 0.700, z: 0.560, rx: .03, rz: .028, thin: true, crawl: true }, { x: 0.725, z: 0.562, rx: .03, rz: .028, thin: true, crawl: true }, { x: 0.751, z: 0.565, rx: .03, rz: .028, thin: true, crawl: true }, { x: 0.776, z: 0.567, rx: .03, rz: .028, thin: true, crawl: true }, { x: 0.802, z: 0.569, rx: .03, rz: .028, thin: true, crawl: true }, { x: 0.827, z: 0.572, rx: .03, rz: .028, thin: true, crawl: true }, { x: 0.852, z: 0.574, rx: .03, rz: .028, thin: true, crawl: true }, { x: 0.878, z: 0.576, rx: .03, rz: .028, thin: true, crawl: true }, { x: 0.903, z: 0.578, rx: .03, rz: .028, thin: true, crawl: true }, { x: 0.928, z: 0.581, rx: .03, rz: .028, thin: true, crawl: true }, { x: 0.954, z: 0.583, rx: .03, rz: .028, thin: true, crawl: true }, { x: 0.979, z: 0.585, rx: .03, rz: .028, thin: true, crawl: true }, { x: 1.005, z: 0.588, rx: .03, rz: .028, thin: true, crawl: true }, { x: 1.030, z: 0.590, rx: .03, rz: .028, thin: true, crawl: true }],
     intel: { x: .48, z: .17, phone: true },
@@ -8638,7 +8645,7 @@ const MISSIONS = [
     name: 'The Dyle Bridge', th: 'dk', noExtras: true, noTraffic: true, charges: 0,
     obj: 'Dai wires the bridge; blow it before the tanks, with nobody on it',
     sub: "The Dyle, Belgium · Dawn · The roads full of people", drawn: "Drawn from the bridges blown on the Dyle, May 1940.",
-    brief: "We came up to this river four days ago to hold it, and now we are going back the way we came, and so is everybody else in Belgium. Dai, the sapper, has the charges: get him to the far end of the bridge and he will put them on the piers and run the wire back to the exploder by the road. While you stand there, nobody else comes over. Their tanks will be on the far bank in about four minutes. The people coming over the bridge will not stop on their own: a man standing in the road at the far end halts them. Blow it when it is clear. Not before, and not with any of us on the wrong side.",
+    brief: "We came up to hold this river four days ago. Now we're going back, and so is half of Belgium. Dai has the charges: get him to the far end and he'll wire the piers back to the exploder by the road. Their tanks reach the far bank in about four minutes. The refugees won't stop on their own; stand a man in the road at the far end and they halt. Blow it when it's clear, with nobody on it.",
     scatter: 14, diff: 0.2, grenades: 4, reinf: 2, alertThreshold: .6,
     roads: [{ k: 'road', w: 4.2, pts: [[.5, -.02], [.5, .3], [.5, .7], [.5, 1.02]] }, { k: 'road', w: 4, pts: [[-.02, .705], [.36, .72], [.64, .76], [1.02, .795]] }],
     squares: [{ x: .36, z: .64, w: .28, d: .18 }],
@@ -8680,7 +8687,7 @@ const MISSIONS = [
     name: 'Arras', th: 'dk', noExtras: true, noTraffic: true, noTrains: true, charges: 2,
     obj: 'Ahead of the Matildas: silence the guns so one reaches the ridge',
     sub: "South of Arras · Afternoon · Hot, the corn high", drawn: "Drawn from the Arras counter-attack, 21 May 1940.",
-    brief: "For once we are the ones attacking. Two Matildas are going up that lane to the village on the ridge, and nothing the Germans have in this field can get through their armour quickly. Quickly is the word. Three anti-tank guns cover the lane: one by the copse, one in the orchard, one in the farmyard past the railway. Any gun that has a tank in its sights stops it and keeps hitting it until it burns. Get ahead of them. A gun is silent when you spike it, blow it, or put its crew down. One tank on the ridge and the attack has worked. None, and it hasn't.",
+    brief: "For once we're attacking. Two Matildas are going up that lane to the village on the ridge, and nothing in this field can stop them quickly. Quickly is the word. Three anti-tank guns cover the lane: by the copse, in the orchard, and in the farmyard past the railway. A gun with a tank in its sights stops it and burns it. Spike it, blow it or drop its crew. One tank on the ridge and we've won.",
     scatter: 1, diff: 0.3, grenades: 6, reinf: 2, alertThreshold: .9,
     roads: [{ k: 'track', w: 4, pts: [[0.04, 0.99], [0.12, 0.92], [0.28, 0.76], [0.4, 0.58], [0.47, 0.49], [0.6, 0.34], [0.7, 0.24], [0.765, 0.17]] }],
     railPts: [[-.1, .542], [1.1, .458]],
@@ -8721,7 +8728,7 @@ const MISSIONS = [
     name: 'The Canal Line', th: 'dk', noExtras: true, noTraffic: true, noTrains: true, charges: 2,
     obj: 'Hold the canal, blow the bridge, fall back to the cutting, hold again',
     sub: "The La Bassée canal · Afternoon into evening · The rearguard", drawn: "Drawn from the rearguard on the La Bassée canal, May 1940.",
-    brief: "Everybody else is going back to the coast, and somebody has to stand on this canal while they do. That is us. They will come across the fields from the north, a section at a time, running and dropping, and they will go for the lift bridge. Hold the canal bank for three minutes. Then they will be on the far bank in strength, and the bridge goes: a charge on it. When you see the green Very light, fall back to the railway cutting, all of you, and quickly: anyone still on the canal when it is over stays there, in the bag. They will come round by the lock. Hold the cutting, then out to the lorries.",
+    brief: "Everyone else is going back to the coast, and somebody has to hold this canal while they do. That's us. They'll come across the fields from the north by sections, running and dropping, making for the lift bridge. Hold the bank three minutes, then blow the bridge. On the green Very light, back to the railway cutting, all of you: anyone left on the canal goes in the bag. Hold the cutting, then out to the lorries.",
     scatter: 1, diff: 0.45, grenades: 8, reinf: 0, alertThreshold: 1.2,
     roads: [{ k: 'road', w: 5, pts: [[.56, -.02], [.56, .5], [.56, 1.02]] }],
     railPts: [[-.1, .802], [1.1, .772]],
@@ -8765,7 +8772,7 @@ const MISSIONS = [
     name: 'Cassel', th: 'dk', noExtras: true, noTraffic: true, charges: 1, size: [100, 120],
     obj: 'Hold the square until dark, then out down the sunken track',
     sub: "Cassel · Dusk into night · The hill in Flanders", drawn: "Drawn from the defence of Cassel and its night breakout, May 1940.",
-    brief: "Cassel is the only hill in Flanders, and from the square you can see the sea and most of the German army. We are to hold it until dark, so that everybody else gets a night's start on the road to the coast. They will come up the slopes at us from the plain. Hold the square. Then, when it is dark, we go: down the sunken track to the south-west, between the hedges, past their tanks laagered in the fields, and anybody they see stays on the plain. Quietly is the only way.",
+    brief: "Cassel is the only hill in Flanders. From the square you can see the sea and most of the German army. Hold it till dark, so the rest get a night's start for the coast. They'll come up the slopes from the plain. When it's dark, go out down the sunken track to the south-west, past their laagered tanks. Anyone they see stays on the plain. Quietly is the only way.",
     scatter: 1, diff: 0.5, grenades: 6, reinf: 0, alertThreshold: 1.2,
     rise: { z0: .42, z1: .78, h: 9 },
     roads: [{ k: 'track', w: 3.6, pts: [[0.49, 0.39], [0.4, 0.53], [0.33, 0.66], [0.2, 0.83], [0.07, 0.98], [0.03, 1.02]] }, { k: 'road', w: 4.6, pts: [[0.59, 0.4], [0.7, 0.58], [0.84, 0.8], [0.95, 0.99], [0.97, 1.02]] }, { k: 'road', w: 4, pts: [[.49, .39], [.5, .2], [.56, .05]] }],
@@ -8811,7 +8818,7 @@ const MISSIONS = [
     name: 'The Beaches', th: 'dk', noExtras: true, noTraffic: true, charges: 0, size: [100, 160],
     obj: 'Through the town, over the dunes, along the mole to the ship',
     sub: "Dunkirk · Day under smoke · The beaches", drawn: "Drawn from Dunkirk, May–June 1940.",
-    brief: "The whole army is on that beach, waiting its turn, and the Navy is taking it off a boatload at a time from the end of the mole. We have a place on the destroyer alongside it, if we are there when she sails, which is in eight minutes. Through the town, over the dunes, across the sand and along the mole. The Stukas come over about once a minute: when you hear the siren, get flat or get under something, because they go for a man standing in the open. The Germans are at the perimeter behind us and they know we are leaving.",
+    brief: "The whole army is on that beach, and the Navy is taking it off from the end of the mole. There are places for us on the destroyer alongside, if we're there when she sails: eight minutes. Through the town, over the dunes, along the mole. When you hear a Stuka's siren, get flat or get under something: they go for men standing in the open. Jerry is at the perimeter behind us.",
     scatter: 1, diff: 0.55, grenades: 6, reinf: 0, alertThreshold: 1.2,
     water: [{ x1: -.02, z1: -.02, x2: 1.02, z2: .195, still: true, sea: true }],
     bridge: [{ x1: .6, z1: .005, x2: .645, z2: .235 }],
@@ -8853,7 +8860,7 @@ const MISSIONS = [
     name: 'Calais Citadel', th: 'dk', side: true, noExtras: true, noTraffic: true, charges: 0,
     obj: 'Hold the gate until dark, then out to the quay',
     sub: "Calais · Smoky afternoon into dusk · The citadel", drawn: "Drawn from the defence of Calais, May 1940.",
-    brief: "Calais is to be held to the last, which is the sort of order that sounds better in London. We hold the citadel's gate bridge until dark, so they cannot get in at us while the rest of the town is held. Then we go out the back: over the little bridge at the north-west corner of the moat, through the old town, and down to the quay, where there may be a boat. There may not. Hold the gate first.",
+    brief: "Calais is to be held to the last, which sounds better in London. French troops hold the citadel's gate bridge with us. Hold it until dark. Then out the back, over the little bridge at the north-west corner of the moat, through the old town and down to the quay. There may be a boat. There may not. Hold the gate first.",
     scatter: 1, diff: 0.55, grenades: 8, reinf: 0, alertThreshold: 1.2,
     water: [{ x1: -.02, z1: -.02, x2: 1.02, z2: .14, still: true, sea: true }, { x1: -.02, z1: .14, x2: .3, z2: .195, still: true, sea: true }, { x1: .8, z1: .14, x2: 1.02, z2: .185, still: true, sea: true },
       { x1: .12, z1: .33, x2: .87, z2: .37, still: true, canal: true }, { x1: .12, z1: .77, x2: .87, z2: .81, still: true, canal: true }, { x1: .12, z1: .37, x2: .16, z2: .77, still: true, canal: true }, { x1: .83, z1: .37, x2: .87, z2: .77, still: true, canal: true }],
@@ -8895,7 +8902,7 @@ const MISSIONS = [
     name: 'St-Valéry Cliffs', th: 'dk', side: true, night: true, weather: 'fog', noExtras: true, noTraffic: true, charges: 0, size: [100, 140],
     obj: 'Through the orchards to the ropes, down the cliff to the boats',
     sub: "Veules-les-Roses · Night · Sea fog", drawn: "Drawn from the Highland Division at St-Valéry-en-Caux, June 1940.",
-    brief: "The division is surrounded at St-Valéry and the ships cannot get in. Along the coast, at the cliffs, somebody has knotted rifle slings and rope together and men are going down them to the beach, where boats are taking them off in the fog. Through the fields, past their road block, through the orchards, past the patrol that walks the cliff top, and over the edge. One man to a rope at a time, and a man on a rope cannot shoot, so make sure nobody is looking when you go. The boats will not wait for the light.",
+    brief: "The Highland Division is trapped at St-Valéry and the ships can't get in. Along the coast, men have knotted rifle slings and rope down the cliffs, and boats are taking them off the beach in the fog. Through the fields and orchards, past their road block and the cliff patrol, and over the edge. A searchlight sweeps the ropes. One man to a rope, and he can't shoot. The boats won't wait for the light.",
     scatter: 1, diff: 0.6, grenades: 4, reinf: 5, alertThreshold: .6,   // v114 (Khal: too easy): .45, 2 and .7
     reinfAt: { x: .97, z: .3, r: 5 },   // v114: along the cliff top from the east (they used to come out of the sea and drown)
     edge: { z: .245, h: 6, foot: 4.5, ropes: [.4, .5] },   // 6 m, not the real 30: any higher and the camera, looking north over the top, can't see the beach under it
@@ -9256,6 +9263,7 @@ let bul = [], grn = [], posH = [];
 let kills = 0, phase = 'title', paused = false;
 let globalAlert = 0, missionTime = 0, grenCount = 8, startGren = 8, everSpotted = false, weapon = 'gun';
 let wavering = false;   // v20: the officer is dead and there is a way home — his men hold, they do not hunt
+let standTo = false, standT = 0, fightT = 0;   // v115: the alarm has gone up and the garrison has turned out
 let reinfSent = false, hitStop = 0, outcome = null, weatherFog = false;
 let reinfBlocked = false, optSteps = [], recruits = [], guideWait = null, guideJoined = false, musterPt = null;   // v82: musterPt: where freed people run (M.muster)   // v81: Tor, waiting at his hut   // v46: optional objectives (a radio cut means no reinforcements; a freed man joins the squad)
 let bloodTimer = 0, squadProne = false, noiseTimer = 0, spotted = false;
@@ -9784,12 +9792,30 @@ function noiseEvent(x, z, radius, level) {
     else if (e.state === 'search') e.stateT = 0;
   }
 }
+/* v115 (Khal: wandering about shooting wins): once the alarm is up (globalAlert past the op's threshold, and a German has been
+   fighting us for 1.5 s: a clean ambush, the sentry dead before he can answer, doesn't count) the garrison stands to.
+   Every man within 25 + 45 × gritG m of the squad who isn't tied to a post (a tower, a pillbox, an MG, the commander and his
+   guard, a man on a fixed line) wakes and goes to where the squad was, all at once: one fight against the lot, not five against
+   one or two. Lie low and they lose you; go loud and you fight the camp. */
+function turnOut(M) {
+  standTo = true; standT = missionTime;
+  const live = sol.filter(s => !s.dead); if (!live.length) return;
+  const cx = live.reduce((a, s) => a + s.x, 0) / live.length, cz = live.reduce((a, s) => a + s.z, 0) / live.length, R = 25 + 45 * gritG;
+  let n = 0;
+  for (const e of ens) {
+    if (e.dead || e.dog || e.tower || e.inBox || e.rapid || e.cmd || e.guard || e.fixed || e.rg || e.state === 'engage') continue;
+    if (Math.hypot(e.x - cx, e.z - cz) > R) continue;
+    e.sleep = false; e.lastX = clamp(cx + (Math.random() - 0.5) * 8, 2, MW - 2); e.lastZ = clamp(cz + (Math.random() - 0.5) * 8, 2, MH - 2);
+    e.alert = Math.max(e.alert, 0.62); e.state = 'search'; e.stateT = 0; n++;
+  }
+  if (n) showToast('THE ALARM IS UP', n > 1 ? n + ' of them coming. Get flat, or get out' : 'one coming. Get flat, or get out');
+}
 // an enemy who sees you tells everyone within earshot. Kill quietly or fight the camp.
 function shout(from) {
   for (const e of ens) {
     if (e.dead || e === from) continue;
     const d = dst(e, from);
-    if (d > 15) continue;
+    if (d > 15 + 20 * gritG) continue;   // v115: 35 m at full grit
     e.lastX = from.lastX; e.lastZ = from.lastZ;
     if (e.alert < 0.58) e.alert = 0.58;
     if (e.state === 'patrol') { e.state = 'search'; e.stateT = 0; }
@@ -9835,7 +9861,8 @@ function shoot(u, tx, tz, spreadOverride, targetY) {
   else SFX.shot(u.x, u.z, u.kit);
   camShake = Math.min(camShake + (u.foe ? 0.03 : quiet ? 0.01 : 0.05), 0.5);
   globalAlert = Math.min(globalAlert + (u.foe ? 0.10 : K ? K.alert : 0.14), 2);
-  if (K) noiseEvent(u.x, u.z, K.noise[0], K.noise[1]); else noiseEvent(u.x, u.z, 23, 0.45);
+  const lr = 1 + 0.5 * gritG;   // v115: a rifle carries 35 m at full grit (was 23); a silenced one stays a cough
+  if (K) noiseEvent(u.x, u.z, K.noise[0] * (K.noise[0] >= 20 ? lr : 1), K.noise[1]); else noiseEvent(u.x, u.z, 23 * lr, 0.45);
 }
 
 function damage(t, n, kind, byFriendly) {
@@ -13484,7 +13511,7 @@ function initMission(idx) {
   const M = MISSIONS[idx];
   setMapSize(M.size ? M.size[0] : 100, M.size ? M.size[1] : 100);
   clearMission();
-  kills = 0; globalAlert = 0; missionTime = 0; coldT = -1e9; squadSkis = false; skiChangeT = 0; reinfSent = false; searchQ = []; avalanche = null; reinfBlocked = false; wavering = false; outcome = null;
+  kills = 0; globalAlert = 0; missionTime = 0; coldT = -1e9; squadSkis = false; skiChangeT = 0; reinfSent = false; standTo = false; fightT = 0; searchQ = []; avalanche = null; reinfBlocked = false; wavering = false; outcome = null;
   grenCount = startGren = M.grenades + upgLvl('webb'); everSpotted = false; weapon = 'gun'; setWeapon('gun');
   hitStop = 0; bloodTimer = 0; camShake = 0; squadProne = false; noiseTimer = 0; spotted = false;
   wetN = 0; wetT = -1e9;   // v63: the wet grumble's per-op allowance
@@ -13731,6 +13758,8 @@ function initMission(idx) {
   teamUI(); stanceUI(false);
   $('bsn').style.display = sol.some(q => q.sniper) ? '' : 'none';
   diffD = M.diff || 0;
+  gritG = PACE === 'slow' ? 1 : PACE === 'fast' ? 0 : clamp((diffD - 0.12) / 0.2, 0, 1) * (M.rearguard ? 0.5 : 1);   // v115 (a rearguard can't be crept round: half)
+  for (const s of sol) if (!s.sniper) s.range *= 1 - 0.2 * gritG;
   for (const e of missionEnemies(M)) {
     const u = mkUnit({ name: e.isCommander ? 'Commander' : e.dog ? 'Dog' : 'Sentry', hp: e.hp, range: e.range, visionArc: e.arc,
                       rapidFire: e.rapidFire, sleep: e.sleep, flak: e.flak, hasGrenade: e.hasGrenade, isCommander: e.isCommander, guard: e.guard || M.guards, dog: e.dog, elev: e.tower ? TOWER_H + 0.35 : 0 }, true);
@@ -13800,7 +13829,7 @@ function spawnReinforcements(n, at, msg) {
     mkCone(u);
     ens.push(u);
   }
-  showToast('REINFORCEMENTS', msg || 'they heard you');
+  if (msg !== false) showToast('REINFORCEMENTS', msg || 'they heard you');
 }
 
 /*───────────────────── the truck ─────────────────────*/
@@ -15080,8 +15109,8 @@ function update(dt) {
       }
     }
     if (s.workAt) { tx = s.workAt.x; tz = s.workAt.z; }   // v106: a specialist goes to his job (Dai to the piers) and comes back when it's done
-    // v79 (?pace=slow): under fire, with the leader stopped, a follower gets behind the nearest cover he can still shoot from
-    if (SLOW) {
+    // v79 (?pace=slow; v115: gritG): under fire, with the leader stopped, a follower gets behind the nearest cover he can still shoot from
+    if (gritG > 0.5) {
       s.supT = Math.max(0, (s.supT || 0) - dt);
       const still = myL && myL !== s && !(myL.path && myL.path.length) && Math.hypot(myL.tx - myL.x, myL.tz - myL.z) < 0.8;
       if (!still || s.prone || s.sniper) s.coverPt = null;
@@ -15176,12 +15205,12 @@ function update(dt) {
       if (d <= 0.35) s.angle = s.aim;
       if (engaged && s.fireT <= 0 && laneClear(s, target.x, target.z)) {
         let spr = target.point ? 0.05 : amb ? 0.006 : undefined;
-        if (SLOW && !amb && !target.point) {   // v79: further is harder, moving is harder, pinned is harder
-          const dT = Math.hypot(target.x - s.x, target.z - s.z);
-          spr = (s.prone ? 0.014 : 0.024) * 2.1 * (0.55 + dT / 16) * (s.moving ? 1.6 : 1) * ((s.supT || 0) > 0.35 ? 2 : 1);
+        if (gritG > 0 && !amb && !target.point) {   // v79: further is harder, moving is harder, pinned is harder (v115: by gritG)
+          const dT = Math.hypot(target.x - s.x, target.z - s.z), b0 = s.prone ? 0.014 : 0.024;
+          spr = b0 + (b0 * 2.1 * (0.55 + dT / 16) * (s.moving ? 1.6 : 1) * ((s.supT || 0) > 0.35 ? 2 : 1) - b0) * gritG;
         }
         shoot(s, target.x, target.z, spr, surfY(target.x, target.z) + (target.elev || 0) + (target.point ? 0.6 : target.prone ? 0.4 : 1.0));
-        s.fireT = s.cool * (amb ? 0.30 : SLOW ? 1.75 * ((s.supT || 0) > 0.35 ? 1.4 : 1) : 1) + Math.random() * (amb ? 0.015 : SLOW ? 0.12 : 0.06);
+        s.fireT = s.cool * (amb ? 0.30 : (1 + 0.75 * gritG) * (gritG > 0.5 && (s.supT || 0) > 0.35 ? 1.4 : 1)) + Math.random() * (amb ? 0.015 : 0.06 + 0.06 * gritG);
       }
     } else { s.aim = s.angle; s.aimB = Math.max(0, s.aimB - dt * 4); }
   });
@@ -15358,7 +15387,7 @@ function update(dt) {
             spread *= 1 - 0.2 * diffD;
             if (e.pinned) spread *= 2.4;
             shoot(e, t.x + (t.moving ? Math.sin(t.angle) * t.speed * 0.14 : 0), t.z + (t.moving ? Math.cos(t.angle) * t.speed * 0.14 : 0), spread);
-            e.fireT = e.cool * (e.pinned ? 2.4 : 1) * (SLOW ? 1.25 : 1);   // v79
+            e.fireT = e.cool * (e.pinned ? 2.4 : 1);   // v115: v79's slow pace slowed theirs ×1.25 too; no longer
             if (++e.burst >= (e.rapid ? 5 : 3) + (Math.random() * 2 | 0)) { e.burst = 0; e.burstRest = 0.7 + Math.random() * 0.8; }
           }
         } else e.onTarget = Math.max(0, e.onTarget - dt * 2);
@@ -15467,9 +15496,14 @@ function update(dt) {
       if (truckT <= 0) sendTruck();
     }
     if (truck) stepTruck(dt);
-  } else if (!reinfSent && !reinfBlocked && !M.drill && globalAlert >= (M.alertThreshold || 0.7) + 0.95) {   // v94: nobody comes to a drill
+  }
+  fightT = ens.some(e => !e.dead && e.state === 'engage') ? fightT + dt : 0;   // v115: a German has been fighting us this long
+  if (!standTo && gritG > 0 && !M.rearguard && !M.drill && fightT > 1.5 && globalAlert >= (M.alertThreshold || 0.7)) turnOut(M);   // v115: not a clean ambush, a fight
+  if (!M.truck && !reinfSent && !reinfBlocked && !M.drill && globalAlert >= (M.alertThreshold || 0.7) + 0.95) {   // v94: nobody comes to a drill
     reinfSent = true;
-    spawnReinforcements(Math.max(2, Math.round((M.reinf || 4) * 0.6)) + Math.round(2 * diffD));
+    const both = standTo && missionTime - standT < 2.4;   // v115: the alarm and the reinforcements together: one message, not one hiding the other
+    spawnReinforcements(Math.round((Math.max(2, Math.round((M.reinf || 4) * 0.6)) + Math.round(2 * diffD)) * (1 + gritG)), undefined, both ? false : undefined);   // v115: and twice as many
+    if (both) showToast('THE ALARM IS UP', 'the garrison is coming, and more behind them. Get flat, or get out');
   }
 
   // ── bullets (swept segment)
@@ -15500,7 +15534,7 @@ function update(dt) {
     }
     for (const t of sol) {
       if (t.dead || t === b.owner) continue;
-      if (SLOW && b.foe && sweep(t.x, t.z, 2.4) >= 0) t.supT = Math.min(3.2, (t.supT || 0) + 0.45);   // v79: rounds cracking past
+      if (gritG > 0.5 && b.foe && sweep(t.x, t.z, 2.4) >= 0) t.supT = Math.min(3.2, (t.supT || 0) + 0.45);   // v79: rounds cracking past
       const h = sweep(t.x, t.z, t.prone ? 0.38 : 0.58);   // prone is a smaller target
       if (h >= 0 && h < bestT) { bestT = h; hitUnit = t; friendlyFire = !b.foe; }
     }
@@ -16426,10 +16460,10 @@ function showBrief() {
   $('bobj').textContent = M.obj;
   $('btxt').textContent = M.brief;
   $('bdocw').textContent = (M.snow || DEV_SNOW) ? "in the snow (brrrr, bleedin' cold, innit)" : M.desert ? 'in the sand (hot, and it gets everywhere)' : 'in the grass';   // v77
-  $('bdocski').innerHTML = (M.snow || DEV_SNOW) ? ' Off the road the snow is deep and a man on foot wades. <b>SKIS</b> (or <b>B</b>) get you over it faster than walking ever did, but rifles are slung, nobody can crawl on them, and they leave tracks a blind man could follow.' : '';   // v78
+  $('bdocski').innerHTML = (M.snow || DEV_SNOW) ? ' <b>SKIS</b> (B): quick over deep snow, but no shooting, no crawling, and tracks a blind man could follow.' : '';   // v78
   if (M.drawn) { const d = document.createElement('div'); d.className = 'bdrawn'; d.textContent = M.drawn; $('btxt').appendChild(d); }   // v69
   if (M.optional && M.optional.length) { const d = document.createElement('div'); d.className = 'bopt'; d.innerHTML = '<b>OPTIONAL</b> ' + M.optional.map(o => o.label || OPT_TXT[o.t]).join(' · '); $('btxt').appendChild(d); }   // v46
-  $('bopp').textContent = `${missionEnemies(M).length + (M.targets || []).filter(t => t.t === 'pillbox').length * 2} identified. Reinforcements likely if the noise gets out of hand.`;
+  $('bopp').textContent = `${missionEnemies(M).length + (M.targets || []).filter(t => t.t === 'pillbox').length * 2} seen. Make a noise and the rest turn out.`;   // v115
   const c = $('bcrew'); c.innerHTML = '';
   const crew = activeRoster();
   crew.forEach(g => { const d = crewCard(g); if (kitOf(g) !== KIT.rifle) d.querySelector('.rk').textContent += ' · ' + kitOf(g).tag; c.appendChild(d); });
