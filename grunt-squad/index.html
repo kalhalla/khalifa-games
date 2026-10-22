@@ -438,7 +438,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
     <button id="tset">SETTINGS <small>sound · music · graphics</small></button>
   </div>
   <div class="foot">© GAMELAB · NO GRUNTS WERE CONSULTED</div>
-  <div id="tver">v113</div>
+  <div id="tver">v114</div>
 </div>
 
 <div id="ops" class="screen">
@@ -8237,7 +8237,7 @@ const MISSIONS = [
     brief: "The boat is gone, and so is the plan. Sweden is neutral, and it is at the top of this valley. Get there. You will not win a fight up here and you are not meant to try: there are ski patrols across the valley that read tracks for a living, a lookout on the ridge, and a border post with a dog who reads them faster. The weather is your friend in fits and starts. When a squall comes in, move: they cannot see far and your tracks fill behind you. When it clears, the whole valley can see you, so lie still or get into the snow cave under the drift. Walk on the frozen stream and you leave no prints, but it winds about in the open. The slopes either side of the pass are loaded with snow, and one shot will bring them down on whoever is under them.",
     weather: 'snow', scatter: 0, diff: 0.6, charges: 0, grenades: 4, reinf: 3,
     squalls: { on: [18, 28], off: [35, 55] }, rise: { z0: .2, z1: .9, h: 8 },
-    spawnX: .46, spawnZ: .888, reinfAt: { x: .75, z: .08, r: 6 },
+    spawnX: .46, spawnZ: .888, reinfAt: { x: .75, z: .08, r: 6, boat: true },
     water: [{ x1: -0.02, z1: .93, x2: 1.02, z2: 1.01, still: true }], roads: [], floes: 0.5,
     ice: [{ x: 0.502, z: 0.279, rx: .024, rz: .032 }, { x: 0.499, z: 0.301, rx: .024, rz: .032 }, { x: 0.496, z: 0.323, rx: .024, rz: .032 }, { x: 0.493, z: 0.345, rx: .024, rz: .032 }, { x: 0.493, z: 0.369, rx: .024, rz: .032 }, { x: 0.493, z: 0.392, rx: .024, rz: .032 }, { x: 0.493, z: 0.416, rx: .024, rz: .032 }, { x: 0.506, z: 0.44, rx: .024, rz: .032 }, { x: 0.518, z: 0.463, rx: .024, rz: .032 }, { x: 0.531, z: 0.487, rx: .024, rz: .032 }, { x: 0.542, z: 0.513, rx: .024, rz: .032 }, { x: 0.553, z: 0.54, rx: .024, rz: .032 }, { x: 0.564, z: 0.566, rx: .024, rz: .032 }, { x: 0.558, z: 0.593, rx: .024, rz: .032 }, { x: 0.552, z: 0.619, rx: .024, rz: .032 }, { x: 0.546, z: 0.646, rx: .024, rz: .032 }, { x: 0.541, z: 0.67, rx: .024, rz: .032 }, { x: 0.536, z: 0.693, rx: .024, rz: .032 }, { x: 0.531, z: 0.717, rx: .024, rz: .032 }, { x: 0.526, z: 0.743, rx: .024, rz: .032 }, { x: 0.52, z: 0.77, rx: .024, rz: .032 }, { x: 0.515, z: 0.796, rx: .024, rz: .032 }, { x: 0.513, z: 0.826, rx: .024, rz: .032 }, { x: 0.511, z: 0.855, rx: .024, rz: .032 }, { x: 0.509, z: 0.885, rx: .024, rz: .032 }],
     avalanche: [{ x0: 0, x1: .39, z0: .12, z1: .23, noise: true, msg: ['THE SLOPE CAME DOWN', 'and everything under it'] }, { x0: .61, x1: 1, z0: .12, z1: .23, noise: true, msg: ['THE SLOPE CAME DOWN', 'and everything under it'] }], iceTint: 0.45,
@@ -8896,12 +8896,13 @@ const MISSIONS = [
     obj: 'Through the orchards to the ropes, down the cliff to the boats',
     sub: "Veules-les-Roses · Night · Sea fog", drawn: "Drawn from the Highland Division at St-Valéry-en-Caux, June 1940.",
     brief: "The division is surrounded at St-Valéry and the ships cannot get in. Along the coast, at the cliffs, somebody has knotted rifle slings and rope together and men are going down them to the beach, where boats are taking them off in the fog. Through the fields, past their road block, through the orchards, past the patrol that walks the cliff top, and over the edge. One man to a rope at a time, and a man on a rope cannot shoot, so make sure nobody is looking when you go. The boats will not wait for the light.",
-    scatter: 1, diff: 0.45, grenades: 4, reinf: 2, alertThreshold: .7,
+    scatter: 1, diff: 0.6, grenades: 4, reinf: 5, alertThreshold: .6,   // v114 (Khal: too easy): .45, 2 and .7
+    reinfAt: { x: .97, z: .3, r: 5 },   // v114: along the cliff top from the east (they used to come out of the sea and drown)
     edge: { z: .245, h: 6, foot: 4.5, ropes: [.4, .5] },   // 6 m, not the real 30: any higher and the camera, looking north over the top, can't see the beach under it
     water: [{ x1: -.02, z1: -.02, x2: 1.02, z2: .145, still: true, sea: true }],
     roads: [{ k: 'road', w: 4, pts: [[.8, .275], [.8, .64], [.8, 1.02]] }],
     grounds: [{ k: 'sand', x0: -.02, z0: .135, x1: 1.02, z1: .225 }, { k: 'crop', x0: 0, z0: .66, x1: .76, z1: 1 }, { k: 'crop', x0: .84, z0: .64, x1: 1, z1: 1 }],
-    clock: { t: 420, label: 'BOATS GO', fail: ['THE BOATS HAVE GONE', 'and the light is coming. Not this way, then'] },
+    clock: { t: 360, label: 'BOATS GO', fail: ['THE BOATS HAVE GONE', 'and the light is coming. Not this way, then'] },
     objectives: [{ t: 'extract', label: 'To the ropes, down the cliff, into the boats' }],
     extract: { x: .45, z: .168, r: 6.5 },
     enemies: [
@@ -8910,9 +8911,23 @@ const MISSIONS = [
       { x: .05, z: .3, a: Math.PI / 2, range: 13, arc: Math.PI * .55, hp: 3, patrol: [{ x: .05, z: .3 }, { x: .95, z: .3 }] },
       { x: .76, z: .43, a: Math.PI, range: 11, arc: Math.PI * .55, hp: 3, sleep: true },
       { x: .25, z: .7, a: Math.PI * .7, range: 12, arc: Math.PI * .55, hp: 3, patrol: [{ x: .25, z: .7 }, { x: .6, z: .72 }] },
+      // v114 (Khal: too easy): a searchlight tower on the cliff top between the ropes, its lamp sweeping the beach under them and its
+      // MG looking out to sea; a dog with the cliff patrol; a man walking the beach below; a sentry in the orchards
+      { x: .45, z: .265, a: Math.PI, range: 15, arc: Math.PI * .9, hp: 3, tower: 'light' },
+      { x: .45, z: .265, a: Math.PI, range: 15, arc: Math.PI * .9, hp: 3, tower: 'mg', rapidFire: true },
+      { x: .93, z: .285, dog: true, handler: 2, hp: 2, range: 7 },
+      { x: .2, z: .2, a: Math.PI / 2, range: 12, arc: Math.PI * .55, hp: 3, patrol: [{ x: .2, z: .2 }, { x: .7, z: .2 }] },
+      { x: .52, z: .44, a: Math.PI * .1, range: 12, arc: Math.PI * .5, hp: 3 },
+      { x: .6, z: .262, a: -1.75, range: 16, arc: Math.PI * .5, hp: 3, rapidFire: true },   // an MG in a sangar east of the ropes, along the cliff top
+      { x: .63, z: .18, a: -Math.PI / 2, range: 12, arc: Math.PI * .55, hp: 3 },             // a second man on the beach
+      // a section resting in the orchards: two asleep, one on watch, an NCO walking the rows
+      { x: .28, z: .48, a: 0, range: 12, arc: Math.PI * .5, hp: 3, sleep: true }, { x: .31, z: .495, a: Math.PI, range: 12, arc: Math.PI * .5, hp: 3, sleep: true },
+      { x: .33, z: .475, a: Math.PI * .4, range: 13, arc: Math.PI * .55, hp: 3 },
+      { x: .2, z: .45, a: Math.PI / 2, range: 12, arc: Math.PI * .55, hp: 4, patrol: [{ x: .2, z: .45 }, { x: .5, z: .45 }, { x: .5, z: .55 }, { x: .2, z: .55 }] },
     ],
     obstacles: [
       { t: 'house', style: 'farm', x: .7, z: .36, w: 8, d: 6 }, { t: 'car', x: .83, z: .33, a: Math.PI / 2 },
+      { t: 'tower', x: .45, z: .265, yaw: Math.PI, speed: .38 }, { t: 'sangar', x: .6, z: .262, r: 2, o: 1.39 },   // v114
       { t: 'sangar', x: .8, z: .675, r: 2, o: Math.PI },
       { t: 'wreck', x: .22, z: .84, a: .4 }, { t: 'wreck', x: .3, z: .92, a: -.3 }, { t: 'wreck', x: .66, z: .78, a: 1.2 },
       { t: 'rowboat', x: .3, z: .07, a: .3 }, { t: 'rowboat', x: .46, z: .04, a: -.2 }, { t: 'rowboat', x: .6, z: .09, a: .5 },
@@ -9854,6 +9869,24 @@ function stepThinIce(dt) {
         showToast('THROUGH THE ICE', s.name + ' is gone'); }
     } else if (s.iceT) s.iceT = Math.max(0, s.iceT - dt * 0.4);
   }
+}
+/* v114 (Khal): water gives a man a chance. He drowns after 3 s in it (the clock runs down twice as fast once he's out), or at
+   once if he's more than 5 m out from a sea shore: every point 5 m round him is sea. He wades at a fifth of his pace in a river
+   or canal (so 3 s carries him 5.5 m and no river, 7.3 m of deep water at the narrowest, can be waded) and two fifths in the sea. */
+let swimToastT = -1e9;
+const seaAt = (x, z) => waterZones.some(r => r.sea && inRect(r, x, z, 0));
+function farFromShore(x, z) {
+  for (let k = 0; k < 12; k++) {
+    const a = k * Math.PI / 6, px = x + Math.sin(a) * 5, pz = z + Math.cos(a) * 5;
+    if (onBridge(px, pz, 0.35) || !seaAt(px, pz)) return false;
+  }
+  return true;
+}
+function stepWading(u, dt) {
+  if (!inDeepWater(u.x, u.z)) { if (u.swimT) u.swimT = Math.max(0, u.swimT - dt * 2); return; }
+  const was = u.swimT || 0; u.swimT = was + dt;
+  if (u.swimT > 3 || (seaAt(u.x, u.z) && farFromShore(u.x, u.z))) { drown(u); return; }
+  if (u.friendly && was === 0 && missionTime - swimToastT > 5) { swimToastT = missionTime; showToast('IN THE WATER', 'three seconds to get out'); }
 }
 function drown(u, kind) {
   if (u.dead) return;
@@ -13759,6 +13792,7 @@ function spawnReinforcements(n, at, msg) {
     const RA = at || MISSIONS[missionIdx].reinfAt;   // v82: they can come another way (Power Station: by boat to the quay)
     if (RA) { u.x = RA.x * MW + (Math.random() - 0.5) * (RA.r || 6); u.z = RA.z * MH + (Math.random() - 0.5) * (RA.r || 6); }
     else { u.x = MW * (0.2 + Math.random() * 0.6); u.z = -2 - Math.random() * 4; }
+    while (inDeepWater(u.x, u.z) && u.z < MH) u.z += 1;   // v114: up out of the sea (Road Watch, B6, BS1 and BS2 have it on the north edge: they drowned as they came)
     u.tx = u.x; u.tz = u.z; u.angle = u.aim = 0; u.homeA = 0;
     u.speed = 8.6; u.alert = 0.9; u.seen = true; u.state = 'search';
     const L = sol.find(s => !s.dead);
@@ -15089,7 +15123,7 @@ function update(dt) {
     if (s !== myL && s.lastTarget && !s.lastTarget.dead && myL && dst(s, myL) < 7.5 && !s.prone) d = 0;
     if (d > 0.35) {
       const limp = s.hp <= 1 ? 0.8 : 1;          // one round left in him and it shows
-      steerMove(s, tx, tz, s.speed * (s.prone ? 0.36 : 1) * limp * (knife && knife.s === s && knife.rush ? KNIFE_SPRINT : 1), dt);
+      steerMove(s, tx, tz, s.speed * (s.prone ? 0.36 : 1) * limp * (waterZones.length && inDeepWater(s.x, s.z) ? (seaAt(s.x, s.z) ? 0.4 : 0.2) : 1) * (knife && knife.s === s && knife.rush ? KNIFE_SPRINT : 1), dt);
       if (s !== myL) {
         // progress test, not motion: a man sliding up and down a wall is moving and getting nowhere
         const nd2 = Math.hypot(tx - s.x, tz - s.z);
@@ -15526,8 +15560,8 @@ function update(dt) {
 
   // the river does not care whose side you are on
   if (waterZones.length) {
-    for (const u of sol) if (!u.dead && inDeepWater(u.x, u.z)) drown(u);
-    for (const u of ens) if (!u.dead && inDeepWater(u.x, u.z)) drown(u);
+    for (const u of sol) if (!u.dead) stepWading(u, dt);   // v114: not at once
+    for (const u of ens) if (!u.dead) stepWading(u, dt);
   }
 
   stepArtillery(dt);
@@ -16823,7 +16857,7 @@ function showOps() {
     if ((M.enemies || []).some(e => e.dog)) extras.push('dog');
     if (M.clock) extras.push('the boats leave');   // v85
     if (M.rail) extras.push('railway');
-    if (M.reinfAt) extras.push('reinforcements by boat');
+    if (M.reinfAt) extras.push(M.reinfAt.boat ? 'reinforcements by boat' : 'reinforcements');   // v114: only Power Station's come by boat
     if (M.snowAt) extras.push('snow from ' + Math.round(M.snowAt / 60) + ':00');
     if (M.size && M.size[1] > 100) extras.push('long map');
     if (M.extract) extras.push('extraction');
@@ -16873,6 +16907,11 @@ function worldAt(cx, cy) {
   if (gorgeZ && gorgeZ.bridge) {   // v83: the bridge over the gorge, at rim height, not the floor under it
     const B = gorgeZ.bridge, t = (baseY((B.x0 + B.x1) / 2, (gorgeZ.z0 + gorgeZ.z1) / 2) - rc.ray.origin.y) / rc.ray.direction.y;
     if (t > 0) { const x = rc.ray.origin.x + rc.ray.direction.x * t, z = rc.ray.origin.z + rc.ray.direction.z * t; if (x > B.x0 - 0.1 && x < B.x1 + 0.1 && z > gorgeZ.z0 && z < gorgeZ.z1) return new THREE.Vector3(x, 0, z); }
+  }
+  if (hit.length && waterZones.length && waterSurfaceAt(hit[0].point.x, hit[0].point.z) !== null) {   // v114: a tap on water is a place on the water, not the bed under it, metres further on (the sea at St-Valéry: 5.6 m, past the 5 m that drowns a man)
+    let x = hit[0].point.x, z = hit[0].point.z;
+    for (let k = 0; k < 3; k++) { const y = waterSurfaceAt(x, z); if (y === null) break; const t = (y - rc.ray.origin.y) / rc.ray.direction.y; if (!(t > 0)) break; x = rc.ray.origin.x + rc.ray.direction.x * t; z = rc.ray.origin.z + rc.ray.direction.z * t; }
+    if (waterSurfaceAt(x, z) !== null) return new THREE.Vector3(x, 0, z);
   }
   if (hit.length) return hit[0].point;
   const v = new THREE.Vector3();
@@ -16941,7 +16980,8 @@ function order(cx, cy) {
   moveRing.material.color.copy(SC(wet ? 0xff5a45 : 0xd9d2ad));
   moveRing.position.set(tx, surfY(tx, tz) + 0.07, tz);
   moveRingT = 0.7;
-  if (wet) showToast('THAT IS THE RIVER', 'they will do it if you tell them to');
+  if (wet) { const sea = seaAt(tx, tz), cn = waterZones.some(r => r.canal && inRect(r, tx, tz, 0));   // v114: three seconds in it, and not far out
+    showToast(sea ? 'THAT IS THE SEA' : cn ? 'THAT IS THE CANAL' : 'THAT IS THE RIVER', sea ? 'three seconds in it, and not five metres out' : 'three seconds in it and he drowns'); }
   sayAck(L, riskySpot(tx, tz, partial));   // v55: a word from the man in front, not a click
 }
 const cvs = R.domElement;
