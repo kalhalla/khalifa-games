@@ -438,7 +438,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
     <button id="tset">SETTINGS <small>sound · music · graphics</small></button>
   </div>
   <div class="foot">© GAMELAB · NO GRUNTS WERE CONSULTED</div>
-  <div id="tver">v111</div>
+  <div id="tver">v112</div>
 </div>
 
 <div id="ops" class="screen">
@@ -1067,7 +1067,7 @@ function baseY(x, z) { return (fbm(x * 0.04 + 9, z * 0.04 + 4) - 0.5) * 2.9 + (f
 /* v81 (The Plateau): frozen lakes and the plateau edge.
    M.ice = [{ x, z, rx, rz }] (fractions of the map): ellipses of ice, flat, walkable, no prints (packed), blue-grey in the snow.
    M.edge = { z, h, gully: { x, w } }: north of z the ground drops h metres; a gully w metres wide is the one way down. */
-let iceZones = [], edgeDrop = null, riseZ = null;   // v82: M.rise = { z0, z1, h }: the ground climbs h metres from z1 (south) to z0 (north)
+let iceZones = [], edgeDrop = null, riseZ = null, ropeToast = false;   // v112: ropeToast   // v82: M.rise = { z0, z1, h }: the ground climbs h metres from z1 (south) to z0 (north)
 function riseAt(z) { const R = riseZ, t = Math.max(0, Math.min(1, (R.z1 - z) / (R.z1 - R.z0))); return R.h * t * t * (3 - 2 * t); }
 /* v83 (Heavy Water): a gorge across the map. M.gorge = { z0, z1, h, ways: [{ x, w, side, L }], bridge: { x0, x1 } }:
    between the north rim z0 and the south rim z1 the ground lies h metres down behind sheer granite; a way is a gully
@@ -1258,10 +1258,18 @@ function dropAt(x, z) {
   const E = edgeDrop, dz = E.z - z;
   if (dz < -0.5) return 0;
   const sm = t => t * t * (3 - 2 * t), c01 = v => Math.max(0, Math.min(1, v));
-  const out = c01((Math.abs(x - E.gx) - E.gw / 2) / 2.5);   // 0 in the gully, 1 beside it
-  const t = c01((dz + 0.5) / 22) * (1 - out) + c01((dz + 0.5) / 3) * out;
-  return E.h * sm(t);
+  let best = 1e9;
+  for (const G of E.ways) {   // v112: any number of ways down (The Plateau's gully; St-Valéry's ropes, steep and narrow)
+    const out = c01((Math.abs(x - G.gx) - G.gw / 2) / (G.rope ? 0.6 : 2.5));   // 0 in the gully, 1 beside it
+    const t = c01((dz + 0.5) / G.L) * (1 - out) + c01((dz + 0.5) / 3) * out;
+    best = Math.min(best, E.h * sm(t));
+  }
+  return best;
 }
+// v112: the water's surface, which goes down with the ground below a cliff edge (St-Valéry: the sea at the foot of the cliffs)
+const waterLvl = (x, z) => baseY(x, z) - WATER_DROP - (edgeDrop ? dropAt(x, z) : 0);
+// v112: a man on one of the ropes down the cliff (M.edge.ropes)
+function ropeAt(x, z) { const E = edgeDrop; if (!E || !E.ropes) return null; for (const G of E.ways) if (G.rope && Math.abs(x - G.gx) < G.gw / 2 + 0.3 && z < E.z + 0.8 && z > E.z - G.L - 0.3) return G; return null; }
 // v101: seif dunes (AS2): long ridges north–south, each band { x0, x1, h } in metres. The crest sits 60% across, steep on
 // the lee side, and wanders and swells along its length
 let seifs = [];
@@ -1433,7 +1441,7 @@ function inDeepWater(x, z) {
 }
 function waterSurfaceAt(x, z) {
   if (!waterZones.length || onBridge(x, z, 0.35)) return null;
-  for (let i = 0; i < waterZones.length; i++) if (inRect(waterZones[i], x, z, 1.0)) return baseY(x, z) - WATER_DROP;
+  for (let i = 0; i < waterZones.length; i++) if (inRect(waterZones[i], x, z, 1.0)) return waterLvl(x, z);
   return null;
 }
 // visual reference height: the ground, or the river surface where there is one
@@ -1878,7 +1886,7 @@ function terrCol(cx, cz, cy, ny, h, c) {
   let w0 = 0, w1 = 0, w2 = 0, w3 = 0;                  // splat weights: grass, mud, dirt, gravel
   let kind = 'grass';   // v67: what this point is, for the snow
   const wf = waterFactor(cx, cz, true), pd = padBlend(cx, cz);   // v49: the bed under a bridge is coloured as bed
-  const sy0 = baseY(cx, cz) - WATER_DROP;
+  const sy0 = waterLvl(cx, cz);
   if (ny < 0.72 && !(pd && pd.f > 0.5) && wf <= 0.02) {   // v50: a river bank is mud and stones (below), not banded earth
     // a cut bank or cliff face: earth in bands, darker toward its foot
     const band = vnoise(cy * 2.2, (cx + cz) * 0.3);
@@ -2138,7 +2146,7 @@ function placeRiverRocks() {
         if (onBridge(x, z, 3)) continue;
         const sc = (q ? 0.55 : 0.9) + hash2(x, z) * 0.7, im = RROCK[(Math.abs(x * 3 + z) | 0) % 3];
         if (im.count >= RROCK_MAX) continue;
-        d.position.set(x, baseY(x, z) - WATER_DROP - 0.12 * sc, z); d.rotation.set(0, hash2(z, x) * 6.3, 0); d.scale.set(sc, sc * 1.1, sc); d.updateMatrix();
+        d.position.set(x, waterLvl(x, z) - 0.12 * sc, z); d.rotation.set(0, hash2(z, x) * 6.3, 0); d.scale.set(sc, sc * 1.1, sc); d.updateMatrix();
         im.setMatrixAt(im.count++, d.matrix); riverRocks.push({ x, z, r: sc * 0.5 });
       }
     }
@@ -2222,7 +2230,7 @@ function buildWater() {
     for (let i = 0; i < pa.count; i++) {
       let x = pa.getX(i), z = pa.getZ(i);
       if (x > ex0 && x < ex1 && z > ez0 && z < ez1) { x += (hash2(x * 3.1, z * 1.7) - 0.5) * cell * 0.5; z += (hash2(x * 1.3, z * 2.9) - 0.5) * cell * 0.5; }
-      const sy = baseY(x, z) - WATER_DROP, dep = sy - terrainVisY(x, z);   // v49: depth to the drawn bed (it carries on under a bridge)
+      const sy = waterLvl(x, z), dep = sy - terrainVisY(x, z);   // v49: depth to the drawn bed (it carries on under a bridge)
       const c = _w.copy(dep < 0.07 ? foam : dep < 0.5 ? shal : dep < 1.0 ? mid : deep);   // foam on the wet edge
       let fo = 0;
       for (const q of riverRocks) { const e = Math.hypot(x - q.x, z - q.z) - q.r; if (e < 0.3) fo = Math.max(fo, e < 0.08 ? 0.5 : 0.25 * (0.3 - e) / 0.22); }   // v50: a faint static collar; the moving foam sheet does the rest
@@ -3865,7 +3873,7 @@ function buildPebbles(M) {
   const cols = [0x8e8b80, 0xa29f95, 0x77746b, 0x6e6458, 0xb0ada2].map(h => SC(h)), c = new THREE.Color(), d = new THREE.Object3D(), pts = [];
   const put = (x, z, big, bank) => {
     if (pts.length >= PEB_N || x < -1 || x > MW + 1 || z < -1 || z > MH + 1) return;
-    if (bank) { if (terrainVisY(x, z) < baseY(x, z) - WATER_DROP - 0.04 || onBridge(x, z, 1.2)) return; pts.push([x, z, big]); return; }   // v50: on the bank, down to the waterline
+    if (bank) { if (terrainVisY(x, z) < waterLvl(x, z) - 0.04 || onBridge(x, z, 1.2)) return; pts.push([x, z, big]); return; }   // v50: on the bank, down to the waterline
     if (waterFactor(x, z, true) > 0.02 || padBlend(x, z) && padBlend(x, z).f > 0.6 || blocked(x, z, 0.05)) return;
     if (roadFootAt(x, z) && (streets.length || squares.length) && onStreet(x, z, 0)) return;   // v40
     pts.push([x, z, big]);
@@ -8875,6 +8883,40 @@ const MISSIONS = [
       ...[[.1, .45], [.92, .42], [.2, .9], [.8, .9], [.04, .32], [.96, .3]].map(([x, z]) => ({ t: 'tree', x, z, kind: 'poplar' })),
     ],
     spawnX: .5, spawnZ: .66,
+  },
+  // v112: Dunkirk side op 2 (notes/france-1940-theatre.md, BS2), built from Khal's St-Valéry Cliffs sheets (assets/dunkirk/bs2-ref) and
+  // the plan: a long map, 100 × 140. Night and sea fog. Through the fields and the orchards past the road block and the cliff
+  // patrol to the ropes, then down the chalk cliff one man at a time (M.edge.ropes: a man on a rope is slow and can't shoot) to the boats
+  {
+    name: 'St-Valéry Cliffs', th: 'dk', side: true, night: true, weather: 'fog', noExtras: true, noTraffic: true, charges: 0, size: [100, 140],
+    obj: 'Through the orchards to the ropes, down the cliff to the boats',
+    sub: "Veules-les-Roses · Night · Sea fog", drawn: "Drawn from the Highland Division at St-Valéry-en-Caux, June 1940.",
+    brief: "The division is surrounded at St-Valéry and the ships cannot get in. Along the coast, at the cliffs, somebody has knotted rifle slings and rope together and men are going down them to the beach, where boats are taking them off in the fog. Through the fields, past their road block, through the orchards, past the patrol that walks the cliff top, and over the edge. One man to a rope at a time, and a man on a rope cannot shoot, so make sure nobody is looking when you go. The boats will not wait for the light.",
+    scatter: 1, diff: 0.45, grenades: 4, reinf: 2, alertThreshold: .7,
+    edge: { z: .245, h: 6, foot: 4.5, ropes: [.4, .5] },   // 6 m, not the real 30: any higher and the camera, looking north over the top, can't see the beach under it
+    water: [{ x1: -.02, z1: -.02, x2: 1.02, z2: .145, still: true, sea: true }],
+    roads: [{ k: 'road', w: 4, pts: [[.8, .275], [.8, .64], [.8, 1.02]] }],
+    grounds: [{ k: 'sand', x0: -.02, z0: .135, x1: 1.02, z1: .225 }, { k: 'crop', x0: 0, z0: .66, x1: .76, z1: 1 }, { k: 'crop', x0: .84, z0: .64, x1: 1, z1: 1 }],
+    clock: { t: 420, label: 'BOATS GO', fail: ['THE BOATS HAVE GONE', 'and the light is coming. Not this way, then'] },
+    objectives: [{ t: 'extract', label: 'To the ropes, down the cliff, into the boats' }],
+    extract: { x: .45, z: .168, r: 6.5 },
+    enemies: [
+      { x: .8, z: .655, a: Math.PI, range: 15, arc: Math.PI * .5, hp: 3 }, { x: .835, z: .66, a: Math.PI * .9, range: 13, arc: Math.PI * .5, hp: 3, rapidFire: true },
+      { x: .95, z: .29, a: -Math.PI / 2, range: 13, arc: Math.PI * .55, hp: 3, patrol: [{ x: .95, z: .29 }, { x: .05, z: .29 }] },
+      { x: .05, z: .3, a: Math.PI / 2, range: 13, arc: Math.PI * .55, hp: 3, patrol: [{ x: .05, z: .3 }, { x: .95, z: .3 }] },
+      { x: .76, z: .43, a: Math.PI, range: 11, arc: Math.PI * .55, hp: 3, sleep: true },
+      { x: .25, z: .7, a: Math.PI * .7, range: 12, arc: Math.PI * .55, hp: 3, patrol: [{ x: .25, z: .7 }, { x: .6, z: .72 }] },
+    ],
+    obstacles: [
+      { t: 'house', style: 'farm', x: .7, z: .36, w: 8, d: 6 }, { t: 'car', x: .83, z: .33, a: Math.PI / 2 },
+      { t: 'sangar', x: .8, z: .675, r: 2, o: Math.PI },
+      { t: 'wreck', x: .22, z: .84, a: .4 }, { t: 'wreck', x: .3, z: .92, a: -.3 }, { t: 'wreck', x: .66, z: .78, a: 1.2 },
+      { t: 'rowboat', x: .3, z: .07, a: .3 }, { t: 'rowboat', x: .46, z: .04, a: -.2 }, { t: 'rowboat', x: .6, z: .09, a: .5 },
+      ...[[.1, .19], [.25, .2], [.65, .19], [.85, .2], [.58, .2]].map(([x, z]) => ({ t: 'rock', x, z })),
+      ...[[0.05, 0.31], [0.13, 0.31], [0.21, 0.31], [0.29, 0.31], [0.37, 0.31], [0.45, 0.31], [0.53, 0.31], [0.61, 0.31], [0.69, 0.31], [0.07, 0.36], [0.15, 0.36], [0.23, 0.36], [0.31, 0.36], [0.39, 0.36], [0.47, 0.36], [0.55, 0.36], [0.63, 0.36], [0.05, 0.41], [0.13, 0.41], [0.21, 0.41], [0.29, 0.41], [0.37, 0.41], [0.45, 0.41], [0.53, 0.41], [0.61, 0.41], [0.07, 0.46], [0.15, 0.46], [0.23, 0.46], [0.31, 0.46], [0.39, 0.46], [0.47, 0.46], [0.55, 0.46], [0.63, 0.46], [0.71, 0.46], [0.05, 0.51], [0.13, 0.51], [0.21, 0.51], [0.29, 0.51], [0.37, 0.51], [0.45, 0.51], [0.53, 0.51], [0.61, 0.51], [0.69, 0.51], [0.07, 0.56], [0.15, 0.56], [0.23, 0.56], [0.31, 0.56], [0.39, 0.56], [0.47, 0.56], [0.55, 0.56], [0.63, 0.56], [0.71, 0.56]].map(([x, z]) => ({ t: 'tree', x, z, kind: 'broad' })),
+      ...[[0.02, 0.621], [0.05, 0.621], [0.08, 0.622], [0.11, 0.623], [0.14, 0.624], [0.17, 0.625], [0.20, 0.626], [0.23, 0.627], [0.26, 0.628], [0.29, 0.629], [0.32, 0.630], [0.35, 0.630], [0.38, 0.631], [0.41, 0.632], [0.55, 0.600], [0.58, 0.599], [0.61, 0.597], [0.64, 0.596], [0.67, 0.594], [0.70, 0.593], [0.73, 0.591], [0.76, 0.590], [0.85, 0.585], [0.88, 0.584], [0.91, 0.582], [0.94, 0.581], [0.97, 0.579], [0.03, 0.275], [0.07, 0.275], [0.11, 0.275], [0.15, 0.275], [0.19, 0.275], [0.23, 0.275], [0.27, 0.275], [0.31, 0.275], [0.35, 0.275], [0.39, 0.275], [0.43, 0.275], [0.47, 0.275], [0.51, 0.275], [0.55, 0.275], [0.59, 0.275], [0.63, 0.275], [0.67, 0.275], [0.71, 0.275], [0.75, 0.275], [0.87, 0.275], [0.91, 0.275], [0.95, 0.275]].map(([x, z]) => ({ t: 'bush', x, z })),
+    ],
+    spawnX: .4, spawnZ: .97,
   }
 ];
 
@@ -9329,7 +9371,7 @@ function angDiff(a, b) { let d = a - b; while (d > Math.PI) d -= Math.PI * 2; wh
 function blocked(x, z, pad) {
   const p = pad === undefined ? 0.42 : pad;
   if (trainsLive) { const t = trainHit(x, z, p); if (t) return t; }   // v43: a passing train
-  if (edgeDrop && z < edgeDrop.z + 1 + p && Math.abs(x - edgeDrop.gx) > edgeDrop.gw / 2 - p) return EDGE_OB;   // v81: the plateau edge
+  if (edgeDrop && z < edgeDrop.z + 1 + p && z > edgeDrop.z - edgeDrop.foot && !edgeDrop.ways.some(G => Math.abs(x - G.gx) < G.gw / 2 - p)) return EDGE_OB;   // v81: the plateau edge (v112: only the face itself, and any of its ways down)
   if (gorgeZ && gorgeBlocked(x, z, p)) return EDGE_OB;   // v83: the gorge
   const list = near(x, z);
   for (let i = 0; i < list.length; i++) {
@@ -9412,6 +9454,12 @@ function steerMove(u, tx, tz, speed, dt) {
   if (u.fixed) return false;
   if (SNOW) { if (!u.foe && skiChangeT > 0 && !u.sniper) return false; speed *= snowGo(u); }   // v78
   if (sweepOn && !u.foe) speed *= 0.4;   // v94: sweeping for mines
+  if (edgeDrop && edgeDrop.ropes && !u.foe) {   // v112: down a rope, slowly, and one man to a rope
+    const E = edgeDrop, G = ropeAt(u.x, u.z), Gt = ropeAt(tx, tz) || (tz < u.z ? ropeAt(u.x, u.z - 1.2) : null);   // the rope ahead of him, or the one he is about to step onto
+    if (!G && u.z < E.z - 2 && tz > E.z - 7) return false;   // the ropes go one way: nobody climbs back up from the beach
+    if (Gt && !G && sol.some(q => q !== u && !q.dead && ropeAt(q.x, q.z) === Gt)) return false;   // someone is on it: wait at the top
+    if (G) return false;   // on the rope, stepRopes moves him
+  }
   if (SAND && sandZones.length) { const zz = sandAt(u.x, u.z); if (zz.k === 'dune') speed *= 1 - 0.3 * zz.f; }   // v98: soft sand is slow going
   const dx = tx - u.x, dz = tz - u.z, d = Math.hypot(dx, dz);
   if (d < 0.001) return false;
@@ -9740,6 +9788,7 @@ function muzzlePoint(u) {
 }
 function shoot(u, tx, tz, spreadOverride, targetY) {
   const m = muzzlePoint(u);
+  if (!u.foe && ropeAt(u.x, u.z)) return;   // v112: both hands on the rope
   if (!u.foe && refs.length && civInLine(m.x, m.z, tx, tz)) { if (!mineSeen.refHold) { mineSeen.refHold = true; showToast('HOLDING FIRE', 'refugees in the line of it. Move, or wait for them to pass'); } return; }   // v102: never through a refugee
   const dx = tx - m.x, dz = tz - m.z, d = Math.hypot(dx, dz);
   if (d < 0.2) return;
@@ -12856,6 +12905,49 @@ function mkLighthouse(x, z) {
   const m = new THREE.Mesh(mergeGeos(p), propMat); m.castShadow = true; m.position.set(x, groundY(x, z), z); propRoot.add(m);
   return { type: 'lighthouse', x: x - 2.6, z: z - 2.6, w: 5.2 + 1.5, d: 5.2 + 1.5, tall: true, cover: true };
 }
+// v112: the ropes down the cliff (St-Valéry): a stake at the top of each, and the rope (and rifle slings knotted on) to the beach
+function mkCliffRopes() {
+  const E = edgeDrop; if (!E || !E.ropes) return;
+  const p = [];
+  for (const G of E.ways) { if (!G.rope) continue;
+    const x = G.gx, zt = E.z + 0.8, zb = E.z - G.L, yt = groundY(x, zt), yb = groundY(x, zb);
+    p.push({ g: GEO.cyl, m: M4(x, yt + 0.5, zt + 0.4, 0.16, 1.1, 0.16), c: 0x5a4632 }, { g: GEO.cyl, m: M4(x, yt + 0.12, zt + 0.4, 0.6, 0.18, 0.6), c: 0x9a8458 });
+    for (const sx of [-0.25, 0.25]) { const L = Math.hypot(zt - zb, yt - yb); p.push({ g: GEO.box, m: M4e(x + sx, (yt + yb) / 2 + 0.25, (zt + zb) / 2, 0.05, 0.05, L, Math.atan2(yt - yb, zt - zb), 0, 0), c: 0xb09868 }); }
+  }
+  // the chalk face: white, streaked, in rough buttresses from the top of the cliff to the beach, open where the ropes go down
+  for (let x = -6; x < MW + 6; x += 1.9) {
+    if (E.ways.some(G => G.rope && Math.abs(x - G.gx) < 1.6)) continue;
+    const zt = E.z + 0.2, yt = groundY(x, zt), yb = yt - E.h - 0.6, jz = (hash2(x, 3.3) - 0.5) * 0.8, w = 2.1 + hash2(x, 7.1) * 0.4;
+    p.push({ g: GEO.box, m: M4(x, (yt + yb) / 2, zt - 1.6 + jz, w, yt - yb, 2.4 + hash2(x, 1.9) * 0.8, (hash2(x, 5) - 0.5) * 0.15), c: [0xe6e2d6, 0xd8d4c6, 0xeeeae0][(hash2(x, 9) * 3) | 0] });
+    if (hash2(x, 2.7) > 0.5) p.push({ g: GEO.box, m: M4(x + 0.3, yb + (yt - yb) * 0.45, zt - 2.9 + jz, 0.4, (yt - yb) * 0.7, 0.12), c: 0xb8b4a6 });
+  }
+  const m = new THREE.Mesh(mergeGeos(p), propMat); m.castShadow = true; propRoot.add(m);
+  for (const G of E.ways) if (G.rope) {   // a gold ring at the top of each: tap it to go down
+    const r = new THREE.Mesh(new THREE.RingGeometry(1.1, 1.35, 28), basic(0xffd24a, { transparent: true, opacity: 0.75, depthWrite: false, side: THREE.DoubleSide }).clone());
+    r.rotation.x = -Math.PI / 2; r.position.set(G.gx, groundY(G.gx, E.z + 1.6) + 0.08, E.z + 1.6); r.renderOrder = 3; propRoot.add(r);
+  }
+}
+// v112: everyone on a rope goes on down it at a climber's pace, whatever the file is doing, and steps off at the foot
+function stepRopes(dt) {
+  const E = edgeDrop; if (!E || !E.ropes || phase !== 'play') return;
+  for (const u of sol) {
+    if (u.dead) continue;
+    const G = ropeAt(u.x, u.z); if (!G) continue;
+    if (!ropeToast) { ropeToast = true; showToast('ON THE ROPE', 'one man at a time, and a man on a rope can’t shoot'); }
+    const below = sol.some(q => q !== u && !q.dead && q.z < u.z && ropeAt(q.x, q.z) === G);   // the man below him first
+    const fz = E.z - G.L - 1.6, d = Math.max(0, u.z - fz), st = below ? 0 : Math.min(d, 2.6 * dt);   // (then the file walks him out from under the cliff)
+    u.x += (G.gx - u.x) * Math.min(1, dt * 4); u.z -= st; u.moving = st > 0; u.angle = Math.PI; u.walk += dt * 4;
+    if (u.prone) u.prone = false;
+  }
+}
+// v112: a rowing boat on the water (St-Valéry), riding at the sea's level, a lantern in the stern
+function mkRowBoat(x, z, a) {
+  const p = [{ g: GEO.box, m: M4(0, 0.25, 0, 1.4, 0.45, 3.6), c: 0x5a6a6a }, { g: GEO.box, m: M4(0, 0.38, 0, 1.15, 0.3, 3.3), c: 0x4a3a28 }, { g: GEO.cone, m: M4e(0, 0.25, 2.1, 0.7, 0.9, 0.45, Math.PI / 2, 0, 0), c: 0x5a6a6a }];
+  for (const zz of [-0.8, 0.5]) p.push({ g: GEO.box, m: M4(0, 0.5, zz, 1.2, 0.06, 0.28), c: 0x7a6a50 });
+  for (const sd of [-1, 1]) p.push({ g: GEO.box, m: M4e(sd * 1.1, 0.45, 0, 0.05, 0.05, 2.6, 0, sd * 0.4, 0), c: 0x8a7a5a });
+  p.push({ g: GEO.sph, m: M4(0, 0.75, -1.5, 0.22, 0.26, 0.22), c: 0xffd27a });
+  const m = new THREE.Mesh(mergeGeos(p), propMat); m.position.set(x, waterLvl(x, z) - 0.1, z); m.rotation.y = a || 0; propRoot.add(m);
+}
 // a French soldier at his post: horizon blue, scenery for now (friendly soldiers who act come with the rearguard, step 2)
 function mkPoilu(x, z, a) {
   const F = buildFigure(0x7d8ca4, 0x6c7a8c, 0xd8a97e, 0x3a3428, false);
@@ -13106,7 +13198,7 @@ const stepDone = s => {
         const u = sol.find(q => !q.dead && q.x > R.x0 - 1.5 && q.x < R.x1 + 1.5 && q.z < R.z0 + 1.5 && q.z > R.z0 - 6); if (u) { s.at = u; return true; } } return false; }
     case 'flare': { const u = extractPt && sol.find(q => !q.dead && Math.hypot(q.x - extractPt.x, q.z - extractPt.z) < extractPt.r); if (u) s.at = u; return !!u; }
     // the leader in the ring and the file close behind him (they walk in single file, so the last man trails by a few metres)
-    case 'extract': { const live = sol.filter(q => !q.dead); return !!extractPt && live.length > 0 && Math.hypot(live[0].x - extractPt.x, live[0].z - extractPt.z) < extractPt.r && live.every(q => Math.hypot(q.x - extractPt.x, q.z - extractPt.z) < extractPt.r + 7) && !(hostage && hostage.rescued && Math.hypot(hostage.x - extractPt.x, hostage.z - extractPt.z) > extractPt.r + 7); }
+    case 'extract': { const live = sol.filter(q => !q.dead); return !!extractPt && live.length > 0 && Math.hypot(live[0].x - extractPt.x, live[0].z - extractPt.z) < extractPt.r && live.every(q => Math.hypot(q.x - extractPt.x, q.z - extractPt.z) < extractPt.r + 7) && !(hostage && hostage.rescued && Math.hypot(hostage.x - extractPt.x, hostage.z - extractPt.z) > extractPt.r + 7) && !(edgeDrop && edgeDrop.ropes && live.some(q => q.z > edgeDrop.z - 3 || ropeAt(q.x, q.z))); }   // v112: on a rope op, everybody down on the beach
   }
   return false;
 };
@@ -13346,7 +13438,9 @@ function initMission(idx) {
   INST.tree[TREE_KINDS.indexOf('bare')].geometry = SNOW ? BIRCH_GEO : BARE_GEO;   // v88: birch in the Norwegian winter
   INST.bush.forEach((im, v) => { im.geometry = SNOW ? BUSH_GEO_SNOW[v] : SAND ? BUSH_GEO_SAND[v] : BUSH_GEO[v]; });   // v92: camel-thorn and saltbush in the desert
   for (const m of [swayMat, swayMatI]) m.color.copy(SNOW ? SC(0x8a968e) : new THREE.Color(1, 1, 1));   // v81: spruce reads darker in the snow (Khal's sheet); the snow on it is mixed in after the tint
-  edgeDrop = M.edge ? { z: M.edge.z * MH, h: M.edge.h || 10, gx: M.edge.gully.x * MW, gw: M.edge.gully.w || 6 } : null;   // v81
+  ropeToast = false;
+  edgeDrop = M.edge ? { z: M.edge.z * MH, h: M.edge.h || 10, foot: M.edge.foot || 1e9, ropes: !!M.edge.ropes,
+    ways: [...(M.edge.gully ? [{ gx: M.edge.gully.x * MW, gw: M.edge.gully.w || 6, L: 22 }] : []), ...(M.edge.ropes || []).map(x => ({ gx: x * MW, gw: 1.6, L: 6, rope: true }))] } : null;   // v81 (v112: foot, how far below the face is still cliff; ropes)
   riseZ = M.rise ? { z0: M.rise.z0 * MH, z1: M.rise.z1 * MH, h: M.rise.h } : null;   // v82
   musterPt = M.muster ? { x: M.muster.x * MW, z: M.muster.z * MH } : null;
   const GG = M.gorge;   // v83
@@ -13510,6 +13604,7 @@ function initMission(idx) {
     else if (o.t === 'windmill') obs.push(mkWindmill(x, z, o.a));   // v109
     else if (o.t === 'oiltank') obs.push(mkOilTankProp(x, z, o.r || 4));   // v110
     else if (o.t === 'lighthouse') obs.push(mkLighthouse(x, z));   // v111
+    else if (o.t === 'rowboat') mkRowBoat(x, z, o.a);   // v112
   }
   flushThickets(); flushPalms();   // v98: the palms, one mesh
   if (gorgeZ) obs.push(...mkGorge());   // v83
@@ -13527,6 +13622,7 @@ function initMission(idx) {
   escortInit(M);   // v107
   rgInit(M);   // v108
   beachInit(M);   // v110
+  mkCliffRopes();   // v112
   jeepRun = null; trcList.length = 0; tracerMesh.visible = false;   // v100: the jeeps went with propRoot
   buildPuddles(M); buildFlowers(M);   // v34: after the obstacles, so neither lands under a hut
 
@@ -14850,6 +14946,7 @@ function update(dt) {
   stepEscort(dt);   // v107
   rgStep(dt);   // v108
   stepBeach(dt);   // v110
+  stepRopes(dt);   // v112
   if (MISSIONS[missionIdx].jeeps && !jeepRun && phase === 'play' && !outcome) jeepInit(MISSIONS[missionIdx]);   // v100
   stepJeeps(dt);
   if (culverts.length) for (const u of sol) {   // v93: crawling through the culvert: out of sight, and not drawn on top of the road
@@ -16784,6 +16881,10 @@ function order(cx, cy) {
   if (knife) endKnife('KNIFE CALLED OFF', 'he comes back to the squad');
   const L = selLeader();
   if (!L) return;
+  if (edgeDrop && edgeDrop.ropes && L.z > edgeDrop.z && (tz < edgeDrop.z - 1 || (tz < L.z - 1 && tz < edgeDrop.z + 8 && edgeDrop.ways.some(G => G.rope && Math.abs(tx - G.gx) < 3)))) {   // v112: from the top, a tap at a rope, or ahead of him near the edge (the beach under the cliff is out of sight, and a tap aimed at it lands on the top): down the nearest rope
+    let G = null; for (const g of edgeDrop.ways) if (g.rope && (!G || Math.abs(tx - g.gx) < Math.abs(tx - G.gx))) G = g;
+    tx = G.gx; tz = edgeDrop.z - G.L - 4;   // out from under the cliff, where the camera can see him
+  }
   L.tx = tx; L.tz = tz;
   L.path = findPath(L.x, L.z, tx, tz);
   const partial = !!(L.path && L.path.partial && Math.hypot(L.path[L.path.length - 1].x - tx, L.path[L.path.length - 1].z - tz) > 2.5);
