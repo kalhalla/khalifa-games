@@ -165,6 +165,16 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
 #settings h4{font-family:Impact,'Arial Narrow Bold',sans-serif;font-size:24px;letter-spacing:3px;color:var(--khaki);text-align:center}
 #settings .tag{margin:2px 0 10px}
 #settings .menu{margin-top:6px;width:100%}
+/* v118: the credits, over the settings */
+#credits{position:fixed;inset:0;z-index:31;display:none;align-items:center;justify-content:center;background:rgba(6,12,4,.8)}
+#credits.on{display:flex}
+#credits .card{width:min(460px,90vw);max-height:86vh;overflow:auto;background:rgba(10,16,6,.97);border:1px solid rgba(201,192,138,.3);border-radius:3px;padding:16px}
+#credits h4{font-family:Impact,'Arial Narrow Bold',sans-serif;font-size:24px;letter-spacing:3px;color:var(--khaki);text-align:center;margin-bottom:10px}
+#credits .ctext{font-size:12.5px;line-height:1.5;color:#c9c08a}
+#credits .ctext p{margin:0 0 9px}
+#credits .ctext b{color:#e8dfa8}
+#credits .ctext .lic{font-size:10px;opacity:.7}
+#credits .menu{margin-top:8px;width:100%}
 .btn.rw{background:#c9a43a;color:#1c2208}
 .btn.rw:hover{background:#d8b24a}
 .btn.rw small{display:block;font-size:9px;letter-spacing:1px;font-weight:normal;margin-top:3px;opacity:.75}
@@ -442,7 +452,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
     <button id="tset">SETTINGS <small>sound · music · graphics</small></button>
   </div>
   <div class="foot">© GAMELAB · NO GRUNTS WERE CONSULTED</div>
-  <div id="tver">v117</div>
+  <div id="tver">v118</div>
 </div>
 
 <div id="ops" class="screen">
@@ -469,14 +479,31 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
 <div id="settings">
   <div class="card">
     <h4>SETTINGS</h4>
-    <div class="tag">adjust to taste, or to the phone</div>
+    <div class="tag">adjust to taste · pinch or wheel to zoom in play</div>
     <div class="menu">
       <button id="ssnd">SOUND <small id="ssndsub">on</small></button>
       <button id="smus">MUSIC <small id="smussub">on</small></button>
       <button id="sgfx">GRAPHICS <small id="sgfxsub">high</small></button>
+      <button id="szoom">ZOOM <small id="szoomsub">normal</small></button>
+      <button id="scred">CREDITS <small>who made it</small></button>
       <button id="sback" class="pri">BACK</button>
     </div>
-    <div class="tag" style="margin-top:12px;font-size:10px;opacity:.75">Music: Colonel Bogey (Alford), Tipperary (Judge &amp; Williams), Pack Up Your Troubles (Powell), Keep the Home Fires Burning (Novello), all public domain. Instrument samples: FluidR3 GM by Frank Wen, MIDI.js conversion by gleitz (CC BY 3.0).</div>
+    
+  </div>
+</div>
+
+<div id="credits">
+  <div class="card">
+    <h4>CREDITS</h4>
+    <div class="ctext">
+      <p><b>GRUNT SQUAD</b> · made by Khal.</p>
+      <p><b>Voices:</b> Khal. <b>Illustrations:</b> Khal's direction, painted with AI image tools. <b>Sound:</b> everything synthesised in the browser.</p>
+      <p><b>Music:</b> Colonel Bogey (Alford), Tipperary (Judge &amp; Williams), Pack Up Your Troubles (Powell), Keep the Home Fires Burning (Novello), all public domain. Instrument samples: FluidR3 GM by Frank Wen, MIDI.js conversion by gleitz, licensed CC BY 3.0.</p>
+      <p><b>Operations</b> are drawn from real ones, 1939–45; the men in them are made up. With respect to the ones who weren't.</p>
+      <p><b>three.js</b> r128 · The MIT License · Copyright © 2010–2021 three.js authors</p>
+      <p class="lic">Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:<br><br>The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.<br><br>THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.</p>
+    </div>
+    <div class="menu"><button id="cback" class="pri">BACK</button></div>
   </div>
 </div>
 
@@ -628,7 +655,7 @@ const SC = hex => new THREE.Color(hex).convertSRGBToLinear();
 
 
 /*───────────────────── platform layer ─────────────────────
-   One file, four flavours. PLATFORM_ID is set by the build (web | crazygames | poki | telegram), or
+   One file, every flavour. PLATFORM_ID is set by tools/build.py (web | itch | crazygames | telegram | steam | ios | android), or
    ?platform= on the URL for testing; ?adtest=1 fakes ads in any build so the flow can be checked.
    The rest of the game only ever calls PF: gameplay start/stop, an ad break between operations,
    a rewarded ad, and storage that survives incognito and lives with the player's account where the
@@ -660,6 +687,9 @@ const PF = (() => {
     d.style.cssText = 'position:fixed;inset:0;z-index:99;display:flex;align-items:center;justify-content:center;background:#000;color:#c9c08a;font:14px monospace;letter-spacing:3px';
     d.textContent = 'TEST AD · ' + (ms / 1000) + 's'; document.body.appendChild(d); setTimeout(() => { d.remove(); res(true); }, ms);
   });
+  // v118: where the game may point a player elsewhere (a URL to share, our own site). CrazyGames forbids links out, and the
+  // paid builds have no business sending anyone to the free one
+  S.links = !['crazygames', 'poki', 'steam', 'ios', 'android'].includes(id);
   S.hasRewarded = () => adTest || (!!S.sdk && (id === 'crazygames' || id === 'poki'));
   S.adBreak = async () => {
     if (S.breaks++ === 0) return;                       // never an ad before the first game of a visit
@@ -690,7 +720,7 @@ const PF = (() => {
   /* v20: Telegram CloudStorage, so a campaign follows the player between phone and desktop. Values are capped at
      4096 characters a key, so each is split into chunks (key__0, key__1 … and key__n). Writes are batched; at start
      the cloud copy is pulled and merged: the newer campaign wins, unlocks take the max, medals are combined. */
-  const SYNC = ['gs3d_campaign', 'gs3d_campaign_no', 'gs3d_campaign_af', 'gs3d_unlocked', 'gs3d_medals', 'gs3d_tut', 'gs3d_order'], CHUNK = 3800, pending = {};
+  const SYNC = ['gs3d_campaign', 'gs3d_campaign_dk', 'gs3d_campaign_no', 'gs3d_campaign_af', 'gs3d_unlocked', 'gs3d_medals', 'gs3d_tut', 'gs3d_order'], CHUNK = 3800, pending = {};
   let pushT = null;
   const tgCS = () => (S.sdk && id === 'telegram' && S.sdk.CloudStorage && (!S.sdk.isVersionAtLeast || S.sdk.isVersionAtLeast('6.9'))) ? S.sdk.CloudStorage : null;
   function cloudPush() {
@@ -16525,21 +16555,21 @@ function dailyCard(r) {
   x.fillStyle = '#ffd25a'; x.font = 'bold 150px Courier New, monospace'; x.fillText(String(r.score), 70, 860);
   const sw = x.measureText(String(r.score)).width;
   x.fillStyle = '#a49c74'; x.font = 'bold 44px Courier New, monospace'; x.fillText('POINTS', 70 + sw + 30, 860);
-  x.fillStyle = '#6d6a45'; x.font = '34px Courier New, monospace'; x.fillText('khalifa.games/grunt-squad · beat it', 70, 1000);
+  x.fillStyle = '#6d6a45'; x.font = '34px Courier New, monospace'; x.fillText(PF.links ? 'khalifa.games/grunt-squad · beat it' : 'GRUNT SQUAD · beat it', 70, 1000);
   return cv;
 }
 async function shareDaily() {
   const r = daily && daily.res; if (!r) return;
-  const text = dailyText(r), url = 'https://khalifa.games/grunt-squad/';
+  const text = dailyText(r), url = PF.links ? 'https://khalifa.games/grunt-squad/' : '';   // v118: no link where links aren't allowed
   const cv = dailyCard(r);
   try {
     const blob = await new Promise(res => cv.toBlob(res, 'image/png'));
     const file = new File([blob], `grunt-squad-daily-${r.key}.png`, { type: 'image/png' });
-    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], text: text + '\n' + url }); return; }
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], text: url ? text + '\n' + url : text }); return; }
   } catch (e) { if (e && e.name === 'AbortError') return; }
-  try { if (PLATFORM_ID === 'telegram' && window.Telegram && Telegram.WebApp && Telegram.WebApp.openTelegramLink) { Telegram.WebApp.openTelegramLink('https://t.me/share/url?url=' + encodeURIComponent(url) + '&text=' + encodeURIComponent(text)); return; } } catch (e) { }
-  if (navigator.share) { try { await navigator.share({ text, url }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
-  try { await navigator.clipboard.writeText(text + '\n' + url); showToast('COPIED', 'the result is on your clipboard'); } catch (e) { }
+  try { if (PF.id === 'telegram' && window.Telegram && Telegram.WebApp && Telegram.WebApp.openTelegramLink) { Telegram.WebApp.openTelegramLink('https://t.me/share/url?url=' + encodeURIComponent(url) + '&text=' + encodeURIComponent(text)); return; } } catch (e) { }
+  if (navigator.share) { try { await navigator.share(url ? { text, url } : { text }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
+  try { await navigator.clipboard.writeText(url ? text + '\n' + url : text); showToast('COPIED', 'the result is on your clipboard'); } catch (e) { }
   try { const a = document.createElement('a'); a.href = cv.toDataURL('image/png'); a.download = `grunt-squad-daily-${r.key}.png`; a.click(); } catch (e) { }
 }
 window.__dailyCard = () => daily && daily.res ? dailyCard(daily.res).toDataURL('image/png') : null;
@@ -17291,12 +17321,17 @@ function applyGfx() {
   R.setPixelRatio(Math.min(devicePixelRatio, gfxLow ? 1 : DPR_MAX) * dprScale);
 }
 function setGfx(low) { gfxLow = low; PF.set('gs_gfx', low ? 'low' : 'high'); applyGfx(); }
-function syncSettings() { $('ssndsub').textContent = audioOn ? 'on' : 'off'; $('smussub').textContent = musicOn ? 'on' : 'off'; $('sgfxsub').textContent = gfxLow ? 'low · faster' : 'high'; }
+function syncSettings() { $('ssndsub').textContent = audioOn ? 'on' : 'off'; $('smussub').textContent = musicOn ? 'on' : 'off'; $('sgfxsub').textContent = gfxLow ? 'low · faster' : 'high';
+  $('szoomsub').textContent = userZoom < 0.95 ? 'close' : userZoom > 1.05 ? 'far' : 'normal'; }   // v118
 function openSettings() { syncSettings(); $('settings').classList.add('on'); }
 $('ssnd').addEventListener('click', () => { initAudio(); setAudio(!audioOn); syncSettings(); SFX.ui(); });
 $('smus').addEventListener('click', () => { initAudio(); setMusic(!musicOn); syncSettings(); SFX.ui(); });
 $('sgfx').addEventListener('click', () => { setGfx(!gfxLow); syncSettings(); SFX.ui(); });
 $('sback').addEventListener('click', () => { SFX.ui(); $('settings').classList.remove('on'); });
+// v118: zoom steps through close, normal and far (pinch and the wheel set anything between); credits over the settings
+$('szoom').addEventListener('click', () => { setUserZoom(userZoom < 0.95 ? 1 : userZoom < 1.05 ? USER_ZOOM[1] : USER_ZOOM[0]); syncSettings(); SFX.ui(); });
+$('scred').addEventListener('click', () => { SFX.ui(); $('credits').classList.add('on'); $('credits').querySelector('.card').scrollTop = 0; });
+$('cback').addEventListener('click', () => { SFX.ui(); $('credits').classList.remove('on'); });
 applyGfx();
 $('opsret').addEventListener('click', () => { SFX.ui(); fadeTo(goTitle, true); });
 $('bgo').addEventListener('click', () => {
