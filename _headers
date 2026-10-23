@@ -1,0 +1,14 @@
+# Cloudflare response headers.
+# Grunt Squad checks version.txt to tell a stale copy (an iOS home-screen app resumed from memory) that a newer build is
+# live: it must never be served from a cache. The pages themselves revalidate on every load, as on Vercel.
+/grunt-squad/version.txt
+  Cache-Control: no-store
+
+/*.html
+  Cache-Control: public, max-age=0, must-revalidate
+
+/*/
+  Cache-Control: public, max-age=0, must-revalidate
+
+/
+  Cache-Control: public, max-age=0, must-revalidate
