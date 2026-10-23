@@ -442,7 +442,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
     <button id="tset">SETTINGS <small>sound · music · graphics</small></button>
   </div>
   <div class="foot">© GAMELAB · NO GRUNTS WERE CONSULTED</div>
-  <div id="tver">v115</div>
+  <div id="tver">v117</div>
 </div>
 
 <div id="ops" class="screen">
@@ -758,9 +758,17 @@ scene.fog = new THREE.Fog(0x9fc0d8, 78, 168); scene.fog.color = SC(0x9fc0d8);
 const CAM_H = 17.3, CAM_Z = 20.4;  // v29: ~11% closer than v28 (19.5/23), so the squad is bigger on screen
 // portrait phones are very narrow: pull back a little so you can still see either flank
 let camZoom = 1;
+// v117 (Khal): the player's own zoom on top, by pinch or mouse wheel, kept between sessions. Capped both ways: further out costs
+// frame rate and shows more ground (not more Germans: anyone the squad can't see stays hidden); closer in costs nothing
+const USER_ZOOM = [0.8, 1.3];
+let userZoom = (() => { try { const v = parseFloat(localStorage.getItem('gs3d_zoom')); return isFinite(v) ? Math.max(USER_ZOOM[0], Math.min(USER_ZOOM[1], v)) : 1; } catch (e) { return 1; } })();
 function applyCamZoom() {
   const a = innerWidth / innerHeight;
-  camZoom = Math.max(1, Math.min(1.55, 0.64 / a));
+  camZoom = Math.max(1, Math.min(1.55, 0.64 / a)) * userZoom;
+}
+function setUserZoom(z) {
+  userZoom = Math.max(USER_ZOOM[0], Math.min(USER_ZOOM[1], z)); applyCamZoom();
+  try { localStorage.setItem('gs3d_zoom', userZoom.toFixed(3)); } catch (e) { }
 }
 applyCamZoom();
 const camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 1, 320);
@@ -4020,15 +4028,16 @@ function buildFlowers() { }   // v35: the flowers are part of the grass now
 // ---- v34: the sun's shadow box follows the camera tightly and snaps to whole texels, so edges are crisp and don't crawl ----
 const SHADOW_HALF = 25;
 const _sd = new THREE.Vector3(), _sxA = new THREE.Vector3(), _syA = new THREE.Vector3(), _sUp = new THREE.Vector3(0, 1, 0);
-function placeSun(tx, tz) {
-  const c = sun.shadow.camera, L = SHADOW_HALF * Math.max(0.75, Math.min(1.45, camZoom));
+function placeSun(tx, tz, ty) {
+  const c = sun.shadow.camera, L = SHADOW_HALF * Math.max(0.75, Math.min(2.0, camZoom));
   if (Math.abs(c.right - L) > 0.01) { c.left = -L; c.right = L; c.top = L; c.bottom = -L; c.updateProjectionMatrix(); }
   const texel = 2 * L / sun.shadow.mapSize.x;
   _sd.copy(SUN_OFF).normalize(); _sxA.crossVectors(_sUp, _sd).normalize(); _syA.crossVectors(_sd, _sxA);
   const px = tx * _sxA.x + tz * _sxA.z, py = tx * _syA.x + tz * _syA.z;
   const ox = Math.round(px / texel) * texel - px, oy = Math.round(py / texel) * texel - py;
   const nx = tx + _sxA.x * ox + _syA.x * oy, ny = _sxA.y * ox + _syA.y * oy, nz = tz + _sxA.z * ox + _syA.z * oy;
-  sun.target.position.set(nx, ny, nz); sun.position.set(nx + SUN_OFF.x, ny + SUN_OFF.y, nz + SUN_OFF.z);
+  const ny2 = ny + (ty || 0);   // v116: the shadow box on the hill, not at sea level under it
+  sun.target.position.set(nx, ny2, nz); sun.position.set(nx + SUN_OFF.x, ny2 + SUN_OFF.y, nz + SUN_OFF.z);
   sun.target.updateMatrixWorld();
 }
 
@@ -4501,6 +4510,85 @@ function stepTreeFade(dt) {
       if (T.f <= 0) { releaseGhost(T); continue; }
       const e = T.f * T.f * (3 - 2 * T.f);
       T.ghost.c.material.opacity = 1 - (1 - TREE_GLASS) * e;
+    }
+  }
+}
+/* v117 (Khal: the church hid the squad at Cassel): a house, a tower, a hangar or anything else tall standing between the camera
+   and one of our men turns to glass, as the trees already do (and roofs when a man goes in). Each tall obstacle with a mesh of
+   its own and a footprint under 40 m (so not a ridge, a glacier or a long merged wall) gets a box; each frame a line from each
+   man's head and boots to the lens is tested against the boxes near it. A box that's hit swaps its meshes' materials for
+   see-through clones (opacity to .3), and back again once clear. */
+let occluders = [], occlFor = null;
+const OCCL_SKIP = new Set(['ridge', 'glacier', 'train', 'tree', 'thicket', 'rock', 'crate']);
+const _ob = new THREE.Box3();
+function resetOccluders() {
+  for (const O of occluders) if (O.glass) for (const [m, orig] of O.glass) { m.material.dispose(); m.material = orig; }
+  occluders = []; occlFor = obs;
+  for (const o of obs) {
+    if (!o || !o.tall || OCCL_SKIP.has(o.type)) continue;
+    let b = null, fade = false;
+    const own = o.mesh && o.mesh.isObject3D && !o.mesh.isInstancedMesh;
+    let inB = false; if (own) for (let q = o.mesh; q; q = q.parent) if (q === buildRoot) inB = true;   // a building you can enter fades its own roof
+    if (own && !inB) { _ob.setFromObject(o.mesh); if (!_ob.isEmpty()) { b = _ob.clone(); fade = b.max.x - b.min.x < 40 && b.max.z - b.min.z < 40; } }
+    if (!b && isFinite(o.x) && isFinite(o.w)) {   // merged into a batch: the footprint, and the walls plus a roof
+      const gy = groundY(o.x + o.w / 2, o.z + o.d / 2), H = (o.h || 4.5) + (o.type === 'house' || o.type === 'mill' ? 2.6 : 0.5);
+      b = new THREE.Box3(new THREE.Vector3(o.x, gy - 0.5, o.z), new THREE.Vector3(o.x + o.w, gy + H, o.z + o.d));
+    }
+    if (!b) continue;
+    const gy = groundY((b.min.x + b.max.x) / 2, (b.min.z + b.max.z) / 2);
+    if (b.max.y - gy < 1.2) continue;   // too low to hide even a man lying down
+    occluders.push({ o, mesh: own ? o.mesh : null, b, fade: fade && b.max.y - gy >= 2.6, f: 0, hit: false, glass: null });
+  }
+}
+function segBox(px, py, pz, dx, dy, dz, b) {   // does p + t·d (0 < t < 1) pass through box b?
+  let t0 = 0, t1 = 1;
+  for (const [p, d, lo, hi] of [[px, dx, b.min.x, b.max.x], [py, dy, b.min.y, b.max.y], [pz, dz, b.min.z, b.max.z]]) {
+    if (Math.abs(d) < 1e-6) { if (p < lo || p > hi) return false; continue; }
+    let a = (lo - p) / d, c = (hi - p) / d; if (a > c) { const q = a; a = c; c = q; }
+    if (a > t0) t0 = a; if (c < t1) t1 = c; if (t0 > t1) return false;
+  }
+  return true;
+}
+// A man hidden by one of them also shows through as a pale silhouette: the same skinned mesh drawn again only where something
+// nearer has been drawn (GreaterDepth). Only while a box is actually in the way, so grass and his own rifle never ghost him; and
+// ours only: a German behind a wall stays behind it.
+const silMat = new THREE.MeshBasicMaterial({ color: SC(0xe6efc0), transparent: true, opacity: 0.45, depthWrite: false, depthFunc: THREE.GreaterDepth, skinning: true, fog: false });
+function addSil(u) {
+  const r = u.F.root; if (!r.isSkinnedMesh) { u.silM = false; return; }
+  const m = new THREE.SkinnedMesh(r.geometry, silMat); m.bind(r.skeleton, r.bindMatrix); m.frustumCulled = false; m.renderOrder = 5; m.visible = false;
+  r.add(m); u.silM = m;
+}
+function stepOccluders(dt) {
+  if (occlFor !== obs) resetOccluders();
+  const cx = camera.position.x, cy = camera.position.y, cz = camera.position.z;
+  for (const O of occluders) O.hit = false;
+  for (const s of sol) {
+    if (s.silM === undefined) addSil(s);
+    let hid = false;
+    if (!s.dead && s.mesh.visible) {
+      const gy = groundY(s.x, s.z) + (s.elev || 0);
+      for (const h of s.prone ? [0.35] : [1.45, 0.4]) {
+        const py = gy + h;
+        for (const O of occluders) {
+          if (O.b.max.z < s.z + 0.3 || O.b.min.z > cz || O.b.max.x < Math.min(s.x, cx) - 0.1 || O.b.min.x > Math.max(s.x, cx) + 0.1) continue;
+          if (O.mesh && (!O.mesh.visible || !O.mesh.parent)) continue;   // blown up
+          if (segBox(s.x, py, s.z, cx - s.x, cy - py, cz - s.z, O.b)) { O.hit = true; hid = true; }
+        }
+      }
+    }
+    if (s.silM) s.silM.visible = hid;
+  }
+  for (const O of occluders) {
+    if (!O.fade) continue;
+    O.f = O.hit ? Math.min(1, O.f + dt * 5) : Math.max(0, O.f - dt * 2.2);
+    if (O.f > 0 && !O.glass) {
+      O.glass = [];
+      O.mesh.traverse(m => { if (m.isMesh && m.material && !Array.isArray(m.material)) { const g = m.material.clone(); g.transparent = true; O.glass.push([m, m.material]); m.material = g; } });
+    }
+    if (O.glass) {
+      if (O.f <= 0) { for (const [m, orig] of O.glass) { m.material.dispose(); m.material = orig; } O.glass = null; continue; }
+      const e = O.f * O.f * (3 - 2 * O.f);
+      for (const [m] of O.glass) m.material.opacity = 1 - 0.7 * e;
     }
   }
 }
@@ -8809,7 +8897,7 @@ const MISSIONS = [
       ...[[.15, .12], [.85, .14], [.12, .4], [.9, .38], [.2, .6], [.6, .68], [.9, .62]].map(([x, z]) => ({ t: 'tree', x, z, kind: 'broad' })),
       ...[[.05, .7], [.08, .74], [.52, .78], [.55, .82], [.94, .7]].map(([x, z]) => ({ t: 'tree', x, z, kind: 'poplar' })),
     ],
-    spawnX: .5, spawnZ: .25,
+    spawnX: .59, spawnZ: .33,
   },
   // v110: Dunkirk, op 6, the finale (notes/france-1940-theatre.md, B6), built from Khal's Beaches sheets (assets/dunkirk/b6-ref)
   // and the plan: a long map, 100 × 160. Through the burning town, over the dunes, across the beach past the queues, along
@@ -13801,10 +13889,11 @@ function initMission(idx) {
   tutStep = (idx === 0 && !tutDone) ? 0 : -1; tutT = 0; hideHint();
 
   const L = sol[0];
-  camTgt.set(L.x, 0, L.z);
-  camPos.set(L.x, CAM_H * camZoom, L.z + CAM_Z * camZoom);
+  camY = camGround(L.x, L.z);   // v116
+  camTgt.set(L.x, camY, L.z);
+  camPos.set(L.x, camY + CAM_H * camZoom, L.z + CAM_Z * camZoom);
   camera.position.copy(camPos);
-  camera.lookAt(camTgt.x, 0, camTgt.z - 5);
+  camera.lookAt(camTgt.x, camY, camTgt.z - 5);
   updateHUD();
   $('mname').textContent = M.name.toUpperCase();
   $('hm').textContent = daily ? 'DAILY' : opLabel(idx);   // v92: the theatre's own numbering (it said OP 25 for A1)
@@ -15698,7 +15787,7 @@ function update(dt) {
   stepParts(dt); stepAtmo(dt);
   stepBarks(dt);
   stepMarks(dt);
-  stepBirds(dt); stepTreeFade(dt);
+  stepBirds(dt); stepTreeFade(dt); stepOccluders(dt);   // v117
   stepFauna(dt); stepTraffic(dt); stepTrains(dt); stepBoundary(dt); stepPlane(dt);
   rigBeginFrame();
   [...sol, ...ens].forEach(u => { if (!u.dead) animateUnit(u, dt); });
@@ -15912,9 +16001,16 @@ function updateBars() {
 }
 
 /*───────────────────── camera ─────────────────────*/
+// v116 (Khal: Cassel's camera sits twice as close): the camera rides at CAM_H above the ground under the leader, not above sea
+// level. On Cassel's 9 m hill it was 8 m off the square, and the tall houses, nearer the lens than the men, looked a size too big.
+let camY = 0;
+// The highest ground between the man and the lens (it looks north, from the south): under a cliff or down a gorge it stays at
+// the top, as before, so the face doesn't fill the screen (St-Valéry's beach); on a hill it rides with him.
+const camGround = (x, z) => { let m = -1e9; for (const dz of [0, 3, 6, 10, 14, 18]) { const g = groundY(x, z + dz); if (isFinite(g) && g > m) m = g; } return m > -1e8 ? m : 0; };
 function updateCamera(dt) {
   const L = selLeader();
   if (!L) return;
+  camY += (camGround(L.x, L.z) - camY) * Math.min(1, dt * 1.5);   // slow enough that a step down a ledge isn't a jolt
   // in a firefight the camera leans toward the nearest engaged enemy and tightens a
   // touch; on a quiet approach it sits back and looks ahead of the leader
   let fx = 0, fz = 0, fight = 0;
@@ -15929,16 +16025,16 @@ function updateCamera(dt) {
   camPull = Math.max(0, camPull - dt * 0.55);
   camDyn += ((fight ? 0.90 : (squadProne ? 0.95 : 1)) * (1 + 0.32 * Math.min(1, camPull)) - camDyn) * Math.min(1, dt * (camPull > 0 ? 2.5 : 0.9));
   const lead = Math.sin(L.angle) * 2.4 * (1 - camFocus);
-  camTgt.lerp(_v.set(L.x + lead + camFocusX, 0, L.z + Math.cos(L.angle) * 2.4 * (1 - camFocus) + camFocusZ), 1 - Math.pow(0.001, dt));
-  camPos.lerp(_v.set(camTgt.x, CAM_H * camZoom * camDyn, camTgt.z + CAM_Z * camZoom * camDyn), 1 - Math.pow(0.006, dt));
+  camTgt.lerp(_v.set(L.x + lead + camFocusX, camY, L.z + Math.cos(L.angle) * 2.4 * (1 - camFocus) + camFocusZ), 1 - Math.pow(0.001, dt));
+  camPos.lerp(_v.set(camTgt.x, camY + CAM_H * camZoom * camDyn, camTgt.z + CAM_Z * camZoom * camDyn), 1 - Math.pow(0.006, dt));
   camShake = Math.max(0, camShake - dt * 2.6);
   const s = camShake * camShake;
   camera.position.set(
     camPos.x + (Math.random() - 0.5) * s * 1.7,
     camPos.y + (Math.random() - 0.5) * s * 1.1,
     camPos.z + (Math.random() - 0.5) * s * 1.7);
-  camera.lookAt(camTgt.x, 0, camTgt.z - 5.5);
-  placeSun(camTgt.x, camTgt.z);   // v34
+  camera.lookAt(camTgt.x, camY, camTgt.z - 5.5);
+  placeSun(camTgt.x, camTgt.z, camY);   // v34
   leadRing.position.set(L.x, groundY(L.x, L.z) + 0.06, L.z);
   leadRing.scale.setScalar(1 + Math.sin(performance.now() * 0.004) * 0.06);
   muzzleT -= dt;
@@ -16516,10 +16612,11 @@ function beginIntro() {
   const M = MISSIONS[missionIdx];
   const o = objectivePoint(), L = landing ? landEnd(sol[0]) : sol[0];
   introDur = landing ? 7.5 : 3.6;   // v75: long enough to watch the boat come in
-  introLA.set(o.x, 0, o.z - 3);
-  introA.set(o.x + 6, CAM_H * camZoom * 1.25, o.z + CAM_Z * camZoom * 0.95);
-  introLB.set(L.x, 0, L.z - 5.5);
-  introB.set(L.x, CAM_H * camZoom, L.z + CAM_Z * camZoom);
+  const oy = camGround(o.x, o.z), ly = camGround(L.x, L.z);   // v116: the flyover over the hill too
+  introLA.set(o.x, oy, o.z - 3);
+  introA.set(o.x + 6, oy + CAM_H * camZoom * 1.25, o.z + CAM_Z * camZoom * 0.95);
+  introLB.set(L.x, ly, L.z - 5.5);
+  introB.set(L.x, ly + CAM_H * camZoom, L.z + CAM_Z * camZoom);
   camera.position.copy(introA); camera.lookAt(introLA);
   for (const u of [...sol, ...ens]) if (!u.dead) animateUnit(u, 0);
   updateBars();
@@ -16536,7 +16633,7 @@ function stepIntro(dt) {
   camera.position.lerpVectors(introA, introB, e);
   _v.lerpVectors(introLA, introLB, e);
   camera.lookAt(_v);
-  placeSun(_v.x, _v.z);   // v34
+  placeSun(_v.x, _v.z, _v.y);   // v34
   rigBeginFrame();
   stepLanding(dt);   // v75
   for (const u of [...sol, ...ens]) if (!u.dead) animateUnit(u, dt);
@@ -16550,8 +16647,9 @@ function endIntro(skipped) {
   PF.gameplayStart();
   const go = () => {
     const L = sol[0];
-    camTgt.set(L.x, 0, L.z); camPos.set(L.x, CAM_H * camZoom, L.z + CAM_Z * camZoom);
-    camera.position.copy(camPos); camera.lookAt(camTgt.x, 0, camTgt.z - 5.5);
+    camY = camGround(L.x, L.z);   // v116
+    camTgt.set(L.x, camY, L.z); camPos.set(L.x, camY + CAM_H * camZoom, L.z + CAM_Z * camZoom);
+    camera.position.copy(camPos); camera.lookAt(camTgt.x, camY, camTgt.z - 5.5);
     showScreen(null);
     showToast(MISSIONS[missionIdx].name.toUpperCase(), MISSIONS[missionIdx].obj);
   };
@@ -17026,8 +17124,25 @@ cvs.addEventListener('pointerdown', e => {
   // v55: keep this press's moves and release on the canvas even over the HUD. Without it a mouse let go over a toast or a
   // button never reached pointerup, and the hold ran on into covering fire (touch is captured by the browser already)
   try { cvs.setPointerCapture(e.pointerId); } catch (er) { }
+  const L0 = selLeader(); tapUndo = L0 && weapon === 'gun' ? { L: L0, tx: L0.tx, tz: L0.tz, path: L0.path, t: performance.now() } : null;   // v117: in case it's the first finger of a pinch
   order(e.clientX, e.clientY);
 });
+// v117: pinch to zoom. The first finger has already given a move order by the time the second lands: if that was under 0.4 s
+// ago, take it back, and stop it becoming a hold
+let tapUndo = null, pinchD = 0, pinchZ = 1;
+const touchGap = t => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+cvs.addEventListener('touchstart', e => {
+  if (e.touches.length !== 2) return;
+  pinchD = touchGap(e.touches); pinchZ = userZoom; holdPt = null;
+  if (tapUndo && performance.now() - tapUndo.t < 1200) {
+    const U = tapUndo; U.L.tx = U.tx; U.L.tz = U.tz; U.L.path = U.path; moveRingT = 0;
+    if (holdFired) { holdFired = false; if (split) teamSup[selTeam] = null; else suppress = null; }   // a slow second finger let the hold fire first
+  }
+  tapUndo = null;
+}, { passive: true });
+cvs.addEventListener('touchmove', e => { if (e.touches.length === 2 && pinchD > 20) setUserZoom(pinchZ * pinchD / Math.max(20, touchGap(e.touches))); }, { passive: true });
+cvs.addEventListener('touchend', e => { if (e.touches.length < 2) pinchD = 0; }, { passive: true });
+cvs.addEventListener('wheel', e => { e.preventDefault(); setUserZoom(userZoom * Math.exp(Math.max(-60, Math.min(60, e.deltaY)) * 0.002)); }, { passive: false });
 cvs.addEventListener('pointerup', () => {
   holdPt = null; if (suppress) suppress.t = Math.min(suppress.t, 0.4);
   // v32: split, a team told to suppress keeps it up — it pins the spot while you move the other team
@@ -17547,7 +17662,7 @@ window.GS = { MISSIONS, get roster() { return roster; }, get fallen() { return f
                    ridges: obs.filter(o => o.type === 'ridge').map(o => [o.x, o.z, o.w, o.d, o.h]), roads: roads.map(r => ({ k: r.kind, w: r.w, pts: r.pts })), portals: portals.map(p => [p.cx, p.cz]), hulks: obs.filter(o => o.type === 'hulk').map(o => [o.cx, o.cz, o.mesh.visible, o.mesh.position.y]) }; },
   // put the squad down at (x, z) in a column running south, facing north — for lining a man up behind something
   tp(x, z) { sol.forEach((s, i) => { s.x = s.tx = x; s.z = s.tz = z + i * 1.4; s.path = null; s.angle = Math.PI; });
-             posH.length = 0; camTgt.set(x, 0, z); camPos.set(x, CAM_H * camZoom, z + CAM_Z * camZoom); },
+             posH.length = 0; camY = camGround(x, z); camTgt.set(x, camY, z); camPos.set(x, camY + CAM_H * camZoom, z + CAM_Z * camZoom); },
   breath() { return smoke.filter(s => s.c === BREATH_C).length; },
   prints() { let l = 0, ours = 0; for (let i = 0; i < PR.used; i++) if (PR.live[i]) { l++; if (!PR.foe[i]) ours++; } return { used: PR.used, live: l, ours, theirs: l - ours, tracking: ens.filter(e => !e.dead && e.state === 'track').length }; },   // v71   // v67: breath puffs in the air now (snow only)
   trees() { return obs.filter(o => o.type === 'tree').map(o => [+o.x.toFixed(1), +o.z.toFixed(1)]); },
