@@ -1,0 +1,11 @@
+// Cloudflare Workers static assets: the whole site is static files from the repo root.
+// _redirects and _headers are read as on Pages; 404.html answers unknown paths with a real 404.
+{
+  "name": "khalifa-games",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": ".",
+    "not_found_handling": "404-page",
+    "html_handling": "auto-trailing-slash"
+  }
+}

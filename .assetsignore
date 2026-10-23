@@ -1,0 +1,8 @@
+# Never published: git's own files, the hosting config and local tool folders
+.git
+.gitignore
+.assetsignore
+wrangler.jsonc
+vercel.json
+.wrangler
+node_modules
