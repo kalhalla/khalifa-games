@@ -165,6 +165,16 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
 #settings h4{font-family:Impact,'Arial Narrow Bold',sans-serif;font-size:24px;letter-spacing:3px;color:var(--khaki);text-align:center}
 #settings .tag{margin:2px 0 10px}
 #settings .menu{margin-top:6px;width:100%}
+/* v119: the full-game card, and the tag on the board */
+#fullgame{position:fixed;inset:0;z-index:32;display:none;align-items:center;justify-content:center;background:rgba(6,12,4,.8)}
+#fullgame.on{display:flex}
+#fullgame .card{width:min(400px,88vw);background:rgba(10,16,6,.97);border:1px solid rgba(201,164,58,.6);border-radius:3px;padding:16px}
+#fullgame h4{font-family:Impact,'Arial Narrow Bold',sans-serif;font-size:24px;letter-spacing:3px;color:#f0d77a;text-align:center;margin-bottom:10px}
+#fullgame .ctext{font-size:13.5px;line-height:1.55;color:#c9c08a}
+#fullgame .ctext p{margin:0 0 9px}
+#fullgame .ctext b{color:#e8dfa8}
+#fullgame .menu{margin-top:8px;width:100%}
+.fgtag{display:inline-block;margin-top:4px;padding:1px 6px;border:1px solid #c9a43a;color:#f0d77a;font-size:10px;letter-spacing:2px}
 /* v118: the credits, over the settings */
 #credits{position:fixed;inset:0;z-index:31;display:none;align-items:center;justify-content:center;background:rgba(6,12,4,.8)}
 #credits.on{display:flex}
@@ -451,8 +461,8 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
     <button id="tops">OPERATIONS <small id="topssub">mission select</small></button>
     <button id="tset">SETTINGS <small>sound · music · graphics</small></button>
   </div>
-  <div class="foot">© GAMELAB · NO GRUNTS WERE CONSULTED</div>
-  <div id="tver">v118</div>
+  <div class="foot">© KHALIFA.GAMES · NO GRUNTS WERE CONSULTED</div>
+  <div id="tver">v119</div>
 </div>
 
 <div id="ops" class="screen">
@@ -504,6 +514,14 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
       <p class="lic">Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:<br><br>The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.<br><br>THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.</p>
     </div>
     <div class="menu"><button id="cback" class="pri">BACK</button></div>
+  </div>
+</div>
+
+<div id="fullgame">
+  <div class="card">
+    <h4>THE FULL CAMPAIGN</h4>
+    <div class="ctext" id="fgtext"></div>
+    <div class="menu"><button id="fgback" class="pri">BACK</button></div>
   </div>
 </div>
 
@@ -9259,6 +9277,20 @@ const THEATRES = [
     ops: MISSIONS.map((M, i) => !M.th && !M.side ? i : -1).filter(i => i >= 0), side: MISSIONS.map((M, i) => !M.th && M.side ? i : -1).filter(i => i >= 0) },
 ];
 const THEATRE_KEY = 'gs3d_theatre', TH_START = THEATRES.findIndex(T => T.start);
+/* v119 (Khal, 23 Oct): the free builds (the website, itch.io, CrazyGames, Telegram) give all of Dunkirk and the first operation
+   of every other theatre; the rest is the full game (Steam; the phone apps once bought, which will set gs3d_full). The daily op is
+   free everywhere. #dev opens everything, and anyone who'd already played past the free ops before v119 keeps them (grandfather). */
+const FULL_KEY = 'gs3d_full';
+const fullGame = () => PF.id === 'steam' || DEV || !!PF.get(FULL_KEY);
+const freeOp = i => { const M = MISSIONS[i]; return !!M && (M.th === 'dk' || THEATRES.some(T => T.ops[0] === i)); };
+const canPlay = i => fullGame() || freeOp(i);
+function grandfather() {
+  if (fullGame() || PF.get('gs3d_gf')) return;
+  PF.set('gs3d_gf', '1');   // once: the first time a free build runs on this device
+  let past = Object.keys(medals).some(n => { const i = MISSIONS.findIndex(m => m.name === (RENAMED[n] || n)); return i >= 0 && !freeOp(i); });
+  for (const T of THEATRES) { try { const v = JSON.parse(PF.get(T.key) || 'null'); if (v && isFinite(v.missionIdx) && !freeOp(v.missionIdx)) past = true; } catch (e) { } }
+  if (past) PF.set(FULL_KEY, 'grandfather');
+}
 // v104: the choice is stored by id. Before, it was the index in the old order (France, Norway, North Africa, Dunkirk)
 let theatre = TH_START; try { const v = PF.get(THEATRE_KEY); if (v != null && v !== '') { const id = /^\d+$/.test(v) ? ['fr', 'no', 'af', 'dk'][+v] : v, t = THEATRES.findIndex(T => T.id === id); if (t >= 0) theatre = t; } } catch (e) { }
 const curTh = () => THEATRES[theatre];
@@ -16575,6 +16607,7 @@ async function shareDaily() {
 window.__dailyCard = () => daily && daily.res ? dailyCard(daily.res).toDataURL('image/png') : null;
 
 function showBrief() {
+  if (!daily && !canPlay(missionIdx)) { const i = missionIdx; goTitle(); openFullGame(i); return; }   // v119
   $('brief').dataset.th = daily ? 'fr' : THEATRES[thOfOp(missionIdx)].id;   // v91: the theatre's own backdrop
   phase = 'brief';
   MUS.play('brief');   // v74: Colonel Bogey
@@ -16985,8 +17018,8 @@ function showOps() {
   $('opstag').textContent = `${T.name}, ${T.when} · ${T.ops.length} operation${T.ops.length === 1 ? '' : 's'}${T.side.length ? ` · ${T.side.length} side` : ''} · ${got} of ${list.length * 3} medals`;
   list.forEach(i => {
     const M = MISSIONS[i], d = document.createElement('div');
-    const locked = i > maxOpen;
-    d.className = 'op' + (locked ? ' lock' : '') + (medals[M.name] && medals[M.name].c ? ' done' : '');
+    const locked = i > maxOpen, full = !canPlay(i);   // v119: full game only
+    d.className = 'op' + (locked || full ? ' lock' : '') + (medals[M.name] && medals[M.name].c ? ' done' : '');
     const cv = document.createElement('canvas'); cv.width = cv.height = 84;
     drawOpPreview(cv, M);
     const extras = [];
@@ -17036,7 +17069,8 @@ function showOps() {
       md.innerHTML = MEDALS.map(([k, label], j) => `<b class="${m[k] ? 'on' + (j + 1) : ''}">${m[k] ? '◆' : '◇'} ${label.toLowerCase()}</b>`).join('') + (m.t ? ` · best ${Math.floor(m.t / 60)}:${String(m.t % 60).padStart(2, '0')}` : '');
       info.appendChild(md); }
     d.appendChild(cv); d.appendChild(info);
-    if (!locked) d.addEventListener('click', () => {
+    if (full && !locked) { d.addEventListener('click', () => { SFX.ui(); openFullGame(i); }); const fg = document.createElement('div'); fg.className = 'fgtag'; fg.textContent = 'FULL GAME'; info.appendChild(fg); }
+    else if (!locked) d.addEventListener('click', () => {
       SFX.ui();
       const s = loadCampaign();
       if (s) applySave(s); else resetCampaign();
@@ -17332,6 +17366,16 @@ $('sback').addEventListener('click', () => { SFX.ui(); $('settings').classList.r
 $('szoom').addEventListener('click', () => { setUserZoom(userZoom < 0.95 ? 1 : userZoom < 1.05 ? USER_ZOOM[1] : USER_ZOOM[0]); syncSettings(); SFX.ui(); });
 $('scred').addEventListener('click', () => { SFX.ui(); $('credits').classList.add('on'); $('credits').querySelector('.card').scrollTop = 0; });
 $('cback').addEventListener('click', () => { SFX.ui(); $('credits').classList.remove('on'); });
+// v119: what's past the free operations, and where to get it
+function openFullGame(i) {
+  const T = THEATRES[thOfOp(i)], left = T.ops.concat(T.side).filter(j => !freeOp(j)).length, all = MISSIONS.filter((M, j) => !freeOp(j)).length;
+  $('fgtext').innerHTML = `<p><b>${MISSIONS[i].name}</b> is in the full game.</p>` +
+    `<p>${T.name} has ${left} more operation${left === 1 ? '' : 's'}, and the four theatres ${all} between them. No adverts.</p>` +
+    `<p>Free here: all of Dunkirk, the first operation of every theatre, and the daily op.</p>` +
+    `<p><b>Coming to Steam, iPhone and Android.</b></p>`;
+  $('fullgame').classList.add('on');
+}
+$('fgback').addEventListener('click', () => { SFX.ui(); $('fullgame').classList.remove('on'); });
 applyGfx();
 $('opsret').addEventListener('click', () => { SFX.ui(); fadeTo(goTitle, true); });
 $('bgo').addEventListener('click', () => {
@@ -17517,6 +17561,7 @@ if (window.Telegram && Telegram.WebApp) {
 /*───────────────────── boot ─────────────────────*/
 PF.init.then(() => { if (phase === 'title') refreshTitle(); });
 setTimeout(() => PF.loadingDone(), 0);
+grandfather();   // v119
 resetCampaign();
 for (const c of propRoot.children) c.userData.keep = true;   // v94: the instanced banks made at boot stay; the rest is the op's
 initMission(0);
