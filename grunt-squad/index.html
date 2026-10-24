@@ -462,7 +462,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
     <button id="tset">SETTINGS <small>sound · music · graphics</small></button>
   </div>
   <div class="foot">© KHALIFA.GAMES · NO GRUNTS WERE CONSULTED</div>
-  <div id="tver">v119</div>
+  <div id="tver">v120</div>
 </div>
 
 <div id="ops" class="screen">
@@ -12329,49 +12329,291 @@ function stepCanteen(dt) {
    group, so five draw calls however many there are. M.exploder = { x, z, b }: the bridge comes wired; a man at the
    exploder for 1.5 s blows it, and it will not go with anyone on it, nor with one of ours over the far side. */
 const REF_K = {   // length on the road (m), speed factor
-  cart: { L: 6.2, v: 0.85 }, hand: { L: 3.2, v: 1 }, walk: { L: 2.4, v: 1.05 }, car: { L: 4.6, v: 0.9 }, bike: { L: 2.8, v: 1.1 },
+  cart: { L: 7.6, v: 0.85 }, hand: { L: 3.6, v: 1 }, walk: { L: 3.4, v: 1.05 }, car: { L: 4.8, v: 0.9 }, bike: { L: 2.9, v: 1.1 }, lorry: { L: 6.8, v: 0.8 },
 };
 const REF_N = 30;
 let refs = [], refPath = null, refT = 0, refMeshes = null, refToast = 0, exploder = null, sapperSt = null;
-// a person: legs, coat, a head under a hat or a scarf (faces +z, stands on y = 0)
-function refPerson(p, x, z, coat, hat, s) {
-  s = s || 1;
-  p.push({ g: GEO.box, m: M4(x - 0.09 * s, 0.38 * s, z, 0.12 * s, 0.76 * s, 0.14 * s), c: 0x3a3430 }, { g: GEO.box, m: M4(x + 0.09 * s, 0.38 * s, z, 0.12 * s, 0.76 * s, 0.14 * s), c: 0x3a3430 });
-  p.push({ g: GEO.box, m: M4(x, 1.05 * s, z, 0.44 * s, 0.68 * s, 0.26 * s), c: coat }, { g: GEO.sph, m: M4(x, 1.52 * s, z, 0.24 * s, 0.26 * s, 0.24 * s), c: 0xd8a882 });
-  p.push({ g: GEO.cyl, m: M4(x, 1.66 * s, z, hat ? 0.34 * s : 0.26 * s, hat ? 0.06 * s : 0.12 * s, hat ? 0.34 * s : 0.26 * s), c: hat || 0x7a5a4a });
-}
-function refGeos() {
+/* v120 (Khal: the refugees and their horses need skeletons so they walk properly; the carts and lorries far more detail).
+   Each kind is a still body (one instanced mesh, as before) plus moving parts posed every frame from the distance it has
+   walked: legs and arms swing from hip and shoulder, horses walk on diagonal pairs, wheels turn by the distance over their
+   radius, cyclists pedal. A leg is a thigh and a shin: the knee folds as the foot swings through, and a horse's does the
+   same. Halted, everything eases to a stand. The moving parts share seven instanced meshes across every kind (thighs,
+   shins, arms, horse legs upper and lower, spoked wheels, motor wheels), each part tinted with an instance colour (a coat,
+   stockings, a bay horse, a cart's oak wheels), so the whole road is thirteen draw calls however many groups are on it. */
+const REF_MV = { leg: 720, shin: 720, arm: 720, hleg: 160, hlow: 160, spoke: 300, tyre: 240 }, REF_LOW = { leg: ['shin', 0.42], hleg: ['hlow', 0.5] };
+let refKinds = null, refMv = null;
+const refMatT = propMat.clone(); refMatT.customProgramCacheKey = () => 'refT';   // instanced + per-instance tint: its own program (as swayMatI)
+const _rfG = new THREE.Matrix4(), _rfL = new THREE.Matrix4(), _rfQ = new THREE.Quaternion(), _rfE = new THREE.Euler(), _rfV = new THREE.Vector3(), _rfS = new THREE.Vector3(), _rfC = new THREE.Color(), _rfK = new THREE.Matrix4(), _rfM = new THREE.Matrix4();
+function rfMoverGeos() {
   const G = {};
-  { const p = []; p.push({ g: GEO.box, m: M4(0, 0.85, -1.2, 1.5, 0.5, 2.6), c: 0x7a5a3a }, { g: GEO.box, m: M4(0, 1.35, -1.3, 1.3, 0.6, 2.2), c: 0x8a7a64 }, { g: GEO.box, m: M4(0.2, 1.75, -1.4, 0.9, 0.3, 1.0), c: 0x6a7a8a });
-    for (const s of [-1, 1]) p.push({ g: GEO.cyl, m: M4e(s * 0.82, 0.55, -1.2, 1.1, 0.1, 1.1, 0, 0, Math.PI / 2), c: 0x4a3a2a });
-    p.push({ g: GEO.box, m: M4(0, 1.1, 1.2, 0.55, 0.6, 1.6), c: 0x6a4a32 }, { g: GEO.box, m: M4(0, 1.45, 2.05, 0.3, 0.5, 0.5), c: 0x5a3e2a });
-    for (const [x, z] of [[-0.18, 0.7], [0.18, 0.7], [-0.18, 1.7], [0.18, 1.7]]) p.push({ g: GEO.box, m: M4(x, 0.42, z, 0.12, 0.84, 0.12), c: 0x5a3e2a });
-    refPerson(p, -1.0, 0.6, 0x4a4a5a, 0x2a2a2a); refPerson(p, 1.05, -2.0, 0x7a3a3a, 0, 0.92);
-    G.cart = mergeGeos(p); }
-  { const p = []; p.push({ g: GEO.box, m: M4(0, 0.6, -0.5, 1.0, 0.35, 1.3), c: 0x8a6a44 }, { g: GEO.box, m: M4(0, 0.95, -0.55, 0.8, 0.4, 1.1), c: 0xa89878 });
-    for (const s of [-1, 1]) p.push({ g: GEO.cyl, m: M4e(s * 0.56, 0.4, -0.5, 0.8, 0.08, 0.8, 0, 0, Math.PI / 2), c: 0x4a3a2a });
-    p.push({ g: GEO.box, m: M4(-0.3, 0.75, 0.45, 0.06, 0.06, 0.9), c: 0x5a4a32 }, { g: GEO.box, m: M4(0.3, 0.75, 0.45, 0.06, 0.06, 0.9), c: 0x5a4a32 });
-    refPerson(p, 0, 1.05, 0x5a5048, 0x3a3430); refPerson(p, 0.55, -1.25, 0x6a3a4a, 0, 0.7);
-    G.hand = mergeGeos(p); }
-  { const p = []; refPerson(p, -0.35, 0.6, 0x3a4a5a, 0x2a2a2a); refPerson(p, 0.3, 0.2, 0x7a6a4a, 0); refPerson(p, 0, -0.6, 0x5a6a4a, 0, 0.68);
-    p.push({ g: GEO.box, m: M4(0.62, 0.5, 0.2, 0.3, 0.4, 0.5), c: 0x6a4a32 }, { g: GEO.sph, m: M4(-0.35, 1.3, 0.35, 0.5, 0.5, 0.4), c: 0x9a8a6a });
-    G.walk = mergeGeos(p); }
-  { const p = []; p.push({ g: GEO.box, m: M4(0, 0.6, 0, 1.6, 0.6, 4.2), c: 0x2e2e30 }, { g: GEO.box, m: M4(0, 1.1, -0.3, 1.45, 0.55, 2.2), c: 0x3a3a3c }, { g: GEO.box, m: M4(0, 1.1, 0.9, 1.4, 0.4, 0.06), c: 0x8aa0a8 });
-    p.push({ g: GEO.box, m: M4(0, 1.5, -0.3, 1.5, 0.22, 2.0), c: 0xd8ccb0 }, { g: GEO.box, m: M4(0, 1.72, -0.3, 1.4, 0.22, 1.9), c: 0xb8a888 }, { g: GEO.box, m: M4(0, 1.92, -0.4, 0.8, 0.2, 0.8), c: 0x6a5a4a });
-    for (const [x, z] of [[-0.82, 1.3], [0.82, 1.3], [-0.82, -1.4], [0.82, -1.4]]) p.push({ g: GEO.cyl, m: M4e(x, 0.35, z, 0.65, 0.22, 0.65, 0, 0, Math.PI / 2), c: 0x1e1e1c });
-    G.car = mergeGeos(p); }
-  { const p = []; for (const [x, z, c] of [[-0.35, 0.6, 0x4a5a6a], [0.35, -0.8, 0x6a4a3a]]) {
-      p.push({ g: GEO.cyl, m: M4e(x, 0.35, z + 0.5, 0.7, 0.05, 0.7, 0, 0, Math.PI / 2), c: 0x222220 }, { g: GEO.cyl, m: M4e(x, 0.35, z - 0.5, 0.7, 0.05, 0.7, 0, 0, Math.PI / 2), c: 0x222220 }, { g: GEO.box, m: M4(x, 0.6, z, 0.06, 0.06, 1.0), c: 0x2a2a2a });
-      p.push({ g: GEO.box, m: M4(x, 1.05, z, 0.4, 0.6, 0.26), c }, { g: GEO.sph, m: M4(x, 1.5, z + 0.05, 0.24, 0.26, 0.24), c: 0xd8a882 }, { g: GEO.box, m: M4(x, 0.95, z - 0.55, 0.5, 0.3, 0.4), c: 0x8a7a5a }); }
-    G.bike = mergeGeos(p); }
+  // a leg: the thigh hangs from the hip (y = 0), the shin and shoe from the knee 0.42 below it (tinted: trousers or stockings)
+  G.leg = mergeGeos([{ g: GEO.box, m: M4(0, -0.21, 0, 0.15, 0.44, 0.17) }]);
+  G.shin = mergeGeos([{ g: GEO.box, m: M4(0, -0.18, 0, 0.12, 0.4, 0.13), c: 0xf0f0f0 }, { g: GEO.box, m: M4(0, -0.38, 0.05, 0.13, 0.07, 0.26), c: 0x3a3430 }]);
+  // an arm from the shoulder: the sleeve (tinted with the coat) and a darker cuff
+  G.arm = mergeGeos([{ g: GEO.box, m: M4(0, -0.27, 0, 0.12, 0.54, 0.13) }, { g: GEO.box, m: M4(0, -0.57, 0, 0.1, 0.08, 0.11), c: 0xa89888 }]);
+  // a horse's leg from shoulder or hip: forearm, cannon, feathered fetlock, hoof
+  G.hleg = mergeGeos([{ g: GEO.box, m: M4(0, -0.25, 0, 0.17, 0.54, 0.22) }]);
+  G.hlow = mergeGeos([{ g: GEO.box, m: M4(0, -0.2, 0, 0.1, 0.44, 0.12), c: 0xf2f2f2 }, { g: GEO.box, m: M4(0, -0.45, 0, 0.16, 0.13, 0.18), c: 0xe0d8c8 }, { g: GEO.box, m: M4(0, -0.54, 0.02, 0.14, 0.07, 0.17), c: 0x2a2420 }]);
+  // a spoked wheel, axle along x, radius 1 and 1 wide (scaled per part): the shod rim (darker), twelve spokes, the hub
+  { const p = [], n = 16;
+    for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2; p.push({ g: GEO.box, m: M4e(0, Math.cos(a) * 0.93, Math.sin(a) * 0.93, 1, 0.14, 0.38, a, 0, 0), c: 0x8a8a8a }); }
+    for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2; p.push({ g: GEO.box, m: M4e(0, Math.cos(a) * 0.47, Math.sin(a) * 0.47, 0.4, 0.86, 0.06, a, 0, 0) }); }
+    p.push({ g: GEO.cyl, m: M4e(0, 0, 0, 0.3, 1.5, 0.3, 0, 0, Math.PI / 2), c: 0x9a9a9a });
+    G.spoke = mergeGeos(p); }
+  // a motor wheel: tyre, the pressed-steel disc, the hub cap
+  G.tyre = mergeGeos([{ g: new THREE.CylinderGeometry(1, 1, 1, 14), m: M4e(0, 0, 0, 1, 1, 1, 0, 0, Math.PI / 2), c: 0x1e1e1c },
+    { g: new THREE.CylinderGeometry(0.62, 0.62, 1.06, 12), m: M4e(0, 0, 0, 1, 1, 1, 0, 0, Math.PI / 2), c: 0x6a6a62 },
+    { g: new THREE.CylinderGeometry(0.22, 0.22, 1.14, 8), m: M4e(0, 0, 0, 1, 1, 1, 0, 0, Math.PI / 2), c: 0xb8b8ac }]);
   return G;
+}
+// the still parts: a box, and a rod between two points in a plane across the road (x the same at both ends)
+const rfBox = (K, x, y, z, sx, sy, sz, c, rx, ry, rz) => K.p.push({ g: GEO.box, m: M4e(x, y, z, sx, sy, sz, rx || 0, ry || 0, rz || 0), c });
+function rfRod(K, x, ay, az, by, bz, tw, td, c) {
+  const dy = by - ay, dz = bz - az, L = Math.hypot(dy, dz);
+  K.p.push({ g: GEO.box, m: M4e(x, (ay + by) / 2, (az + bz) / 2, tw, L, td === undefined ? tw : td, Math.atan2(dz, dy), 0, 0), c });
+}
+const rfWheel = (K, m, x, y, z, r, w, col) => K.mv.push({ m, x, y, z, sx: w, sy: r, sz: r, wheel: true, r, col });
+// a hat: trilby, flat cap, beret or headscarf, on a head whose top is at y
+function rfHat(K, x, y, z, s, hat) {
+  if (hat === 'trilby') { K.p.push({ g: GEO.cyl, m: M4(x, y - 0.075 * s, z, 0.4 * s, 0.02 * s, 0.42 * s), c: 0x3a342e }, { g: GEO.taper, m: M4(x, y - 0.03 * s, z, 0.25 * s, 0.1 * s, 0.27 * s), c: 0x4a423a }, { g: GEO.cyl, m: M4(x, y - 0.058 * s, z, 0.255 * s, 0.025 * s, 0.275 * s), c: 0x1e1a18 }); rfBox(K, x, y + 0.02 * s, z, 0.03 * s, 0.02 * s, 0.14 * s, 0x2e2822); }   // brim, crown, band, the pinch
+  else if (hat === 'cap') { K.p.push({ g: GEO.cyl, m: M4(x, y - 0.02 * s, z, 0.27 * s, 0.07 * s, 0.27 * s), c: 0x4a4440 }); rfBox(K, x, y - 0.05 * s, z + 0.15 * s, 0.2 * s, 0.03 * s, 0.12 * s, 0x3e3834); }
+  else if (hat === 'beret') K.p.push({ g: GEO.cyl, m: M4(x, y - 0.02 * s, z - 0.02 * s, 0.28 * s, 0.06 * s, 0.28 * s), c: 0x22283a });
+  else if (hat) { K.p.push({ g: GEO.sph, m: M4(x, y - 0.09 * s, z - 0.01 * s, 0.27 * s, 0.24 * s, 0.27 * s), c: hat }); rfBox(K, x, y - 0.26 * s, z - 0.12 * s, 0.08 * s, 0.1 * s, 0.05 * s, hat); }   // a headscarf, knotted at the nape
+  else K.p.push({ g: GEO.sph, m: M4(x, y - 0.1 * s, z - 0.02 * s, 0.25 * s, 0.17 * s, 0.25 * s), c: 0x4a3426 });   // bare-headed: hair
+}
+/* a person walking: coat (or dress) and shoulders, head and hat still; legs and arms moving. Faces +z, feet at y = 0.
+   o: s (size), coat, legs (trousers or stockings), skirt (a dress below the coat), hat, carry ('case' or 'bundle'), reach
+   (both arms held forward: pushing a handcart or a pram, or leading a horse), ph (where in the stride) */
+function rfPerson(K, x, z, o) {
+  const s = o.s || 1, coat = o.coat, ph = o.ph || 0, hip = 0.82 * s, sh = 1.36 * s;
+  if (o.skirt) K.p.push({ g: slab(0.19 * s, 0.4 * s, hip + 0.04 * s, z - 0.12 * s, z + 0.12 * s, { wt: 0.16 * s, tz0: z - 0.1 * s, tz1: z + 0.1 * s, ox: x }), m: new THREE.Matrix4(), c: o.skirt });
+  K.p.push({ g: slab(0.2 * s, hip - 0.16 * s, sh, z - 0.12 * s, z + 0.12 * s, { wt: 0.22 * s, tz0: z - 0.12 * s, tz1: z + 0.11 * s, ox: x }), m: new THREE.Matrix4(), c: coat });   // the coat, hem to shoulders
+  rfBox(K, x, sh + 0.02 * s, z, 0.3 * s, 0.07 * s, 0.2 * s, coat);                          // collar
+  rfBox(K, x, hip + 0.06 * s, z + 0.12 * s, 0.03 * s, 0.4 * s, 0.01, 0x2a2622);             // the coat's front edge
+  K.p.push({ g: GEO.box, m: M4(x, sh + 0.08 * s, z, 0.1 * s, 0.1 * s, 0.1 * s), c: 0xc89874 }, { g: GEO.sph, m: M4(x, sh + 0.22 * s, z + 0.01 * s, 0.22 * s, 0.25 * s, 0.22 * s), c: 0xd8a882 });
+  rfBox(K, x, sh + 0.21 * s, z + 0.11 * s, 0.04 * s, 0.05 * s, 0.04 * s, 0xc8906c);         // nose
+  rfHat(K, x, sh + 0.35 * s, z, s, o.hat);
+  if (o.carry === 'case') { rfBox(K, x + 0.33 * s, 0.6 * s, z, 0.1 * s, 0.34 * s, 0.48 * s, o.caseC || 0x6a4a2a); rfBox(K, x + 0.33 * s, 0.8 * s, z, 0.04 * s, 0.05 * s, 0.14 * s, 0x2a2420); }
+  if (o.carry === 'bundle') K.p.push({ g: GEO.sph, m: M4(x, sh - 0.06 * s, z - 0.24 * s, 0.46 * s, 0.4 * s, 0.32 * s), c: o.bundleC || 0x8a5a5a });   // a bundle on the back
+  for (const sd of [-1, 1]) {
+    K.mv.push({ m: 'leg', x: x + sd * 0.1 * s, y: hip, z, sx: s, sy: s, sz: s, amp: 0.42, ph: ph + (sd < 0 ? 0 : Math.PI), stride: 1.3 * s, col: o.legs || 0x2e2a28 });
+    const hold = o.reach || (o.carry === 'case' && sd > 0);
+    K.mv.push({ m: 'arm', x: x + sd * 0.27 * s, y: sh - 0.02 * s, z, sx: s, sy: s, sz: s, amp: hold ? 0.05 : 0.32, base: o.reach ? -0.95 : 0, ph: ph + (sd < 0 ? Math.PI : 0), stride: 1.3 * s, col: coat });
+  }
+}
+// a person sitting (still): on a cart's seat, a lorry's load, a bicycle's saddle. Seat at y; feet hang forward
+function rfSeated(K, x, y, z, o) {
+  const s = o.s || 1, coat = o.coat;
+  K.p.push({ g: slab(0.2 * s, y, y + 0.58 * s, z - 0.12 * s, z + 0.12 * s, { wt: 0.21 * s, ox: x }), m: new THREE.Matrix4(), c: coat });
+  for (const sd of [-1, 1]) {
+    rfBox(K, x + sd * 0.1 * s, y + 0.05 * s, z + 0.22 * s, 0.15 * s, 0.15 * s, 0.44 * s, o.legs || 0x2e2a28);                 // thigh
+    if (!o.noShins) rfBox(K, x + sd * 0.1 * s, y - 0.18 * s, z + 0.42 * s, 0.12 * s, 0.42 * s, 0.13 * s, o.legs || 0x2e2a28);   // shin
+    rfRod(K, x + sd * 0.26 * s, y + 0.54 * s, z, y + 0.3 * s, z + 0.32 * s, 0.11 * s, 0.11 * s, coat);                           // arm, hands in the lap or on the reins
+  }
+  K.p.push({ g: GEO.sph, m: M4(x, y + 0.8 * s, z + 0.02 * s, 0.22 * s, 0.25 * s, 0.22 * s), c: 0xd8a882 });
+  rfHat(K, x, y + 0.93 * s, z, s, o.hat);
+}
+// a cart horse (a Brabant: heavy, feathered, a collar and hames, blinkers): the body still, the legs walking
+function rfHorse(K, x, z, col) {
+  const dark = 0x2a2018, mane = 0x2a1e16;
+  K.p.push({ g: GEO.sph, m: M4(x, 1.36, z, 0.7, 0.72, 1.6), c: col });                    // the barrel
+  K.p.push({ g: GEO.sph, m: M4(x, 1.42, z - 0.55, 0.72, 0.74, 0.8), c: col }, { g: GEO.sph, m: M4(x, 1.4, z + 0.55, 0.7, 0.78, 0.8), c: col });   // rump and chest
+  rfRod(K, x, 1.55, z + 0.75, 2.05, z + 1.25, 0.34, 0.42, col);                           // neck
+  rfRod(K, x, 2.2, z + 1.28, 1.86, z + 1.62, 0.26, 0.3, col);                             // head, nose down
+  rfRod(K, x, 1.86, z + 1.6, 1.74, z + 1.7, 0.2, 0.22, 0x3a2a20);                         // muzzle
+  rfBox(K, x, 1.92, z + 1.3, 0.06, 0.4, 0.03, 0xe8e0d0, -0.9);                            // a white blaze
+  for (const sd of [-1, 1]) {
+    K.p.push({ g: GEO.cone, m: M4(x + sd * 0.08, 2.4, z + 1.2, 0.07, 0.16, 0.07), c: col });            // ears
+    rfBox(K, x + sd * 0.15, 2.08, z + 1.42, 0.03, 0.12, 0.14, dark);                                    // blinkers
+    rfBox(K, x + sd * 0.2, 1.62, z + 0.8, 0.07, 0.62, 0.12, 0x6a5038, 0.5);                             // hames, against the collar
+    rfRod(K, x + sd * 0.36, 1.32, z + 0.55, 1.12, z - 1.0, 0.04, 0.04, dark);                           // traces back to the cart
+  }
+  K.p.push({ g: GEO.torus, m: M4e(x, 1.62, z + 0.78, 0.82, 1.1, 1.0, 0.5, 0, 0), c: 0x3a2a1e });        // the collar
+  rfRod(K, x, 2.05, z + 0.62, 1.55, z + 1.1, 0.06, 0.1, mane);                                          // the mane
+  rfRod(K, x, 1.82, z + 0.06, 1.84, z - 0.1, 0.76, 0.12, dark);                                         // back band
+  rfRod(K, x, 1.55, z - 1.08, 0.95, z - 1.22, 0.14, 0.12, mane);                                        // tail
+  for (const [sx, sz, ph] of [[-1, 1, 0], [1, 1, Math.PI], [-1, -1, Math.PI], [1, -1, 0]])             // walking on diagonal pairs
+    K.mv.push({ m: 'hleg', x: x + sx * 0.22, y: 1.1, z: z + sz * 0.62, sx: 1, sy: 1, sz: 1, amp: 0.36, ph, stride: 1.9, col });
+}
+// a kitchen chair, upright or upside down on a load
+function rfChair(K, x, y, z, flip, c) {
+  rfBox(K, x, y, z, 0.42, 0.05, 0.42, c);
+  for (const [dx, dz] of [[-0.18, -0.18], [0.18, -0.18], [-0.18, 0.18], [0.18, 0.18]]) rfBox(K, x + dx, y + (flip ? 0.24 : -0.24), z + dz, 0.04, 0.46, 0.04, c);
+  rfBox(K, x, y + (flip ? -0.26 : 0.26), z - 0.19, 0.42, 0.5, 0.04, c);
+}
+const rfMattress = (K, x, y, z, w, h, l, c, st) => { rfBox(K, x, y, z, w, h, l, c); for (let i = -2; i <= 2; i++) rfBox(K, x + i * w * 0.18, y + h / 2 + 0.005, z, w * 0.05, 0.01, l * 0.98, st); };
+function rfKindsBuild() {
+  const out = {}, mk = (k, fn) => { const K = { p: [], mv: [] }; fn(K); out[k] = { geo: mergeGeos(K.p), mv: K.mv }; };
+  // a farm wagon and its horse: plank sides, a hay-rack, small front wheels and tall back ones; a family's whole house on it,
+  // the father on the seat with the reins, a boy leading the horse, a woman walking behind with a bundle, a child on top
+  mk('cart', K => {
+    const oak = 0x7a5636, w0 = 0x6e5032, w1 = 0x7e6040;
+    for (const s of [-1, 1]) { rfWheel(K, 'spoke', s * 0.86, 0.46, 0.15, 0.46, 0.09, 0x8a6440); rfWheel(K, 'spoke', s * 0.88, 0.62, -2.05, 0.62, 0.1, 0x8a6440); }
+    rfBox(K, 0, 0.46, 0.15, 1.62, 0.1, 0.1, 0x3a2a1e); rfBox(K, 0, 0.62, -2.05, 1.66, 0.1, 0.1, 0x3a2a1e);   // axles
+    rfBox(K, 0, 0.82, -1.0, 0.16, 0.12, 3.3, 0x4a3424);                                                   // the reach
+    rfBox(K, 0, 0.95, -1.05, 1.55, 0.1, 3.3, 0x5e4430);                                                   // floor
+    for (const s of [-1, 1]) {
+      for (let i = 0; i < 3; i++) rfBox(K, s * 0.78, 1.08 + i * 0.16, -1.05, 0.06, 0.13, 3.3, i % 2 ? w1 : w0);   // plank sides
+      for (let zz = -2.6; zz <= 0.5; zz += 0.78) rfBox(K, s * 0.81, 1.25, zz, 0.07, 0.62, 0.08, 0x4a3424);           // stakes
+      rfRod(K, s * 0.9, 1.62, -2.7, 1.62, 0.6, 0.06, 0.06, oak);                                                   // hay-rack rail
+      for (let zz = -2.5; zz <= 0.5; zz += 0.5) rfBox(K, s * 0.86, 1.52, zz, 0.12, 0.22, 0.04, oak, 0, 0, -s * 0.5);
+      rfRod(K, s * 0.5, 0.98, 0.55, 1.08, 2.95, 0.07, 0.08, 0x8a6a46);                                             // shafts to the horse
+    }
+    rfBox(K, 0, 1.2, 0.58, 1.5, 0.5, 0.06, w1); rfBox(K, 0, 1.2, -2.7, 1.5, 0.5, 0.06, w0);                         // front board, tailboard
+    rfBox(K, 0, 1.5, 0.35, 1.0, 0.07, 0.34, 0x5a4028); rfBox(K, 0, 1.28, 0.35, 0.08, 0.4, 0.08, 0x4a3424);         // the driver's seat
+    // the load: mattresses, a trunk, a dresser, chairs upside down, bundles, a birdcage, a cooking pot, a churn
+    rfMattress(K, 0.1, 1.22, -1.65, 1.36, 0.3, 1.7, 0xd8ccb0, 0x8a98b0);
+    rfMattress(K, 0.05, 1.5, -1.5, 1.2, 0.22, 1.5, 0xc8b898, 0xa05a4a);
+    rfBox(K, -0.35, 1.33, -0.25, 0.68, 0.42, 0.52, 0x5a3e28); rfBox(K, -0.35, 1.33, -0.25, 0.7, 0.06, 0.54, 0x2a2420); rfBox(K, -0.35, 1.56, -0.25, 0.66, 0.06, 0.5, 0x6a4a30);   // trunk
+    rfBox(K, 0.42, 1.55, -0.45, 0.5, 0.86, 0.42, 0x6a4a2c); rfBox(K, 0.42, 1.55, -0.24, 0.42, 0.02, 0.01, 0x3a2a1e); rfBox(K, 0.42, 1.99, -0.45, 0.56, 0.04, 0.48, 0x5a3e24);    // a dresser
+    rfChair(K, -0.1, 1.86, -1.35, true, 0x8a6a46); rfChair(K, 0.3, 1.86, -2.05, true, 0x7a5a3a);
+    K.p.push({ g: GEO.sph, m: M4(-0.45, 1.82, -2.2, 0.5, 0.38, 0.46), c: 0x5a6a8a }, { g: GEO.sph, m: M4(0.48, 1.36, -2.4, 0.42, 0.34, 0.4), c: 0x8a5a5a }, { g: GEO.sph, m: M4(-0.5, 1.84, -0.95, 0.38, 0.3, 0.36), c: 0x9a8a5a });
+    K.p.push({ g: GEO.cyl, m: M4(0.55, 2.1, -1.0, 0.24, 0.26, 0.24), c: 0xb8a060 }, { g: GEO.sph, m: M4(0.55, 2.24, -1.0, 0.24, 0.16, 0.24), c: 0xb8a060 });   // birdcage
+    K.p.push({ g: GEO.cyl, m: M4(-0.55, 1.2, -2.45, 0.26, 0.5, 0.26), c: 0xa8a8a0 }, { g: GEO.cyl, m: M4(-0.55, 1.5, -2.45, 0.14, 0.12, 0.14), c: 0xa8a8a0 });   // milk churn
+    K.p.push({ g: GEO.cyl, m: M4(0.2, 1.68, -2.55, 0.3, 0.2, 0.3), c: 0x3a3a38 });                                       // pot, hung on the tailboard
+    rfSeated(K, 0, 1.53, 0.32, { coat: 0x4a4a5a, legs: 0x2e2a28, hat: 'cap' });                                         // the father, the reins in his hands
+    for (const s of [-1, 1]) rfRod(K, s * 0.14, 1.85, 0.6, 2.05, 3.2, 0.02, 0.02, 0x2a2018);                             // reins
+    rfSeated(K, 0.05, 1.72, -1.7, { s: 0.6, coat: 0x8a6a4a, hat: 0xa83a3a, noShins: true });                            // a child on top of it all
+    rfHorse(K, 0, 2.45, 0x8a5a34);
+    rfPerson(K, -1.0, 2.85, { coat: 0x5a5a48, legs: 0x3a3430, hat: 'cap', reach: true, s: 0.82, ph: 1 });               // a boy leading the horse
+    rfPerson(K, 0.35, -3.25, { coat: 0x7a3a3a, skirt: 0x3a3a4a, legs: 0x5a5048, hat: 0x6a7a5a, carry: 'bundle', ph: 2 }); // his mother, walking behind
+  });
+  // a handcart: two wheels, a plank bed, long handles; suitcases, a rolled mattress, a chair, a lamp; a man pushing, a girl alongside
+  mk('hand', K => {
+    for (const s of [-1, 1]) rfWheel(K, 'spoke', s * 0.62, 0.44, 0.75, 0.44, 0.07, 0x7a5a38);
+    rfBox(K, 0, 0.44, 0.75, 1.3, 0.07, 0.07, 0x3a2a1e);
+    rfBox(K, 0, 0.66, 0.85, 1.05, 0.08, 1.3, 0x7a5a3a);
+    for (const s of [-1, 1]) { rfBox(K, s * 0.52, 0.8, 0.85, 0.05, 0.24, 1.3, 0x6a4a30); rfRod(K, s * 0.42, 0.68, 0.2, 0.96, -0.9, 0.06, 0.06, 0x8a6a46); rfBox(K, s * 0.4, 0.38, 1.4, 0.05, 0.56, 0.05, 0x5a4028); }
+    rfBox(K, 0, 0.8, 1.5, 1.05, 0.24, 0.05, 0x6a4a30); rfBox(K, 0, 0.8, 0.2, 1.05, 0.24, 0.05, 0x6a4a30);
+    rfBox(K, -0.22, 0.9, 1.05, 0.5, 0.36, 0.7, 0x6a4a2a); rfBox(K, -0.22, 0.9, 1.05, 0.52, 0.04, 0.72, 0x2a2420);   // suitcases
+    rfBox(K, 0.25, 0.86, 1.15, 0.42, 0.28, 0.6, 0x3a4a5a); rfBox(K, -0.15, 1.17, 0.95, 0.42, 0.22, 0.56, 0x7a6a4a);
+    K.p.push({ g: GEO.cyl, m: M4e(0.05, 1.12, 0.55, 0.34, 0.95, 0.34, 0, 0, Math.PI / 2), c: 0xd0c4a8 });           // a rolled mattress, tied
+    for (const dx of [-0.25, 0.3]) rfBox(K, 0.05 + dx, 1.12, 0.55, 0.03, 0.36, 0.36, 0x4a3a2a);
+    rfChair(K, 0.25, 1.48, 1.2, false, 0x7a5a3a);
+    K.p.push({ g: GEO.cyl, m: M4(-0.32, 1.25, 1.35, 0.1, 0.3, 0.1), c: 0x8a8a7a }, { g: GEO.cone, m: M4(-0.32, 1.45, 1.35, 0.22, 0.14, 0.22), c: 0x6a7a5a });   // an oil lamp
+    rfPerson(K, 0, -1.25, { coat: 0x5a5048, legs: 0x3a3430, hat: 'trilby', reach: true, ph: 0.5 });
+    rfPerson(K, 0.78, -0.45, { s: 0.62, coat: 0x6a3a4a, skirt: 0x8a5a6a, legs: 0xd8c8b0, ph: 2.2 });
+  });
+  // a family on foot: the father with a suitcase, the mother pushing a pram, the grandmother with a bundle, a boy
+  mk('walk', K => {
+    rfPerson(K, -0.45, 0.95, { coat: 0x3a4a5a, legs: 0x2a2a2e, hat: 'trilby', carry: 'case' });
+    rfPerson(K, 0.4, 0.15, { coat: 0x7a6a4a, skirt: 0x4a4a3a, legs: 0x8a7a68, hat: 0x8a3a3a, reach: true, ph: 1.4 });
+    // the pram: a deep body, a folded hood, four little wheels, a handle
+    rfBox(K, 0.4, 0.68, 1.15, 0.5, 0.36, 0.8, 0x2a2a30); rfBox(K, 0.4, 0.88, 1.15, 0.54, 0.05, 0.84, 0x3a3a42);
+    K.p.push({ g: GEO.sph, m: M4(0.4, 0.92, 0.85, 0.52, 0.42, 0.42), c: 0x2a2a30 });
+    rfRod(K, 0.4, 0.86, 0.75, 1.02, 0.52, 0.42, 0.03, 0x8a8a80);
+    for (const s of [-1, 1]) for (const dz of [0.85, 1.45]) rfWheel(K, 'spoke', 0.4 + s * 0.29, 0.17, dz, 0.17, 0.03, 0x4a4a4a);
+    rfPerson(K, -0.3, -0.85, { coat: 0x2e2e30, skirt: 0x2a2a2a, legs: 0x3a3a3a, hat: 0x2e2e30, carry: 'bundle', bundleC: 0x9a8a6a, s: 0.94, ph: 3 });
+    rfPerson(K, 0.45, -1.1, { s: 0.64, coat: 0x5a6a4a, legs: 0x4a4038, hat: 'beret', ph: 4.2 });
+  });
+  // a 1930s saloon: bonnet and grille, flowing wings, running boards, glasshouse, a spare on the boot; a mattress roped to the roof
+  mk('car', K => {
+    const body = 0x2e4034, trim = 0xa8a89e, glass = 0x8a9aa2;
+    rfBox(K, 0, 0.44, 0, 1.4, 0.18, 4.1, 0x1a1a1c);                                                                    // chassis
+    K.p.push({ g: slab(0.5, 0.62, 1.14, 0.55, 2.05, { wt: 0.44, tz1: 1.95, ox: 0 }), m: new THREE.Matrix4(), c: body }); // bonnet
+    for (let i = -3; i <= 3; i++) rfBox(K, i * 0.07, 1.02, 0.95 + Math.abs(i) * 0, 0.02, 0.01, 0.8, 0x3a3c40);         // louvres
+    rfBox(K, 0, 0.88, 2.08, 0.66, 0.5, 0.06, trim); for (let i = -3; i <= 3; i++) rfBox(K, i * 0.08, 0.88, 2.12, 0.03, 0.44, 0.02, 0x4a4a48);   // grille
+    for (const s of [-1, 1]) {
+      K.p.push({ g: GEO.sph, m: M4(s * 0.5, 1.02, 2.12, 0.24, 0.24, 0.22), c: 0xd8d4b8 }); rfBox(K, s * 0.4, 0.92, 2.02, 0.04, 0.2, 0.04, trim);   // headlamps
+      // wings: over the front wheel and down to the running board, and over the back wheel
+      rfBox(K, s * 0.72, 0.82, 1.5, 0.32, 0.07, 0.8, body); rfBox(K, s * 0.72, 0.66, 2.0, 0.32, 0.07, 0.42, body, 0.75);
+      rfBox(K, s * 0.72, 0.6, 0.95, 0.32, 0.07, 0.5, body, -0.55); rfBox(K, s * 0.76, 0.43, 0.0, 0.26, 0.05, 1.9, 0x2a2a2a);
+      rfBox(K, s * 0.72, 0.82, -1.35, 0.32, 0.07, 0.75, body); rfBox(K, s * 0.72, 0.62, -0.88, 0.32, 0.07, 0.4, body, -0.7); rfBox(K, s * 0.72, 0.64, -1.85, 0.32, 0.07, 0.38, body, 0.7);
+      rfBox(K, s * 0.697, 1.47, -0.5, 0.02, 0.32, 1.6, glass); rfBox(K, s * 0.697, 1.47, -0.5, 0.025, 0.32, 0.05, body);   // side windows, door pillar
+      rfBox(K, s * 0.7, 1.05, 0.05, 0.02, 0.02, 0.1, trim);                                                                   // door handle
+    }
+    rfBox(K, 0, 0.98, -0.5, 1.42, 0.62, 2.1, body);                                                                     // body
+    rfBox(K, 0, 1.47, -0.5, 1.38, 0.38, 1.82, body); rfBox(K, 0, 1.72, -0.55, 1.32, 0.1, 1.7, 0x2c2e32);                // glasshouse, roof
+    rfBox(K, 0, 1.47, 0.42, 1.2, 0.32, 0.03, glass, 0.25); rfBox(K, 0, 1.47, -1.42, 1.0, 0.26, 0.03, glass, -0.3);       // windscreen, back window
+    rfBox(K, 0, 0.95, -1.8, 1.32, 0.56, 0.4, body);                                                                      // boot
+    K.p.push({ g: GEO.cyl, m: M4e(0, 0.95, -2.08, 0.66, 0.2, 0.66, Math.PI / 2, 0, 0), c: 0x1e1e1c }, { g: GEO.cyl, m: M4e(0, 0.95, -2.12, 0.36, 0.2, 0.36, Math.PI / 2, 0, 0), c: 0x5a5a52 });   // the spare
+    rfBox(K, 0, 0.5, 2.2, 1.5, 0.08, 0.08, trim); rfBox(K, 0, 0.5, -2.22, 1.5, 0.08, 0.08, trim);                         // bumpers
+    for (const [x, z, c] of [[-0.32, 0.05, 0x3a3430], [0.32, 0.05, 0], [-0.32, -1.0, 0x6a3a3a], [0.32, -1.0, 0]]) { K.p.push({ g: GEO.sph, m: M4(x, 1.46, z, 0.22, 0.24, 0.22), c: 0xd8a882 }); if (c) K.p.push({ g: GEO.cyl, m: M4(x, 1.6, z, 0.26, 0.08, 0.26), c }); }   // the people inside
+    rfMattress(K, 0, 1.9, -0.5, 1.42, 0.24, 1.95, 0xe0d4b8, 0x8a98b0);                                                    // the mattress on the roof, against the planes
+    for (const dz of [-1.15, 0.1]) { rfBox(K, 0, 2.03, -0.5 + dz + 0.5, 1.46, 0.02, 0.04, 0x5a4a32); for (const s of [-1, 1]) rfBox(K, s * 0.72, 1.82, -0.5 + dz + 0.5, 0.02, 0.4, 0.04, 0x5a4a32); }   // its ropes
+    rfBox(K, 0.25, 2.14, -0.75, 0.6, 0.26, 0.42, 0x6a4a2a); rfBox(K, -0.35, 2.1, -0.15, 0.42, 0.18, 0.36, 0x3a4a5a);      // cases on top
+    for (const s of [-1, 1]) { rfWheel(K, 'tyre', s * 0.74, 0.36, 1.48, 0.36, 0.2); rfWheel(K, 'tyre', s * 0.74, 0.36, -1.35, 0.36, 0.2); }
+  });
+  // a lorry from a farm or a builder's yard: bonnet, cab, a plank-sided bed full of furniture and people, twin back wheels
+  mk('lorry', K => {
+    const cab = 0x4a5a40, trim = 0x9a9a90, wd = 0x6a5038, dk = 0x22261e;
+    for (const s of [-1, 1]) rfBox(K, s * 0.45, 0.62, -0.2, 0.12, 0.18, 5.9, 0x1a1a1c);                                   // chassis rails
+    K.p.push({ g: slab(0.48, 0.85, 1.42, 1.6, 2.95, { wt: 0.44, tz1: 2.88, ox: 0 }), m: new THREE.Matrix4(), c: cab });     // bonnet
+    for (let i = -3; i <= 3; i++) rfBox(K, i * 0.08, 1.14, 3.0, 0.03, 0.56, 0.02, 0x4a4a48);
+    rfBox(K, 0, 1.14, 2.98, 0.76, 0.62, 0.05, trim); rfBox(K, 0, 0.62, 3.1, 1.9, 0.12, 0.1, 0x2a2a2a);                      // grille, bumper
+    for (const s of [-1, 1]) {
+      K.p.push({ g: GEO.sph, m: M4(s * 0.62, 1.32, 2.95, 0.24, 0.24, 0.2), c: 0xd8d4b8 });
+      rfBox(K, s * 0.85, 1.08, 2.25, 0.36, 0.07, 0.95, cab); rfBox(K, s * 0.85, 0.88, 2.82, 0.36, 0.07, 0.4, cab, 0.8); rfBox(K, s * 0.85, 0.84, 1.66, 0.36, 0.07, 0.4, cab, -0.7);   // wings
+      rfBox(K, s * 0.92, 0.72, 1.2, 0.3, 0.05, 0.5, 0x2a2a2a);                                                                // step
+      rfBox(K, s * 0.96, 1.05, 2.3, 0.04, 0.04, 0.04, trim);                                                                // bonnet catch
+      for (const zz of [0.42, 1.5]) rfBox(K, s * 0.955, 1.3, zz, 0.015, 0.6, 0.025, dk);                                     // the door's shut lines
+      rfBox(K, s * 0.965, 1.48, 0.55, 0.03, 0.03, 0.12, trim);                                                                // its handle
+      for (const zz of [0.36, 0.7, 1.58]) rfBox(K, s * 0.92, 1.85, zz, 0.07, 0.46, 0.07, cab);                               // pillars: the windows are open
+      rfBox(K, s * 0.92, 1.64, 0.97, 0.08, 0.05, 1.24, dk);                                                                   // window sill
+      K.p.push({ g: GEO.cyl, m: M4e(s * 0.98, 1.95, 1.62, 0.06, 0.24, 0.06, 0, 0, Math.PI / 2), c: trim }, { g: GEO.box, m: M4(s * 1.12, 1.95, 1.62, 0.1, 0.16, 0.02), c: 0x9aa8ae });   // mirror
+      rfBox(K, s * 0.9, 0.62, -2.92, 0.46, 0.5, 0.03, 0x1a1a1a);                                                              // mud flaps behind the duals
+      for (const zz of [-1.6, -2.9]) rfBox(K, s * 0.98, 0.98, zz + 0.65, 0.5, 0.04, 0.08, 0x2a2a2a);                         // the bed's cross-bearers
+    }
+    rfBox(K, 0, 1.31, 0.95, 1.9, 0.62, 1.3, cab); rfBox(K, 0, 1.85, 0.33, 1.9, 0.46, 0.06, cab);                              // the cab: body to the sills, back wall
+    rfBox(K, 0, 2.12, 0.98, 2.0, 0.08, 1.46, 0x3a4632); rfBox(K, 0, 2.08, 1.68, 1.96, 0.04, 0.14, 0x3a4632);                  // roof and its peak
+    rfBox(K, 0, 1.85, 1.58, 0.05, 0.46, 0.05, cab); rfBox(K, 0, 1.64, 1.58, 1.84, 0.05, 0.06, dk); rfBox(K, 0, 2.06, 1.58, 1.84, 0.05, 0.06, dk);   // windscreen frame, split
+    for (const s of [-1, 1]) rfBox(K, s * 0.45, 1.86, 1.585, 0.8, 0.38, 0.015, 0xa8b8c0, 0.12);                               // its two panes, opened a crack
+    rfBox(K, 0, 1.62, 0.46, 1.7, 0.6, 0.14, 0x3a2a20); rfBox(K, 0, 1.32, 0.62, 1.7, 0.08, 0.42, 0x3a2a20);                    // bench seat
+    K.p.push({ g: GEO.torus, m: M4e(-0.42, 1.62, 1.28, 0.62, 0.62, 0.62, -0.9, 0, 0), c: 0x1e1e1e });                         // steering wheel
+    rfRod(K, -0.42, 1.62, 1.28, 1.2, 1.55, 0.05, 0.05, 0x1e1e1e);
+    K.p.push({ g: GEO.cyl, m: M4(0, 1.47, 2.86, 0.1, 0.08, 0.1), c: trim });                                                  // radiator cap
+    K.p.push({ g: GEO.cyl, m: M4e(-0.72, 0.68, 0.0, 0.34, 0.8, 0.34, Math.PI / 2, 0, 0), c: 0x3a3a34 });                     // fuel tank
+    rfBox(K, 0, 0.48, -3.2, 0.2, 0.12, 0.2, 0x2a2a2a); rfBox(K, 0, 0.82, -3.36, 1.6, 0.12, 0.08, 0x2a2a2a);                   // tow hook, rear bumper
+    for (const s of [-1, 1]) K.p.push({ g: GEO.sph, m: M4(s * 0.92, 0.85, -3.33, 0.1, 0.1, 0.06), c: 0x8a2a20 });            // tail lamps                          // cab, roof
+    rfSeated(K, -0.42, 1.12, 0.72, { coat: 0x4a4440, hat: 'cap' }); rfSeated(K, 0.42, 1.12, 0.72, { coat: 0x5a3a4a, hat: 0x6a6a7a });   // the driver and his wife
+    rfBox(K, 0, 1.05, -1.45, 2.1, 0.12, 3.7, wd);                                                                            // the bed
+    for (const s of [-1, 1]) { rfBox(K, s * 1.04, 1.24, -1.45, 0.06, 0.26, 3.7, 0x7a5a3a); rfBox(K, s * 1.04, 1.48, -1.45, 0.06, 0.18, 3.7, 0x6a4a30); for (let zz = -3.2; zz <= 0.3; zz += 0.7) rfBox(K, s * 1.06, 1.3, zz, 0.08, 0.6, 0.08, 0x4a3424); }
+    rfBox(K, 0, 1.36, 0.36, 2.1, 0.6, 0.06, 0x6a4a30); rfBox(K, 0, 1.36, -3.28, 2.1, 0.6, 0.06, 0x7a5a3a);
+    rfBox(K, 0.55, 2.0, -0.55, 0.62, 1.78, 0.5, 0x5a3a22); rfBox(K, 0.55, 2.0, -0.29, 0.02, 1.6, 0.01, 0x3a2416); rfBox(K, 0.55, 2.92, -0.55, 0.68, 0.08, 0.56, 0x4a2e1a);   // a wardrobe
+    rfMattress(K, -0.3, 1.32, -2.2, 1.3, 0.34, 1.8, 0xd8ccb0, 0x8a98b0);
+    rfBox(K, 0.4, 1.4, -2.75, 0.9, 0.06, 0.7, 0x7a5a3a); for (const [dx, dz] of [[-0.38, -0.28], [0.38, -0.28], [-0.38, 0.28], [0.38, 0.28]]) rfBox(K, 0.4 + dx, 1.7, -2.75 + dz, 0.05, 0.6, 0.05, 0x7a5a3a);   // a table, legs up
+    rfChair(K, -0.6, 1.36, -0.5, false, 0x8a6a46);
+    K.p.push({ g: GEO.sph, m: M4(0.5, 1.4, -1.5, 0.6, 0.42, 0.5), c: 0x5a6a8a }, { g: GEO.sph, m: M4(-0.7, 1.65, -3.0, 0.4, 0.34, 0.36), c: 0x8a5a5a });
+    rfSeated(K, -0.55, 1.12, -1.25, { coat: 0x7a3a3a, legs: 0x4a4038, hat: 0x5a6a8a });
+    rfSeated(K, -0.2, 1.5, -2.4, { coat: 0x3a3a48, hat: 'trilby', noShins: true });
+    rfSeated(K, 0.35, 1.12, -1.95, { s: 0.62, coat: 0x8a7a4a, hat: 'beret' });
+    for (const s of [-1, 1]) { rfWheel(K, 'tyre', s * 0.88, 0.46, 2.25, 0.46, 0.24); rfWheel(K, 'tyre', s * 0.78, 0.46, -2.25, 0.46, 0.22); rfWheel(K, 'tyre', s * 1.02, 0.46, -2.25, 0.46, 0.22); }
+  });
+  // two on bicycles, the luggage on the racks: frames, handlebars, saddles, the wheels turning and the legs pedalling
+  mk('bike', K => {
+    for (const [x, z, c, cc] of [[-0.35, 0.65, 0x4a5a6a, 0x1e2a1e], [0.35, -0.75, 0x6a4a3a, 0x2a2a2a]]) {
+      for (const dz of [0.52, -0.52]) rfWheel(K, 'spoke', x, 0.35, z + dz, 0.35, 0.04, 0x3a3a3a);
+      rfRod(K, x, 0.85, z + 0.4, 0.86, z - 0.15, 0.04, 0.04, cc);             // top tube
+      rfRod(K, x, 0.84, z + 0.38, 0.36, z - 0.02, 0.05, 0.05, cc);            // down tube
+      rfRod(K, x, 0.36, z - 0.02, 0.94, z - 0.2, 0.04, 0.04, cc);             // seat tube
+      rfRod(K, x, 0.36, z - 0.02, 0.35, z - 0.52, 0.03, 0.03, cc);            // chain stay
+      rfRod(K, x, 0.86, z - 0.15, 0.35, z - 0.52, 0.03, 0.03, cc);            // seat stay
+      rfRod(K, x, 0.98, z + 0.42, 0.35, z + 0.52, 0.04, 0.04, cc);            // fork
+      rfBox(K, x, 0.99, z + 0.4, 0.52, 0.03, 0.03, 0x8a8a82); rfBox(K, x, 0.96, z - 0.22, 0.14, 0.05, 0.24, 0x5a3a22);   // handlebars, saddle
+      rfBox(K, x, 0.8, z - 0.55, 0.3, 0.03, 0.4, 0x6a6a62); rfBox(K, x, 0.95, z - 0.55, 0.36, 0.26, 0.36, 0x8a7a5a);    // the rack and a case on it
+      rfBox(K, x, 0.92, z + 0.6, 0.3, 0.2, 0.22, 0x9a8a6a);                                                              // a basket
+      rfRod(K, x, 1.0, z - 0.2, 1.48, z + 0.0, 0.38, 0.22, c);                // torso, leaning to the bars
+      K.p.push({ g: GEO.sph, m: M4(x, 1.66, z + 0.08, 0.22, 0.25, 0.22), c: 0xd8a882 });
+      rfHat(K, x, 1.79, z + 0.08, 1, x < 0 ? 'cap' : 'beret');
+      for (const s of [-1, 1]) {
+        rfRod(K, x + s * 0.2, 1.44, z + 0.02, 1.02, z + 0.4, 0.1, 0.1, c);   // arms to the bars
+        K.mv.push({ m: 'leg', x: x + s * 0.1, y: 0.98, z: z - 0.18, sx: 1, sy: 0.92, sz: 1, amp: 0.55, base: -0.45, pedal: true, ph: s < 0 ? 0 : Math.PI, stride: 2.2, col: x < 0 ? 0x2e2a28 : 0x3a3430 });
+      }
+    }
+  });
+  return out;
 }
 function refInit(M) {
   if (!refMeshes) {
-    const G = refGeos(); refMeshes = {};
-    for (const k in G) { const im = new THREE.InstancedMesh(G[k], propMatI, REF_N); im.count = 0; im.frustumCulled = false; im.castShadow = true; im.instanceMatrix.setUsage(THREE.DynamicDrawUsage); im.userData.keep = true; scene.add(im); refMeshes[k] = im; }
+    refKinds = rfKindsBuild(); refMeshes = {}; refMv = {};
+    for (const k in refKinds) { const im = new THREE.InstancedMesh(refKinds[k].geo, propMatI, REF_N); im.count = 0; im.frustumCulled = false; im.castShadow = true; im.instanceMatrix.setUsage(THREE.DynamicDrawUsage); im.userData.keep = true; scene.add(im); refMeshes[k] = im;
+      for (const M of refKinds[k].mv) M.cc = SC(M.col === undefined ? 0xffffff : M.col); }
+    const MG = rfMoverGeos();
+    for (const k in MG) { const im = new THREE.InstancedMesh(MG[k], refMatT, REF_MV[k]); for (let i = 0; i < REF_MV[k]; i++) im.setColorAt(i, _rfC.setRGB(1, 1, 1));   // before the first render, or it draws black
+      im.count = 0; im.frustumCulled = false; im.castShadow = true; im.instanceMatrix.setUsage(THREE.DynamicDrawUsage); im.userData.keep = true; scene.add(im); refMv[k] = im; }
   }
   for (const k in refMeshes) refMeshes[k].count = 0;
+  for (const k in refMv) refMv[k].count = 0;
   if (exploder) { fxRoot.remove(exploder.ring); exploder.ring.geometry.dispose(); }
   if (sapperSt) { fxRoot.remove(sapperSt.ring); sapperSt.ring.geometry.dispose(); sapperSt = null; }
   refs = []; refT = 0; refToast = 0; refPath = null; exploder = null;
@@ -12402,8 +12644,8 @@ function refInit(M) {
   }
 }
 function refSpawn(d) {
-  const ks = ['cart', 'hand', 'walk', 'walk', 'car', 'bike', 'hand'], k = ks[(Math.random() * ks.length) | 0];
-  refs.push({ k, d, v: refPath.speed * REF_K[k].v * (0.9 + Math.random() * 0.2), lane: (Math.random() - 0.5) * 1.2, halt: 0, sc: 0, ox: 0, oz: 0, x: 0, z: 0, yaw: 0, ph: Math.random() * 6 });
+  const ks = ['cart', 'hand', 'walk', 'walk', 'car', 'bike', 'hand', 'lorry', 'cart'], k = ks[(Math.random() * ks.length) | 0];
+  refs.push({ k, d, v: refPath.speed * REF_K[k].v * (0.9 + Math.random() * 0.2), lane: (Math.random() - 0.5) * 1.2, halt: 0, sc: 0, ox: 0, oz: 0, x: 0, z: 0, yaw: 0, ph: Math.random() * 6, walk: Math.random() * 9, mv: 0, step: 0 });
 }
 function refPos(d) {
   const P = refPath; let i = 1; while (i < P.cum.length - 1 && P.cum[i] < d) i++;
@@ -12453,6 +12695,7 @@ function stepRefugees(dt) {
     refT -= dt; if (refT <= 0) { refT = P.every * (0.7 + Math.random() * 0.6); if (P.stopAt == null && (!refs.length || refs[refs.length - 1].d > 9)) refSpawn(0); }
     for (let i = 0; i < refs.length; i++) {
       const r = refs[i], ahead = i > 0 ? refs[i - 1] : null;
+      r.step = 0;
       if (r.sc > 0) { r.sc -= dt; continue; }   // off the road, waiting
       // a man of ours standing in the road just ahead stops them (one walking through, they go round); they wait a while after he goes
       const [px, pz] = refPos(Math.min(P.total, r.d + REF_K[r.k].L / 2 + 2.5));
@@ -12462,22 +12705,37 @@ function stepRefugees(dt) {
       let step = r.v * dt;
       if (ahead) step = Math.min(step, Math.max(0, ahead.d - r.d - (REF_K[ahead.k].L + REF_K[r.k].L) / 2 - 1.4));
       if (P.stopAt > 0 && r.d < P.stopAt) step = Math.min(step, Math.max(0, P.stopAt - r.d - REF_K[r.k].L / 2));
-      r.d += step;
+      r.d += step; r.step = step; r.walk += step;
     }
     for (let i = refs.length - 1; i >= 0; i--) if (refs[i].d >= P.total) refs.splice(i, 1);
   }
   // place them: on the road (in their lane), or off it to one side when scattered
-  const cnt = {}; for (const k in refMeshes) cnt[k] = 0;
+  const cnt = {}, mc = {}; for (const k in refMeshes) cnt[k] = 0; for (const k in refMv) mc[k] = 0;
+  const live = P && phase === 'play' && !outcome;
   for (const r of refs) {
     const [x, z, yaw] = refPos(r.d), tgt = r.sc > 0 ? 1 : 0;
     r.blend = (r.blend || 0) + (tgt - (r.blend || 0)) * Math.min(1, dt * 1.5);
     r.x = x + Math.cos(yaw) * r.lane + r.ox * r.blend; r.z = z - Math.sin(yaw) * r.lane + r.oz * r.blend; r.yaw = yaw;
     const im = refMeshes[r.k], i = cnt[r.k]++; if (i >= REF_N) continue;
-    const bob = r.halt > 0 || r.sc > 0 ? 0 : Math.abs(Math.sin(missionTime * 6 + r.ph)) * 0.04;
-    _me.set(0, yaw, 0); _mq.setFromEuler(_me); _mv.set(r.x, surfY(r.x, r.z) + bob, r.z); _ms.set(1, 1, 1);
-    im.setMatrixAt(i, _mm.compose(_mv, _mq, _ms));
+    if (live) r.mv += ((r.step > 0 ? 1 : 0) - r.mv) * Math.min(1, dt * 4);   // walking or stood, eased
+    _rfE.set(0, yaw, 0); _rfQ.setFromEuler(_rfE); _rfV.set(r.x, surfY(r.x, r.z), r.z); _rfS.set(1, 1, 1);
+    im.setMatrixAt(i, _rfG.compose(_rfV, _rfQ, _rfS));
+    // v120: the moving parts, posed from the distance walked. A leg's angle is + with the foot back; the knee folds
+    // through the swing (the leg coming forward), a cyclist's round the pedal stroke
+    for (const M of refKinds[r.k].mv) {
+      const mm = refMv[M.m], j = mc[M.m]++; if (j >= REF_MV[M.m]) continue;
+      const p = r.walk * Math.PI * 2 / (M.stride || 1) + (M.ph || 0);
+      const a = M.wheel ? r.walk / M.r : (M.base || 0) + M.amp * Math.sin(p) * (M.pedal ? 1 : r.mv);
+      _rfE.set(a, 0, 0); _rfQ.setFromEuler(_rfE); _rfV.set(M.x, M.y, M.z); _rfS.set(M.sx, M.sy, M.sz);
+      _rfL.compose(_rfV, _rfQ, _rfS).premultiply(_rfG); mm.setMatrixAt(j, _rfL); mm.setColorAt(j, M.cc);
+      const lo = REF_LOW[M.m]; if (!lo) continue;
+      const lm = refMv[lo[0]], n = mc[lo[0]]++; if (n >= REF_MV[lo[0]]) continue;
+      const kn = M.pedal ? 1.1 - 0.55 * Math.sin(p) : r.mv * (0.08 + 0.85 * Math.max(0, -Math.cos(p)));
+      _rfK.makeRotationX(kn).setPosition(0, -lo[1], 0); lm.setMatrixAt(n, _rfM.multiplyMatrices(_rfL, _rfK)); lm.setColorAt(n, M.cc);
+    }
   }
   for (const k in refMeshes) { refMeshes[k].count = Math.min(REF_N, cnt[k]); refMeshes[k].instanceMatrix.needsUpdate = true; }
+  for (const k in refMv) { const m = refMv[k]; m.count = Math.min(REF_MV[k], mc[k]); m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; }
   // the exploder: a man at it for a second and a half blows the bridge, if nobody is on it
   const E = exploder;
   if (E && !outcome && phase === 'play') {
