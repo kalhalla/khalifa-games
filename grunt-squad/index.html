@@ -462,7 +462,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
     <button id="tset">SETTINGS <small>sound · music · graphics</small></button>
   </div>
   <div class="foot">© KHALIFA.GAMES · NO GRUNTS WERE CONSULTED</div>
-  <div id="tver">v120</div>
+  <div id="tver">v121</div>
 </div>
 
 <div id="ops" class="screen">
@@ -6058,11 +6058,14 @@ function rigPoseInto(Pz, F) {
     const c = Math.cos(2 * Math.PI * ph), sn = Math.sin(2 * Math.PI * ph), side = -c, dL = 0.5 - 0.5 * c, dR = 0.5 + 0.5 * c;
     const upL = Math.max(0, sn), upR = Math.max(0, -sn);   // the left leg (and right elbow) come forward in the first half
     Pz.ph = 0.16; Pz.pp = 1.46; Pz.flat = 0; Pz.dig = 1;
-    Pz.pyw = -0.15 * side; Pz.pt = 0.14 * side; Pz.sr = 0.22 * side; Pz.cr = 0.25 * side;
-    Pz.sp = -0.05; Pz.cp = -0.12; Pz.cy = 0.07 * side; Pz.hp = -1.12; Pz.hy = -0.18 * side;
-    Pz.fL.set(0.15 + 0.40 * dL, 0.05 + 0.03 * dL + 0.06 * upL, -0.72 + 0.60 * dL); Pz.fR.set(-0.15 - 0.40 * dR, 0.05 + 0.03 * dR + 0.06 * upR, -0.72 + 0.60 * dR);
-    Pz.kp.set(1, -0.4, 0.45);   // knees out to the side and a little forward
-    Pz.eL.set(0.28 + 0.10 * (1 - dL), 0.07 + 0.07 * upR, 0.94 - 0.68 * dL); Pz.eR.set(-0.28 - 0.10 * (1 - dR), 0.07 + 0.07 * upL, 0.94 - 0.68 * dR);
+    // v121 (Khal): less twist and roll of the whole body (about 40% of v62's), more travel in the limbs
+    Pz.pyw = -0.06 * side; Pz.pt = 0.05 * side; Pz.sr = 0.09 * side; Pz.cr = 0.1 * side;
+    Pz.sp = -0.05; Pz.cp = -0.12; Pz.cy = 0.03 * side; Pz.hp = -1.12; Pz.hy = -0.06 * side;
+    // v121 (Khal): on each side the knee and the elbow come up to meet, beside the waist, then go apart: the elbow reaches
+    // ahead and the leg pushes out straight behind. The elbow is drawn back and out wide as its knee comes up
+    Pz.fL.set(0.15 + 0.2 * dL, 0.05 + 0.03 * dL + 0.06 * upL, -0.74 + 0.74 * dL); Pz.fR.set(-0.15 - 0.2 * dR, 0.05 + 0.03 * dR + 0.06 * upR, -0.74 + 0.74 * dR);   // the foot stays near the line; the knee folds (the pole takes it out)
+    Pz.kp.set(1, -0.25, 0.5);   // knees out to the side and a little forward, towards the elbow
+    Pz.eL.set(0.3 + 0.2 * dL, 0.07 + 0.08 * upR, 1.06 - 0.96 * dL); Pz.eR.set(-0.3 - 0.2 * dR, 0.07 + 0.08 * upL, 1.06 - 0.96 * dR);
   } else if (st === 'prone') {
     // flat, legs spread back, up on the elbows, cheek on the stock, body a little off the line of fire
     const br = Math.sin(t * 1.2);
@@ -6149,21 +6152,19 @@ function applyPose(F, Pz) {
   }
   const r = F.rifle;
   if (Pz.dig > 0.5) {
-    // crawl: upper arm to the planted elbow, forearm flat on the ground pointing ahead and in
+    // crawl: upper arm to the planted elbow, forearm flat on the ground pointing ahead and in.
+    // v121 (Khal): the rifle is held out in front, along his line, butt under his chin. The arm reaching forward takes
+    // hold of it; the one pulling back lets go and plants its forearm (by how far forward its elbow is, so no new pose fields)
+    r.quaternion.copy(Qe(0.03, 0, 0)); r.position.set(0, 0.11, 0.98); r.updateMatrixWorld(true);
     const fwd = _v3.set(0, 0, 1).applyQuaternion(_rq);
     for (const [A, e] of [[F.armL, Pz.eL], [F.armR, Pz.eR]]) {
       A.sh.getWorldPosition(_v1); root.localToWorld(_v2.copy(e));
       aimBone(A.sh, _v1, _v2, fwd);
-      A.el.getWorldPosition(_v1); root.localToWorld(_v2.set(e.x - A.s * 0.12, 0.07, e.z + 0.25));
+      const g = clamp((e.z - 0.35) / 0.5, 0, 1);
+      A.el.getWorldPosition(_v1); root.localToWorld(_v2.set(e.x - A.s * (0.12 + 0.2 * g), 0.07 + 0.04 * g, e.z + 0.25 + 0.1 * g));
       aimBone(A.el, _v1, _v2, UPV);
       A.wr.quaternion.copy(Qe(0.5, 0, 0)); A.wr.updateMatrixWorld(true);
     }
-    // the rifle rests across both forearms, just behind the hands (worked in the man's own frame)
-    const wl = root.worldToLocal(F.armL.wr.getWorldPosition(_v1)), wr = root.worldToLocal(F.armR.wr.getWorldPosition(_v2));
-    const lz = wl.z - wr.z;
-    r.quaternion.copy(Qe(0.04, 0.10 + lz * 0.5, 0.1));
-    r.position.copy(wl).add(wr).multiplyScalar(0.5).add(_v3.set(0, 0.07, 0)).sub(_v1.set(0, -0.02, -0.02).applyQuaternion(r.quaternion));
-    r.updateMatrixWorld(true);
     return;
   }
   // the rifle, anchored at the chest joint in the man's own frame, then recoil; hands IK to it
@@ -15561,7 +15562,7 @@ function update(dt) {
     if (s !== myL && s.lastTarget && !s.lastTarget.dead && myL && dst(s, myL) < 7.5 && !s.prone) d = 0;
     if (d > 0.35) {
       const limp = s.hp <= 1 ? 0.8 : 1;          // one round left in him and it shows
-      steerMove(s, tx, tz, s.speed * (s.prone ? 0.36 : 1) * limp * (waterZones.length && inDeepWater(s.x, s.z) ? (seaAt(s.x, s.z) ? 0.4 : 0.2) : 1) * (knife && knife.s === s && knife.rush ? KNIFE_SPRINT : 1), dt);
+      steerMove(s, tx, tz, s.speed * (s.prone ? 0.29 : 1) * limp * (waterZones.length && inDeepWater(s.x, s.z) ? (seaAt(s.x, s.z) ? 0.4 : 0.2) : 1) * (knife && knife.s === s && knife.rush ? KNIFE_SPRINT : 1), dt);
       if (s !== myL) {
         // progress test, not motion: a man sliding up and down a wall is moving and getting nowhere
         const nd2 = Math.hypot(tx - s.x, tz - s.z);
