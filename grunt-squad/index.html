@@ -462,7 +462,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
     <button id="tset">SETTINGS <small>sound · music · graphics</small></button>
   </div>
   <div class="foot">© KHALIFA.GAMES · NO GRUNTS WERE CONSULTED</div>
-  <div id="tver">v131</div>
+  <div id="tver">v132</div>
 </div>
 
 <div id="ops" class="screen">
@@ -2376,6 +2376,7 @@ function updFog() {
 }
 
 /*───────────────────── audio ─────────────────────*/
+let musFloor = 0, musLvl = null;   // v132: the tune's own fader, under mixMus's stings (the op's opening and closing music)
 let AC = null, mixSfx = null, mixMus = null, mixAmb = null, mixMaster = null, musFilt = null, mixGun = null;
 let audioOn = true, musicOn = true;
 try { musicOn = PF.get('gs_mus') !== '0'; } catch (e) { }
@@ -2388,7 +2389,9 @@ function buildGraph() {
   mixSfx = AC.createGain(); mixSfx.gain.value = 0.85; mixSfx.connect(comp);
   // music runs through a lowpass so it can be muffled — prone in the grass, or slow-mo
   musFilt = AC.createBiquadFilter(); musFilt.type = 'lowpass'; musFilt.frequency.value = 18000; musFilt.Q.value = 0.4;
-  mixMus = AC.createGain(); mixMus.gain.value = musicOn ? 0.26 : 0;   // v130: a notch quieter (was 0.34) mixMus.connect(musFilt); musFilt.connect(comp);
+  mixMus = AC.createGain(); mixMus.gain.value = musicOn ? 0.26 : 0;   // v130: a notch quieter (was 0.34)
+  musLvl = AC.createGain(); musLvl.gain.value = 1;
+  mixMus.connect(musLvl); musLvl.connect(musFilt); musFilt.connect(comp);   // v132: v130's comment had swallowed this line, and the music with it
   mixAmb = AC.createGain(); mixAmb.gain.value = 0.6; mixAmb.connect(comp);
   // gunfire and blasts go through a slap-back so they sound like they happened outdoors
   // v17.1: gunfire no longer goes through the master compressor. Its 4 ms attack and look-ahead were
@@ -2439,6 +2442,19 @@ function setAudio(on) {
   audioOn = on;
   try { PF.set('gs_snd', on ? '1' : '0'); } catch (e) { }
   if (mixMaster) mixMaster.gain.setTargetAtTime(on ? 1 : 0, AC.currentTime, 0.02);
+}
+// v132: fade the tune out over `sec` and stop it, then open the fader again for the next one
+let musFadeId = 0;
+function musFadeOut(sec) {
+  if (!AC || !musLvl) { MUS.stop(); return; }
+  const id = ++musFadeId, t = AC.currentTime;
+  musLvl.gain.cancelScheduledValues(t); musLvl.gain.setValueAtTime(musLvl.gain.value, t); musLvl.gain.linearRampToValueAtTime(0.0001, t + sec);
+  setTimeout(() => { if (id !== musFadeId) return; if (phase !== 'play') { musOpen(0.4); return; }   // left the op mid-fade: the menus' tune plays
+    MUS.stop(); setTimeout(() => { if (id === musFadeId) musOpen(0.05); }, 1500); }, sec * 1000 + 50);
+}
+function musOpen(sec) {   // the fader back up (cancels a fade under way)
+  if (!AC || !musLvl) return; musFadeId++;
+  const t = AC.currentTime; musLvl.gain.cancelScheduledValues(t); musLvl.gain.setValueAtTime(Math.max(0.0001, musLvl.gain.value), t); musLvl.gain.linearRampToValueAtTime(1, t + (sec || 0.05));
 }
 function muffleMusic(v) {   // 0 = clear, 1 = through a wall
   if (!musFilt) return;
@@ -3047,8 +3063,9 @@ function voxPlay(key, x, z, rate, vol, radio) {
   if (!voxCurves) voxCurves = { warm: voxCurve(1.5), radio: voxCurve(4) };
   const { g, p } = place(x, z), s = AC.createBufferSource(), t0 = AC.currentTime;
   s.buffer = VOX[key]; s.playbackRate.value = rate || 1;
-  radio = radio || (VOXT[key] !== undefined && voxDistant(x, z));
-  const out = voice(mixSfx, VOX_GAIN * (vol || 1) * (radio ? 0.75 : Math.max(0.35, g)), radio ? 0 : p);
+  const words = voxWords(key);   // v132: a grunt or a dying cry isn't words: no radio, and it fades with distance like a shot
+  radio = radio || (words && voxDistant(x, z));
+  const out = voice(mixSfx, VOX_GAIN * (vol || 1) * (radio ? 0.75 : words ? Math.max(0.35, g) : Math.max(0.03, g * g)), radio ? 0 : p);
   const hp = AC.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = radio ? 420 : 150;
   const pk = AC.createBiquadFilter(); pk.type = 'peaking'; pk.frequency.value = radio ? 1500 : 2200; pk.Q.value = 0.8; pk.gain.value = radio ? 7 : 3;
   const sh = AC.createWaveShaper(); sh.curve = radio ? voxCurves.radio : voxCurves.warm;
@@ -3064,9 +3081,10 @@ function voxPlay(key, x, z, rate, vol, radio) {
     n.connect(bp); bp.connect(ng); ng.connect(out); n.start(t0); n.stop(e + 0.26);
     tone('square', 1400, 700, 0.035, 0.08, mixSfx, 0, e + 0.2);
   }
-  if (VOXT[key] !== undefined) voxBusy = Math.max(voxBusy, t0 + lead + dur + (radio ? 0.35 : 0.2));   // v125; v128: only words hold the floor (a grunt or a cry under fire used to silence every line)
+  if (words) voxBusy = Math.max(voxBusy, t0 + lead + dur + (radio ? 0.35 : 0.2));   // v125; v128: only words hold the floor (a grunt or a cry under fire used to silence every line)
 }
 let voxBusy = 0;
+const voxWords = k => VOXT[k] !== undefined && VOXT[k][0] !== '(';   // v132: the v129 grunts are tagged '(a grunt)'
 const VOX_GAIN = 0.5;   // peak ~0.3 at the camera: level with a rifle shot, under a blast
 
 /*───────────────────── music: a 1940s dance band on the wireless ─────────────────────*/
@@ -3254,6 +3272,7 @@ const MUS = (() => {
     play(t) {
       if (!AC) return;
       if (t === 'march') t = 'title';   // v74: the old menu number's callers get Tipperary
+      if (phase !== 'play' && phase !== 'intro' && musLvl && musLvl.gain.value < 0.99) musOpen(0.4);   // v132: a menu tune never plays into a closed fader
       if (track === t) return;
       track = t; step = 0; next = AC.currentTime + 0.06;
       song = SONGS[t] || null; sIdx = 0; sPass = 0; sT0 = AC.currentTime + 0.08;
@@ -14200,6 +14219,7 @@ function stepObjectives(dt) {
   if (extractPt) {
     const on = !!s && (s.t === 'extract' || s.t === 'flare');   // v96: the flare is fired from the extraction ring
     if (on && !extractPt.on) { extractPt.on = true; extractPt.ring.visible = extractPt.flare.visible = true; }
+    if (extractPt.on && !musFloor && s.t === 'extract') { const L = sol.find(q => !q.dead); if (L && Math.hypot(L.x - extractPt.x, L.z - extractPt.z) < 30) homeward(); }   // v132: an op that is all getting out: the band as the flare comes near
     if (extractPt.on) {
       extractPt.ring.material.opacity = 0.35 + Math.abs(Math.sin(missionTime * 2.4)) * 0.4;
       extractPt.smokeT -= dt; if (extractPt.smokeT <= 0) { extractPt.smokeT = 0.12; spawnParts(extractPt.x + (Math.random() - 0.5) * 0.3, groundY(extractPt.x, extractPt.z) + 0.7, extractPt.z, 1, Math.random() < 0.5 ? 0x4c9a3c : 0x6cb85a, 0.7, 0.26, 3.4, -1.3); }
@@ -14219,6 +14239,7 @@ function stepObjectives(dt) {
     if (!n) { endMission(true); return; }
     objective = n.t === 'kill' ? 'all' : n.t;
     showToast(n.t === 'extract' ? 'NOW GET OUT' : 'NEXT', n.label || OBJ_LABEL[n.t](n));
+    if (n.t === 'extract') homeward();   // v132
     updObjBar();
   }
 }
@@ -14242,7 +14263,7 @@ function initMission(idx) {
   clearMission();
   kills = 0; globalAlert = 0; missionTime = 0; coldT = -1e9; chatT = 4; squadSkis = false; skiChangeT = 0; reinfSent = false; standTo = false; fightT = 0; searchQ = []; avalanche = null; reinfBlocked = false; wavering = false; outcome = null;
   grenCount = startGren = M.grenades + upgLvl('webb'); everSpotted = false; weapon = 'gun'; setWeapon('gun');
-  hitStop = 0; bloodTimer = 0; camShake = 0; squadProne = false; noiseTimer = 0; spotted = false;
+  cryQ = null; hitStop = 0; bloodTimer = 0; camShake = 0; squadProne = false; noiseTimer = 0; spotted = false;
   wetN = 0; wetT = -1e9;   // v63: the wet grumble's per-op allowance
   split = false; selTeam = 0; teamProne = [false, false, false]; teamSup = [null, null, null]; posH2 = []; pinShown = false;   // v32
   sniperMark = null; sniperShots = 0;
@@ -15750,13 +15771,16 @@ function setProne(v) {
     // only the sentries you actually surprised are caught out; anyone already in a
     // firefight with you is not going to be startled by you standing up
     for (const e of ens) if (!e.dead && e.state !== 'engage') e.offGuard = AMBUSH_T;
-    showToast('AMBUSH', 'first shots are yours');
+    cryQ = null; showToast('AMBUSH', 'first shots are yours');
     SFX.ambush();
     const w = sol.find(s => !s.dead);
     const sgA = sol.find(s => !s.dead && s.name === 'Sarge' && tmOf(s) === tk);   // v125: Sarge's "Now. Up!", some of the time
-    if (sgA && voiceFree()) { sayLine(sgA, 'sarge_up', 1.4); shoutT = performance.now() / 1000; }   // v127: every time he's there
-    else if (!battleCry(sol.filter(s => !s.dead && tmOf(s) === tk), true) && w) { w.barkT = 0; say(w, 'ambush'); }   // v60: a cry, else the old bark
+    const team = sol.filter(s => !s.dead && tmOf(s) === tk);
+    if (sgA && voiceFree()) { sayLine(sgA, 'sarge_up', 1.4); shoutT = 0; cryQ = { t: missionTime + 1.1, team: team.filter(s => s !== sgA) }; }   // v132: "Now. Up!", and the lads answer
+    else if (!battleCry(team, true) && w) { w.barkT = 0; say(w, 'ambush'); }   // v60: a cry, else the old bark
   }
+  else if (!v && (spotted || globalAlert > 1) && ens.some(e => !e.dead && sol.some(q => !q.dead && Math.hypot(e.x - q.x, e.z - q.z) < 40)))
+    cryQ = { t: missionTime + 0.25, team: sol.filter(s => !s.dead && tmOf(s) === tk) };   // v132 (Khal): up and into it under fire
   stanceUI(v);
   ambushShown = -1;
   muffleMusic(v ? 0.65 : (lastMan ? 0.8 : 0));   // down in the grass the band is a field away
@@ -15768,6 +15792,13 @@ function setProne(v) {
 /*───────────────────── per-frame update ─────────────────────*/
 let chatT = 4;
 // v128: in a firefight somebody calls out every six to eleven seconds: contact, pinned, into cover, moving, or a man down nearby
+// v132: a cry that waits its turn (after Sarge's "Now. Up!"); the men's own cries, any man's for anyone unnamed
+let cryQ = null;
+function stepCry() {
+  if (!cryQ || missionTime < cryQ.t) return;
+  if (!voiceFree() && missionTime < cryQ.t + 2.5) return;
+  const q = cryQ; cryQ = null; if (q.team.length) battleCry(q.team, false);
+}
 function stepChatter(dt) {
   if (!spotted || globalAlert < 1.1 || outcome) return;
   chatT -= dt; if (chatT > 0) return;
@@ -15793,7 +15824,7 @@ function stepRustle(dt) {
 }
 function update(dt) {
   if (phase !== 'play' || paused) return;
-  stepChatter(dt); stepRustle(dt);
+  stepChatter(dt); stepRustle(dt); stepCry();
   pathBudget = 2;
   missionTime += dt;
   if (snowAt && missionTime >= snowAt) startSnow();   // v81
@@ -15823,7 +15854,7 @@ function update(dt) {
   globalAlert = Math.max(0, globalAlert - dt * 0.09);
   // v56: the band follows the danger, not only the shouting: inside 36 m of a German it tightens, by 12 m it's half way to a fight
   { let near = 1e9; for (const e of ens) if (!e.dead) for (const s of sol) if (!s.dead) near = Math.min(near, Math.hypot(e.x - s.x, e.z - s.z));
-    MUS.setIntensity(Math.max(clamp((36 - near) / 24, 0, 1) * 0.5, clamp(globalAlert / 1.4, 0, 1))); }
+    MUS.setIntensity(Math.max(musFloor, clamp((36 - near) / 24, 0, 1) * 0.5, clamp(globalAlert / 1.4, 0, 1))); }
 
   const M = MISSIONS[missionIdx];
   rallyX = rallyZ = null;
@@ -17300,7 +17331,8 @@ function beginIntro() {
   $('introtxt').querySelector('.a').textContent = M.name.toUpperCase();
   $('introtxt').querySelector('.b').textContent = 'OPERATION ' + (daily ? 'DAILY' : opLabel(missionIdx, true)) + ' · ' + M.obj;
   setTimeout(() => { if (phase === 'intro') $('introtxt').classList.add('on'); }, 350);
-  MUS.stop();   // v130 (Khal): no music in the field: the ambience and the distant war instead
+  musOpen(0.3); MUS.play('brief');   // v132 (Khal): music at the start of an op: Colonel Bogey carries on from the Field Order through the flyover, then fades
+  musFloor = 0; MUS.setIntensity(0);
 }
 function stepIntro(dt) {
   introT += dt;
@@ -17328,6 +17360,7 @@ function endIntro(skipped) {
     camera.position.copy(camPos); camera.lookAt(camTgt.x, camY, camTgt.z - 5.5);
     showScreen(null);
     showToast(MISSIONS[missionIdx].name.toUpperCase(), MISSIONS[missionIdx].obj);
+    setTimeout(() => { if (phase === 'play' && !musFloor) musFadeOut(5); }, 2500);   // v130/v132: then none in the field, only the ambience
   };
   if (skipped) { window.__lock = true; fadeTo(() => { window.__lock = false; go(); }, true); } else go();
 }
@@ -17339,12 +17372,18 @@ const WIN_TOAST = {
   all:       ['OBJECTIVE CLEAR', 'stand down'],
   flare:     ['GREEN FLARE', 'the lane is open, and the tanks are coming up it'],   // v96
 };
+// v132 (Khal): heading for the way out, the band strikes up: Pack Up Your Troubles, marching
+function homeward() {
+  if (musFloor) return;
+  musFloor = 0.75; musOpen(1.5); muffleMusic(0); MUS.setIntensity(0.75); MUS.play('field');
+}
 function endMission(won) {
   outcome = won ? 'won' : 'lost';
   PF.gameplayStop();
   MUS.sting(won ? 'win' : 'lose');
   // the last shot lands in slow motion, with the band under water
-  slowT = won ? 1.35 : 1.0; muffleMusic(1);
+  slowT = won ? 1.35 : 1.0;
+  if (won) homeward(); else muffleMusic(1);   // v132: a win goes out with the band playing, clear
   const wt = WIN_TOAST[objective] || WIN_TOAST.all;
   const fw = failWhy; failWhy = null; objTimer(null);
   setTimeout(() => showToast(won ? wt[0] : fw ? fw[0] : 'SQUAD LOST', won ? wt[1] : fw ? fw[1] : 'the war continues without you'), 500);
@@ -18287,6 +18326,7 @@ window.__probe = () => {
   });
 };
 window.__bul = () => bul.length;
+window.__xp = () => extractPt && { x: extractPt.x, z: extractPt.z, on: !!extractPt.on };   // v132 dev
 window.__rust = () => rustN; window.__inCover = (x, z) => inCover(x, z);   // v130 dev
 window.__dbg = () => ({ phase, paused, prone: squadProne, spotted, obs: obs.length, kills, alert: +globalAlert.toFixed(2), ens: ens.filter(e=>!e.dead).length, sol: sol.map(s=>`${s.name} ${s.hp} @${s.x|0},${s.z|0}`) });
 window.GS = { MISSIONS, get roster() { return roster; }, get fallen() { return fallen; },
