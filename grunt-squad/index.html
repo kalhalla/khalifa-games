@@ -462,7 +462,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
     <button id="tset">SETTINGS <small>sound · music · graphics</small></button>
   </div>
   <div class="foot">© KHALIFA.GAMES · NO GRUNTS WERE CONSULTED</div>
-  <div id="tver">v147</div>
+  <div id="tver">v150</div>
 </div>
 
 <div id="ops" class="screen">
@@ -9323,9 +9323,9 @@ const MISSIONS = [
   // the mole to the ship before she sails (M.clock), Stukas every minute or so (M.stukas), our army waiting (M.crowd)
   {
     name: 'The Beaches', th: 'dk', noExtras: true, noTraffic: true, charges: 0, size: [100, 160],
-    obj: 'Pick up two wounded; through the Germans in the town, over the dunes, along the mole to the ship',
+    obj: 'Pick up the wounded man; past the Germans on the road and on the dunes, along the mole to the ship',
     sub: "Dunkirk · Day under smoke · The beaches", drawn: "Drawn from Dunkirk, May–June 1940.",
-    brief: "The Navy is taking the army off from the end of the mole, and there are places for us on the destroyer if we're there when she sails: eight minutes. Two of ours are on stretchers at the aid post; they come too, two men to a stretcher. Jerry has just driven two lorries into the town, between us and the beach. Get flat to fight: that sets the stretchers down. And get flat for the Stukas.",
+    brief: "The Navy is taking the army off from the end of the mole, and there are places for us on the destroyer if we're there when she sails: eight minutes. One of ours is on a stretcher at the aid post; he comes too, two men to carry him. Jerry has just driven a lorry up the road ahead of us, and another onto the dunes, where they're shooting up our lads on the beach. To fight, CRAWL: that sets the stretcher down, and when you stand again everyone can shoot until you move off. And get flat for the Stukas: they're bombing the town and the beach.",
     scatter: 1, diff: 0.55, grenades: 6, reinf: 0, alertThreshold: 1.2,
     water: [{ x1: -.02, z1: -.02, x2: 1.02, z2: .195, still: true, sea: true }],
     bridge: [{ x1: .6, z1: .005, x2: .645, z2: .235 }],
@@ -9334,29 +9334,32 @@ const MISSIONS = [
     grounds: [{ k: 'sand', x0: -.02, z0: .17, x1: 1.02, z1: .335 }, { k: 'marram', x0: -.02, z0: .335, x1: 1.02, z1: .43 }],
     guide: { x: .52, z: .965, a: Math.PI, attach: true, name: 'Dai', join: ['DAI', 'nearly home, and not believing it yet'], line: 'Is that the sea? I was starting to think they made it up.' },
     clock: { t: 480, label: 'SHIP SAILS', fail: ['SHE SAILED', 'without us. There may be another tomorrow, and there may not'] },
-    stukas: { first: 32, every: [50, 70] },
+    stukas: { first: 32, every: [50, 70], also: true },   // v148: each raid, one dive on us, one on a house, one on the beach
     crowd: [[.19, .325, .19, .205, 11], [.24, .325, .235, .205, 11], [.31, .33, .3, .205, 12], [.45, .335, .45, .245, 8], [.75, .33, .76, .24, 8], [.86, .325, .855, .25, 7],
-      [.612, .225, .612, .04, 18], [.36, .39, .58, .385, 10], [.66, .4, .8, .395, 8]],
-    // v146 (Khal: far too easy): two lorries of them at the start, across the road to the beach (16 men), and two wounded on
-    // stretchers to bring off. The attacks from behind start later, so the first doesn't land on the lorries' fight
+      [.612, .225, .612, .04, 18], [.36, .39, .58, .385, 10]],
+    // v146 (Khal: far too easy): two lorries of them at the start and wounded on stretchers to bring off. The attacks from
+    // behind start later, so the first doesn't land on the lorries' fight.
+    // v148 (Khal: too hard with two stretchers): one stretcher. One lorry stops on the road just ahead of us, facing us; the
+    // other on the dunes behind the houses, its men facing the beach and firing on our troops there (the Tommies in M.allies)
     lorries: [
-      { path: [[1.06, .565], [.64, .565]], t: 2, n: 8, face: 0, speed: 8, msg: ['LORRIES', 'two lorries of them, across the road to the beach: sixteen men'] },
-      { path: [[-.06, .565], [.36, .565]], t: 3.5, n: 8, face: 0, speed: 8 },
+      { path: [[-.06, .72], [.4, .72]], t: 2, n: 6, face: 0, speed: 8, msg: ['LORRIES', 'one on the road just ahead of us; one on the dunes, shooting up our lads on the beach'] },
+      { path: [[1.06, .428], [.8, .428]], t: 5, n: 8, face: Math.PI, speed: 8, hold: true, out: [1.8, 3], range: 28 },   // v150 (Khal): a little further back from the Tommies, about 25 m
     ],
-    stretchers: [[.405, .905], [.445, .912]],
+    stretchers: [[.425, .908]],
     rearguard: { waves: [
       { t: 100, n: 4, from: 's', x0: .62, x1: .95, msg: ['THE PERIMETER', 'they are through it, behind us'] }, { t: 165, n: 4, from: 'e', x0: .7, x1: .95 },
       { t: 230, n: 5, from: 's', x0: .5, x1: .9, mg: true }, { t: 300, n: 4, from: 'e', x0: .35, x1: .65 }, { t: 370, n: 4, from: 'e', x0: .25, x1: .45, mg: true },
     ] },
-    objectives: [{ t: 'pickup', label: 'Pick up the two wounded at the aid post' }, { t: 'extract', label: 'Through the town and the dunes, along the mole to the ship, with both stretchers' }],
+    objectives: [{ t: 'pickup', label: 'Pick up the wounded man at the aid post' }, { t: 'extract', label: 'Through the town and the dunes, along the mole to the ship, with the stretcher' }],
     extract: { x: .623, z: .03, r: 3.2 },
     enemies: [
       { x: .82, z: .66, a: Math.PI, range: 14, arc: Math.PI * .55, hp: 3 }, { x: .2, z: .67, a: Math.PI * .8, range: 13, arc: Math.PI * .55, hp: 3 },
     ],
-    allies: [{ x: .82, z: .93, a: Math.PI / 4 }, { x: .9, z: .88, a: Math.PI / 4 }, { x: .72, z: .97, a: Math.PI / 4 }, { x: .93, z: .72, a: Math.PI / 2 }],   // v113: the French holding the perimeter
+    allies: [{ x: .82, z: .93, a: Math.PI / 4 }, { x: .9, z: .88, a: Math.PI / 4 }, { x: .72, z: .97, a: Math.PI / 4 }, { x: .93, z: .72, a: Math.PI / 2 },   // v113: the French holding the perimeter
+      ...[[.74, .27], [.79, .275], [.84, .268], [.88, .275], [.7, .25]].map(([x, z]) => ({ x, z, a: 0, brit: true }))],   // v148: Tommies on the beach, firing back at the dunes
     obstacles: [
-      { t: 'house', style: 'farm', x: 0.04, z: 0.462, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.18, z: 0.462, w: 9.5, d: 7.5 }, { t: 'house', style: 'ruin', x: 0.32, z: 0.462, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.6, z: 0.462, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.74, z: 0.462, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.88, z: 0.462, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.04, z: 0.612, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.18, z: 0.612, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.32, z: 0.612, w: 9.5, d: 7.5 }, { t: 'house', style: 'ruin', x: 0.6, z: 0.612, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.74, z: 0.612, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.88, z: 0.612, w: 9.5, d: 7.5 }, { t: 'house', style: 'ruin', x: 0.04, z: 0.768, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.18, z: 0.768, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.32, z: 0.768, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.6, z: 0.768, w: 9.5, d: 7.5 }, { t: 'house', style: 'ruin', x: 0.74, z: 0.768, w: 9.5, d: 7.5 },
-      { t: 'tent', x: .37, z: .92, a: .3 }, { t: 'crate', x: .465, z: .93 },   // v146: the aid post, where the two stretchers lie
+      { t: 'house', style: 'farm', x: 0.04, z: 0.462, w: 9.5, d: 7.5, shell: true }, { t: 'house', style: 'farm', x: 0.18, z: 0.462, w: 9.5, d: 7.5, shell: true }, { t: 'house', style: 'ruin', x: 0.32, z: 0.462, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.6, z: 0.462, w: 9.5, d: 7.5, shell: true }, { t: 'house', style: 'farm', x: 0.74, z: 0.462, w: 9.5, d: 7.5, shell: true }, { t: 'house', style: 'farm', x: 0.88, z: 0.462, w: 9.5, d: 7.5, shell: true }, { t: 'house', style: 'farm', x: 0.04, z: 0.612, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.18, z: 0.612, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.32, z: 0.612, w: 9.5, d: 7.5 }, { t: 'house', style: 'ruin', x: 0.6, z: 0.612, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.74, z: 0.612, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.88, z: 0.612, w: 9.5, d: 7.5 }, { t: 'house', style: 'ruin', x: 0.04, z: 0.768, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.18, z: 0.768, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.32, z: 0.768, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.6, z: 0.768, w: 9.5, d: 7.5 }, { t: 'house', style: 'ruin', x: 0.74, z: 0.768, w: 9.5, d: 7.5 },
+      { t: 'tent', x: .37, z: .92, a: .3 }, { t: 'crate', x: .465, z: .93 },   // v146: the aid post, where the stretcher lies (v148: one)
       { t: 'oiltank', x: .86, z: .86, r: 4.4 }, { t: 'oiltank', x: .935, z: .8, r: 3.6 },
       { t: 'trawler', x: .555, z: .085, a: Math.PI },
       { t: 'ptruck', x: .155, z: .185, a: 0 }, { t: 'ptruck', x: .22, z: .185, a: 0 }, { t: 'ptruck', x: .29, z: .185, a: 0 },
@@ -10707,7 +10710,7 @@ function killUnit(u, kind, byFriendly) {
     // v26: a knife kill is silent — no alarm, no sound carrying. A body hitting the ground otherwise is worth a look
     if (kind !== 'knife') { globalAlert = Math.min(globalAlert + 0.3, 2); noiseEvent(u.x, u.z, 12, 0.3); }
   } else if (u.ally) {   // v113: a Frenchman beside us
-    showToast('A FRENCHMAN DOWN', 'the man beside us at the post');
+    if (!u.brit) showToast('A FRENCHMAN DOWN', 'the man beside us at the post');
   } else {
     if (u.ref) { u.ref.dead = true; u.ref.cause = pickObit(byFriendly ? 'friendly' : kind || 'shot', u.ref.kills); stats.lost++; }
     bloodTimer = 1.0;
@@ -13595,7 +13598,7 @@ function stepPanzer(dt) {
   SFX.arty(x, z); camShake = Math.min(camShake + 0.25, 0.8); noiseEvent(x, z, 60, 1);
   P.shot = { x: tx, z: tz, house: best, t: 0.55 };
 }
-/* v146 (Khal: the Beaches far too easy). M.lorries = [{ path: [[x, z], ...] (fractions), stop (m, default the end), t (s), n, face, tag }]:
+/* v146 (Khal: the Beaches far too easy). M.lorries = [{ path: [[x, z], ...] (fractions), stop (m, default the end), t (s), n, face, tag, hold, out: [lo, hi] (m), range }]:
    a lorry drives in at op time t and stops; n Germans get down and spread in a line on its `face` side, looking that way.
    The lorry stays where it stopped, as cover. */
 let lorries = [], lorryToast = false;
@@ -13636,11 +13639,12 @@ function unloadLorry(L) {
   obs.push({ type: 'lorry', x: L.x - w / 2, z: L.z - d / 2, w, d, cx: L.x, cz: L.z, h: 2.4, cover: true, tall: false }); buildGrid(); buildPathGrid();
   const n = L.D.n || 8, f = L.D.face === undefined ? 0 : L.D.face, sx = Math.cos(f), sz = -Math.sin(f);   // (sx, sz): along the line, square to the facing
   for (let i = 0; i < n; i++) {
-    const u = mkUnit({ name: 'Rifleman', hp: 2, range: 22, visionArc: Math.PI * 0.7, rapidFire: i === 0 }, true);
-    const o = (i - (n - 1) / 2) * 1.9 + (Math.random() - 0.5) * 0.8, out = 2.6 + Math.random() * 3;
+    const u = mkUnit({ name: 'Rifleman', hp: 2, range: L.D.range || 22, visionArc: Math.PI * 0.7, rapidFire: i === 0 }, true);
+    const o = (i - (n - 1) / 2) * 1.9 + (Math.random() - 0.5) * 0.8, out = L.D.out ? L.D.out[0] + Math.random() * (L.D.out[1] - L.D.out[0]) : 2.6 + Math.random() * 3;   // v150: out, how far in front of the lorry they get down
     u.x = L.x + sx * o + Math.sin(f) * out; u.z = L.z + sz * o + Math.cos(f) * out;
     u.tx = u.x; u.tz = u.z; u.angle = u.aim = u.homeA = f;
     u.alert = 0.7; u.state = 'search'; u.stateT = 0; u.lastX = u.x + Math.sin(f) * 20; u.lastZ = u.z + Math.cos(f) * 20; u.tag = L.D.tag || 'block';
+    if (L.D.hold) u.fixed = true;   // v148: they keep to their line and fire from it
     mkCone(u); ens.push(u);
   }
   { const f0 = ens[ens.length - 1]; if (f0) setTimeout(() => { if (!f0.dead) { f0.barkT = 0; say(f0, 'foe'); } }, 600); }
@@ -13673,9 +13677,10 @@ function stepStretchers(dt) {
       const L = sol.filter(q => !q.dead && !q.sniper);
       for (let i = 0; i < L.length - 1; i++) {
         const p = L[i], q = L[i + 1]; if (p.bearer || q.bearer) continue;
+        if (T.lifted && !p.moving && !q.moving) continue;   // v149: set down, he stays down while they stand and fight; they lift him when the squad moves off
         if (Math.hypot(p.x - T.x, p.z - T.z) < 3 && Math.hypot(q.x - T.x, q.z - T.z) < 3.6) {
           T.a = p; T.b = q; p.bearer = q.bearer = T;
-          if (!T.lifted) { T.lifted = true; showToast('STRETCHER UP', `${p.name} and ${q.name} have him: they can’t shoot while they carry. CRAWL sets him down`); updObjBar(); }
+          if (!T.lifted) { T.lifted = true; showToast('STRETCHER UP', `${p.name} and ${q.name} have him: they can’t shoot while they carry. CRAWL sets him down: stand and fight, and they lift him when you move off`); updObjBar(); }
           break;
         }
       }
@@ -13766,7 +13771,7 @@ function crowdGeo() {
 }
 function beachInit(M) {
   if (stukaSt) for (const B of stukaSt.bombs) scene.remove(B.m);
-  stukaSt = M.stukas ? { next: M.stukas.first || 40, every: M.stukas.every || [55, 80], bombs: [], flat: 0, n: 0 } : null;
+  stukaSt = M.stukas ? { next: M.stukas.first || 40, every: M.stukas.every || [55, 80], also: !!M.stukas.also, bombs: [], flat: 0, n: 0 } : null;
   if (crowdIM) crowdIM.count = 0;
   if (!M.crowd) return;
   if (!crowdIM) { crowdIM = new THREE.InstancedMesh(crowdGeo(), propMatI, 320); crowdIM.frustumCulled = false; crowdIM.castShadow = true; crowdIM.userData.keep = true; scene.add(crowdIM); }
@@ -13777,15 +13782,16 @@ function beachInit(M) {
 function crowdPlace(flat) {
   const P = crowdIM.userData.pts; crowdIM.count = P.length;
   P.forEach(([x, z, a], i) => {
-    _me.set(flat ? -Math.PI / 2 : 0, a, 0, 'YXZ'); _mq.setFromEuler(_me); _mv.set(x, surfY(x, z) + (flat ? 0.18 : 0), z); _ms.set(1, 1, 1);
+    const f = flat || P[i][3];   // v148: [3], killed by a bomb: he stays down
+    _me.set(f ? -Math.PI / 2 : 0, a, 0, 'YXZ'); _mq.setFromEuler(_me); _mv.set(x, surfY(x, z) + (f ? 0.18 : 0), z); _ms.set(1, 1, 1);
     crowdIM.setMatrixAt(i, _mm.compose(_mv, _mq, _ms));
   });
   crowdIM.instanceMatrix.needsUpdate = true; crowdIM.userData.flat = flat;
 }
-function stukaDive(x, z) {
+function stukaDive(x, z, house) {
   const P_ = mkPlane(), a = Math.random() * Math.PI * 2;
   P_.m.scale.setScalar(1.3); scene.add(P_.m);
-  stukaSt.bombs.push({ x, z, t: 3.2, m: P_.m, dx: Math.sin(a), dz: Math.cos(a) });
+  stukaSt.bombs.push({ x, z, t: 3.2, m: P_.m, dx: Math.sin(a), dz: Math.cos(a), house });
 }
 function stepBeach(dt) {
   const S = stukaSt; if (!S || phase !== 'play') return;
@@ -13797,10 +13803,20 @@ function stepBeach(dt) {
       { const W = sol.filter(q => !q.dead && !q.sniper); if (W.length) setTimeout(() => sayKind(W[(Math.random() * W.length) | 0], 'stuka', 1.8), 700); }   // v125
       SFX.siren(L.x, L.z); showToast('STUKAS', S.n === 1 ? 'the siren: get flat, or under cover. They go for a man standing in the open' : 'down!');
       S.flat = 9; if (crowdIM && crowdIM.count && !crowdIM.userData.flat) crowdPlace(true);
-      S.pending = [{ t: 3.5 }, { t: 4.7 }]; S.picked = [];   // the dives start 3.5 s after the siren: time to get down
+      S.pending = S.also ? [{ t: 3.5 }, { t: 4.6, k: 'house' }, { t: 5.7, k: 'beach' }] : [{ t: 3.5 }, { t: 4.7 }]; S.picked = [];   // the dives start 3.5 s after the siren: time to get down
     }
     if (S.pending) for (let i = S.pending.length - 1; i >= 0; i--) {
       const q = S.pending[i]; q.t -= dt; if (q.t > 0) continue; S.pending.splice(i, 1);
+      if (q.k === 'house') {   // v148 (M.stukas.also): a standing house with none of us beside it; with none, the beach
+        const H = obs.filter(o => o.shell && !o.ruined && !sol.some(u => !u.dead && Math.hypot(u.x - o.cx, u.z - o.cz) < 9));
+        if (H.length) { const o = H[(Math.random() * H.length) | 0]; stukaDive(o.cx, o.cz, o); continue; }
+        q.k = 'beach';
+      }
+      if (q.k === 'beach') {   // a man of our army on the sand: the queues, or the Tommies firing back
+        const C = (crowdIM && crowdIM.userData.pts || []).filter(p => !p[3]).concat(allies.filter(a => !a.dead && a.brit).map(a => [a.x, a.z]));
+        if (C.length) { const p = C[(Math.random() * C.length) | 0]; stukaDive(p[0] + (Math.random() - 0.5) * 3, p[1] + (Math.random() - 0.5) * 3); }
+        continue;
+      }
       const open = sol.filter(u => !u.dead && !u.prone && !inCover(u.x, u.z) && !S.picked.some(o => Math.hypot(o.x - u.x, o.z - u.z) < 6));   // each goes for a different man, not the same huddle
       const t = open.length ? open[(Math.random() * open.length) | 0] : null, L = sol.find(u => !u.dead) || { x: MW / 2, z: MH / 2 };
       if (t && S.n === 1) { const a = Math.random() * 6.28, r = 9 + Math.random() * 3; S.picked.push(t); stukaDive(clamp(t.x + Math.sin(a) * r, 3, MW - 3), clamp(t.z + Math.cos(a) * r, 3, MH - 3)); }   // the first time, a near miss: you learn the siren
@@ -13820,6 +13836,9 @@ function stepBeach(dt) {
       SFX.boom(B.x, B.z); camShake = Math.min(camShake + 0.9, 1.3); flashScreen(0.35);
       if (!outcome) for (const u of sol) { if (u.dead) continue; const d = Math.hypot(u.x - B.x, u.z - B.z); if (d < 6 && !u.prone && !inCover(u.x, u.z)) damage(u, d < 2 ? 5 : 2, 'arty'); else if (d < 2) damage(u, 1, 'arty'); }
       for (const e of ens) if (!e.dead && Math.hypot(e.x - B.x, e.z - B.z) < 5) damage(e, 4, 'blast');
+      for (const a of allies) { if (a.dead) continue; const d = Math.hypot(a.x - B.x, a.z - B.z); if (d < 6) damage(a, d < 2 ? 5 : 2, 'arty'); }   // v148
+      if (B.house && !B.house.ruined) { shellHouse(B.house); houseBlast(B.house); }
+      if (crowdIM && crowdIM.count) { let hit = false; for (const p of crowdIM.userData.pts) if (!p[3] && Math.hypot(p[0] - B.x, p[1] - B.z) < 3.5) { p[3] = true; hit = true; } if (hit) crowdPlace(crowdIM.userData.flat); }
     }
   }
 }
@@ -13834,8 +13853,8 @@ function alliesInit(M) {
   for (const a of allies) { unitRoot.remove(a.mesh); if (a.F.rifle && a.F.rifle.parent === unitRoot) unitRoot.remove(a.F.rifle); if (a.bar) barRoot.remove(a.bar.g); }
   allies = [];
   for (const o of (M.allies || [])) {
-    const u = mkUnit({ name: 'Poilu', colour: 0x7d8ca4, hp: 3 }, false);
-    u.friendly = false; u.ally = true; u.range = 24; u.cool = 0.9;
+    const u = mkUnit(o.brit ? { name: 'Tommy', colour: 0x7f7448, hp: 20 } : { name: 'Poilu', colour: 0x7d8ca4, hp: 3 }, false);   // v148: o.brit, one of ours off another unit
+    u.friendly = false; u.ally = true; u.brit = !!o.brit; u.range = o.brit ? 30 : 24; u.cool = o.brit ? 3.2 : 0.9;   // v148: the Tommies are worn out, short of rounds, firing up the dunes: slow and wild
     u.x = u.tx = o.x * MW; u.z = u.tz = o.z * MH; u.angle = u.aim = u.homeA = o.a === undefined ? 0 : o.a;
     if (u.bar) u.bar.g.visible = false;
     allies.push(u);
@@ -13850,7 +13869,7 @@ function stepAllies(dt) {
       if (t && (t.alert > 0.3 || t.rg || globalAlert > 0.6)) {   // he holds his fire until they're alert to us
         a.angle = a.aim = Math.atan2(t.x - a.x, t.z - a.z); a.aimB = Math.min(1, (a.aimB || 0) + dt * 6);
         a.fireT -= dt;
-        if (a.fireT <= 0) { shoot(a, t.x, t.z, 0.06 + td / a.range * 0.05); a.fireT = a.cool * (0.8 + Math.random() * 0.6); if (!allezSaid) { allezSaid = true; sayKind(a, 'french', 1.6); } }   // v125
+        if (a.fireT <= 0) { shoot(a, t.x, t.z, (0.06 + td / a.range * 0.05) * (a.brit ? 2 : 1)); a.fireT = a.cool * (0.8 + Math.random() * 0.6); if (!allezSaid && !a.brit) { allezSaid = true; sayKind(a, 'french', 1.6); } }   // v125
       } else { a.aimB = Math.max(0, (a.aimB || 0) - dt * 2); a.angle = a.aim = a.homeA + Math.sin(missionTime * 0.4 + a.x) * 0.4; }
     }
     animateRig(a, dt);
@@ -16804,6 +16823,7 @@ function update(dt) {
     const heightOK = (t, h) => { const uy = surfY(t.x, t.z) + (t.elev || 0), by = by0 + (by1 - by0) * h; return Math.abs(by - uy - (t.prone ? 0.3 : 0.9)) < (t.elev ? 1.6 : 2.2); };
     for (const t of ens) {
       if (t.dead || t.inBox) continue;                         // behind concrete: the round hits the pillbox
+      if (b.foe && b.owner && Math.hypot(t.x - b.owner.x, t.z - b.owner.z) < 6) continue;   // v148: a German doesn't fire through the mate beside him (the Beaches' lorry line shot itself to pieces). Crossfire at range still hits
       if (!b.foe && !t.dog && !t.tower && sweep(t.x, t.z, 2.4) >= 0) t.supT = Math.min(3.2, (t.supT || 0) + 0.45);   // v32: rounds cracking past keep heads down
       if (t.sandbag && !b.foe && b.owner && Math.abs(angDiff(Math.atan2(b.owner.x - t.x, b.owner.z - t.z), t.homeA || 0)) < 1.2) continue;   // v143: from his front the round goes into the sandbags: it pins him, nothing more
       const h = sweep(t.x, t.z, t.prone ? 0.42 : 0.60);
@@ -18820,6 +18840,7 @@ window.__bul = () => bul.length;
 window.__xm = () => exploder && exploder.mark.visible;   // v142 dev
 window.__xp = () => extractPt && { x: extractPt.x, z: extractPt.z, on: !!extractPt.on };   // v132 dev
 window.__pz = () => panzer && { on: panzer.on, d: +panzer.d.toFixed(1), x: +panzer.x.toFixed(1), z: +panzer.z.toFixed(1), dead: panzer.dead, hp: panzer.hp, ruined: obs.filter(o => o.ruined).length, shellable: obs.filter(o => o.shell).length };   // v145 dev
+window.__beach = () => ({ raids: stukaSt ? stukaSt.n : 0, ruins: obs.filter(o => o.ruined).length, shellable: obs.filter(o => o.shell && !o.ruined).length, tommies: allies.filter(a => a.brit && !a.dead).length, crowdDown: crowdIM ? crowdIM.userData.pts.filter(p => p[3]).length : 0 });   // v148
 window.__esc = () => escortSt && escortSt.tanks.map(t => ({ d: +t.d.toFixed(1), eng: !!t.eng, smp: !!(t.eng && t.eng.smp), gain: t.eng ? +t.eng.g.gain.value.toFixed(3) : 0, rate: t.eng && t.eng.smp ? +t.eng.s.playbackRate.value.toFixed(2) : 0 }));   // v134 dev
 window.__rust = () => rustN; window.__inCover = (x, z) => inCover(x, z);   // v130 dev
 window.__dbg = () => ({ phase, paused, prone: squadProne, spotted, obs: obs.length, kills, alert: +globalAlert.toFixed(2), ens: ens.filter(e=>!e.dead).length, sol: sol.map(s=>`${s.name} ${s.hp} @${s.x|0},${s.z|0}`) });
