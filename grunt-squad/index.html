@@ -462,7 +462,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
     <button id="tset">SETTINGS <small>sound · music · graphics</small></button>
   </div>
   <div class="foot">© KHALIFA.GAMES · NO GRUNTS WERE CONSULTED</div>
-  <div id="tver">v150</div>
+  <div id="tver">v151</div>
 </div>
 
 <div id="ops" class="screen">
@@ -9282,11 +9282,12 @@ const MISSIONS = [
     grounds: [{ k: 'crop', x0: 0, z0: .82, x1: .14, z1: 1 }, { k: 'crop', x0: .42, z0: .85, x1: .78, z1: 1 }, { k: 'crop', x0: .55, z0: .62, x1: .72, z1: .78 }],
     guide: { x: .53, z: .27, a: Math.PI, attach: true, name: 'Dai', join: ['DAI', 'with us to the end of this, by the look of it'], line: 'Lovely view. Pity about the company.' },
     rearguard: { nightAfter: 0, night: ['DARK', 'now we go: down the sunken track, quietly. Their tanks are on the plain'], waves: [
-      // v145 (Khal: far too easy): more of them, sooner: four men every fourteen seconds, every third with an MG, and a panzer (M.panzer)
-      { t: 6, n: 4, from: 'e', x0: .3, x1: .5 }, { t: 20, n: 4, from: 's', x0: .55, x1: .9, mg: true, msg: ['UP THE ROAD', 'a section with an MG, from the plain'] },
-      { t: 34, n: 4, from: 'e', x0: .15, x1: .45 }, { t: 48, n: 4, from: 's', x0: .3, x1: .7 }, { t: 62, n: 4, from: 'e', x0: .25, x1: .55, mg: true, msg: ['ANOTHER ATTACK', 'up the east slope'] },
-      { t: 76, n: 4, from: 's', x0: .6, x1: .95 }, { t: 90, n: 4, from: 'e', x0: .2, x1: .5 }, { t: 104, n: 4, from: 's', x0: .35, x1: .75, mg: true },
-      { t: 118, n: 4, from: 'e', x0: .3, x1: .6, msg: ['THE LAST RUSH', 'hold on: it is nearly dark'] },
+      // v145 (Khal: far too easy): more of them, sooner: four men every fourteen seconds, every third with an MG, and a panzer (M.panzer).
+      // v151 (Khal: now too hard): 20% fewer Germans: three to a wave, not four, except the first MG section (36 → 28 in the waves, 41 → 33 in all)
+      { t: 6, n: 3, from: 'e', x0: .3, x1: .5 }, { t: 20, n: 4, from: 's', x0: .55, x1: .9, mg: true, msg: ['UP THE ROAD', 'a section with an MG, from the plain'] },
+      { t: 34, n: 3, from: 'e', x0: .15, x1: .45 }, { t: 48, n: 3, from: 's', x0: .3, x1: .7 }, { t: 62, n: 3, from: 'e', x0: .25, x1: .55, mg: true, msg: ['ANOTHER ATTACK', 'up the east slope'] },
+      { t: 76, n: 3, from: 's', x0: .6, x1: .95 }, { t: 90, n: 3, from: 'e', x0: .2, x1: .5 }, { t: 104, n: 3, from: 's', x0: .35, x1: .75, mg: true },
+      { t: 118, n: 3, from: 'e', x0: .3, x1: .6, msg: ['THE LAST RUSH', 'hold on: it is nearly dark'] },
     ] },
     panzer: { path: [[.97, 1.02], [.95, .99], [.84, .8], [.7, .58]], stop: 56, speed: 2.4, first: 25, every: 9, hp: 2 },   // v145: up the road from the plain
     objectives: [
