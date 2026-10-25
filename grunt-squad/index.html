@@ -462,7 +462,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
     <button id="tset">SETTINGS <small>sound · music · graphics</small></button>
   </div>
   <div class="foot">© KHALIFA.GAMES · NO GRUNTS WERE CONSULTED</div>
-  <div id="tver">v143</div>
+  <div id="tver">v144</div>
 </div>
 
 <div id="ops" class="screen">
@@ -3112,12 +3112,13 @@ function voxPlay(key, x, z, rate, vol, radio) {
   const { g, p } = place(x, z), s = AC.createBufferSource(), t0 = AC.currentTime;
   s.buffer = VOX[key]; s.playbackRate.value = rate || 1;
   const words = voxWords(key);   // v132: a grunt or a dying cry isn't words: no radio, and it fades with distance like a shot
-  radio = radio || (words && voxDistant(x, z));
-  const out = voice(mixSfx, VOX_GAIN * (vol || 1) * (VOX_NORM[key] || 1) * (radio ? 0.75 : words ? Math.max(0.35, g) : Math.max(0.03, g * g)), radio ? 0 : p);
+  const far = /^(foe|fr)_/.test(key);   // v144 (Khal: "Vorwärts!" too loud): a German or a Frenchman isn't on our radio: he fades and dulls with distance
+  radio = !far && (radio || (words && voxDistant(x, z)));
+  const out = voice(mixSfx, VOX_GAIN * (vol || 1) * (VOX_NORM[key] || 1) * (radio ? 0.75 : far ? Math.max(0.04, g * g) : words ? Math.max(0.35, g) : Math.max(0.03, g * g)), radio ? 0 : p);
   const hp = AC.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = radio ? 420 : 150;
   const pk = AC.createBiquadFilter(); pk.type = 'peaking'; pk.frequency.value = radio ? 1500 : 2200; pk.Q.value = 0.8; pk.gain.value = radio ? 7 : 3;
   const sh = AC.createWaveShaper(); sh.curve = radio ? voxCurves.radio : voxCurves.warm;
-  const lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = radio ? 2800 : 5200;
+  const lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = radio ? 2800 : far ? 1400 + 3800 * g * g : 5200;
   s.connect(hp); hp.connect(pk); pk.connect(sh); sh.connect(lp); lp.connect(out);
   const dur = VOX[key].duration / (rate || 1), lead = radio ? 0.24 : 0;   // v128: a longer burst first
   s.start(t0 + lead);
@@ -10170,7 +10171,7 @@ function steerMove(u, tx, tz, speed, dt) {
   for (const off of [0, 0.42, -0.42, 0.9, -0.9, 1.5, -1.5, 2.3, -2.3]) {
     const a = want + off;
     const nx = u.x + Math.sin(a) * step, nz = u.z + Math.cos(a) * step;
-    if (nx < 1 || nx > MW - 1 || nz < -8 || nz > MH - 1) continue;
+    if (nx < (u.foe ? -8 : 1) || nx > MW + (u.foe ? 8 : -1) || nz < -8 || nz > MH + (u.foe ? 8 : -1)) continue;   // v144: Germans come on from any edge (off the east, west or south they could never take a step: Cassel's and the Beaches' attacks stood off the map)
     // probe a little further ahead so units do not hug geometry
     if (blocked(nx, nz, pad) || blocked(u.x + Math.sin(a) * (step + 0.55), u.z + Math.cos(a) * (step + 0.55), pad)) continue;
     if (u.foe && inDeepWater(nx, nz)) continue;            // locals know where the fords are
