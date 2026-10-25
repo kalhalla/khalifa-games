@@ -462,7 +462,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
     <button id="tset">SETTINGS <small>sound · music · graphics</small></button>
   </div>
   <div class="foot">© KHALIFA.GAMES · NO GRUNTS WERE CONSULTED</div>
-  <div id="tver">v144</div>
+  <div id="tver">v147</div>
 </div>
 
 <div id="ops" class="screen">
@@ -7238,6 +7238,16 @@ function uvPart(Q) {
 const TB = { plaster: [], stone: [], tile: [], vc: [], glow: [] };
 let tbMeshes = [];
 function tbAdd(kind, geo, x, y, z) { geo.translate(x, y, z); TB[kind].push(geo); }
+// v145: a building that can be shelled is built on its own (not into the op's batch), so it can be swapped for its ruin
+function soloBuild(fn) {
+  const keep = {}; for (const k in TB) { keep[k] = TB[k]; TB[k] = []; }
+  const o = fn(), grp = new THREE.Group();
+  for (const k in TB) {
+    if (TB[k].length) { const g = concatGeos(TB[k]); for (const q of TB[k]) q.dispose(); const m = new THREE.Mesh(g, k === 'vc' ? propMat : k === 'glow' ? litGlassMat : TEXMAT[k]); m.castShadow = k !== 'glow'; m.receiveShadow = true; grp.add(m); }
+    TB[k] = keep[k];
+  }
+  propRoot.add(grp); o.mesh = grp; return o;
+}
 function concatGeos(list) {
   const names = Object.keys(list[0].attributes), out = new THREE.BufferGeometry();
   for (const n of names) {
@@ -9261,7 +9271,7 @@ const MISSIONS = [
   // A hill town, the only hill in Flanders: hold the square until dark against attacks up the slopes (M.rearguard, from the
   // east and the south), then, in the dark (nightAfter), out down the sunken track to the south-west past the panzers on the plain
   {
-    name: 'Cassel', th: 'dk', noExtras: true, noTraffic: true, charges: 1, size: [100, 120],
+    name: 'Cassel', th: 'dk', noExtras: true, noTraffic: true, charges: 2, size: [100, 120],
     obj: 'Hold the square until dark, then out down the sunken track',
     sub: "Cassel · Dusk into night · The hill in Flanders", drawn: "Drawn from the defence of Cassel and its night breakout, May 1940.",
     brief: "Cassel is the only hill in Flanders. From the square you can see the sea and most of the German army. Hold it till dark, so the rest get a night's start for the coast. They'll come up the slopes from the plain. When it's dark, go out down the sunken track to the south-west, past their laagered tanks. Anyone they see stays on the plain. Quietly is the only way.",
@@ -9272,9 +9282,13 @@ const MISSIONS = [
     grounds: [{ k: 'crop', x0: 0, z0: .82, x1: .14, z1: 1 }, { k: 'crop', x0: .42, z0: .85, x1: .78, z1: 1 }, { k: 'crop', x0: .55, z0: .62, x1: .72, z1: .78 }],
     guide: { x: .53, z: .27, a: Math.PI, attach: true, name: 'Dai', join: ['DAI', 'with us to the end of this, by the look of it'], line: 'Lovely view. Pity about the company.' },
     rearguard: { nightAfter: 0, night: ['DARK', 'now we go: down the sunken track, quietly. Their tanks are on the plain'], waves: [
-      { t: 8, n: 4, from: 'e', x0: .3, x1: .5 }, { t: 34, n: 5, from: 's', x0: .55, x1: .9, mg: true, msg: ['UP THE ROAD', 'a section with an MG, from the plain'] },
-      { t: 62, n: 4, from: 'e', x0: .15, x1: .45 }, { t: 90, n: 5, from: 's', x0: .3, x1: .7 }, { t: 118, n: 5, from: 'e', x0: .25, x1: .55, mg: true, msg: ['ANOTHER ATTACK', 'up the east slope'] },
+      // v145 (Khal: far too easy): more of them, sooner: four men every fourteen seconds, every third with an MG, and a panzer (M.panzer)
+      { t: 6, n: 4, from: 'e', x0: .3, x1: .5 }, { t: 20, n: 4, from: 's', x0: .55, x1: .9, mg: true, msg: ['UP THE ROAD', 'a section with an MG, from the plain'] },
+      { t: 34, n: 4, from: 'e', x0: .15, x1: .45 }, { t: 48, n: 4, from: 's', x0: .3, x1: .7 }, { t: 62, n: 4, from: 'e', x0: .25, x1: .55, mg: true, msg: ['ANOTHER ATTACK', 'up the east slope'] },
+      { t: 76, n: 4, from: 's', x0: .6, x1: .95 }, { t: 90, n: 4, from: 'e', x0: .2, x1: .5 }, { t: 104, n: 4, from: 's', x0: .35, x1: .75, mg: true },
+      { t: 118, n: 4, from: 'e', x0: .3, x1: .6, msg: ['THE LAST RUSH', 'hold on: it is nearly dark'] },
     ] },
+    panzer: { path: [[.97, 1.02], [.95, .99], [.84, .8], [.7, .58]], stop: 56, speed: 2.4, first: 25, every: 9, hp: 2 },   // v145: up the road from the plain
     objectives: [
       { t: 'hold', x: .51, z: .345, r: 11, time: 150, nWaves: -1, label: 'Hold the square until dark', done: 'it is dark' },
       { t: 'extract', label: 'Down the sunken track to the south-west, past the panzers' },
@@ -9289,10 +9303,11 @@ const MISSIONS = [
     obstacles: [
       { t: 'swall', x: .24, z: .105, w: 46, d: .8 }, { t: 'windmill', x: .64, z: .16, a: .3 },
       { t: 'house', style: 'bchurch', x: .465, z: .305, w: 8, d: 8 },
-      { t: 'house', style: 'farm', x: .28, z: .22, w: 7, d: 6 }, { t: 'house', style: 'farm', x: .7, z: .28, w: 7, d: 6 },
-      { t: 'house', style: 'farm', x: .34, z: .375, w: 7, d: 6 }, { t: 'house', style: 'farm', x: .3, z: .48, w: 7, d: 6 },
-      { t: 'house', style: 'ruin', x: .56, z: .5, w: 7, d: 6 }, { t: 'house', style: 'farm', x: .72, z: .47, w: 7, d: 6 },
-      { t: 'house', style: 'ruin', x: .62, z: .42, w: 6, d: 5 }, { t: 'house', style: 'farm', x: .41, z: .53, w: 6, d: 6 },
+      // v145: the farmhouses round the square can be shelled to ruins (shell: built on their own, not into the batch)
+      { t: 'house', style: 'farm', x: .28, z: .22, w: 7, d: 6, shell: true }, { t: 'house', style: 'farm', x: .7, z: .28, w: 7, d: 6, shell: true },
+      { t: 'house', style: 'farm', x: .34, z: .375, w: 7, d: 6, shell: true }, { t: 'house', style: 'farm', x: .3, z: .48, w: 7, d: 6, shell: true },
+      { t: 'house', style: 'ruin', x: .56, z: .5, w: 7, d: 6 }, { t: 'house', style: 'farm', x: .72, z: .47, w: 7, d: 6, shell: true },
+      { t: 'house', style: 'ruin', x: .62, z: .42, w: 6, d: 5 }, { t: 'house', style: 'farm', x: .41, z: .53, w: 6, d: 6, shell: true },
       { t: 'house', style: 'farm', x: .44, z: .67, w: 3, d: 4 },
       { t: 'fire', x: .66, z: .45 }, { t: 'fire', x: .6, z: .53 },
       ...[[.43, .295], [.44, .4], [.58, .405], [.6, .3]].map(([x, z]) => ({ t: 'crate', x, z })),
@@ -9308,9 +9323,9 @@ const MISSIONS = [
   // the mole to the ship before she sails (M.clock), Stukas every minute or so (M.stukas), our army waiting (M.crowd)
   {
     name: 'The Beaches', th: 'dk', noExtras: true, noTraffic: true, charges: 0, size: [100, 160],
-    obj: 'Through the town, over the dunes, along the mole to the ship',
+    obj: 'Pick up two wounded; through the Germans in the town, over the dunes, along the mole to the ship',
     sub: "Dunkirk · Day under smoke · The beaches", drawn: "Drawn from Dunkirk, May–June 1940.",
-    brief: "The whole army is on that beach, and the Navy is taking it off from the end of the mole. There are places for us on the destroyer alongside, if we're there when she sails: eight minutes. Through the town, over the dunes, along the mole. When you hear a Stuka's siren, get flat or get under something: they go for men standing in the open. Jerry is at the perimeter behind us.",
+    brief: "The Navy is taking the army off from the end of the mole, and there are places for us on the destroyer if we're there when she sails: eight minutes. Two of ours are on stretchers at the aid post; they come too, two men to a stretcher. Jerry has just driven two lorries into the town, between us and the beach. Get flat to fight: that sets the stretchers down. And get flat for the Stukas.",
     scatter: 1, diff: 0.55, grenades: 6, reinf: 0, alertThreshold: 1.2,
     water: [{ x1: -.02, z1: -.02, x2: 1.02, z2: .195, still: true, sea: true }],
     bridge: [{ x1: .6, z1: .005, x2: .645, z2: .235 }],
@@ -9322,11 +9337,18 @@ const MISSIONS = [
     stukas: { first: 32, every: [50, 70] },
     crowd: [[.19, .325, .19, .205, 11], [.24, .325, .235, .205, 11], [.31, .33, .3, .205, 12], [.45, .335, .45, .245, 8], [.75, .33, .76, .24, 8], [.86, .325, .855, .25, 7],
       [.612, .225, .612, .04, 18], [.36, .39, .58, .385, 10], [.66, .4, .8, .395, 8]],
+    // v146 (Khal: far too easy): two lorries of them at the start, across the road to the beach (16 men), and two wounded on
+    // stretchers to bring off. The attacks from behind start later, so the first doesn't land on the lorries' fight
+    lorries: [
+      { path: [[1.06, .565], [.64, .565]], t: 2, n: 8, face: 0, speed: 8, msg: ['LORRIES', 'two lorries of them, across the road to the beach: sixteen men'] },
+      { path: [[-.06, .565], [.36, .565]], t: 3.5, n: 8, face: 0, speed: 8 },
+    ],
+    stretchers: [[.405, .905], [.445, .912]],
     rearguard: { waves: [
-      { t: 22, n: 4, from: 's', x0: .62, x1: .95, msg: ['THE PERIMETER', 'they are through it, behind us'] }, { t: 75, n: 4, from: 'e', x0: .7, x1: .95 },
-      { t: 135, n: 5, from: 's', x0: .5, x1: .9, mg: true }, { t: 200, n: 4, from: 'e', x0: .5, x1: .8 }, { t: 270, n: 5, from: 'e', x0: .35, x1: .65, mg: true }, { t: 340, n: 4, from: 'e', x0: .25, x1: .45 },
+      { t: 100, n: 4, from: 's', x0: .62, x1: .95, msg: ['THE PERIMETER', 'they are through it, behind us'] }, { t: 165, n: 4, from: 'e', x0: .7, x1: .95 },
+      { t: 230, n: 5, from: 's', x0: .5, x1: .9, mg: true }, { t: 300, n: 4, from: 'e', x0: .35, x1: .65 }, { t: 370, n: 4, from: 'e', x0: .25, x1: .45, mg: true },
     ] },
-    objectives: [{ t: 'extract', label: 'Through the town and the dunes, along the mole to the ship' }],
+    objectives: [{ t: 'pickup', label: 'Pick up the two wounded at the aid post' }, { t: 'extract', label: 'Through the town and the dunes, along the mole to the ship, with both stretchers' }],
     extract: { x: .623, z: .03, r: 3.2 },
     enemies: [
       { x: .82, z: .66, a: Math.PI, range: 14, arc: Math.PI * .55, hp: 3 }, { x: .2, z: .67, a: Math.PI * .8, range: 13, arc: Math.PI * .55, hp: 3 },
@@ -9334,6 +9356,7 @@ const MISSIONS = [
     allies: [{ x: .82, z: .93, a: Math.PI / 4 }, { x: .9, z: .88, a: Math.PI / 4 }, { x: .72, z: .97, a: Math.PI / 4 }, { x: .93, z: .72, a: Math.PI / 2 }],   // v113: the French holding the perimeter
     obstacles: [
       { t: 'house', style: 'farm', x: 0.04, z: 0.462, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.18, z: 0.462, w: 9.5, d: 7.5 }, { t: 'house', style: 'ruin', x: 0.32, z: 0.462, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.6, z: 0.462, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.74, z: 0.462, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.88, z: 0.462, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.04, z: 0.612, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.18, z: 0.612, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.32, z: 0.612, w: 9.5, d: 7.5 }, { t: 'house', style: 'ruin', x: 0.6, z: 0.612, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.74, z: 0.612, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.88, z: 0.612, w: 9.5, d: 7.5 }, { t: 'house', style: 'ruin', x: 0.04, z: 0.768, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.18, z: 0.768, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.32, z: 0.768, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.6, z: 0.768, w: 9.5, d: 7.5 }, { t: 'house', style: 'ruin', x: 0.74, z: 0.768, w: 9.5, d: 7.5 },
+      { t: 'tent', x: .37, z: .92, a: .3 }, { t: 'crate', x: .465, z: .93 },   // v146: the aid post, where the two stretchers lie
       { t: 'oiltank', x: .86, z: .86, r: 4.4 }, { t: 'oiltank', x: .935, z: .8, r: 3.6 },
       { t: 'trawler', x: .555, z: .085, a: Math.PI },
       { t: 'ptruck', x: .155, z: .185, a: 0 }, { t: 'ptruck', x: .22, z: .185, a: 0 }, { t: 'ptruck', x: .29, z: .185, a: 0 },
@@ -11532,6 +11555,7 @@ let targets = [], intel = null, extractPt = null, objSteps = [], objIdx = 0, pbH
 const OBJ_LABEL = {
   tape: s => { const c = Math.max(0, ...mineFields.filter(R => !R.dummy).map(tapeCover)); return `${s.label || 'Tape a lane through the minefield'} (${Math.round(c * 100)}%)`; },   // v96
   flare: s => s.label || 'Fire the green flare',
+  pickup: s => `${s.label || 'Pick up the wounded'} (${stretchers.filter(T => T.lifted).length}/${stretchers.length})`,   // v146
   jeeprun: s => `${s.label || 'Shoot up the airfield'} (${targets.filter(t => t.kind === 'plane' && t.dead).length}/${s.n})`,   // v100
   nets: s => `${s.label || 'Nets over the jeeps'} (${jeepRun ? jeepRun.jeeps.filter(J => J.netted).length : 0}/${jeepRun ? jeepRun.jeeps.filter(J => !J.dead).length : 2})`,
   lielow: s => s.label || 'Lie low till the planes have gone',
@@ -13506,6 +13530,161 @@ function rgStep(dt) {
     const N = MISSIONS[missionIdx].rearguard.night; showToast(N ? N[0] : 'DARK', N ? N[1] : 'and now we go');
   }
 }
+/* v145 (Khal: Cassel far too easy): M.panzer = { path: [[x, z], ...] (fractions), speed, stop (metres along it), first, every, hp }.
+   A tank comes up the road from the plain, stops short of the town and shells it: each round at the shellable house
+   (o.shell) nearest the squad, which goes up and is left a burning ruin, or, with none standing near, at the squad itself.
+   A demolition charge beside it or two grenades on it knock it out (it's a target, kind 'panzer', not an objective). */
+let panzer = null;
+function panzerInit(M) {
+  if (panzer) { propRoot.remove(panzer.mesh); engineOff(panzer); const i = targets.indexOf(panzer); if (i >= 0) targets.splice(i, 1); }
+  panzer = null; const P = M.panzer; if (!P) return;
+  const pts = P.path.map(([x, z]) => [x * MW, z * MH]), cum = [0];
+  for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+  const mesh = new THREE.Mesh(vehGeo('pz4'), propMat); mesh.castShadow = true; mesh.visible = false; propRoot.add(mesh);
+  panzer = { kind: 'panzer', optional: true, dead: false, hp: P.hp || 2, mesh, pts, cum, d: 0, stop: P.stop || cum[cum.length - 1], speed: P.speed || 2.2, x: pts[0][0], z: pts[0][1], yaw: 0,
+    t0: P.first || 20, every: P.every || 9, fireT: 0, on: false, shot: null };
+  targets.push(panzer);
+}
+function panzerPos(d) {
+  const P = panzer; let i = 1; while (i < P.cum.length - 1 && P.cum[i] < d) i++;
+  const a = P.pts[i - 1], b = P.pts[i], seg = P.cum[i] - P.cum[i - 1], t = seg > 0 ? Math.min(1, (d - P.cum[i - 1]) / seg) : 0;
+  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, Math.atan2(b[0] - a[0], b[1] - a[1])];
+}
+function shellHouse(o) {   // a hit: the house goes up and is left a burning ruin
+  if (o.ruined) return; o.ruined = true;
+  if (o.mesh) propRoot.remove(o.mesh);
+  const r = soloBuild(() => mkFarmhouse(o.x, o.z, o.w, o.d, true)); r.ruined = true;
+  const i = obs.indexOf(o); if (i >= 0) obs[i] = r; else obs.push(r);
+  obs.push(mkHouseFire(o.cx, o.cz, 2.4));
+  buildGrid(); buildPathGrid(); occlFor = null;
+  spawnParts(o.cx, groundY(o.cx, o.cz) + 2, o.cz, 50, 0x8a7a66, 10, 0.3, 1.4, 8);   // the masonry
+}
+function houseBlast(o) {   // v146 (Khal): a house goes up as the Dyle bridge does: its fireball, its debris, the recorded blast, the shake and the flash
+  const x = o.cx, z = o.cz, gy = groundY(x, z);
+  boomFX(x, gy + 0.5, z, 2.6); spawnParts(x, gy + 1, z, 60, 0xffb060, 14, 0.24, 0.9, 10); SFX.bigBoom(x, z);
+  camShake = Math.min(camShake + 1.2, 1.5); flashScreen(0.6);
+  for (const u of [...ens, ...sol]) { if (u.dead || u.inBox) continue; const d = Math.hypot(u.x - x, u.z - z); if (d < Math.max(o.w, o.d) / 2 + 2.5) damage(u, d < Math.max(o.w, o.d) / 2 + 0.5 ? 4 : 2, 'shell'); }
+  globalAlert = 2; noiseEvent(x, z, 60, 1);
+}
+function panzerImpact(x, z) {   // a tank's HE round: a smaller blast than the artillery's (4.5 m, not 8.5)
+  const gy = surfY(x, z);
+  spawnParts(x, gy + 0.5, z, 30, 0xffb347, 14, 0.24, 0.7, 11); spawnParts(x, gy + 0.5, z, 16, 0x6a6a62, 6, 0.42, 1.4, 2.5);
+  decal(x, z, 3, 0x201810, 0.5); boomFX(x, gy, z, 1.4); SFX.arty(x, z);
+  camShake = Math.min(camShake + 1.0, 1.5); flashScreen(0.45);
+  for (const u of [...ens, ...sol]) { if (u.dead || u.inBox) continue; const d = Math.hypot(u.x - x, u.z - z); if (d < 4.5) damage(u, d < 2 ? 4 : 2, 'shell'); }
+  globalAlert = 2; noiseEvent(x, z, 60, 1);
+}
+function stepPanzer(dt) {
+  const P = panzer; if (!P || P.dead || phase !== 'play') return;
+  if (!P.on) { if (missionTime < P.t0) return; P.on = true; P.mesh.visible = true; engineOn(P, 50, 600, 0.55, 'tank_loop'); showToast('PANZER', 'on the road from the plain: it will shell the houses. A charge on it, or keep clear of the walls'); }
+  const go = P.d < P.stop && !outcome;
+  if (go) P.d = Math.min(P.stop, P.d + P.speed * dt);
+  const [x, z, yaw] = panzerPos(P.d); P.x = x; P.z = z; P.yaw += angDiff(yaw, P.yaw) * Math.min(1, dt * 2);
+  P.mesh.position.set(x, groundY(x, z), z); P.mesh.rotation.y = P.yaw;
+  engineLevel(P, go ? 1 : 0.15);
+  if (outcome || (rgSt && rgSt.dark)) return;   // dark: it stops firing
+  if (P.shot) { P.shot.t -= dt; if (P.shot.t <= 0) { const S = P.shot; P.shot = null; if (S.house && !S.house.ruined) { shellHouse(S.house); houseBlast(S.house); } else panzerImpact(S.x, S.z); } return; }
+  if (go) return;
+  P.fireT -= dt; if (P.fireT > 0) return;
+  const g = rgGoal(); let best = null, bd = 35;   // the houses first: any standing within 35 m of the squad; then, slower and wilder, the men
+  for (const o of obs) { if (!o.shell || o.ruined) continue; const d = Math.hypot(o.cx - g.x, o.cz - g.z); if (d < bd) { bd = d; best = o; } }
+  P.fireT = (best ? P.every : P.every * 1.6) * (0.85 + Math.random() * 0.3);
+  const tx = best ? best.cx : g.x + (Math.random() - 0.5) * 14, tz = best ? best.cz : g.z + (Math.random() - 0.5) * 14;
+  const fx = x + Math.sin(P.yaw) * 3.4, fz = z + Math.cos(P.yaw) * 3.4, gy = groundY(fx, fz);
+  spawnParts(fx, gy + 2.1, fz, 10, 0xffd27a, 7, 0.16, 0.25, 2); spawnParts(fx, gy + 2.1, fz, 8, 0x5a5650, 3, 0.4, 1.2, 1);
+  SFX.arty(x, z); camShake = Math.min(camShake + 0.25, 0.8); noiseEvent(x, z, 60, 1);
+  P.shot = { x: tx, z: tz, house: best, t: 0.55 };
+}
+/* v146 (Khal: the Beaches far too easy). M.lorries = [{ path: [[x, z], ...] (fractions), stop (m, default the end), t (s), n, face, tag }]:
+   a lorry drives in at op time t and stops; n Germans get down and spread in a line on its `face` side, looking that way.
+   The lorry stays where it stopped, as cover. */
+let lorries = [], lorryToast = false;
+function lorryInit(M) {
+  for (const L of lorries) { propRoot.remove(L.mesh); engineOff(L); }
+  lorries = []; lorryToast = false;
+  for (const D of (M.lorries || [])) {
+    const pts = D.path.map(([x, z]) => [x * MW, z * MH]), cum = [0];
+    for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+    const mesh = new THREE.Mesh(vehGeo('truck'), propMat); mesh.castShadow = true; mesh.visible = false; propRoot.add(mesh);
+    lorries.push({ D, pts, cum, total: cum[cum.length - 1], d: 0, mesh, x: pts[0][0], z: pts[0][1], yaw: 0, on: false, unloaded: false });
+  }
+}
+function lorryPos(L, d) {
+  let i = 1; while (i < L.cum.length - 1 && L.cum[i] < d) i++;
+  const a = L.pts[i - 1], b = L.pts[i], seg = L.cum[i] - L.cum[i - 1], t = seg > 0 ? Math.min(1, (d - L.cum[i - 1]) / seg) : 0;
+  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, Math.atan2(b[0] - a[0], b[1] - a[1])];
+}
+function stepLorries(dt) {
+  if (phase !== 'play') return;
+  for (const L of lorries) {
+    if (L.unloaded) continue;
+    if (!L.on) {
+      if (missionTime < (L.D.t || 0)) continue;
+      L.on = true; L.mesh.visible = true; engineOn(L, VEH.truck.base, 520, 0.22);
+      if (!lorryToast) { lorryToast = true; showToast(L.D.msg ? L.D.msg[0] : 'LORRIES', L.D.msg ? L.D.msg[1] : 'two lorries of them, across the road to the beach'); }
+    }
+    const stop = Math.min(L.total, L.D.stop || L.total);
+    L.d = Math.min(stop, L.d + (L.D.speed || 8) * dt);
+    const [x, z, yaw] = lorryPos(L, L.d); L.x = x; L.z = z; L.yaw = yaw;
+    L.mesh.position.set(x, groundY(x, z), z); L.mesh.rotation.y = yaw; engineLevel(L, 1);
+    if (L.d >= stop) unloadLorry(L);
+  }
+}
+function unloadLorry(L) {
+  L.unloaded = true; engineOff(L);
+  const along = Math.abs(Math.sin(L.yaw)) > 0.7, w = along ? 6 : 2.4, d = along ? 2.4 : 6;
+  obs.push({ type: 'lorry', x: L.x - w / 2, z: L.z - d / 2, w, d, cx: L.x, cz: L.z, h: 2.4, cover: true, tall: false }); buildGrid(); buildPathGrid();
+  const n = L.D.n || 8, f = L.D.face === undefined ? 0 : L.D.face, sx = Math.cos(f), sz = -Math.sin(f);   // (sx, sz): along the line, square to the facing
+  for (let i = 0; i < n; i++) {
+    const u = mkUnit({ name: 'Rifleman', hp: 2, range: 22, visionArc: Math.PI * 0.7, rapidFire: i === 0 }, true);
+    const o = (i - (n - 1) / 2) * 1.9 + (Math.random() - 0.5) * 0.8, out = 2.6 + Math.random() * 3;
+    u.x = L.x + sx * o + Math.sin(f) * out; u.z = L.z + sz * o + Math.cos(f) * out;
+    u.tx = u.x; u.tz = u.z; u.angle = u.aim = u.homeA = f;
+    u.alert = 0.7; u.state = 'search'; u.stateT = 0; u.lastX = u.x + Math.sin(f) * 20; u.lastZ = u.z + Math.cos(f) * 20; u.tag = L.D.tag || 'block';
+    mkCone(u); ens.push(u);
+  }
+  { const f0 = ens[ens.length - 1]; if (f0) setTimeout(() => { if (!f0.dead) { f0.barkT = 0; say(f0, 'foe'); } }, 600); }
+}
+/* v146: M.stretchers = [[x, z], ...]: a wounded man on a stretcher at each. Two men side by side in the file who come up
+   to one pick it up and carry it between them: slower (×0.72), and they can't shoot. CRAWL sets every stretcher down
+   (so everyone can fight); up again, the pair beside one lifts it. Objective 'pickup' (all lifted); 'extract' then wants
+   every stretcher at the ship too. */
+let stretchers = [], strGeo = null;
+function stretcherInit(M) {
+  for (const T of stretchers) propRoot.remove(T.mesh); stretchers = [];
+  for (const q of sol) q.bearer = null;
+  if (!M.stretchers) return;
+  if (!strGeo) strGeo = mergeGeos([
+    { g: GEO.box, m: M4(-0.32, 0, 0, 0.06, 0.06, 2.4), c: 0x6a5232 }, { g: GEO.box, m: M4(0.32, 0, 0, 0.06, 0.06, 2.4), c: 0x6a5232 },
+    { g: GEO.box, m: M4(0, 0.02, 0, 0.6, 0.03, 1.9), c: 0x8a8466 },
+    { g: GEO.box, m: M4(0, 0.16, -0.15, 0.4, 0.22, 1.4), c: 0x6f6447 }, { g: GEO.box, m: M4(0, 0.2, 0.35, 0.5, 0.14, 0.9), c: 0x4e5150 },   // him, a blanket over his legs
+    { g: GEO.box, m: M4(0, 0.2, -0.95, 0.24, 0.2, 0.24), c: 0xd8b08c }, { g: GEO.box, m: M4(0, 0.28, -0.95, 0.27, 0.07, 0.27), c: 0xe8e4dc },   // his head, bandaged
+  ]);
+  for (const [fx, fz] of M.stretchers) {
+    const x = fx * MW, z = fz * MH, mesh = new THREE.Mesh(strGeo, propMat); mesh.castShadow = true; propRoot.add(mesh);
+    stretchers.push({ x, z, yaw: 0, a: null, b: null, lifted: false, mesh });
+  }
+}
+function setDownStretcher(T) { if (T.a) T.a.bearer = null; if (T.b) T.b.bearer = null; T.a = T.b = null; }
+function stepStretchers(dt) {
+  for (const T of stretchers) {
+    if (T.a && (T.a.dead || T.b.dead || squadProne)) setDownStretcher(T);
+    if (!T.a && !squadProne && phase === 'play') {
+      const L = sol.filter(q => !q.dead && !q.sniper);
+      for (let i = 0; i < L.length - 1; i++) {
+        const p = L[i], q = L[i + 1]; if (p.bearer || q.bearer) continue;
+        if (Math.hypot(p.x - T.x, p.z - T.z) < 3 && Math.hypot(q.x - T.x, q.z - T.z) < 3.6) {
+          T.a = p; T.b = q; p.bearer = q.bearer = T;
+          if (!T.lifted) { T.lifted = true; showToast('STRETCHER UP', `${p.name} and ${q.name} have him: they can’t shoot while they carry. CRAWL sets him down`); updObjBar(); }
+          break;
+        }
+      }
+    }
+    let y = groundY(T.x, T.z) + 0.12;
+    if (T.a) { T.x = (T.a.x + T.b.x) / 2; T.z = (T.a.z + T.b.z) / 2; if (Math.hypot(T.b.x - T.a.x, T.b.z - T.a.z) > 0.3) T.yaw = Math.atan2(T.b.x - T.a.x, T.b.z - T.a.z); y = groundY(T.x, T.z) + 0.72; }
+    T.mesh.position.set(T.x, y, T.z); T.mesh.rotation.y = T.yaw;
+  }
+}
 // the squad's middle: where an assault is going
 function rgGoal() { let x = 0, z = 0, n = 0; for (const q of sol) if (!q.dead) { x += q.x; z += q.z; n++; } return n ? { x: x / n, z: z / n } : { x: MW / 2, z: MH }; }
 function stepAssault(e, dt) {
@@ -14198,6 +14377,10 @@ function destroyTarget(T, how) {
     spawnParts(T.x, groundY(T.x, T.z) + 0.8, T.z, 14, 0xfff0a0, 6, 0.06, 0.5, 8);
     if (T.optional) { reinfBlocked = true; T.opt.done = true; showToast('RADIO CUT', 'nobody is coming to help them now'); }   // v46
     else showToast('RADIO OUT', how === 'quiet' ? 'smashed, quietly' : 'nobody is calling anybody');
+  } else if (T.kind === 'panzer') {   // v145
+    engineOff(T); T.mesh.material = pbScorch; SFX.bigBoom(T.x, T.z); boomFX(T.x, groundY(T.x, T.z) + 1.2, T.z, 2.2);
+    addSmoker(T.x, T.z, { life: 9999, rate: 4, size: 2.2, col: 0x1e1d1c, a: 0.65, rise: 2.6, burst: 8 });
+    showToast('PANZER KNOCKED OUT', 'it won’t be knocking down any more houses');
   } else if (T.kind === 'lorry') {
     if (how !== 'quiet') SFX.bigBoom(T.x, T.z);   // v133
     lorryFireball(T); addSmoker(T.x, T.z, { life: 70, rate: 5, size: 2.2, col: 0x1e1d1c, a: 0.65, rise: 2.6, burst: 8 });   // v31
@@ -14270,6 +14453,10 @@ function blastTargets(x, z, kind, fromX, fromZ) {
         if (fd < 10.5 && front > -0.5) destroyTarget(T, 'slit');
         else showToast(fd >= 10.5 ? 'BOUNCED OFF' : 'WRONG SIDE', fd >= 10.5 ? 'get within ten metres of the slit to post one through' : 'the slit is on the other side');
       }
+    } else if (T.kind === 'panzer') {   // v145: a charge beside it, or two grenades on it
+      if (!T.on) continue; const d = Math.hypot(x - T.x, z - T.z);
+      if (kind === 'charge' && d < 4.5) destroyTarget(T, 'charge');
+      else if (kind === 'grenade' && d < 3) { if (--T.hp <= 0) destroyTarget(T, 'blast'); else showToast('HIT', 'one more on it'); }
     } else if (T.kind === 'radio' && kind !== 'shot' && Math.hypot(x - T.x, z - T.z) < 3.6) destroyTarget(T, 'blast');
     else if (T.kind === 'lorry' && kind !== 'shot' && Math.hypot(x - T.x, z - T.z) < 4.2) destroyTarget(T, 'blast');
     else if (T.kind === 'gun' && kind !== 'shot' && Math.hypot(x - T.x, z - T.z) < 3.4) destroyTarget(T, 'blast');
@@ -14313,7 +14500,9 @@ const stepDone = s => {
         const u = sol.find(q => !q.dead && q.x > R.x0 - 1.5 && q.x < R.x1 + 1.5 && q.z < R.z0 + 1.5 && q.z > R.z0 - 6); if (u) { s.at = u; return true; } } return false; }
     case 'flare': { const u = extractPt && sol.find(q => !q.dead && Math.hypot(q.x - extractPt.x, q.z - extractPt.z) < extractPt.r); if (u) s.at = u; return !!u; }
     // the leader in the ring and the file close behind him (they walk in single file, so the last man trails by a few metres)
-    case 'extract': { const live = sol.filter(q => !q.dead); return !!extractPt && live.length > 0 && Math.hypot(live[0].x - extractPt.x, live[0].z - extractPt.z) < extractPt.r && live.every(q => Math.hypot(q.x - extractPt.x, q.z - extractPt.z) < extractPt.r + 7) && !(hostage && hostage.rescued && Math.hypot(hostage.x - extractPt.x, hostage.z - extractPt.z) > extractPt.r + 7) && !(edgeDrop && edgeDrop.ropes && live.some(q => q.z > edgeDrop.z - 3 || ropeAt(q.x, q.z))); }   // v112: on a rope op, everybody down on the beach
+    case 'pickup': return stretchers.length > 0 && stretchers.every(T => T.lifted);   // v146
+    case 'extract': { const live = sol.filter(q => !q.dead); if (stretchers.some(T => !extractPt || Math.hypot(T.x - extractPt.x, T.z - extractPt.z) > extractPt.r + 7)) return false;   // v146: and the wounded with us
+      return !!extractPt && live.length > 0 && Math.hypot(live[0].x - extractPt.x, live[0].z - extractPt.z) < extractPt.r && live.every(q => Math.hypot(q.x - extractPt.x, q.z - extractPt.z) < extractPt.r + 7) && !(hostage && hostage.rescued && Math.hypot(hostage.x - extractPt.x, hostage.z - extractPt.z) > extractPt.r + 7) && !(edgeDrop && edgeDrop.ropes && live.some(q => q.z > edgeDrop.z - 3 || ropeAt(q.x, q.z))); }   // v112: on a rope op, everybody down on the beach
   }
   return false;
 };
@@ -14707,6 +14896,7 @@ function initMission(idx) {
     else if (o.t === 'crate') obs.push(mkCrate(x, z, seed++));
     else if (o.t === 'wall') obs.push(mkWall(x, z, o.w, o.d));
     else if (o.t === 'house' && NORB[o.style]) obs.push(mkNorBldg(x, z, o.w, o.d, o.style));   // v75
+    else if (o.t === 'house' && o.shell) { const h = soloBuild(() => mkFarmhouse(x, z, o.w, o.d)); h.shell = true; obs.push(h); }   // v145: Cassel's panzer can shell it to a ruin
     else if (o.t === 'house') obs.push(o.style === 'farm' ? mkFarmhouse(x, z, o.w, o.d) : o.style === 'ruin' ? mkFarmhouse(x, z, o.w, o.d, true) : o.style === 'barn' ? mkBarn(x, z, o.w, o.d) : mkHouse(x, z, o.w, o.d));   // v39: styles
     else if (o.t === 'lamp') obs.push(mkLamppost(x, z, o.style || 0));
     else if (o.t === 'swall') obs.push(mkStoneWall(x, z, o.w, o.d));
@@ -14740,6 +14930,8 @@ function initMission(idx) {
   refInit(M);   // v102
   escortInit(M);   // v107
   rgInit(M);   // v108
+  panzerInit(M);   // v145
+  lorryInit(M); stretcherInit(M);   // v146
   beachInit(M);   // v110
   alliesInit(M);   // v113
   mkCliffRopes();   // v112
@@ -15986,6 +16178,8 @@ function muteEngines() {
   if (!AC) return;
   for (const v of vehs) if (v.eng) v.eng.g.gain.setTargetAtTime(0, AC.currentTime, 0.1);
   if (escortSt) for (const t of escortSt.tanks) if (t.eng) t.eng.g.gain.setTargetAtTime(0, AC.currentTime, 0.1);   // v134
+  if (panzer && panzer.eng) panzer.eng.g.gain.setTargetAtTime(0, AC.currentTime, 0.1);   // v145
+  for (const L of lorries) if (L.eng) L.eng.g.gain.setTargetAtTime(0, AC.currentTime, 0.1);   // v146
   if (spotter && spotter.eng) spotter.eng.g.gain.setTargetAtTime(0, AC.currentTime, 0.1);
 }
 
@@ -16129,6 +16323,8 @@ function update(dt) {
   stepRefugees(dt);   // v102
   stepEscort(dt);   // v107
   rgStep(dt);   // v108
+  stepPanzer(dt);   // v145
+  stepLorries(dt); stepStretchers(dt);   // v146
   stepBeach(dt);   // v110
   stepRopes(dt);   // v112
   stepAllies(dt);   // v113
@@ -16232,7 +16428,7 @@ function update(dt) {
     if (s !== myL && s.lastTarget && !s.lastTarget.dead && myL && dst(s, myL) < 7.5 && !s.prone) d = 0;
     if (d > 0.35) {
       const limp = s.hp <= 1 ? 0.8 : 1;          // one round left in him and it shows
-      steerMove(s, tx, tz, s.speed * (s.prone ? 0.29 : 1) * limp * (waterZones.length && inDeepWater(s.x, s.z) ? (seaAt(s.x, s.z) ? 0.4 : 0.2) : 1) * (knife && knife.s === s && knife.rush ? KNIFE_SPRINT : 1), dt);
+      steerMove(s, tx, tz, s.speed * (s.prone ? 0.29 : 1) * (s.bearer ? 0.72 : 1) * limp * (waterZones.length && inDeepWater(s.x, s.z) ? (seaAt(s.x, s.z) ? 0.4 : 0.2) : 1) * (knife && knife.s === s && knife.rush ? KNIFE_SPRINT : 1), dt);
       if (s !== myL) {
         // progress test, not motion: a man sliding up and down a wall is moving and getting nowhere
         const nd2 = Math.hypot(tx - s.x, tz - s.z);
@@ -16277,6 +16473,7 @@ function update(dt) {
     // unless something is right on top of them or has already seen them.
     // WEAPONS TIGHT only while nobody has engaged: once the shooting starts,
     // lying down is the better firing position, not a gag order
+    if (s.bearer) target = null;   // v146: both hands on a stretcher
     const engaged = !!target;
     s.lastTarget = target && !target.point ? target : null;
     if (target) {
@@ -18622,6 +18819,7 @@ window.__probe = () => {
 window.__bul = () => bul.length;
 window.__xm = () => exploder && exploder.mark.visible;   // v142 dev
 window.__xp = () => extractPt && { x: extractPt.x, z: extractPt.z, on: !!extractPt.on };   // v132 dev
+window.__pz = () => panzer && { on: panzer.on, d: +panzer.d.toFixed(1), x: +panzer.x.toFixed(1), z: +panzer.z.toFixed(1), dead: panzer.dead, hp: panzer.hp, ruined: obs.filter(o => o.ruined).length, shellable: obs.filter(o => o.shell).length };   // v145 dev
 window.__esc = () => escortSt && escortSt.tanks.map(t => ({ d: +t.d.toFixed(1), eng: !!t.eng, smp: !!(t.eng && t.eng.smp), gain: t.eng ? +t.eng.g.gain.value.toFixed(3) : 0, rate: t.eng && t.eng.smp ? +t.eng.s.playbackRate.value.toFixed(2) : 0 }));   // v134 dev
 window.__rust = () => rustN; window.__inCover = (x, z) => inCover(x, z);   // v130 dev
 window.__dbg = () => ({ phase, paused, prone: squadProne, spotted, obs: obs.length, kills, alert: +globalAlert.toFixed(2), ens: ens.filter(e=>!e.dead).length, sol: sol.map(s=>`${s.name} ${s.hp} @${s.x|0},${s.z|0}`) });
