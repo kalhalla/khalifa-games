@@ -462,7 +462,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
     <button id="tset">SETTINGS <small>sound · music · graphics</small></button>
   </div>
   <div class="foot">© KHALIFA.GAMES · NO GRUNTS WERE CONSULTED</div>
-  <div id="tver">v141</div>
+  <div id="tver">v142</div>
 </div>
 
 <div id="ops" class="screen">
@@ -9538,7 +9538,7 @@ const MISSIONS = [
       { after: 0.5, text: 'Pick team <b>A</b> (1, or its button), then <b>hold</b> your finger on the post: they keep the Germans’ heads down.', until: 'pin' },
       { after: 0.5, text: 'Now pick team <b>B</b> (2) and take them round by the hedge on the right, onto the post’s flank.', until: 'dead:post' },
       { after: 0.5, text: 'Press <b>SPLIT</b> again to join up. Dai wires the bridge: get him to its near end.', until: 'wired' },
-      { after: 0.5, text: 'One man at the exploder for a second and a half blows it. Nobody on the bridge, and nobody over the far side.', until: 'destroy' },
+      { after: 0.5, text: 'The <b>exploder</b> is by the rock on the left, in the yellow ring. One man stands at it for a second and a half: nobody on the bridge, nobody over the far side.', until: 'destroy' },
     ],
     enemies: [
       ...[[.535, .49], [.555, .5]].map(([x, z]) => ({ x, z, a: -.15, range: 19, arc: Math.PI * .55, hp: 2, tag: 'post', hold: true })),   // the post at our end of the bridge, facing our way
@@ -13172,7 +13172,7 @@ function refInit(M) {
   }
   for (const k in refMeshes) refMeshes[k].count = 0;
   for (const k in refMv) refMv[k].count = 0;
-  if (exploder) { fxRoot.remove(exploder.ring); exploder.ring.geometry.dispose(); }
+  if (exploder) { fxRoot.remove(exploder.ring); exploder.ring.geometry.dispose(); fxRoot.remove(exploder.mark); fxRoot.remove(exploder.pin); }
   if (sapperSt) { fxRoot.remove(sapperSt.ring); sapperSt.ring.geometry.dispose(); sapperSt = null; }
   refs = []; refT = 0; refToast = 0; refPath = null; exploder = null;
   const R = M.refugees; if (R) {
@@ -13198,7 +13198,12 @@ function refInit(M) {
     m.position.set(x, groundY(x, z), z); propRoot.add(m);
     const ring = new THREE.Mesh(new THREE.RingGeometry(1.15, 1.35, 30, 1, 0, 0.001), basic(0xff8a3a, { transparent: true, opacity: 0.85, depthWrite: false, side: THREE.DoubleSide }).clone());
     ring.rotation.x = -Math.PI / 2; ring.position.set(x, groundY(x, z) + 0.08, z); ring.renderOrder = 3; fxRoot.add(ring);
-    exploder = { x, z, b: E.b || 0, work: 0, ring, warnT: 0, arc: 0 };
+    // v142 (Khal: hard to spot if you don't know it's there): once the bridge is wired, a pulsing ring round it and a marker over it
+    const mark = new THREE.Mesh(new THREE.RingGeometry(1.6, 1.85, 40), basic(0xffc23d, { transparent: true, opacity: 0.7, depthWrite: false, side: THREE.DoubleSide }).clone());
+    mark.rotation.x = -Math.PI / 2; mark.position.set(x, groundY(x, z) + 0.07, z); mark.renderOrder = 3; mark.visible = false; fxRoot.add(mark);
+    const pin = new THREE.Mesh(new THREE.ConeGeometry(0.32, 0.7, 4), basic(0xffc23d, { transparent: true, opacity: 0.9 }).clone());
+    pin.rotation.x = Math.PI; pin.position.set(x, groundY(x, z) + 2.6, z); pin.visible = false; fxRoot.add(pin);
+    exploder = { x, z, b: E.b || 0, work: 0, ring, mark, pin, warnT: 0, arc: 0 };
   }
 }
 function refSpawn(d) {
@@ -13298,6 +13303,9 @@ function stepRefugees(dt) {
   const E = exploder;
   if (E && !outcome && phase === 'play') {
     const T = targets.find(t => t.kind === 'bridge' && t.b === E.b);
+    { const on = !!T && !T.dead && !(sapperSt && !sapperSt.done);   // v142: the marker, while it's wired and the bridge stands
+      E.mark.visible = E.pin.visible = on;
+      if (on) { const k = Math.abs(Math.sin(missionTime * 3)); E.mark.material.opacity = 0.35 + k * 0.5; E.mark.scale.setScalar(1 + k * 0.12); E.pin.position.y = groundY(E.x, E.z) + 2.4 + k * 0.4; E.pin.rotation.y += dt * 2; } }
     if (T && !T.dead && sapperSt && !sapperSt.done) {   // not wired yet: the exploder does nothing
       const by = sol.find(q => !q.dead && Math.hypot(q.x - E.x, q.z - E.z) < 2.5); E.warnT -= dt;
       if (by && E.warnT <= 0) { E.warnT = 5; showToast('NOT WIRED YET', sapperSt.by + ' has to put the charges on the piers first'); }
@@ -16049,8 +16057,8 @@ function stepCry() {
   if (q.big && chargeCry(q.team)) return;
   battleCry(q.team, false);
 }
-function chargeCry(team) {
-  if (!VOX.any_charge || !voiceFree()) return false;
+function chargeCry(team) {   // v142: it goes even if someone's mid-line (stepCry has already waited 2.5 s for the floor)
+  if (!VOX.any_charge) return false;
   const w = team.filter(s => !s.dead && !s.sniper), u = w[(Math.random() * w.length) | 0]; if (!u) return false;
   sayLine(u, 'any_charge', 1.4); shoutT = performance.now() / 1000; return true;
 }
@@ -16336,7 +16344,7 @@ function update(dt) {
         e.state = 'engage'; e.stateT = 0; e.coverT = 0;
         e.react = (0.28 + Math.random() * 0.3) * (1 - 0.35 * diffD) + (e.offGuard > 0 ? 0.75 : 0);
         e.seen = true; say(e, 'foe'); shout(e);
-        const w = live[0]; if (w && !battleCry(live, false)) say(w, 'spot');   // v60
+        const w = live[0]; if (w && !cryQ && !battleCry(live, false)) say(w, 'spot');   // v142: not over a cry that's waiting its turn ("Charge!")   // v60
       } else if (e.alert > 0.35 && e.state === 'patrol') { e.state = 'suspect'; e.stateT = 0; }
     } else {
       const decay = e.state === 'engage' ? 0.30 : e.state === 'search' ? 0.10 : 0.30;
@@ -17089,6 +17097,7 @@ function drawMinimap() {
   }
   if (guideWait) { mmX.fillStyle = '#ffd24a'; mmX.fillRect((guideWait.x * mmK) - 2.4, ((guideWait.z - mmOz) * mmK) - 2.4, 4.8, 4.8); }   // v81
   if (intel && !intel.taken) { mmX.fillStyle = '#ffd24a'; mmX.beginPath(); mmX.arc((intel.x * mmK), ((intel.z - mmOz) * mmK), 2.8, 0, 6.3); mmX.fill(); }
+  if (exploder && exploder.mark.visible) { mmX.fillStyle = '#ffc23d'; mmX.beginPath(); mmX.arc(exploder.x * mmK, (exploder.z - mmOz) * mmK, 3.5, 0, 6.3); mmX.fill(); }   // v142
   if (extractPt && extractPt.on) { mmX.strokeStyle = '#7cff6a'; mmX.lineWidth = 1.5; mmX.beginPath(); mmX.arc((extractPt.x * mmK), ((extractPt.z - mmOz) * mmK), Math.max(4, extractPt.r * mmK), 0, 6.3); mmX.stroke(); }
   if (hostage) {
     mmX.fillStyle = hostage.rescued ? '#9ede5a' : '#ffd24a';
@@ -17648,8 +17657,7 @@ function endMission(won) {
   const wt = WIN_TOAST[objective] || WIN_TOAST.all;
   const fw = failWhy; failWhy = null; objTimer(null);
   setTimeout(() => showToast(won ? wt[0] : fw ? fw[0] : 'SQUAD LOST', won ? wt[1] : fw ? fw[1] : 'the war continues without you'), 500);
-  if (won) { const w = sol.find(s => !s.dead); if (w) setTimeout(() => say(w, 'win'), 1200);
-    const fa = allies.find(a => !a.dead); if (fa) setTimeout(() => sayLine(fa, 'fr_merci', 2), 3200); }   // v125
+  if (won) { const w = sol.find(s => !s.dead); if (w) setTimeout(() => say(w, 'win'), 1200); }   // v142 (Khal): the Frenchman's "Merci, les Tommies" is gone: it came in over the debrief card
   setTimeout(() => fadeTo(() => showDebrief(won)), 3000);
 }
 
@@ -18587,6 +18595,7 @@ window.__probe = () => {
   });
 };
 window.__bul = () => bul.length;
+window.__xm = () => exploder && exploder.mark.visible;   // v142 dev
 window.__xp = () => extractPt && { x: extractPt.x, z: extractPt.z, on: !!extractPt.on };   // v132 dev
 window.__esc = () => escortSt && escortSt.tanks.map(t => ({ d: +t.d.toFixed(1), eng: !!t.eng, smp: !!(t.eng && t.eng.smp), gain: t.eng ? +t.eng.g.gain.value.toFixed(3) : 0, rate: t.eng && t.eng.smp ? +t.eng.s.playbackRate.value.toFixed(2) : 0 }));   // v134 dev
 window.__rust = () => rustN; window.__inCover = (x, z) => inCover(x, z);   // v130 dev
