@@ -462,7 +462,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
     <button id="tset">SETTINGS <small>sound · music · graphics</small></button>
   </div>
   <div class="foot">© KHALIFA.GAMES · NO GRUNTS WERE CONSULTED</div>
-  <div id="tver">v155</div>
+  <div id="tver">v156</div>
 </div>
 
 <div id="ops" class="screen">
@@ -9602,6 +9602,54 @@ const MISSIONS = [
       { t: 'house', style: 'ruin', x: .62, z: .14, w: 7, d: 5 },
     ],
     spawnX: .5, spawnZ: .96,
+  },
+  // v156: France op 1 (M.order), the landings first (notes/normandy-landings.md). Sword Beach, Queen Red, 6 June 1944: the LCA
+  // in through the surf (M.landing), the mined obstacles, the sea wall, the wire right along it (a Bangalore: a charge under it,
+  // blowCWire), the strongpoint in the dunes (a pillbox, two MG pits, a trench line), mortars while we're on the sand
+  // (artillery.untilZ), then up the lane past the villas of La Brèche
+  {
+    name: 'Sword Beach', order: 1, size: [100, 150], noReinf: true, noExtras: true, noTraffic: true, landing: true, charges: 2, light: 'overcast',
+    obj: 'Through the wire, silence the strongpoint, off the beach',
+    sub: "Sword Beach · 07:25 · Overcast · Queen Red", drawn: "Drawn from the landings on Sword Beach, 6 June 1944.",
+    brief: "Sword Beach, Queen Red sector, twenty-five past seven. The Navy has given the dunes an hour of everything it has, and the Germans are still in them. The landing craft puts you on the sand with the East Yorks. The stakes are mined, the wire runs the length of the sea wall, and a strongpoint in the dunes has every yard of the beach. Get to the wall. Blow a gap in the wire with a Bangalore. Post a grenade through the strongpoint's slit from its blind side, then off the beach and up the lane past the villas. Lord Lovat's commandos land at twenty to nine with a piper. Be gone by then.",
+    weather: null, scatter: 4, diff: 0.5, grenades: 6, reinf: 0, alertThreshold: .8,
+    water: [{ x1: -.02, z1: .86, x2: 1.02, z2: 1.02, still: true, sea: true }],
+    grounds: [{ k: 'sand', x0: -.02, z0: .6, x1: 1.02, z1: .87 }, { k: 'gravel', x0: -.02, z0: .585, x1: 1.02, z1: .625 }, { k: 'marram', x0: -.02, z0: .42, x1: 1.02, z1: .585 }],
+    roads: [{ k: 'road', w: 5, pts: [[-.02, .405], [1.02, .405]] }, { k: 'road', w: 4.4, pts: [[.5, .405], [.5, -.02]] }],
+    artillery: { every: 14, untilZ: .6 },
+    targets: [{ t: 'pillbox', x: .5, z: .5, a: 0 }],
+    objectives: [{ t: 'gap', label: 'Blow a gap in the wire: a charge under it' }, { t: 'destroy', what: 'pillbox', label: 'Silence the strongpoint: a grenade through its slit' }, { t: 'extract', label: 'Off the beach: up the lane past the villas' }],
+    extract: { x: .5, z: .05, r: 6 },
+    hints: [
+      { after: 2, text: 'The beach is a killing ground. Go from obstacle to obstacle to the sea wall, and <b>CRAWL</b> under the mined stakes.', secs: 10 },
+      { after: 1, text: 'The wire: press <b>C</b> for a Bangalore and tap the wire. Then get clear: thirty seconds.', until: 'gap' },
+    ],
+    allies: [[.12, .612], [.24, .616], [.77, .612], [.88, .616]].map(([x, z]) => ({ x, z, a: Math.PI, brit: true })),   // the East Yorks, in the shingle under the wall
+    enemies: [
+      { x: .28, z: .515, a: 0, range: 32, arc: Math.PI * 1.1, hp: 2, hold: true, sandbag: true, rapidFire: true, tag: 'pits' },
+      { x: .3, z: .525, a: 0, range: 28, arc: Math.PI * 1.1, hp: 2, hold: true, sandbag: true, tag: 'pits' },
+      { x: .72, z: .515, a: 0, range: 32, arc: Math.PI * 1.1, hp: 2, hold: true, sandbag: true, rapidFire: true, tag: 'pits' },
+      { x: .7, z: .525, a: 0, range: 28, arc: Math.PI * 1.1, hp: 2, hold: true, sandbag: true, tag: 'pits' },
+      { x: .38, z: .49, a: 0, range: 26, arc: Math.PI * .8, hp: 2, hold: true }, { x: .62, z: .49, a: 0, range: 26, arc: Math.PI * .8, hp: 2, hold: true },
+      { x: .16, z: .5, a: .2, range: 24, arc: Math.PI * .8, hp: 2, hold: true }, { x: .85, z: .5, a: -.2, range: 24, arc: Math.PI * .8, hp: 2, hold: true },
+      { x: .36, z: .37, a: 0, range: 20, arc: Math.PI * .7, hp: 3 }, { x: .66, z: .37, a: 0, range: 20, arc: Math.PI * .7, hp: 3 },
+      { x: .2, z: .42, a: Math.PI / 2, range: 18, arc: Math.PI * .6, hp: 3, patrol: [{ x: .2, z: .42 }, { x: .8, z: .42 }] },
+      { x: .47, z: .2, a: 0, range: 18, arc: Math.PI * .6, hp: 3 }, { x: .54, z: .16, a: 0, range: 18, arc: Math.PI * .6, hp: 3 },
+    ],
+    obstacles: [
+      { t: 'lca', x: .5, z: .905, a: Math.PI, land: true },
+      { t: 'lca', x: .2, z: .905, a: Math.PI * 1.03 }, { t: 'lca', x: .78, z: .91, a: Math.PI * .97, burnt: true }, { t: 'lca', x: .93, z: .9, a: Math.PI },
+      { t: 'beachobs', hh: [[0.067, 0.721], [0.15, 0.71], [0.228, 0.718], [0.329, 0.72], [0.417, 0.72], [0.505, 0.721], [0.606, 0.713], [0.691, 0.719], [0.773, 0.716], [0.877, 0.71], [0.967, 0.719], [0.113, 0.762], [0.185, 0.771], [0.292, 0.764], [0.365, 0.759], [0.468, 0.761], [0.566, 0.767], [0.638, 0.768], [0.732, 0.774], [0.835, 0.765], [0.918, 0.769], [0.067, 0.825], [0.139, 0.812], [0.242, 0.811], [0.332, 0.807], [0.429, 0.816], [0.591, 0.818], [0.685, 0.809], [0.78, 0.808], [0.863, 0.822], [0.965, 0.805]], stakes: [[0.108, 0.682], [0.225, 0.696], [0.364, 0.687], [0.616, 0.688], [0.739, 0.698], [0.867, 0.689], [0.157, 0.743], [0.294, 0.741], [0.424, 0.751], [0.545, 0.751], [0.668, 0.75], [0.809, 0.745], [0.929, 0.748], [0.097, 0.783], [0.237, 0.786], [0.36, 0.795], [0.61, 0.782], [0.739, 0.791], [0.876, 0.786]] },
+      { t: 'wreck', x: .34, z: .66, a: .4 }, { t: 'wreck', x: .66, z: .7, a: -.6 }, { t: 'fire', x: .66, z: .7 },
+      { t: 'swall', x: -.02, z: .588, w: 46, d: .9 }, { t: 'swall', x: .56, z: .588, w: 46, d: .9 },   // the sea wall, a gap at the slipway
+      { t: 'cwire', z: .566, x0: 0, x1: 1, cut: true },   // the wire, right along behind it: only a Bangalore gets through
+      { t: 'sangar', x: .29, z: .52, r: 2.2, o: Math.PI }, { t: 'sangar', x: .71, z: .52, r: 2.2, o: Math.PI },
+      ...[[.1, .5], [.22, .47], [.42, .46], [.58, .46], [.78, .47], [.92, .5], [.06, .54], [.94, .55]].map(([x, z]) => ({ t: 'bush', x, z })),
+      { t: 'house', x: .14, z: .3, w: 9, d: 7 }, { t: 'house', x: .3, z: .3, w: 8, d: 7 }, { t: 'house', x: .62, z: .3, w: 9, d: 7 }, { t: 'house', x: .8, z: .3, w: 8, d: 7 },
+      { t: 'house', x: .3, z: .14, w: 8, d: 6 }, { t: 'house', x: .64, z: .14, w: 8, d: 6 },
+      ...[[.08, .16], [.18, .08], [.86, .08], [.9, .2], [.4, .05], [.6, .06]].map(([x, z]) => ({ t: 'tree', x, z, kind: 'broad' })),
+    ],
+    spawnX: .5, spawnZ: .88,
   }
 ];
 
@@ -9798,7 +9846,7 @@ const THEATRES = [
     ops: MISSIONS.map((M, i) => M.th === 'af' && !M.side ? i : -1).filter(i => i >= 0), side: MISSIONS.map((M, i) => M.th === 'af' && M.side ? i : -1).filter(i => i >= 0) },
   // the first theatre built, France 1942–44, named Normandy since v104 (its save key is unchanged). New players started here until v113
   { id: 'fr', name: 'Normandy', when: '1942–44', pre: '', key: SAVE_KEY, done: ['The War Is Over', 'Somebody else will start the next one'],
-    ops: MISSIONS.map((M, i) => !M.th && !M.side ? i : -1).filter(i => i >= 0), side: MISSIONS.map((M, i) => !M.th && M.side ? i : -1).filter(i => i >= 0) },
+    ops: MISSIONS.map((M, i) => !M.th && !M.side ? i : -1).filter(i => i >= 0).sort((a, b) => (MISSIONS[a].order || 99) - (MISSIONS[b].order || 99)), side: MISSIONS.map((M, i) => !M.th && M.side ? i : -1).filter(i => i >= 0) },   // v156: M.order, the landings first (notes/normandy-landings.md)
 ];
 const THEATRE_KEY = 'gs3d_theatre', TH_START = THEATRES.findIndex(T => T.start);
 /* v119 (Khal, 23 Oct): the free builds (the website, itch.io, CrazyGames, Telegram) give all of Dunkirk and the first operation
@@ -10052,7 +10100,7 @@ function stepOpHints(dt, M, leader) {
   const U = H.until || '', dTag = U.startsWith('dead:') ? U.slice(5) : null;   // v141: 'dead:tag', 'pin', 'wired'
   const done = dTag ? !ens.some(e => !e.dead && e.tag === dTag) : U === 'pin' ? !!(teamSup[0] || teamSup[1] || suppress) : U === 'wired' ? !!(sapperSt && sapperSt.done)
     : H.until === 'knife' ? knifeKills > H.k0 || tagGone : H.until === 'destroy' ? targets.some(t => t.dead) : H.until === 'split' ? split
-    : H.until === 'together' ? !split : H.until === 'prone' ? squadProne : H.st > (H.secs || 12);
+    : H.until === 'together' ? !split : H.until === 'prone' ? squadProne : H.until === 'gap' ? cwires.some(B => B.blown) : H.st > (H.secs || 12);
   if (done) { hideHint(); opHints.shift(); }
 }
 function finishTut() { tutStep = -1; hideHint(); tutDone = true; try { PF.set('gs3d_tut', '1'); } catch (e) { } }
@@ -10870,7 +10918,8 @@ function stepArtillery(dt) {
   if (!MISSIONS[missionIdx].artillery || outcome) return;
   if (targets.some(t => t.kind === 'gun') && !targets.some(t => t.kind === 'gun' && !t.dead)) { artyT = 1e9; }
   artyT -= dt;
-  if (artyT <= 0) { artyT = ARTY_INTERVAL; callArtillery(); }
+  const AM = MISSIONS[missionIdx].artillery;
+  if (artyT <= 0) { artyT = AM.every || ARTY_INTERVAL; if (!(AM.untilZ && !sol.some(q => !q.dead && q.z > AM.untilZ * MH))) callArtillery(); }   // v156: every, untilZ (Sword Beach: the mortars stop once we're all off the sand)
   for (let i = shells.length - 1; i >= 0; i--) {
     const s = shells[i];
     s.t -= dt;
@@ -11870,6 +11919,92 @@ function mkLandingBoat(x, z, a) {
   const D = { ...rotRect(x, z, a, -1.15, -3.2, 1.15, 3.3), deck: true, dy: DORY_DY };   bridgeZones.push(D); deckDrops.push(D);   // gunwale to gunwale: a man jostled to the side stays down in her
   const R = rotRect(x, z, a, -1.3, -3.6, 1.3, 3.6);
   return { type: 'boat', pass: true, landBoat: true, dy: DORY_DY, x: R.x0, z: R.z0, w: R.x1 - R.x0, d: R.z1 - R.z0, cx: x, cz: z, mesh: m, tall: false, cover: false };
+}
+/* v156, Sword Beach (notes/normandy-landings.md). An LCA, the Landing Craft Assault: a flat armoured box with a ramp at
+   the bow, the cockpit aft, the men down in the well between the side decks. land: the squad's, run in during the intro
+   (M.landing; its ramp stays up until finishLanding drops it on the sand). The others lie at the waterline, ramps down, empty;
+   burnt, knocked out. Bow along +z, like the dory. */
+const LCA_DY = -0.45;
+// the ramp down on the beach: its lip on the sand, whatever height the sand is at its foot
+function lcaRampDown(m, ramp) {
+  const a = m.rotation.y, hx = m.position.x + Math.sin(a) * 5.55, hz = m.position.z + Math.cos(a) * 5.55, hy = m.position.y + 0.85;
+  const fx = hx + Math.sin(a) * 2.4, fz = hz + Math.cos(a) * 2.4, drop = hy - (groundY(fx, fz) + 0.06);
+  ramp.rotation.x = Math.asin(clamp(drop / 2.6, -0.3, 0.95));
+}
+function mkLCA(x, z, a, land, burnt) {
+  const H = 0x646b70, D = 0x474d51, K = 0x5a5244, p = [];
+  p.push({ g: GEO.box, m: M4(0, -0.35, 0, 3.0, 0.5, 11.2), c: D });                                   // the hull, below the waterline
+  for (const sx of [-1, 1]) {
+    p.push({ g: GEO.box, m: M4(sx * 1.42, 0.45, -0.2, 0.18, 1.3, 10.6), c: H });                     // the armoured sides
+    p.push({ g: GEO.box, m: M4(sx * 1.12, 1.02, -0.2, 0.5, 0.1, 10.0), c: H });                      // the side decks the men sat under
+  }
+  p.push({ g: GEO.box, m: M4(0, -0.08, -0.2, 2.6, 0.06, 10.4), c: K });                              // the well
+  p.push({ g: GEO.box, m: M4(0, 0.75, -5.35, 3.0, 1.9, 0.9), c: H }, { g: GEO.box, m: M4(0, 1.75, -5.35, 1.4, 0.25, 0.7), c: D });   // the cockpit aft
+  for (const sx of [-1, 1]) p.push({ g: GEO.box, m: M4(sx * 1.32, 0.5, 5.45, 0.36, 1.4, 0.3), c: D });   // the bow's frame
+  const m = new THREE.Mesh(mergeGeos(p), burnt ? pbScorch : boatMat); m.castShadow = true; m.receiveShadow = true;
+  m.position.set(x, baseY(x, z) + LCA_DY, z); m.rotation.y = a; propRoot.add(m);
+  const ramp = new THREE.Mesh(mergeGeos([{ g: GEO.box, m: M4(0, 0, 1.3, 2.3, 0.12, 2.6), c: burnt ? 0x2e2c2a : H }]), burnt ? pbScorch : boatMat);
+  ramp.position.set(0, 0.85, 5.55); ramp.castShadow = true; m.add(ramp);
+  if (land) ramp.rotation.x = -Math.PI / 2; else lcaRampDown(m, ramp);   // up at sea, down on the sand
+  if (burnt) addSmoker(x, z, { life: 1e9, rate: 2, size: 1.8, col: 0x2e2c2a, a: 0.5, y: baseY(x, z) + 1.2 });
+  const R = rotRect(x, z, a, -1.55, -5.8, 1.55, 5.7);
+  if (!land) return { type: 'lca', x: R.x0, z: R.z0, w: R.x1 - R.x0, d: R.z1 - R.z0, cx: x, cz: z, h: 1.6, mesh: m, tall: false, cover: true };
+  const Dk = { ...rotRect(x, z, a, -1.25, -4.8, 1.25, 5.5), deck: true, dy: LCA_DY }; bridgeZones.push(Dk); deckDrops.push(Dk);
+  bridgeZones.push(rotRect(x, z, a, -1.15, 5.4, 1.15, 8.4));   // the ramp, down onto the sand
+  return { type: 'boat', pass: true, landBoat: true, dy: LCA_DY, x: R.x0, z: R.z0, w: R.x1 - R.x0, d: R.z1 - R.z0, cx: x, cz: z, mesh: m, ramp, tall: false, cover: false };
+}
+/* v156: the beach obstacles. hh: hedgehogs, three steel beams crossed, low cover a man can crouch behind. stakes: a log
+   driven in leaning out to sea with a Teller mine on its head. A man walking upright past one (0.9 m) sets it off; crawling,
+   he goes under it. All the hedgehogs are one mesh, all the stakes another, the mines a third (rebuilt as they go). */
+let stakeMines = [], stakeMineMesh = null, stakeToast = false;
+function mkBeachObstacles(hh, st) {
+  const p = [], q = [], out = [];
+  for (const [x, z] of hh) {
+    const y = groundY(x, z), r = hash2(x, z) * 3;
+    for (const [rx, rz] of [[0.6, 0.6], [-0.6, 0.6], [0, -0.85]]) p.push({ g: GEO.box, m: M4e(x, y + 0.62, z, 0.16, 0.16, 2.1, rx, r + (rz < 0 ? 1.57 : 0), rz), c: 0x3e3a36 });
+    out.push({ type: 'hedgehog', x: x - 0.7, z: z - 0.7, w: 1.4, d: 1.4, cx: x, cz: z, h: 1.2, cover: true, tall: false, low: true });
+  }
+  for (const [x, z] of st) {
+    const y = groundY(x, z);
+    q.push({ g: GEO.box, m: M4e(x, y + 0.95, z + 0.45, 0.2, 2.2, 0.2, 0.5, 0, 0), c: 0x5a4632 });   // leaning south, out to sea
+    stakeMines.push({ x, z, live: true, tx: x, ty: y + 1.9, tz: z + 0.95 });
+  }
+  for (const [L, mat] of [[p, metalMat], [q, propMat]]) if (L.length) { const m = new THREE.Mesh(mergeGeos(L), mat); m.castShadow = true; propRoot.add(m); }
+  buildStakeMines();
+  return out;
+}
+function buildStakeMines() {
+  if (stakeMineMesh) { propRoot.remove(stakeMineMesh); stakeMineMesh.geometry.dispose(); stakeMineMesh = null; }
+  const p = [];
+  for (const k of stakeMines) if (k.live) p.push({ g: GEO.cyl, m: M4e(k.tx, k.ty, k.tz, 0.32, 0.09, 0.32, 0.5, 0, 0), c: 0x4e5a3a }, { g: GEO.cyl, m: M4e(k.tx, k.ty + 0.06, k.tz + 0.03, 0.09, 0.05, 0.09, 0.5, 0, 0), c: 0x8a7a50 });
+  if (!p.length) return;
+  stakeMineMesh = new THREE.Mesh(mergeGeos(p), propMat); propRoot.add(stakeMineMesh);
+}
+function stepStakes() {
+  if (!stakeMines.length || phase !== 'play') return;
+  for (const u of sol) {
+    if (u.dead || u.prone) continue;
+    for (const k of stakeMines) {
+      if (!k.live || Math.abs(k.x - u.x) > 1.2 || Math.abs(k.z - u.z) > 1.2) continue;
+      if (Math.hypot(k.x - u.x, k.z - u.z) > 0.9) continue;
+      k.live = false; buildStakeMines();
+      const gy = groundY(k.x, k.z);
+      boomFX(k.x, gy + 1.2, k.z, 1.5); spawnParts(k.x, gy + 1.4, k.z, 40, 0xffb060, 12, 0.22, 0.7, 9); spawnParts(k.x, gy + 0.6, k.z, 24, 0xc8b88a, 7, 0.3, 1.2, 6);
+      SFX.boom(k.x, k.z); camShake = Math.min(camShake + 0.9, 1.3); flashScreen(0.4); decal(k.x, k.z, 2.6, 0x2a2016, 0.5);
+      for (const v of sol) { if (v.dead) continue; const d = Math.hypot(v.x - k.x, v.z - k.z); if (d < 3.5) damage(v, d < 1.5 ? 4 : v.prone ? 1 : 2, 'mine'); }
+      if (!stakeToast) { stakeToast = true; showToast('TELLER MINES', 'on the stakes: walk past one and it goes. CRAWL under them, or go round'); }
+      return;
+    }
+  }
+}
+// v156: a charge set under concertina wire (a Bangalore) blows every bay within reach of it, and leaves a gap
+function blowCWire(x, z) {
+  let n = 0;
+  for (const B of cwires) { if (B.cut || Math.abs(B.z - z) > 3 || B.x1 < x - 4.5 || B.x0 > x + 4.5) continue; B.cut = B.blown = true; const j = obs.indexOf(B.ob); if (j >= 0) obs.splice(j, 1); n++; }
+  if (!n) return;
+  buildCWire(); buildGrid(); buildPathGrid();
+  spawnParts(x, groundY(x, z) + 0.6, z, 30, 0x8a8a80, 8, 0.06, 0.8, 9);
+  showToast('WIRE BLOWN', 'a gap in it: through, and quick');
 }
 /* v76: granite cliffs, after the terrain sheet. v88, after Khal ("one surface, not a series of stacked blocks"): each face is a single
    sheet of rock, a grid along the face displaced outward: it leans back as it rises, vertical flutes (the granite's jointing),
@@ -14077,6 +14212,7 @@ function landingSetup(M) {
   if (!M.landing) return;
   const B = obs.find(o => o.landBoat); if (!B) return;
   landing = { B, x1: B.cx, z1: B.cz, f: 0 };
+  if (B.ramp) B.ramp.rotation.x = -Math.PI / 2;   // v156: the LCA's ramp, up for the run in
   sol.forEach((u, i) => { u.landSlot = [(i % 2 ? 0.42 : -0.42), 1.8 - (i >> 1) * 1.15]; });   // v76: two by two in the dory
   landPose(0);
 }
@@ -14106,6 +14242,7 @@ function finishLanding() {
   if (!landing) return;
   landPose(1);
   landing.B.mesh.rotation.set(0, Math.PI, 0);
+  if (landing.B.ramp) lcaRampDown(landing.B.mesh, landing.B.ramp);   // v156: the ramp goes down on the sand
   for (const u of sol) { u.elev = 0; u.landSlot = null; u.lastX = u.x; u.lastZ = u.z; }
   landing = null;
 }
@@ -14529,6 +14666,7 @@ const stepDone = s => {
     case 'flare': { const u = extractPt && sol.find(q => !q.dead && Math.hypot(q.x - extractPt.x, q.z - extractPt.z) < extractPt.r); if (u) s.at = u; return !!u; }
     // the leader in the ring and the file close behind him (they walk in single file, so the last man trails by a few metres)
     case 'pickup': return stretchers.length > 0 && stretchers.every(T => T.lifted);   // v146
+    case 'gap': return cwires.some(B => B.blown);   // v156: a Bangalore through the wire
     case 'extract': { const live = sol.filter(q => !q.dead); if (stretchers.some(T => !extractPt || Math.hypot(T.x - extractPt.x, T.z - extractPt.z) > extractPt.r + 7)) return false;   // v146: and the wounded with us
       return !!extractPt && live.length > 0 && Math.hypot(live[0].x - extractPt.x, live[0].z - extractPt.z) < extractPt.r && live.every(q => Math.hypot(q.x - extractPt.x, q.z - extractPt.z) < extractPt.r + 7) && !(hostage && hostage.rescued && Math.hypot(hostage.x - extractPt.x, hostage.z - extractPt.z) > extractPt.r + 7) && !(edgeDrop && edgeDrop.ropes && live.some(q => q.z > edgeDrop.z - 3 || ropeAt(q.x, q.z))); }   // v112: on a rope op, everybody down on the beach
   }
@@ -14789,6 +14927,7 @@ function initMission(idx) {
   caves = []; culverts = []; culvToast = false;   // v86 (v93: culverts)
   seifs = (M.seifs || []).map(B => ({ x0: B.x0 * MW, x1: B.x1 * MW, h: B.h || 5 }));   // v101
   cwires = []; cwireMesh = null;   // v96: the wire's mesh went with propRoot's children
+  stakeMines = []; stakeMineMesh = null; stakeToast = false;   // v156
   avZones = [].concat(M.avalanche || []).map(A => ({ x0: A.x0 * MW, x1: A.x1 * MW, z0: A.z0 * MH, z1: A.z1 * MH, noise: !!A.noise, msg: A.msg, gone: false }));
   iceTint = M.iceTint || 0;   // v86: paler ice (a stream under snow), 0 the lake's dark ice
   snowAt = M.snowAt || 0; snowT0 = 0;
@@ -14881,6 +15020,8 @@ function initMission(idx) {
     else if (o.t === 'casemate') obs.push(...mkCasemate(x, z, o.a || 0));   // v70
     else if (o.t === 'trawler') obs.push(mkTrawler(x, z, o.a || 0));   // v75
     else if (o.t === 'boat') obs.push(mkLandingBoat(x, z, o.a === undefined ? Math.PI : o.a));
+    else if (o.t === 'lca') obs.push(mkLCA(x, z, o.a === undefined ? Math.PI : o.a, !!o.land, !!o.burnt));   // v156
+    else if (o.t === 'beachobs') obs.push(...mkBeachObstacles((o.hh || []).map(([a, b]) => [a * MW, b * MH]), (o.stakes || []).map(([a, b]) => [a * MW, b * MH])));   // v156
     else if (o.t === 'rack') obs.push(mkFishRack(x, z, o.len || 7, !!o.alongZ));
     else if (o.t === 'drums') obs.push(mkDrums(x, z, seed++));
     else if (o.t === 'rock') obs.push(mkRock(x, z, seed++, o.s));
@@ -16353,6 +16494,7 @@ function update(dt) {
   rgStep(dt);   // v108
   stepPanzer(dt);   // v145
   stepLorries(dt); stepStretchers(dt);   // v146
+  stepStakes();   // v156
   stepBeach(dt);   // v110
   stepRopes(dt);   // v112
   stepAllies(dt);   // v113
@@ -16808,7 +16950,7 @@ function update(dt) {
   }
   fightT = ens.some(e => !e.dead && e.state === 'engage') ? fightT + dt : 0;   // v115: a German has been fighting us this long
   if (!standTo && gritG > 0 && !M.rearguard && !M.drill && fightT > 1.5 && globalAlert >= (M.alertThreshold || 0.7)) turnOut(M);   // v115: not a clean ambush, a fight
-  if (!M.truck && !reinfSent && !reinfBlocked && !M.drill && globalAlert >= (M.alertThreshold || 0.7) + 0.95) {   // v94: nobody comes to a drill
+  if (!M.truck && !M.noReinf && !reinfSent && !reinfBlocked && !M.drill && globalAlert >= (M.alertThreshold || 0.7) + 0.95) {   // v94: nobody comes to a drill (v156: noReinf, nor to Sword Beach: reinf: 0 reads as the default)
     reinfSent = true;
     const both = standTo && missionTime - standT < 2.4;   // v115: the alarm and the reinforcements together: one message, not one hiding the other
     spawnReinforcements(Math.round((Math.max(2, Math.round((M.reinf || 4) * 0.6)) + Math.round(2 * diffD)) * (1 + gritG)), undefined, both ? false : undefined);   // v115: and twice as many
@@ -17463,6 +17605,7 @@ function detonateCharge(c) {
   minesNear(gx, gz, 3.0);   // v94
   if (trainsLive) derailNear(gx, gz, 3.5);   // v43
   blastTargets(gx, gz, 'charge');
+  blowCWire(gx, gz);   // v156
   for (const e of ens) { if (!e.dead && !e.inBox && dst({ x: gx, z: gz }, e) < B && !(e.tower && dst({ x: gx, z: gz }, e) > 3.2)) damage(e, dst({ x: gx, z: gz }, e) < B * 0.5 ? 6 : 3, 'blast'); }
   for (const s of sol) { if (!s.dead && dst({ x: gx, z: gz }, s) < B * 0.7) damage(s, s.prone ? 2 : 3, 'ownblast'); }
   // structures: a gate within reach is blown open; a tower within reach comes down with whoever is on it
@@ -18831,7 +18974,7 @@ window.__bul = () => bul.length;
 window.__xm = () => exploder && exploder.mark.visible;   // v142 dev
 window.__xp = () => extractPt && { x: extractPt.x, z: extractPt.z, on: !!extractPt.on };   // v132 dev
 window.__pz = () => panzer && { on: panzer.on, d: +panzer.d.toFixed(1), x: +panzer.x.toFixed(1), z: +panzer.z.toFixed(1), dead: panzer.dead, hp: panzer.hp, ruined: obs.filter(o => o.ruined).length, shellable: obs.filter(o => o.shell).length };   // v145 dev
-window.__beach = () => ({ raids: stukaSt ? stukaSt.n : 0, ruins: obs.filter(o => o.ruined).length, shellable: obs.filter(o => o.shell && !o.ruined).length, tommies: allies.filter(a => a.brit && !a.dead).length, crowdDown: crowdIM ? crowdIM.userData.pts.filter(p => p[3]).length : 0 });   // v148
+window.__beach = () => ({ raids: stukaSt ? stukaSt.n : 0, ruins: obs.filter(o => o.ruined).length, shellable: obs.filter(o => o.shell && !o.ruined).length, tommies: allies.filter(a => a.brit && !a.dead).length, crowdDown: crowdIM ? crowdIM.userData.pts.filter(p => p[3]).length : 0, stakes: stakeMines.filter(k => k.live).length, stakesAt: stakeMines.slice(0, 3).map(k => [+k.x.toFixed(1), +k.z.toFixed(1)]) });   // v148 (v156: the stake mines)
 window.__esc = () => escortSt && escortSt.tanks.map(t => ({ d: +t.d.toFixed(1), eng: !!t.eng, smp: !!(t.eng && t.eng.smp), gain: t.eng ? +t.eng.g.gain.value.toFixed(3) : 0, rate: t.eng && t.eng.smp ? +t.eng.s.playbackRate.value.toFixed(2) : 0 }));   // v134 dev
 window.__rust = () => rustN; window.__inCover = (x, z) => inCover(x, z);   // v130 dev
 window.__dbg = () => ({ phase, paused, prone: squadProne, spotted, obs: obs.length, kills, alert: +globalAlert.toFixed(2), ens: ens.filter(e=>!e.dead).length, sol: sol.map(s=>`${s.name} ${s.hp} @${s.x|0},${s.z|0}`) });
