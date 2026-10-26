@@ -457,12 +457,12 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
     <button id="tcont" class="pri">CONTINUE <small id="tcontsub"></small></button>
     <button id="tnew">NEW CAMPAIGN <small>from the top</small></button>
     <button id="tdaily">DAILY OP <small id="tdailysub">the same op for everyone today</small></button>
-    <button id="tiron">IRONMAN <small>one life · no repeats · no revives</small></button>
+    <button id="tiron">IRONMAN <small>one life · no repeats</small></button>
     <button id="tops">OPERATIONS <small id="topssub">mission select</small></button>
     <button id="tset">SETTINGS <small>sound · music · graphics</small></button>
   </div>
   <div class="foot">© KHALIFA.GAMES · NO GRUNTS WERE CONSULTED</div>
-  <div id="tver">v151</div>
+  <div id="tver">v154</div>
 </div>
 
 <div id="ops" class="screen">
@@ -601,7 +601,6 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
       <div class="row"><div class="k">Roster</div><div class="v"><div class="crew" id="dcrew"></div></div></div>
       <div id="dobitwrap"><div class="rule"></div>
       <div class="row"><div class="k">Casualties</div><div class="v"><ul class="obit" id="dobit"></ul></div></div></div>
-      <button class="btn rw" id="drev" style="display:none">REVIVE</button>
       <button class="btn rw" id="ddbl" style="display:none">DOUBLE REQUISITION</button>
       <button class="btn rw" id="dshare" style="display:none">SHARE TODAY'S RESULT</button>
       <button class="btn" id="dgo">CONTINUE</button>
@@ -9326,7 +9325,7 @@ const MISSIONS = [
     name: 'The Beaches', th: 'dk', noExtras: true, noTraffic: true, charges: 0, size: [100, 160],
     obj: 'Pick up the wounded man; past the Germans on the road and on the dunes, along the mole to the ship',
     sub: "Dunkirk · Day under smoke · The beaches", drawn: "Drawn from Dunkirk, May–June 1940.",
-    brief: "The Navy is taking the army off from the end of the mole, and there are places for us on the destroyer if we're there when she sails: eight minutes. One of ours is on a stretcher at the aid post; he comes too, two men to carry him. Jerry has just driven a lorry up the road ahead of us, and another onto the dunes, where they're shooting up our lads on the beach. To fight, CRAWL: that sets the stretcher down, and when you stand again everyone can shoot until you move off. And get flat for the Stukas: they're bombing the town and the beach.",
+    brief: "The Navy is taking the army off from the end of the mole, and there are places for us on the destroyer if we're there when she sails: eight minutes. One of ours is on a stretcher at the aid post; he comes too, two men to carry him. Jerry has just driven a lorry up the road ahead of us, and another onto the dunes, where they're shooting up our lads on the beach. There's a section across the middle of the town, a machine gun dug in at the top of the dune track (go round it through the marram), and more of them on the sand at the foot of the mole. To fight, CRAWL: that sets the stretcher down, and when you stand again everyone can shoot until you move off. And get flat for the Stukas: they're bombing the town and the beach.",
     scatter: 1, diff: 0.55, grenades: 6, reinf: 0, alertThreshold: 1.2,
     water: [{ x1: -.02, z1: -.02, x2: 1.02, z2: .195, still: true, sea: true }],
     bridge: [{ x1: .6, z1: .005, x2: .645, z2: .235 }],
@@ -9337,7 +9336,7 @@ const MISSIONS = [
     clock: { t: 480, label: 'SHIP SAILS', fail: ['SHE SAILED', 'without us. There may be another tomorrow, and there may not'] },
     stukas: { first: 32, every: [50, 70], also: true },   // v148: each raid, one dive on us, one on a house, one on the beach
     crowd: [[.19, .325, .19, .205, 11], [.24, .325, .235, .205, 11], [.31, .33, .3, .205, 12], [.45, .335, .45, .245, 8], [.75, .33, .76, .24, 8], [.86, .325, .855, .25, 7],
-      [.612, .225, .612, .04, 18], [.36, .39, .58, .385, 10]],
+      [.612, .225, .612, .04, 18], [.3, .255, .42, .25, 8]],   // v153: the dune queue moved onto the sand: Germans hold the dunes now (v154: west of the Germans at the track's foot)
     // v146 (Khal: far too easy): two lorries of them at the start and wounded on stretchers to bring off. The attacks from
     // behind start later, so the first doesn't land on the lorries' fight.
     // v148 (Khal: too hard with two stretchers): one stretcher. One lorry stops on the road just ahead of us, facing us; the
@@ -9355,11 +9354,24 @@ const MISSIONS = [
     extract: { x: .623, z: .03, r: 3.2 },
     enemies: [
       { x: .82, z: .66, a: Math.PI, range: 14, arc: Math.PI * .55, hp: 3 }, { x: .2, z: .67, a: Math.PI * .8, range: 13, arc: Math.PI * .55, hp: 3 },
+      // v153 (Khal: too easy; more of them between us and the beach, early): a section across the middle of the town, an MG
+      // sandbagged at the head of the dune track (flank it through the marram), and three in the west dunes
+      { x: .42, z: .58, a: 0, range: 18, arc: Math.PI * .7, hp: 2, hold: true }, { x: .47, z: .555, a: 0, range: 18, arc: Math.PI * .7, hp: 2, hold: true },
+      { x: .555, z: .575, a: 0, range: 18, arc: Math.PI * .7, hp: 2, hold: true }, { x: .6, z: .56, a: 0, range: 18, arc: Math.PI * .7, hp: 2, hold: true },
+      { x: .5, z: .4, a: 0, range: 24, arc: Math.PI * 1.1, hp: 2, tag: 'dunemg', hold: true, sandbag: true, rapidFire: true },
+      { x: .516, z: .405, a: 0, range: 22, arc: Math.PI * 1.1, hp: 2, tag: 'dunemg', hold: true, sandbag: true },
+      { x: .38, z: .375, a: 0, range: 20, arc: Math.PI * .8, hp: 2, hold: true }, { x: .425, z: .365, a: .2, range: 20, arc: Math.PI * .8, hp: 2, hold: true },
+      { x: .46, z: .38, a: -.2, range: 20, arc: Math.PI * .8, hp: 2, hold: true },
+      // v154 (Khal: more near the beach): six on the sand across the foot of the track, holding the way to the mole, an MG among them
+      { x: .47, z: .31, a: 0, range: 20, arc: Math.PI * .8, hp: 2, hold: true }, { x: .505, z: .3, a: 0, range: 20, arc: Math.PI * .8, hp: 2, hold: true },
+      { x: .525, z: .28, a: .2, range: 20, arc: Math.PI * .8, hp: 2, hold: true }, { x: .565, z: .27, a: 0, range: 24, arc: Math.PI * 1.1, hp: 2, hold: true, rapidFire: true },
+      { x: .445, z: .3, a: .2, range: 20, arc: Math.PI * .8, hp: 2, hold: true }, { x: .485, z: .33, a: .1, range: 20, arc: Math.PI * .8, hp: 2, hold: true },   // west of the track: further east, the Tommies took them on instead of the dune lorry
     ],
     allies: [{ x: .82, z: .93, a: Math.PI / 4 }, { x: .9, z: .88, a: Math.PI / 4 }, { x: .72, z: .97, a: Math.PI / 4 }, { x: .93, z: .72, a: Math.PI / 2 },   // v113: the French holding the perimeter
       ...[[.74, .27], [.79, .275], [.84, .268], [.88, .275], [.7, .25]].map(([x, z]) => ({ x, z, a: 0, brit: true }))],   // v148: Tommies on the beach, firing back at the dunes
     obstacles: [
       { t: 'house', style: 'farm', x: 0.04, z: 0.462, w: 9.5, d: 7.5, shell: true }, { t: 'house', style: 'farm', x: 0.18, z: 0.462, w: 9.5, d: 7.5, shell: true }, { t: 'house', style: 'ruin', x: 0.32, z: 0.462, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.6, z: 0.462, w: 9.5, d: 7.5, shell: true }, { t: 'house', style: 'farm', x: 0.74, z: 0.462, w: 9.5, d: 7.5, shell: true }, { t: 'house', style: 'farm', x: 0.88, z: 0.462, w: 9.5, d: 7.5, shell: true }, { t: 'house', style: 'farm', x: 0.04, z: 0.612, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.18, z: 0.612, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.32, z: 0.612, w: 9.5, d: 7.5 }, { t: 'house', style: 'ruin', x: 0.6, z: 0.612, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.74, z: 0.612, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.88, z: 0.612, w: 9.5, d: 7.5 }, { t: 'house', style: 'ruin', x: 0.04, z: 0.768, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.18, z: 0.768, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.32, z: 0.768, w: 9.5, d: 7.5 }, { t: 'house', style: 'farm', x: 0.6, z: 0.768, w: 9.5, d: 7.5 }, { t: 'house', style: 'ruin', x: 0.74, z: 0.768, w: 9.5, d: 7.5 },
+      { t: 'sangar', x: .508, z: .402, r: 2.1, o: Math.PI },   // v153: the MG at the head of the dune track
       { t: 'tent', x: .37, z: .92, a: .3 }, { t: 'crate', x: .465, z: .93 },   // v146: the aid post, where the stretcher lies (v148: one)
       { t: 'oiltank', x: .86, z: .86, r: 4.4 }, { t: 'oiltank', x: .935, z: .8, r: 3.6 },
       { t: 'trawler', x: .555, z: .085, a: Math.PI },
@@ -13866,7 +13878,7 @@ function stepAllies(dt) {
     if (a.dead) { stepDeath(a, dt); continue; }
     if (phase === 'play' && !outcome) {
       let t = null, td = a.range;
-      for (const e of ens) { if (e.dead || e.inBox || e.dog) continue; const d = Math.hypot(e.x - a.x, e.z - a.z); if (d < td && hasLOS(a.x, a.z, e.x, e.z)) { t = e; td = d; } }
+      for (const e of ens) { if (e.dead || e.inBox || e.dog) continue; if (a.brit && Math.abs(angDiff(Math.atan2(e.x - a.x, e.z - a.z), a.homeA)) > 0.9) continue; const d = Math.hypot(e.x - a.x, e.z - a.z); if (d < td && hasLOS(a.x, a.z, e.x, e.z)) { t = e; td = d; } }   // v154: a Tommy fires on the dunes in front of him, not along the beach
       if (t && (t.alert > 0.3 || t.rg || globalAlert > 0.6)) {   // he holds his fire until they're alert to us
         a.angle = a.aim = Math.atan2(t.x - a.x, t.z - a.z); a.aimB = Math.min(1, (a.aimB || 0) + dt * 6);
         a.fireT -= dt;
@@ -17983,11 +17995,7 @@ function showDebrief(won) {
 
   $('dgo').textContent = daily ? 'BACK TO HQ' : won ? (MISSIONS[missionIdx].side ? 'BACK TO THE WAR' : nextOp(missionIdx) >= 0 ? 'NEXT OPERATION' : 'END OF CAMPAIGN') : ironman ? 'THE END OF IT' : 'REPLACEMENTS';
   $('dshare').style.display = daily ? 'block' : 'none';
-  // one fallen grunt can be brought back per debrief, for watching an ad: the most senior of today's dead
-  const rv = $('drev'), cand = lost.filter(s => s.ref).sort((a, b) => b.ref.kills - a.ref.kills)[0];
-  rv.disabled = false;
-  if (cand && PF.hasRewarded() && !ironman && !daily) { rv.style.display = 'block'; rv.innerHTML = `REVIVE ${rankFor(cand.ref.kills).toUpperCase()} ${cand.ref.name.toUpperCase()} <small>watch an ad · he walks it off</small>`; rv.dataset.name = cand.ref.name; }
-  else rv.style.display = 'none';
+  // v152 (Khal): no revive for an ad. The dead stay dead: that is Boot Hill's point. The one rewarded ad left is DOUBLE REQUISITION
   const db = $('ddbl'); db.disabled = false;
   if (won && lastPay > 0 && PF.hasRewarded() && !daily) { db.style.display = 'block'; db.innerHTML = `DOUBLE REQUISITION <small>watch an ad · +${lastPay} REQ</small>`; }
   else db.style.display = 'none';
@@ -18503,7 +18511,7 @@ $('tdaily').addEventListener('click', () => { initAudio(); SFX.ui(); startDaily(
 $('tiron').addEventListener('click', () => {
   initAudio(); SFX.ui();
   resetCampaign(); clearSave(); ironman = true;
-  showToast('IRONMAN', 'one life each, no repeats, no revives — and no walking out of an op');
+  showToast('IRONMAN', 'one life each, no repeats — and no walking out of an op');
   fadeTo(showBrief);
 });
 $('tops').addEventListener('click', () => { initAudio(); SFX.ui(); fadeTo(showOps, true); });
@@ -18552,20 +18560,6 @@ $('bgo').addEventListener('click', () => {
   PF.adBreak().then(() => { b.disabled = false; startMission(); });
 });
 $('dgo').addEventListener('click', () => { SFX.ui(); afterDebrief(false); });
-$('drev').addEventListener('click', () => {
-  const rv = $('drev'); if (rv.disabled) return; rv.disabled = true; SFX.ui();
-  PF.rewarded().then(ok => {
-    if (!ok) { rv.innerHTML = 'NO AD AVAILABLE <small>not this time</small>'; return; }
-    const name = rv.dataset.name, g = roster.find(r => r.name === name);
-    if (g) { g.dead = false; g.cause = null; }
-    fallen = fallen.filter(f => f.name !== name);
-    [...$('dobit').children].forEach(li => { if (li.textContent.includes(' ' + name + ' ')) li.remove(); });
-    if (!$('dobit').children.length) $('dobitwrap').style.display = 'none';
-    rv.innerHTML = `${name.toUpperCase()} IS BACK <small>a bandage and a sit down</small>`;
-    const c = $('dcrew'); c.innerHTML = ''; sol.forEach(q => { if (q.ref) c.appendChild(crewCard(q.ref, {})); });
-    saveCampaign(); SFX.promote();
-  });
-});
 $('dretry').addEventListener('click', () => { SFX.ui(); afterDebrief(true); });
 $('hgo').addEventListener('click', () => { SFX.ui(); if (ironOver) { ironOver = false; resetCampaign(); fadeTo(goTitle); return; } fadeTo(toStores); });
 $('dshare').addEventListener('click', () => { SFX.ui(); shareDaily(); });
