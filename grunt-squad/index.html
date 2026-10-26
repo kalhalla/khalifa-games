@@ -462,7 +462,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
     <button id="tset">SETTINGS <small>sound · music · graphics</small></button>
   </div>
   <div class="foot">© KHALIFA.GAMES · NO GRUNTS WERE CONSULTED</div>
-  <div id="tver">v154</div>
+  <div id="tver">v155</div>
 </div>
 
 <div id="ops" class="screen">
@@ -9325,7 +9325,7 @@ const MISSIONS = [
     name: 'The Beaches', th: 'dk', noExtras: true, noTraffic: true, charges: 0, size: [100, 160],
     obj: 'Pick up the wounded man; past the Germans on the road and on the dunes, along the mole to the ship',
     sub: "Dunkirk · Day under smoke · The beaches", drawn: "Drawn from Dunkirk, May–June 1940.",
-    brief: "The Navy is taking the army off from the end of the mole, and there are places for us on the destroyer if we're there when she sails: eight minutes. One of ours is on a stretcher at the aid post; he comes too, two men to carry him. Jerry has just driven a lorry up the road ahead of us, and another onto the dunes, where they're shooting up our lads on the beach. There's a section across the middle of the town, a machine gun dug in at the top of the dune track (go round it through the marram), and more of them on the sand at the foot of the mole. To fight, CRAWL: that sets the stretcher down, and when you stand again everyone can shoot until you move off. And get flat for the Stukas: they're bombing the town and the beach.",
+    brief: "The Navy is taking the army off from the end of the mole, and there are places for us on the destroyer if we're there when she sails: eight minutes. One of ours is on a stretcher at the aid post; he comes too, two men to carry him. Jerry has just driven a lorry up the road ahead of us, and another onto the dunes, where they're shooting up our lads on the beach. There's a section across the middle of the town and a machine gun dug in at the top of the dune track: go round it through the marram. To fight, CRAWL: that sets the stretcher down, and when you stand again everyone can shoot until you move off. And get flat for the Stukas: they're bombing the town and the beach.",
     scatter: 1, diff: 0.55, grenades: 6, reinf: 0, alertThreshold: 1.2,
     water: [{ x1: -.02, z1: -.02, x2: 1.02, z2: .195, still: true, sea: true }],
     bridge: [{ x1: .6, z1: .005, x2: .645, z2: .235 }],
@@ -9336,7 +9336,7 @@ const MISSIONS = [
     clock: { t: 480, label: 'SHIP SAILS', fail: ['SHE SAILED', 'without us. There may be another tomorrow, and there may not'] },
     stukas: { first: 32, every: [50, 70], also: true },   // v148: each raid, one dive on us, one on a house, one on the beach
     crowd: [[.19, .325, .19, .205, 11], [.24, .325, .235, .205, 11], [.31, .33, .3, .205, 12], [.45, .335, .45, .245, 8], [.75, .33, .76, .24, 8], [.86, .325, .855, .25, 7],
-      [.612, .225, .612, .04, 18], [.3, .255, .42, .25, 8]],   // v153: the dune queue moved onto the sand: Germans hold the dunes now (v154: west of the Germans at the track's foot)
+      [.612, .225, .612, .04, 18], [.32, .265, .5, .26, 10]],   // v153: the dune queue moved onto the sand: Germans hold the dunes now
     // v146 (Khal: far too easy): two lorries of them at the start and wounded on stretchers to bring off. The attacks from
     // behind start later, so the first doesn't land on the lorries' fight.
     // v148 (Khal: too hard with two stretchers): one stretcher. One lorry stops on the road just ahead of us, facing us; the
@@ -9362,10 +9362,6 @@ const MISSIONS = [
       { x: .516, z: .405, a: 0, range: 22, arc: Math.PI * 1.1, hp: 2, tag: 'dunemg', hold: true, sandbag: true },
       { x: .38, z: .375, a: 0, range: 20, arc: Math.PI * .8, hp: 2, hold: true }, { x: .425, z: .365, a: .2, range: 20, arc: Math.PI * .8, hp: 2, hold: true },
       { x: .46, z: .38, a: -.2, range: 20, arc: Math.PI * .8, hp: 2, hold: true },
-      // v154 (Khal: more near the beach): six on the sand across the foot of the track, holding the way to the mole, an MG among them
-      { x: .47, z: .31, a: 0, range: 20, arc: Math.PI * .8, hp: 2, hold: true }, { x: .505, z: .3, a: 0, range: 20, arc: Math.PI * .8, hp: 2, hold: true },
-      { x: .525, z: .28, a: .2, range: 20, arc: Math.PI * .8, hp: 2, hold: true }, { x: .565, z: .27, a: 0, range: 24, arc: Math.PI * 1.1, hp: 2, hold: true, rapidFire: true },
-      { x: .445, z: .3, a: .2, range: 20, arc: Math.PI * .8, hp: 2, hold: true }, { x: .485, z: .33, a: .1, range: 20, arc: Math.PI * .8, hp: 2, hold: true },   // west of the track: further east, the Tommies took them on instead of the dune lorry
     ],
     allies: [{ x: .82, z: .93, a: Math.PI / 4 }, { x: .9, z: .88, a: Math.PI / 4 }, { x: .72, z: .97, a: Math.PI / 4 }, { x: .93, z: .72, a: Math.PI / 2 },   // v113: the French holding the perimeter
       ...[[.74, .27], [.79, .275], [.84, .268], [.88, .275], [.7, .25]].map(([x, z]) => ({ x, z, a: 0, brit: true }))],   // v148: Tommies on the beach, firing back at the dunes
