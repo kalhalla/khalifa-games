@@ -175,6 +175,15 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
 #fullgame .ctext b{color:#e8dfa8}
 #fullgame .menu{margin-top:8px;width:100%}
 .fgtag{display:inline-block;margin-top:4px;padding:1px 6px;border:1px solid #c9a43a;color:#f0d77a;font-size:10px;letter-spacing:2px}
+/* v160 (Khal): when men die, the debrief opens on them first: two beats, their faces, their lines */
+#dmourn{position:fixed;inset:0;z-index:41;display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(6,8,5,.97);opacity:0;transition:opacity .6s;padding:20px}
+#dmourn.on{display:flex}
+#dmourn.vis{opacity:1}
+#dmourn h4{font-family:Impact,'Arial Narrow Bold',sans-serif;font-size:22px;letter-spacing:4px;color:#c9c08a;margin:0 0 6px;text-align:center}
+#dmourn .man{display:flex;align-items:center;gap:14px;width:min(420px,88vw)}
+#dmourn .man img{width:76px;height:76px;border-radius:3px;filter:grayscale(.85) sepia(.25);border:1px solid rgba(201,192,138,.35)}
+#dmourn .man .nm{font-family:Impact,'Arial Narrow Bold',sans-serif;font-size:18px;letter-spacing:2px;color:#e8dfa8}
+#dmourn .man .ob{font-size:13px;line-height:1.4;color:#a8a07a}
 /* v118: the credits, over the settings */
 #credits{position:fixed;inset:0;z-index:31;display:none;align-items:center;justify-content:center;background:rgba(6,12,4,.8)}
 #credits.on{display:flex}
@@ -462,7 +471,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
     <button id="tset">SETTINGS <small>sound · music · graphics</small></button>
   </div>
   <div class="foot">© KHALIFA.GAMES · NO GRUNTS WERE CONSULTED</div>
-  <div id="tver">v159</div>
+  <div id="tver">v160</div>
 </div>
 
 <div id="ops" class="screen">
@@ -586,6 +595,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
   </div>
 </div>
 
+<div id="dmourn"></div>
 <div id="debrief" class="screen">
   <div class="memo">
     <div class="memo-h"><span>After Action Report</span><span class="no" id="dno">001</span></div>
@@ -10470,6 +10480,37 @@ let ackT = -1e9, ordT = -1e9, ackLast = '', shoutT = -1e9;
 const calOf = () => sol.find(s => !s.dead && s.name === 'Cal');
 // his own pitch: the same every time, a few per cent either side; Sarge a touch deeper
 function voxRate(u) { if (u.name === 'Sarge') return 0.93; if (u.name === 'Cal' || u.name === 'Tug') return 1; let h = 0; for (const c of u.name || '') h = (h * 31 + c.charCodeAt(0)) % 997; return 0.95 + (h % 11) / 100; }
+/* v160 (Khal: you got attached to the little troopers): the men miss the ones who didn't come back. A man who was there when
+   a mate died carries his name (ref.missing, saved with the roster). For the next four ops, at a quiet moment, one of them says
+   something about him, and sometimes another who was there answers. After that, now and then, still. Text for now: the lines
+   are in notes/voice-script.md for recording. */
+const MISS_LINES = {
+  Bob: ["Bob would've had a biscuit for this.", "Nobody's touched the biscuits since Bob."],
+  Sarge: ["Sarge would've had us up and at 'em by now.", "Who's going to shout at us now Sarge has gone?"],
+  Stan: ["Stan would've said it'll be fine. It never was, but he said it.", "Too quiet without Stan worrying."],
+  Cal: ["Cal would've been in and out by now.", "Cal never said much. I miss it."],
+  Dai: ["Dai would've blown it twice by now.", "Dai'd have found a way through. Always did."],
+  any: ["{d} would've hated this.", "Keep thinking {d}'s just behind me.", "{d} still owes me ten bob. Not that it matters now.",
+    "Quiet without {d}, isn't it.", "I kept {d}'s cap badge.", "{d} would've made a joke about this place.", "Somebody should write to {d}'s mum.",
+    "Don't stand where {d} stood, eh.", "I'd swap the lot of you for {d}. No offence."],
+  late: ["Still think about {d}.", "{d} would've liked it here. Probably not, actually.", "Funny. I looked round for {d} just then."],
+  reply: ['Aye.', 'Leave it.', 'Not now, eh.', 'I know.', 'Eyes front.', 'Yeah.'], replyWould: ['He would, an’ all.', 'Aye, he would.'],
+};
+let missT = 0, missSaid = 0;
+function stepMissing() {
+  if (daily || phase !== 'play' || outcome || missionTime < missT || missSaid >= 2) return;
+  missT = missionTime + 50 + Math.random() * 40;   // whatever happens, the next try is a while off
+  if (ens.some(e => !e.dead && e.state === 'engage') || spotted) return;   // not in the middle of it
+  const live = sol.filter(q => !q.dead && q.ref && q.ref.missing && q.ref.missing.length && !q.sniper);
+  if (!live.length) return;
+  const u = live[(Math.random() * live.length) | 0], fresh = u.ref.missing.filter(m => m.left > 0), m = fresh.length ? fresh[fresh.length - 1] : u.ref.missing[(Math.random() * u.ref.missing.length) | 0];
+  if (!fresh.length && Math.random() > 0.15) return;   // long after: only now and then
+  const pool = fresh.length ? (MISS_LINES[m.n] && Math.random() < 0.6 ? MISS_LINES[m.n] : MISS_LINES.any) : MISS_LINES.late;
+  const line = pool[(Math.random() * pool.length) | 0].replace(/\{d\}/g, m.n), rp = /would/.test(line) && Math.random() < 0.5 ? MISS_LINES.replyWould : MISS_LINES.reply;
+  bubble(u, line, 3.4); missSaid++;
+  const other = sol.find(q => q !== u && !q.dead && q.ref && (q.ref.missing || []).some(k => k.n === m.n));
+  if (other && Math.random() < 0.6) setTimeout(() => { if (!other.dead && phase === 'play') bubble(other, rp[(Math.random() * rp.length) | 0], 2.4); }, 3600);
+}
 function bubble(u, text, t) {
   for (let i = barks.length - 1; i >= 0; i--) if (barks[i].ack) { barks[i].el.remove(); barks.splice(i, 1); }   // one answer on screen at a time
   const el = document.createElement('div'); el.className = 'bark'; el.textContent = text; barkLayer.appendChild(el);
@@ -10774,6 +10815,7 @@ function killUnit(u, kind, byFriendly) {
     if (!u.brit) showToast('A FRENCHMAN DOWN', 'the man beside us at the post');
   } else {
     if (u.ref) { u.ref.dead = true; u.ref.cause = pickObit(byFriendly ? 'friendly' : kind || 'shot', u.ref.kills); stats.lost++; }
+    if (u.ref && !daily) for (const q of sol) if (!q.dead && q.ref && q.ref !== u.ref && !q.sniper) q.ref.missing = (q.ref.missing || []).filter(m => m.n !== u.ref.name).concat({ n: u.ref.name, left: 4 });   // v160: they were there
     bloodTimer = 1.0;
     const mate = sol.find(s => !s.dead);
     if (mate) setTimeout(() => say(mate, 'loss'), 500);
@@ -14889,6 +14931,7 @@ function initMission(idx) {
   const M = MISSIONS[idx];
   setMapSize(M.size ? M.size[0] : 100, M.size ? M.size[1] : 100);
   clearMission();
+  missT = 8 + Math.random() * 14; missSaid = 0;   // v160
   kills = 0; globalAlert = 0; missionTime = 0; coldT = -1e9; chatT = 4; squadSkis = false; skiChangeT = 0; reinfSent = false; standTo = false; fightT = 0; searchQ = []; avalanche = null; reinfBlocked = false; wavering = false; outcome = null;
   grenCount = startGren = M.grenades + upgLvl('webb'); everSpotted = false; weapon = 'gun'; setWeapon('gun');
   cryQ = null; hitStop = 0; bloodTimer = 0; camShake = 0; squadProne = false; noiseTimer = 0; spotted = false;
@@ -16502,6 +16545,7 @@ function update(dt) {
   stepPanzer(dt);   // v145
   stepLorries(dt); stepStretchers(dt);   // v146
   stepStakes();   // v156
+  stepMissing();   // v160
   stepBeach(dt);   // v110
   stepRopes(dt);   // v112
   stepAllies(dt);   // v113
@@ -18069,6 +18113,8 @@ function showDebrief(won) {
   MUS.play(won ? 'title' : 'lament');   // v74: Keep the Home Fires Burning after a lost op
   const M = MISSIONS[missionIdx];
   const lost = sol.filter(s => s.dead);
+  const mourn = !daily && lost.some(s => s.ref && !s.sniper), mD = mourn ? 4400 : 0;   // v160: the dead first, and the fanfares after
+  if (!daily) for (const q of sol) if (!q.dead && q.ref && q.ref.missing) for (const m of q.ref.missing) if (m.left > 0 && !lost.some(s => s.ref && s.ref.name === m.n)) m.left--;   // an op served without him
   stats.time += missionTime;
   // requisition: a win, each kill, each man home, and a bonus for never being seen. Replays of an
   // operation already cleared pay half, so farming the first map is possible but slow.
@@ -18097,7 +18143,7 @@ function showDebrief(won) {
     const A = awardMedals(M.name, won, lost.length > 0, !everSpotted, missionTime);
     $('dmed').innerHTML = MEDALS.map(([k, label], i) => `<span class="medal m${i + 1}${A.fresh.includes(k) ? ' new' : A.m[k] ? ' on' : ''}">${label}${A.fresh.includes(k) ? ' · NEW' : ''}</span>`).join('') +
       (won && A.m.t ? `<span style="font-size:10.5px;color:#6d6a45"> best ${Math.floor(A.m.t / 60)}:${String(A.m.t % 60).padStart(2, '0')}${A.best ? ' · new record' : ''}</span>` : '');
-    if (A.fresh.length) setTimeout(() => SFX.promote(), 400);
+    if (A.fresh.length) setTimeout(() => SFX.promote(), 400 + mD);
   }
   if (won && !daily) { stats.ops++; markUnlocked(missionIdx + 1); }
   { const sn = sol.find(q => q.sniper); if (sn && !daily) { sniperRec.kills = sn.ref.kills; if (sn.dead) sniperRec.dead = true; } }
@@ -18115,7 +18161,7 @@ function showDebrief(won) {
   $('dstamp').textContent = won ? 'CLEARED' : 'FAILED';
   $('dstamp').className = 'stamp' + (won ? ' ok' : '');
   void $('dstamp').offsetWidth; $('dstamp').className += ' slam';   // v33: the stamp comes down
-  [...$('dmed').querySelectorAll('.medal.new')].forEach((m, i) => { m.style.animationDelay = (0.5 + i * 0.35) + 's'; setTimeout(() => SFX.promote(), 500 + i * 350); });
+  [...$('dmed').querySelectorAll('.medal.new')].forEach((m, i) => { m.style.animationDelay = (0.5 + i * 0.35 + mD / 1000) + 's'; setTimeout(() => SFX.promote(), 500 + i * 350 + mD); });
 
   const c = $('dcrew'); c.innerHTML = '';
   let promotions = 0;
@@ -18127,7 +18173,7 @@ function showDebrief(won) {
     if (up) promotions++;
     c.appendChild(crewCard(s.ref, { promoted: up }));
   });
-  if (promotions) SFX.promote();
+  if (promotions) setTimeout(() => SFX.promote(), mD);
 
   const ob = $('dobit'); ob.innerHTML = '';
   $('dobitwrap').style.display = lost.length ? 'block' : 'none';
@@ -18150,6 +18196,20 @@ function showDebrief(won) {
   $('dretry').style.display = daily ? 'block' : won || ironman ? 'none' : 'block';
   $('dretry').textContent = daily ? 'TRY AGAIN' : 'REPEAT OPERATION';
   showScreen('debrief');
+  if (mourn) showMourning(lost.filter(s => s.ref && !s.sniper), sol.filter(s => !s.sniper).every(s => s.dead));
+}
+// v160: two beats on the men who didn't come back, before the paperwork. Tap after a moment to go on; it goes on its own after 3.6 s
+const N_WORD = ['NONE', 'ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX'];
+function showMourning(dead, all) {
+  const el = $('dmourn');
+  el.innerHTML = `<h4>${all ? 'NONE OF THEM CAME BACK' : (N_WORD[dead.length] || dead.length) + ' DIDN’T' + ' COME BACK'}</h4>` + dead.slice(0, 5).map(s =>
+    `<div class="man">${PORTRAIT[s.ref.name] ? `<img src="${PORTRAIT[s.ref.name]}" alt="">` : ''}<div><div class="nm">${rankFor(s.ref.kills).toUpperCase()} ${s.ref.name.toUpperCase()}</div><div class="ob">${s.ref.cause || 'cause unrecorded'}.</div></div></div>`).join('');
+  el.className = 'on'; void el.offsetWidth; el.className = 'on vis';
+  muffleMusic(0.85);
+  const t0 = performance.now();
+  const end = () => { if (!el.classList.contains('on')) return; el.className = 'on'; setTimeout(() => { el.className = ''; muffleMusic(0); }, 600); };
+  el.onclick = () => { if (performance.now() - t0 > 1600) end(); };
+  setTimeout(end, 4200);   // two beats, once it's faded up
 }
 
 let ironOver = false;
