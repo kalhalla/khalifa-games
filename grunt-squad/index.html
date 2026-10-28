@@ -471,7 +471,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
     <button id="tset">SETTINGS <small>sound · music · graphics</small></button>
   </div>
   <div class="foot">© KHALIFA.GAMES · NO GRUNTS WERE CONSULTED</div>
-  <div id="tver">v160</div>
+  <div id="tver">v163</div>
 </div>
 
 <div id="ops" class="screen">
@@ -4470,9 +4470,9 @@ let muzzleT = 0;
 /*───────────────── geometry merging (one draw call per prop type) ─────────────────*/
 function mergeGeos(parts) {
   const list = parts.map(p => {
-    let g = p.g.index ? p.g.toNonIndexed() : p.g.clone();
-    g.applyMatrix4(p.m);
-    g.computeVertexNormals();
+    let g;
+    if (p.smooth) { g = p.g.clone(); g.applyMatrix4(p.m); if (g.index) g = g.toNonIndexed(); }   // v162: a round part keeps its own normals (toon shading wants them smooth)
+    else { g = p.g.index ? p.g.toNonIndexed() : p.g.clone(); g.applyMatrix4(p.m); g.computeVertexNormals(); }
     return { g, c: SC(p.c === undefined ? 0xffffff : p.c), gr: p.grad ? [SC(p.grad[0]), SC(p.grad[1]), p.grad[2], p.grad[3]] : null, vc: !!(p.vc && g.attributes.color) };
   });
   let total = 0;
@@ -6779,18 +6779,45 @@ function mkBar(foe) {
 
 /*───────────────────── birds: perched in the trees, gone at the first shot ─────────────────────*/
 const BIRD_N = 10;
+/* v162 (Khal: toon-shaded, not low-poly): the wildlife in cel bands with an ink line. Round parts with smooth normals, a
+   three-step ramp (shadow, mid, lit) and an outline: an inverted hull a few millimetres proud of the body, back faces only.
+   The men and the world stay as they are. */
+const TOON_RAMP = (() => { const t = new THREE.DataTexture(new Uint8Array([84, 168, 255]), 3, 1, THREE.LuminanceFormat); t.minFilter = t.magFilter = THREE.NearestFilter; t.generateMipmaps = false; t.needsUpdate = true; return t; })();
+const toonMat = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: TOON_RAMP });
+const TG = { sph: new THREE.SphereGeometry(0.5, 10, 7), dot: new THREE.SphereGeometry(0.5, 6, 4), cone: new THREE.ConeGeometry(0.5, 1, 8) };
+const TP_ = (g, m, c) => ({ g, m, c, smooth: true });
+function inkMat(w) {
+  const m = new THREE.MeshBasicMaterial({ color: SC(0x17120d), side: THREE.BackSide });
+  m.onBeforeCompile = sh => { sh.vertexShader = sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  transformed += normal * ' + w.toFixed(4) + ';'); };
+  m.customProgramCacheKey = () => 'ink' + w;
+  return m;
+}
+// the outline twin of an instanced mesh: the same geometry and the very same matrices; keep its count with the mesh's (setInk)
+function inked(im, w) { const o = new THREE.InstancedMesh(im.geometry, inkMat(w), im.instanceMatrix.count); o.instanceMatrix = im.instanceMatrix; o.count = im.count; im.ink = o; return o; }
+const setInk = im => { if (im.ink) im.ink.count = im.count; };
 const birdBodyGeo = mergeGeos([
-  { g: GEO.box, m: M4(0, 0, 0, 0.11, 0.08, 0.26), c: 0x26231d },
-  { g: GEO.box, m: M4(0, 0.05, 0.14, 0.07, 0.07, 0.08), c: 0x2e2b25 },
-  { g: GEO.box, m: M4(0, 0.04, 0.20, 0.03, 0.03, 0.06), c: 0xd8b24a },
-  { g: GEO.box, m: M4(0, 0.012, -0.18, 0.09, 0.022, 0.13), c: 0x1e1b16 },                 // tail
+  TP_(TG.sph, RM4(0, 0.005, -0.015, 0.125, 0.11, 0.29), 0x383b42),
+  TP_(TG.sph, RM4(0, 0.055, 0.135, 0.094, 0.09, 0.1), 0x41454d),
+  TP_(TG.cone, RM4(0, 0.047, 0.205, 0.034, 0.08, 0.03, Math.PI / 2), 0x57504a),
+  TP_(TG.dot, RM4(0.04, 0.072, 0.162, 0.02, 0.02, 0.02), 0xd9cfb2), TP_(TG.dot, RM4(-0.04, 0.072, 0.162, 0.02, 0.02, 0.02), 0xd9cfb2),
+  TP_(TG.sph, RM4(0, 0.022, -0.2, 0.1, 0.026, 0.17, -0.12), 0x2e3036),                                    // tail
   { g: GEO.box, m: M4(0.026, -0.075, 0.01, 0.014, 0.07, 0.014), c: 0x3a3226 }, { g: GEO.box, m: M4(-0.026, -0.075, 0.01, 0.014, 0.07, 0.014), c: 0x3a3226 },
 ]);
-const birdWingGeo = mergeGeos([{ g: GEO.box, m: M4(0.19, 0, 0, 0.38, 0.025, 0.13), c: 0x2e2b25 }]);
-const birdBody = new THREE.InstancedMesh(birdBodyGeo, figMat, BIRD_N);
-const birdWing = new THREE.InstancedMesh(birdWingGeo, figMat, BIRD_N * 2);
+/* v163 (Khal: wings that end in points): a real wing outline, not an oval. Seen from above: the arm wing from the shoulder, the
+   wrist a little forward, then the hand sweeping back to a pointed tip, with the primaries' ends notched along the trailing edge.
+   A thin slab with rounded edges; points are (x out from the shoulder, z forward) */
+const WING_SHAPE = (() => {
+  const pts = [[0, 0.06], [0.12, 0.078], [0.25, 0.045], [0.43, -0.06], [0.35, -0.055], [0.32, -0.085], [0.28, -0.062], [0.245, -0.092], [0.2, -0.07], [0.15, -0.09], [0.1, -0.072], [0, -0.07]];
+  const sh = new THREE.Shape(pts.map(([x, z]) => new THREE.Vector2(x, -z)));
+  const g = new THREE.ExtrudeGeometry(sh, { depth: 0.01, bevelEnabled: true, bevelThickness: 0.006, bevelSize: 0.005, bevelSegments: 1 });
+  g.rotateX(-Math.PI / 2); g.translate(0, -0.005, 0);   // the shape's y becomes -z (so z is forward again) and the thickness is y, centred
+  return g;
+})();
+const birdWingGeo = mergeGeos([TP_(WING_SHAPE, RM4(0, 0, 0, 1, 1, 1), 0x3b3e47)]);
+const birdBody = new THREE.InstancedMesh(birdBodyGeo, toonMat, BIRD_N);
+const birdWing = new THREE.InstancedMesh(birdWingGeo, toonMat, BIRD_N * 2);
 birdBody.castShadow = true; birdWing.castShadow = true;
-scene.add(birdBody, birdWing);
+scene.add(birdBody, birdWing);   // up in the trees: no outline, too small to see it
 const birds = [];
 const _bm = new THREE.Matrix4(), _bm2 = new THREE.Matrix4(), _bm3 = new THREE.Matrix4(), _bo = new THREE.Object3D();
 /* v18: a bird on a branch or on the ground has its wings folded along its back, not held out like a plane.
@@ -6801,12 +6828,12 @@ function wingMatrix(out, body, w, flap, fold) {
   // folded: swung back along the flank, rolled so the feathers stand against the body, and a little shorter
   // (a folded wing ends at the tail tip, not past it)
   const side = w ? 1 : -1;
-  _wT.makeTranslation(side * 0.058 * fold, 0.006 * fold, 0.035 * fold);
+  _wT.makeTranslation(side * 0.05 * fold, 0.012 * fold, 0.035 * fold);   // v162: in a little, against the rounder body
   _wF.makeRotationY(side * 1.5 * fold);
   _wD.makeRotationZ(side * (flap * (1 - fold) + 0.06 * fold));
   _wR.makeRotationX(1.32 * fold);
   _wM.makeRotationY(w ? 0 : Math.PI);
-  _wS.makeScale(1 - 0.3 * fold, 1, 1 - 0.45 * fold);
+  _wS.makeScale(1 - 0.42 * fold, 1, 1 - 0.45 * fold);   // v162: folded, it ends at the tail
   out.copy(body).multiply(_wT).multiply(_wF).multiply(_wD).multiply(_wR).multiply(_wM).multiply(_wS);
   return out;
 }
@@ -6854,7 +6881,7 @@ function stepBirds(dt) {
       b.hop = Math.max(0, b.hop - dt);
     }
     const hy = b.hop > 0 ? Math.sin(b.hop / 0.25 * Math.PI) * 0.18 : 0;
-    _bo.position.set(b.x, b.y + hy, b.z); _bo.rotation.set(b.state === 'fly' ? -0.25 : 0, b.a, 0);
+    _bo.position.set(b.x, b.y + hy, b.z); _bo.rotation.set(b.state === 'fly' ? -0.25 : -0.3, b.a, 0);   // v162: perched head up
     _bo.scale.setScalar(vis ? 1 : 0.0001); _bo.updateMatrix();
     birdBody.setMatrixAt(i, _bo.matrix);
     b.fold = (b.fold === undefined ? 1 : b.fold) + ((b.state === 'fly' ? 0 : 1) - (b.fold === undefined ? 1 : b.fold)) * Math.min(1, dt * 7);
@@ -8120,11 +8147,14 @@ const MISSIONS = [
     spawnZ: .9, grenades: 8, reinf: 5, alertThreshold: .4,
   },
   {
-    name: 'The Cliff Path', sniper: true,
+    // v161: France op 2 (M.order), re-drawn from Port-en-Bessin (notes/normandy-landings.md): Pointe du Hoc was the US Rangers, and
+    // the squad is British. The map and the empty-casemate twist stay; it's harder: a sentry on the track, two at its foot, an MG
+    // on the edge watching the field, a patrol along the top, two more in the orchard, the shelling every 14 s
+    name: 'The Cliff Path', sniper: true, order: 2,
     obj: 'Silence the battery',
-    sub: "The Calvados coast · Morning · One way up", drawn: "Drawn from the climb at Pointe du Hoc, 6 June 1944.",   // v69
-    brief: "Three field guns on the cliff top are shelling the low ground every eighteen seconds, and you are standing in it. There is one way up: a track cut into the cliff on the west. A pillbox near the top faces out over the field, its back to the path. Wreck the guns with a grenade, or spike them quietly, three seconds a gun. Then the pickup is at the far end of the plateau.",
-    weather: null, scatter: 36, diff: 0.68, noExtras: true, charges: 2, artillery: true, mist: true,
+    sub: "Port-en-Bessin · Morning · The western bluff", drawn: "Drawn from 47 Royal Marine Commando at Port-en-Bessin, 7–8 June 1944.",
+    brief: "47 Royal Marine Commando landed at Gold, lost most of their boats and all their wireless sets, and marched ten miles behind the German lines to take Port-en-Bessin from the landward side. You're with them, under the western bluff. Field guns on the top are shelling the low ground every fourteen seconds, and you are standing in it. There's one way up, a track cut into the cliff on the west, with a sentry on it. A pillbox near the top faces out over the field with its back to the path, and a machine gun on the edge watches the field: keep to the west. Wreck the guns with a grenade, or spike them quietly, three seconds a gun. Then out along the bluff to the pickup.",
+    weather: null, scatter: 36, diff: 0.68, noExtras: true, charges: 2, artillery: { every: 14 }, mist: true,
     mesas: [{ x: 0, z: 0, w: 1, d: .44, h: 6, ramps: [{ fx: .14, fz: .68, tx: .14, tz: .4, w: 3.6 }] }],
     // v70, Pointe du Hoc: the emplacements on the edge are empty. The guns were towed inland to an orchard; their tyre tracks lead there
     gunHunt: true,
@@ -8138,12 +8168,19 @@ const MISSIONS = [
       { x: .6, z: .12, a: Math.PI * .5, range: 15, arc: Math.PI * .6, hp: 3, patrol: [{ x: .58, z: .12 }, { x: .9, z: .12 }] },
       { x: .69, z: .37, a: 0, range: 18, arc: Math.PI * .5, hp: 3 },
       { x: .1, z: .76, a: Math.PI * .5, range: 15, arc: Math.PI * .6, hp: 3, patrol: [{ x: .08, z: .76 }, { x: .3, z: .78 }] },
+      // v161: harder
+      { x: .14, z: .55, a: 0, range: 13, arc: Math.PI * .55, hp: 3 },   // a sentry halfway up the track, looking down it: the knife
+      { x: .22, z: .72, a: Math.PI * .2, range: 14, arc: Math.PI * .6, hp: 3 }, { x: .06, z: .7, a: -Math.PI * .1, range: 14, arc: Math.PI * .6, hp: 3 },   // two at its foot
+      { x: .56, z: .415, a: 0, range: 30, arc: Math.PI * 1.0, hp: 2, hold: true, sandbag: true, rapidFire: true, tag: 'edge' },   // the MG on the edge, over the field
+      { x: .32, z: .4, a: Math.PI / 2, range: 15, arc: Math.PI * .6, hp: 3, patrol: [{ x: .32, z: .4 }, { x: .88, z: .41 }] },   // along the top
+      { x: .4, z: .1, a: Math.PI, range: 14, arc: Math.PI * .6, hp: 3 }, { x: .28, z: .2, a: Math.PI * .7, range: 14, arc: Math.PI * .6, hp: 3 },   // in the orchard
     ],
     obstacles: [
       ...[[.3, .6], [.42, .56], [.55, .62], [.7, .58], [.85, .64], [.22, .74], [.6, .74], [.78, .78], [.18, .52]].map(([x, z]) => ({ t: 'bush', x, z })),
       ...[[.4, .7], [.65, .68], [.9, .76], [.08, .9], [.92, .9], [.92, .34], [.3, .3]].map(([x, z]) => ({ t: 'tree', x, z })),
       ...[[0.25, 0.045], [0.305, 0.045], [0.415, 0.045], [0.525, 0.045], [0.3875, 0.105], [0.4425, 0.105], [0.25, 0.165], [0.305, 0.165], [0.47, 0.165], [0.525, 0.165], [0.2775, 0.225], [0.3325, 0.225]].map(([x, z]) => ({ t: 'tree', x, z, kind: 'broad' })),   // v70: the orchard
       { t: 'casemate', x: 0.42, z: 0.38, a: 0 }, { t: 'casemate', x: 0.6, z: 0.39, a: 0 }, { t: 'casemate', x: 0.78, z: 0.38, a: 0 },
+      { t: 'sangar', x: .505, z: .415, r: 2.0, o: Math.PI },   // v161: the MG's sandbags, on the edge between two of them
       { t: 'rock', x: .35, z: .64 }, { t: 'rock', x: .5, z: .7 }, { t: 'rock', x: .75, z: .68 }, { t: 'house', style: 'barn', x: .48, z: .8, w: 6.5, d: 5 },
       { t: 'crate', x: 0.37, z: 0.06 }, { t: 'crate', x: 0.47, z: 0.13 },   // v70: the guns' ammunition, stacked nearby
     ],
@@ -15323,12 +15360,15 @@ const FA_TYPES = {
   rabbit: { startle: 5.0, flee: 7.0, wander: 2.5, walk: 1.6, n: 10 },
   deer:   { startle: 11,  flee: 9.5, wander: 4.0, walk: 0.8, n: 9 },
 };
-const faCrow = new THREE.InstancedMesh(birdBodyGeo, figMat, FA_TYPES.crow.n), faWing = new THREE.InstancedMesh(birdWingGeo, figMat, FA_TYPES.crow.n * 2);
-const faRabbit = new THREE.InstancedMesh(mergeGeos([
-  { g: GEO.sph, m: M4(0, 0.17, -0.02, 0.26, 0.24, 0.38), c: 0x8a7a62 }, { g: GEO.sph, m: M4(0, 0.27, 0.17, 0.17, 0.17, 0.2), c: 0x8f8068 },
-  { g: GEO.box, m: M4(-0.04, 0.42, 0.13, 0.04, 0.2, 0.06, 0, 0.15), c: 0x7a6a52 }, { g: GEO.box, m: M4(0.04, 0.42, 0.13, 0.04, 0.2, 0.06, 0, -0.15), c: 0x7a6a52 },
-  { g: GEO.sph, m: M4(0, 0.2, -0.22, 0.1, 0.1, 0.1), c: 0xe8e4da },
-]), figMat, FA_TYPES.rabbit.n);
+const faCrow = new THREE.InstancedMesh(birdBodyGeo, toonMat, FA_TYPES.crow.n), faWing = new THREE.InstancedMesh(birdWingGeo, toonMat, FA_TYPES.crow.n * 2);
+const faRabbit = new THREE.InstancedMesh(mergeGeos([   // v162: round and toon-shaded, with eyes, a nose and pink in the ears
+  TP_(TG.sph, RM4(0, 0.17, -0.02, 0.27, 0.25, 0.38), 0x917e62), TP_(TG.sph, RM4(0, 0.28, 0.17, 0.18, 0.17, 0.2), 0x97866b),
+  TP_(TG.sph, RM4(-0.045, 0.43, 0.12, 0.055, 0.23, 0.075, 0, 0, 0.15), 0x86755b), TP_(TG.sph, RM4(0.045, 0.43, 0.12, 0.055, 0.23, 0.075, 0, 0, -0.15), 0x86755b),
+  TP_(TG.dot, RM4(-0.047, 0.44, 0.145, 0.03, 0.17, 0.03, 0, 0, 0.15), 0xd6a495), TP_(TG.dot, RM4(0.047, 0.44, 0.145, 0.03, 0.17, 0.03, 0, 0, -0.15), 0xd6a495),
+  TP_(TG.dot, RM4(-0.068, 0.31, 0.225, 0.035, 0.042, 0.035), 0x17110c), TP_(TG.dot, RM4(0.068, 0.31, 0.225, 0.035, 0.042, 0.035), 0x17110c),
+  TP_(TG.dot, RM4(0, 0.275, 0.268, 0.032, 0.026, 0.022), 0xc48a80),
+  TP_(TG.sph, RM4(0, 0.21, -0.22, 0.11, 0.11, 0.11), 0xf2eee5),
+]), toonMat, FA_TYPES.rabbit.n);
 const faDeer = new THREE.InstancedMesh(mergeGeos([
   { g: GEO.box, m: M4(0, 0.95, 0, 0.42, 0.45, 1.1), c: 0x8a6a44 }, { g: GEO.box, m: M4(0, 0.86, 0, 0.36, 0.2, 1.0), c: 0xc8b090 },
   { g: GEO.box, m: M4(0, 1.3, 0.5, 0.2, 0.55, 0.22, 0, 0, 0), c: 0x8a6a44 }, { g: GEO.box, m: M4(0, 1.58, 0.66, 0.2, 0.2, 0.38), c: 0x7e6040 },
@@ -15337,6 +15377,7 @@ const faDeer = new THREE.InstancedMesh(mergeGeos([
   { g: GEO.box, m: M4(0, 1.02, -0.58, 0.14, 0.18, 0.08), c: 0xf0ece0 },
 ]), figMat, FA_TYPES.deer.n);
 for (const im of [faCrow, faWing, faRabbit, faDeer]) { im.castShadow = true; im.count = 0; scene.add(im); }
+scene.add(inked(faCrow, 0.009), inked(faWing, 0.008), inked(faRabbit, 0.011));   // v162: the ink line
 
 /*───────────────────── deer: a skinned skeleton and real gaits (v18) ─────────────────────
    One skinned mesh per deer (one draw call), 18 bones: hips → spine → chest → neck → head, three-segment
@@ -15478,6 +15519,7 @@ function placeFauna(M) {
   if (!M.noFauna) for (let i = 0; i < 4; i++) group('rabbit', 2, 1.6, k + 40 + i * 2.7);
   if (!SAND && !M.noFauna) for (let i = 0; i < 3; i++) group('deer', 3, 3.2, k + 80 + i * 5.3);   // v92: no deer in the desert (the ravens and a hare or two stay)
   faCrow.count = cnt.crow; faWing.count = cnt.crow * 2; faRabbit.count = cnt.rabbit; faDeer.count = 0;
+  [faCrow, faWing, faRabbit].forEach(setInk);
   DEER.forEach((d, i) => { d.mesh.visible = false; d.gp = Math.random(); d.lx = null; d.v = 0; });
 }
 function startle(f, x, z) {
@@ -15564,8 +15606,8 @@ function stepFauna(dt) {
     if (f.type === 'crow') {
       const air = f.y > 0.05;
       if (air) { f.flap += dt * 24; wing = Math.sin(f.flap) * 0.95; pitch = -0.2; }
-      else if (f.moving) bob = Math.abs(Math.sin(f.anim * 12)) * 0.12;
-      else pitch = Math.sin(f.anim * 3 + f.i) > 0.6 ? 0.6 : 0;                   // pecking
+      else if (f.moving) { bob = Math.abs(Math.sin(f.anim * 12)) * 0.12; pitch = -0.22; }
+      else pitch = Math.sin(f.anim * 3 + f.i) > 0.6 ? 0.6 : -0.3;                   // pecking; v162: otherwise head up, as a crow stands
     } else if (f.type === 'rabbit') {
       if (f.moving) bob = Math.abs(Math.sin(f.anim * (f.state === 'flee' ? 15 : 8))) * (f.state === 'flee' ? 0.35 : 0.12);
     } else {
