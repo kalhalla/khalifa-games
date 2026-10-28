@@ -1047,6 +1047,7 @@ updWheel();window.scrollTo(0,0);
 $('#hList').addEventListener('click',e=>{const b=e.target.closest('[data-tr]');if(!b)return;const i=+b.dataset.tr,t=trackList()[i];
 if(i===hSel&&i!==0){if(t.id==='new'){loadTrack('new');setView('compose');return}loadTrack(t.id);if(!playing)start();renderHome();return}hSel=i;renderHome();updWheel()});
 $('#hPlay').addEventListener('click',()=>{const t=trackList()[hSel];if(t&&t.id==='new'){loadTrack('new');setView('compose');return}if(t&&t.id!=='cur'){loadTrack(t.id);if(!playing)start()}else{playing?stop():start()}renderHome()});
+{const hl=document.getElementById('hLearn');if(hl)hl.addEventListener('click',()=>setView('learn'))}
 $('#hCompose').addEventListener('click',()=>{const t=trackList()[hSel];if(t&&t.id!=='cur')loadTrack(t.id);setView('compose')});
 document.querySelector('.vsw').addEventListener('click',e=>{const b=e.target.closest('[data-v]');if(b&&b.dataset.v!==view)setView(b.dataset.v)});
 let lastPrev=0;
@@ -1059,13 +1060,14 @@ return{name:'tempo',val:S.bpm+' bpm',step(d){const b=S.bpm;bump(d);return S.bpm!
 }
 function updWheel(){const t=wheelTarget();$('#wName').textContent=t.name;$('#wVal').textContent=t.val;$('#wheel').setAttribute('aria-valuetext',t.name+' '+t.val)}
 function setupWheel(w,drum){
-const DET=14,FRICTION=.945;
+const circ=w.classList.contains('dial'),DET=circ?28:14,FRICTION=circ?.955:.945,RAD=()=>Math.max(60,w.clientWidth*.36);
+let lastA=0;const ang=e=>{const r=w.getBoundingClientRect();return[Math.atan2(e.clientY-r.top-r.height/2,e.clientX-r.left-r.width/2),Math.hypot(e.clientY-r.top-r.height/2,e.clientX-r.left-r.width/2)/r.width]};
 let dragging=false,lastX=0,lastT=0,vel=0,acc=0,off=0,raf=null;
 const stopAnim=()=>{if(raf){cancelAnimationFrame(raf);raf=null}};
 const tick=d=>{const moved=wheelTarget().step(d);updWheel();
 if(!moved){if(!dragging){stopAnim();vel=0}uiSound('stop',.8);haptic(25);return false}
 const sp=Math.min(1,Math.abs(vel)/1.6);uiSound('detent',.55+sp*.45);haptic(4);return true};
-const spin=dx=>{off+=dx;drum.style.backgroundPositionX=off+'px';acc+=dx;
+const spin=dx=>{off+=dx;if(circ)drum.style.transform=`rotate(${off/RAD()}rad)`;else drum.style.backgroundPositionX=off+'px';acc+=dx;
 while(acc>=DET){acc-=DET;if(!tick(1)){acc=0;return}}
 while(acc<=-DET){acc+=DET;if(!tick(-1)){acc=0;return}}};
 const settle=()=>{ // ease into the nearest detent, like a sprung ball bearing
@@ -1079,8 +1081,8 @@ const f=now=>{const dt=Math.min(40,now-t0);t0=now;vel*=Math.pow(FRICTION,dt/16.7
 if(Math.abs(vel)<.035){raf=null;vel=0;settle();return}
 spin(vel*dt);if(raf!==null)raf=requestAnimationFrame(f)};
 raf=requestAnimationFrame(f)};
-w.addEventListener('pointerdown',e=>{stopAnim();w.setPointerCapture(e.pointerId);dragging=true;lastX=e.clientX;lastT=e.timeStamp;vel=0;e.preventDefault();uiSound('knob');haptic(6)});
-w.addEventListener('pointermove',e=>{if(!dragging)return;const dx=e.clientX-lastX,dt=Math.max(1,e.timeStamp-lastT);
+w.addEventListener('pointerdown',e=>{stopAnim();w.setPointerCapture(e.pointerId);dragging=true;lastX=e.clientX;if(circ)lastA=ang(e)[0];lastT=e.timeStamp;vel=0;e.preventDefault();uiSound('knob');haptic(6)});
+w.addEventListener('pointermove',e=>{if(!dragging)return;let dx;if(circ){const [a,d]=ang(e);let da=a-lastA;if(da>Math.PI)da-=2*Math.PI;if(da<-Math.PI)da+=2*Math.PI;lastA=a;if(d<.17)return;dx=da*RAD()}else dx=e.clientX-lastX;const dt=Math.max(1,e.timeStamp-lastT);
 vel=vel*.55+(dx/dt)*.45;lastX=e.clientX;lastT=e.timeStamp;spin(dx)});
 const end=e=>{if(!dragging)return;dragging=false;haptic(8);if(e.timeStamp-lastT>70)vel=0;vel*=.85;
 if(Math.abs(vel)>.12)fling();else settle()};
@@ -1599,6 +1601,13 @@ Object.keys(PANELS).forEach(x=>$('#p-'+x).hidden=x!==t);PANELS[t]();renderChips(
 document.querySelector('.tabs').addEventListener('click',e=>{const b=e.target.closest('[data-tab]');if(b)showTab(b.dataset.tab)});
 function renderAll(){document.documentElement.classList.toggle('simple',UI.lvl!=='adv');paintKey();renderPresets();$('#bpmVal').textContent=S.bpm;showTab(tab)}
 try{const t=localStorage.getItem(KEY+'.tab');if(t&&PANELS[t])tab=t}catch(e){}
+/* small read-only window for alternative skins (e.g. /mu-s1k/hifi/): levels, position, a few mix values */
+let MUf=null,MUt=null;
+window.MU={get playing(){return playing},get power(){return power},pos(){return cur},
+level(){if(!ctx||!N.an)return null;if(!MUf){MUf=new Uint8Array(N.an.frequencyBinCount);MUt=new Uint8Array(N.an.fftSize)}
+N.an.getByteFrequencyData(MUf);N.an.getByteTimeDomainData(MUt);let lo=0;for(let i=1;i<7;i++)lo+=MUf[i];let r=0;for(let i=0;i<MUt.length;i++){const v=(MUt[i]-128)/128;r+=v*v}
+return{low:lo/6/255,rms:Math.sqrt(r/MUt.length),bins:MUf,rate:ctx.sampleRate}},
+fx(k){return S.fx[k]},setFx(k,v){if(!(k in S.fx))return;S.fx[k]=Math.max(0,Math.min(1,v));applyParams();save()}};
 renderAll();
 try{setView(localStorage.getItem(KEY+'.view')||'home')}catch(e){setView('home')}
 })();
