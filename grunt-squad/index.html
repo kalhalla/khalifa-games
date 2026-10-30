@@ -471,7 +471,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
     <button id="tset">SETTINGS <small>sound · music · graphics</small></button>
   </div>
   <div class="foot">© KHALIFA.GAMES · NO GRUNTS WERE CONSULTED</div>
-  <div id="tver">v163</div>
+  <div id="tver">v164</div>
 </div>
 
 <div id="ops" class="screen">
@@ -6784,12 +6784,12 @@ const BIRD_N = 10;
    The men and the world stay as they are. */
 const TOON_RAMP = (() => { const t = new THREE.DataTexture(new Uint8Array([84, 168, 255]), 3, 1, THREE.LuminanceFormat); t.minFilter = t.magFilter = THREE.NearestFilter; t.generateMipmaps = false; t.needsUpdate = true; return t; })();
 const toonMat = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: TOON_RAMP });
-const TG = { sph: new THREE.SphereGeometry(0.5, 10, 7), dot: new THREE.SphereGeometry(0.5, 6, 4), cone: new THREE.ConeGeometry(0.5, 1, 8) };
+const TG = { sph: new THREE.SphereGeometry(0.5, 10, 7), mid: new THREE.SphereGeometry(0.5, 8, 6), dot: new THREE.SphereGeometry(0.5, 6, 4), cone: new THREE.ConeGeometry(0.5, 1, 8) };
 const TP_ = (g, m, c) => ({ g, m, c, smooth: true });
-function inkMat(w) {
-  const m = new THREE.MeshBasicMaterial({ color: SC(0x17120d), side: THREE.BackSide });
+function inkMat(w, skin) {   // v164: skin, for the deer's skinned meshes
+  const m = new THREE.MeshBasicMaterial({ color: SC(0x17120d), side: THREE.BackSide, skinning: !!skin });
   m.onBeforeCompile = sh => { sh.vertexShader = sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  transformed += normal * ' + w.toFixed(4) + ';'); };
-  m.customProgramCacheKey = () => 'ink' + w;
+  m.customProgramCacheKey = () => 'ink' + w + (skin ? 's' : '');
   return m;
 }
 // the outline twin of an instanced mesh: the same geometry and the very same matrices; keep its count with the mesh's (setInk)
@@ -15417,6 +15417,17 @@ function deerGeo(buck) {
   const fore = () => [[RP_(RG.box, RM4(0, -0.14, 0, 0.13, 0.32, 0.18), br)], [RP_(RG.box, RM4(0, -0.15, 0, 0.08, 0.3, 0.09), br)],
                       [RP_(RG.box, RM4(0, -0.13, 0, 0.055, 0.27, 0.06), leg), RP_(RG.box, RM4(0, -0.28, 0.02, 0.07, 0.06, 0.09), hoof)]];
   [P.thL, P.shL, P.caL] = hind(); [P.thR, P.shR, P.caR] = hind(); [P.arL, P.foL, P.cfL] = fore(); [P.arR, P.foR, P.cfR] = fore();
+  /* v164 (Khal: the deer too): toon, like the birds and rabbits. Every box becomes a round part with smooth normals, 15% larger (an
+     ellipsoid is thinner than the box it sits in), and coarser the smaller it is: the body, neck, head and thighs in the 10×7
+     sphere, the legs, ears and tail in the 8×6, the eyes, nose, hooves and antler tines in the 6×4 dot */
+  // The body's three blocks and the neck and thighs are drawn out along their length so the rounds overlap into one body (as
+  // three separate ellipsoids it read as a caterpillar, the ink drawn in each waist); the thin white rump is thickened a little, so
+  // it reads as a patch and not a stripe, and the cream belly strip is dropped
+  const _ds = new THREE.Vector3(), _dk = new THREE.Matrix4(), DRAW = { hips: [1, 1.05, 1.75], spine: [1, 1.05, 1.9], chest: [1, 1.05, 1.75], neck: [1.05, 1.3, 1.05], thL: [1, 1.25, 1], thR: [1, 1.25, 1], arL: [1, 1.2, 1], arR: [1, 1.2, 1] };
+  for (const k in P) P[k] = P[k].map((q, j) => { _ds.setFromMatrixScale(q.m); const v = _ds.x * _ds.y * _ds.z, d = j === 0 && DRAW[k], thin = Math.min(_ds.x, _ds.y, _ds.z) < 0.065 && v >= 0.002;
+    if (thin && _ds.y < 0.065) return null;   // the belly's cream: as a round it poked out below like a tab, so it goes
+    _dk.makeScale(1.15 * (d ? d[0] : thin ? 0.9 : 1), 1.15 * (d ? d[1] : 1), 1.15 * (d ? d[2] : thin && _ds.z < 0.065 ? 1.6 : 1));
+    return { g: v >= 0.004 ? TG.sph : v >= 0.0006 ? TG.mid : TG.dot, m: q.m.clone().multiply(_dk), c: q.c, smooth: true }; }).filter(Boolean);
   const rest = []; DEER_BONES.forEach(([n, pa, o], i) => { rest[i] = RV(...o); if (pa >= 0) rest[i].add(rest[pa]); });
   const geos = DEER_BONES.map(([n], i) => { const g = mergeGeos(P[n]); g.translate(rest[i].x, rest[i].y, rest[i].z); return g; });
   let total = 0; for (const g of geos) total += g.attributes.position.count;
@@ -15432,12 +15443,14 @@ function deerGeo(buck) {
 }
 const DEER_GEO = [deerGeo(false), deerGeo(true)];
 const DEER = [];
+const deerToon = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: TOON_RAMP, skinning: true }), deerInk = inkMat(0.014, true);   // v164
 for (let i = 0; i < FA_TYPES.deer.n; i++) {
-  const mesh = new THREE.SkinnedMesh(DEER_GEO[i % 3 === 0 ? 1 : 0], rigSkinMat);
+  const mesh = new THREE.SkinnedMesh(DEER_GEO[i % 3 === 0 ? 1 : 0], deerToon);
   mesh.castShadow = true; mesh.frustumCulled = true;
   const bones = DEER_BONES.map(([n, pa, o]) => { const b = new THREE.Bone(); b.position.set(...o); return b; });
   DEER_BONES.forEach(([n, pa], k) => (pa < 0 ? mesh : bones[pa]).add(bones[k]));
   mesh.updateMatrixWorld(true); mesh.bind(new THREE.Skeleton(bones)); mesh.visible = false; scene.add(mesh);
+  const ink = new THREE.SkinnedMesh(mesh.geometry, deerInk); mesh.add(ink); ink.bind(mesh.skeleton, mesh.bindMatrix);   // v164: the ink line, on the same bones
   const B = {}; DEER_BONES.forEach(([n], k) => B[n] = bones[k]);
   DEER.push({ mesh, B, gp: Math.random(), lx: null, lz: 0, v: 0, look: 0, lookT: 0, tail: 2.6, neck: 0.5, hp: 0 });
 }
