@@ -471,7 +471,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
     <button id="tset">SETTINGS <small>sound · music · graphics</small></button>
   </div>
   <div class="foot">© KHALIFA.GAMES · NO GRUNTS WERE CONSULTED</div>
-  <div id="tver">v164</div>
+  <div id="tver">v165</div>
 </div>
 
 <div id="ops" class="screen">
@@ -7868,11 +7868,15 @@ const MISSIONS = [
     brief: "Last night the RAF dropped four hundred dummy parachutists over Normandy to fool Jerry. They dropped you as well, possibly by accident. The wood is full of Germans looking for paratroops. So far they have found sacking. Keep it that way. Crawl through the scrub, keep out of their sight and make for the green flare. Nobody need die here. One shout and the whole wood knows.",
     weather: null, scatter: 62, mist: true,
     enemies: [
-      { x: .5, z: .22, a: Math.PI * .55, range: 21, arc: Math.PI * .72, hp: 3 },
-      { x: .6, z: .26, a: Math.PI * .65, range: 20, arc: Math.PI * .68, hp: 3 },
+      { x: .5, z: .22, a: Math.PI * .55, range: 21, arc: Math.PI * .82, hp: 3 },   // v165: wider
+      { x: .6, z: .26, a: Math.PI * .65, range: 20, arc: Math.PI * .78, hp: 3 },
       { x: .35, z: .48, a: Math.PI * .3, range: 18, arc: Math.PI * .64, hp: 2, patrol: [{ x: .2, z: .45 }, { x: .5, z: .52 }] },
       { x: .18, z: .34, a: Math.PI * .45, range: 18, arc: Math.PI * .6, hp: 2, patrol: [{ x: .12, z: .3 }, { x: .3, z: .4 }] },
       { x: .82, z: .36, a: Math.PI * .58, range: 18, arc: Math.PI * .6, hp: 3, patrol: [{ x: .88, z: .3 }, { x: .7, z: .42 }] },
+      // v165 (harder, now that France opens with the landings): the east side was the easy way round. A patrol across it
+      // through the middle of the wood, and a man by the pickup looking back down the wood
+      { x: .8, z: .56, a: -Math.PI * .5, range: 17, arc: Math.PI * .62, hp: 3, patrol: [{ x: .86, z: .55 }, { x: .6, z: .6 }] },
+      { x: .76, z: .14, a: -Math.PI * .2, range: 17, arc: Math.PI * .6, hp: 3 },
     ],
     obstacles: [
       ...[[.1,.32],[.22,.42],[.34,.35],[.15,.5],[.3,.55],[.44,.48],[.58,.52],[.7,.44],[.82,.5],[.12,.62],
@@ -7883,7 +7887,7 @@ const MISSIONS = [
       { t: 'wall', x: .57, z: .11, w: 12 * S, d: 70 * S },
       { t: 'wall', x: .34, z: .11, w: 12 * S, d: 70 * S },
     ],
-    spawnZ: .9, grenades: 6, reinf: 4, alertThreshold: .7, diff: 0, noExtras: true,
+    spawnZ: .9, grenades: 6, reinf: 5, alertThreshold: .6, diff: 0.2, noExtras: true,   // v165: was reinf 4, alert .7, diff 0
     objectives: [{ t: 'extract' }], extract: { x: .86, z: .06, r: 6 },
   },
   {
@@ -7891,13 +7895,16 @@ const MISSIONS = [
     roads: [{ k: 'track', pts: [[.5, 1.0], [.5, .62], [.5, .44]] }],
     obj: 'Destroy the pillbox',
     sub: "Normandy · Morning · One gun, one slit", drawn: "Drawn from the Merville Battery, 6 June 1944.",   // v69
-    brief: "Six hundred men and three gliders were meant for this. What arrived was you. A pillbox with a machine gun covers the track and the field in front of it. Rifles won't scratch it, but it can't see its own flanks or back. Work round through the scrub and post a grenade through the slit from close in. You have one charge, if you'd rather knock at the back door. A sentry walks the yard behind.",
-    weather: null, scatter: 40, diff: 0.05, noExtras: true, charges: 1,
+    brief: "Six hundred men and three gliders were meant for this. What arrived was you. A pillbox with a machine gun covers the track and the field in front of it. Rifles won't scratch it, but it can't see its own flanks or back. Work round through the scrub and post a grenade through the slit from close in. They know it too: a man watches the scrub on the left and another walks the right. You have one charge, if you'd rather knock at the back door. A sentry walks the yard behind.",
+    weather: null, scatter: 40, diff: 0.24, noExtras: true, charges: 1,   // v165: was 0.05
     targets: [{ t: 'pillbox', x: .5, z: .38, a: 0 }],
     objectives: [{ t: 'destroy', what: 'pillbox' }],
     enemies: [
       { x: .38, z: .27, a: Math.PI * .5, range: 15, arc: Math.PI * .6, hp: 3, patrol: [{ x: .36, z: .27 }, { x: .64, z: .27 }] },
       { x: .7, z: .2, a: -Math.PI * .25, range: 16, arc: Math.PI * .6, hp: 3 },
+      // v165: the flanks were free. A man in the scrub on the west side watching across it, and a patrol along the east
+      { x: .2, z: .4, a: Math.PI * .5, range: 15, arc: Math.PI * .6, hp: 3 },
+      { x: .8, z: .5, a: -Math.PI * .5, range: 15, arc: Math.PI * .6, hp: 3, patrol: [{ x: .82, z: .5 }, { x: .66, z: .45 }] },
     ],
     obstacles: [
       ...[[.3, .5], [.28, .42], [.33, .34], [.36, .58], [.7, .52], [.72, .43], [.67, .34], [.64, .58], [.24, .62], [.77, .63]].map(([x, z]) => ({ t: 'bush', x, z })),
@@ -7905,15 +7912,15 @@ const MISSIONS = [
       { t: 'rock', x: .41, z: .56 }, { t: 'rock', x: .61, z: .6 },
       { t: 'house', style: 'farm', x: .62, z: .12, w: 6.5, d: 4.5 }, { t: 'crate', x: .58, z: .2 },
     ],
-    spawnZ: .9, grenades: 6, reinf: 3, alertThreshold: .7,
+    spawnZ: .9, grenades: 6, reinf: 4, alertThreshold: .6,   // v165: was reinf 3, alert .7
   },
   {
     name: 'The Hut',
     roads: [{ k: 'track', pts: [[.5, 1.0], [.5, .7], [.49, .38]] }],
     obj: 'Take the documents and get out',
     sub: "Caen · Afternoon · Rain · A hut and its guards", drawn: "Drawn from the theft of the Atlantic Wall plans from a German headquarters in Caen, 1942.",   // v69
-    brief: "In 1942 a decorator in Caen walked out of a German headquarters with the Atlantic Wall plans in his wallpaper samples. The Army reckons four soldiers can do as well. A satchel of orders lies on the map table in the back room of that hut. One man on the door, one inside, one on the walls, two in the yard. Take the papers and bring them back. Jerry must never know they've gone.",
-    weather: 'rain', scatter: 46, diff: 0.1, noExtras: true,
+    brief: "In 1942 a decorator in Caen walked out of a German headquarters with the Atlantic Wall plans in his wallpaper samples. The Army reckons four soldiers can do as well. A satchel of orders lies on the map table in the back room of that hut. One man on the door, one inside, one on the walls, two in the yard, and one walking the scrub between us and them. Take the papers and bring them back. Jerry must never know they've gone.",
+    weather: 'rain', scatter: 46, diff: 0.28, noExtras: true,   // v165: was 0.1
     buildings: [
       { x: .38, z: .2, w: .24, d: .16, doorX: .47, doorZ: .35, doorW: .05, doorD: .02,
         wall: 0x7a6a44, roof: 0x4f5a4e, floor: 0x5a5244, walls: [{ x: 0, z: .45, w: .6, d: .05 }] },
@@ -7921,26 +7928,27 @@ const MISSIONS = [
     intel: { x: .44, z: .235 },
     objectives: [{ t: 'take' }, { t: 'extract', label: 'Get the papers home: back to our lines' }], extract: { x: .5, z: .95, r: 7 },
     enemies: [
-      { x: .5, z: .39, a: 0, range: 15, arc: Math.PI * .6, hp: 3 },
+      { x: .5, z: .39, a: 0, range: 16, arc: Math.PI * .75, hp: 3 },   // v165: the door, wider
       { x: .42, z: .31, a: Math.PI * .5, range: 12, arc: Math.PI * .7, hp: 3 },
       { x: .33, z: .4, a: Math.PI * .5, range: 14, arc: Math.PI * .6, hp: 3, patrol: [{ x: .34, z: .4 }, { x: .66, z: .4 }, { x: .66, z: .16 }, { x: .34, z: .16 }] },
       { x: .24, z: .3, a: Math.PI * .4, range: 16, arc: Math.PI * .6, hp: 3 },
       { x: .76, z: .3, a: -Math.PI * .4, range: 16, arc: Math.PI * .6, hp: 3, rapidFire: true },
+      { x: .3, z: .56, a: Math.PI * .5, range: 15, arc: Math.PI * .6, hp: 3, patrol: [{ x: .28, z: .56 }, { x: .72, z: .58 }] },   // v165: across the scrub, and the track
     ],
     obstacles: [
       ...[[.18, .5], [.26, .56], [.3, .46], [.82, .5], [.74, .56], [.7, .46], [.4, .62], [.6, .64]].map(([x, z]) => ({ t: 'bush', x, z })),
       ...[[.12, .4], [.88, .4], [.14, .62], [.86, .64], [.2, .2], [.8, .18], [.3, .72], [.7, .74]].map(([x, z]) => ({ t: 'tree', x, z })),
       { t: 'crate', x: .66, z: .22 }, { t: 'crate', x: .34, z: .24 }, { t: 'rock', x: .55, z: .55 },
     ],
-    spawnZ: .9, grenades: 6, reinf: 4, alertThreshold: .6,
+    spawnZ: .9, grenades: 6, reinf: 4, alertThreshold: .55,   // v165: was .6
   },
   {
     name: 'The Bridge',
     roads: [{ k: 'road', w: 3.6, pts: [[.5, 0.0], [.5, .3], [.5, .7], [.5, 1.0]] }],
     obj: 'Blow the bridge',
     sub: "The Dives · Morning · Heavy rain · River in spate", drawn: "Drawn from the demolition of the bridges over the Dives, 6 June 1944.",   // v69
-    brief: "One bridge. Their armour needs it tomorrow, so today it stops being a bridge. Two men guard our end, a gun watches from the far bank and a patrol walks this side. Put a charge on the planks or at their foot, then get clear: thirty seconds, and the river takes anyone still on it. Then back to our lines.",
-    weather: 'heavy', scatter: 46, diff: 0.15, noExtras: true, charges: 2,
+    brief: "One bridge. Their armour needs it tomorrow, so today it stops being a bridge. Two men guard our end, a gun watches from the far bank, a man watches along our bank and two patrols walk this side. Put a charge on the planks or at their foot, then get clear: thirty seconds, and the river takes anyone still on it. Then back to our lines.",
+    weather: 'heavy', scatter: 46, diff: 0.32, noExtras: true, charges: 2,   // v165: was 0.15
     water: [{ x1: 0, z1: .42, x2: 1, z2: .5 }],
     bridge: [{ x1: .465, z1: .415, x2: .535, z2: .505 }],
     targets: [{ t: 'bridge', b: 0 }],
@@ -7951,6 +7959,9 @@ const MISSIONS = [
       { x: .5, z: .33, a: 0, range: 22, arc: Math.PI * .5, hp: 3, rapidFire: true },
       { x: .2, z: .6, a: Math.PI * .5, range: 15, arc: Math.PI * .6, hp: 3, patrol: [{ x: .18, z: .6 }, { x: .4, z: .59 }] },
       { x: .62, z: .36, a: Math.PI * .5, range: 15, arc: Math.PI * .6, hp: 3, patrol: [{ x: .6, z: .36 }, { x: .8, z: .36 }] },
+      // v165: a man on our bank looking along it to the bridge, and a second patrol on the east side
+      { x: .28, z: .54, a: Math.PI * .5, range: 16, arc: Math.PI * .55, hp: 3 },
+      { x: .82, z: .62, a: -Math.PI * .5, range: 15, arc: Math.PI * .6, hp: 3, patrol: [{ x: .84, z: .62 }, { x: .62, z: .64 }] },
     ],
     obstacles: [
       { t: 'crate', x: .47, z: .31 }, { t: 'crate', x: .53, z: .31 },
@@ -7958,7 +7969,7 @@ const MISSIONS = [
       ...[[.1, .62], [.9, .6], [.16, .76], [.84, .78], [.2, .3], [.8, .28], [.32, .2], [.68, .18]].map(([x, z]) => ({ t: 'tree', x, z })),
       { t: 'rock', x: .38, z: .55 }, { t: 'rock', x: .63, z: .55 },
     ],
-    spawnZ: .9, grenades: 6, reinf: 4, alertThreshold: .6,
+    spawnZ: .9, grenades: 6, reinf: 4, alertThreshold: .55,   // v165: was .6
   },
   {
     name: 'Bridgehead', sniper: true,
@@ -7966,7 +7977,7 @@ const MISSIONS = [
     obj: 'Cross, wreck the radio, get out',
     sub: "Caen Canal · Midday · A pillbox on the far bank", drawn: "Drawn from the glider landing at the Caen Canal bridge, 6 June 1944.",   // v69
     brief: "Six gliders landed by these bridges in the dark. Yours landed in the next field. The pillbox on the far bank hasn't heard the bridge is ours, and past it a radio post is reporting our every move. Cross flat on the planks: they won't see you, but you can't fight from there. Deal with the pillbox or slip past it. A man at the set wrecks it in seconds. Pickup on the far side. There is a café. Don't.",
-    weather: null, scatter: 42, diff: 0.25, noExtras: true, charges: 1,
+    weather: null, scatter: 42, diff: 0.36, noExtras: true, charges: 1,   // v165: was 0.25
     water: [{ x1: 0, z1: .45, x2: 1, z2: .53 }],
     bridge: [{ x1: .305, z1: .445, x2: .375, z2: .535 }],
     targets: [{ t: 'pillbox', x: .34, z: .33, a: 0 }, { t: 'radio', x: .7, z: .2 }],
@@ -7977,13 +7988,16 @@ const MISSIONS = [
       { x: .75, z: .16, a: Math.PI * .1, range: 15, arc: Math.PI * .6, hp: 3 },
       { x: .55, z: .3, a: Math.PI * .5, range: 15, arc: Math.PI * .6, hp: 3, patrol: [{ x: .55, z: .3 }, { x: .86, z: .3 }] },
       { x: .45, z: .1, a: Math.PI * .5, range: 15, arc: Math.PI * .6, hp: 3, patrol: [{ x: .4, z: .12 }, { x: .62, z: .12 }] },
+      // v165: a man on the far bank looking at the end of the bridge, and a second patrol round the radio post
+      { x: .2, z: .41, a: Math.PI * .5, range: 14, arc: Math.PI * .55, hp: 3 },
+      { x: .82, z: .2, a: -Math.PI * .5, range: 15, arc: Math.PI * .6, hp: 3, patrol: [{ x: .84, z: .2 }, { x: .64, z: .18 }] },
     ],
     obstacles: [
       ...[[.22, .4], [.2, .32], [.46, .36], [.5, .42], [.58, .38], [.62, .14], [.8, .24], [.28, .6], [.42, .62], [.2, .66]].map(([x, z]) => ({ t: 'bush', x, z })),
       ...[[.1, .36], [.14, .24], [.9, .38], [.88, .14], [.3, .16], [.12, .64], [.88, .64], [.6, .7], [.3, .78]].map(([x, z]) => ({ t: 'tree', x, z })),
       { t: 'rock', x: .26, z: .44 }, { t: 'rock', x: .56, z: .58 }, { t: 'crate', x: .73, z: .25 },
     ],
-    spawnZ: .9, grenades: 6, reinf: 4, alertThreshold: .55,
+    spawnZ: .9, grenades: 6, reinf: 5, alertThreshold: .5,   // v165: was reinf 4, alert .55
   },
   {
     name: "The Hedgerows",
