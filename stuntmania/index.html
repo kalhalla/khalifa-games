@@ -262,7 +262,7 @@
 </head>
 <body>
 
-<div id="version">STUNTMANIA '76 — Build 0.8.0</div>
+<div id="version">STUNTMANIA '76 — Build 0.10.0</div>
 
 <canvas id="canvas"></canvas>
 
@@ -379,7 +379,7 @@
 // Build 0.2.0  —  Active runup (throttle + steering), camera snap on launch.
 // ============================================================================
 
-const BUILD_VERSION = '0.8.0';
+const BUILD_VERSION = '0.10.0';
 
 // ---------- PALETTE ---------------------------------------------------------
 const COL = {
@@ -462,8 +462,8 @@ const BANK_MAX = 0.55;          // visual bank radians
 // Floor: crush along Y (lying on the canyon floor), spread in X/Z — a heap.
 const WALL_SQUASH  = { x: 0.16, y: 1.45, z: 1.60 };
 const FLOOR_SQUASH = new THREE.Vector3(1.40, 0.20, 1.55);
-const WALL_SPLAT_FLOOR_Y = -40.7;   // sits the flattened wreck on the gorge floor
-// With edge2 pulled flush, the wall is a clean plane at x=CANYON_WIDTH. Park the
+const WALL_SPLAT_FLOOR_Y = -44.7;   // sits the flattened wreck on the gorge floor (top at -45)
+// The far wall's rock columns are all recessed behind x=CANYON_WIDTH. Park the
 // splat just in front of it — back face ~0.2 off the wall, snug, no clip-through.
 const WALL_SPLAT_X = CANYON_WIDTH - 0.35;
 
@@ -708,8 +708,10 @@ const SFX = (() => {
 // ============================================================================
 function init() {
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(COL.skyLo);
-  scene.fog = new THREE.Fog(0xE8C9A0, 120, 480);
+  // Background is drawn un-encoded; fog and the sky dome go through the sRGB
+  // output, so they're given the linear version of the same haze colour.
+  scene.background = new THREE.Color(ENV.haze);
+  scene.fog = new THREE.Fog(linCol(ENV.haze), 110, 700);   // play space stays crisp; far mesas go lavender
 
   buildSkyDome();
 
@@ -727,25 +729,30 @@ function init() {
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.outputEncoding = THREE.sRGBEncoding;
 
-  // Lights — warm golden-hour
-  const hemi = new THREE.HemisphereLight(0xFFDDB0, 0x6B3A1A, 0.55);
+  // Lights — hard warm sun from the right (lights the launch-side cliff, as in
+  // the reference), warm bounce off the red rock, lavender fill in the shadows.
+  const hemi = new THREE.HemisphereLight(0xFFE8D0, 0xC07050, 0.62);
   scene.add(hemi);
 
-  sun = new THREE.DirectionalLight(0xFFE0A8, 1.1);
-  sun.position.set(-30, 70, 60);
+  sun = new THREE.DirectionalLight(0xFFE6C0, 0.9);
+  sun.position.set(110, 120, 75);
+  sun.target.position.set(15, 0, -10);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.bias = -0.0006;
   const s = sun.shadow.camera;
-  s.left = -80; s.right = 220; s.top = 70; s.bottom = -50;
-  s.near = 1; s.far = 280;
+  s.left = -140; s.right = 140; s.top = 140; s.bottom = -140;
+  s.near = 1; s.far = 420;
   scene.add(sun);
+  scene.add(sun.target);
 
-  const fill = new THREE.DirectionalLight(0xA8B8E0, 0.18);
-  fill.position.set(80, 40, -50);
+  const fill = new THREE.DirectionalLight(0xB8B0E0, 0.24);
+  fill.position.set(-90, 40, 40);
   scene.add(fill);
 
-  buildPlateaus();
-  buildCanyonFloor();
+  buildCanyon();
+  buildTopDressing();
+  buildGorgeCacti();
   buildPlateauProps();
   buildGrandstand();
   buildSignage();
@@ -770,197 +777,818 @@ function onResize() {
 }
 
 // ============================================================================
-// WORLD GEOMETRY (unchanged from v0.1)
+// WORLD GEOMETRY — Widowmaker Gulch (rebuilt 0.10.0 from the reference painting)
 // ============================================================================
+//
+// Layout, in gameplay terms (must agree with getGroundAt):
+//   Launch mesa  A: x < 0,                 top y = 0
+//   The gorge     : 0 <= x < CANYON_WIDTH,  floor y = -45
+//   Landing mesa B: x >= CANYON_WIDTH, |z| <= PLATEAU_HALF_Z, top y = 0
+//   Everything else is basin floor at y = -45 (drift off B's sides and you fall).
+// Mesa C sits beyond a side gully (z < -60) purely as scenery.
+//
+// All rock, scrub and cacti are merged into a few vertex-coloured meshes so the
+// bigger world doesn't cost hundreds of draw calls. Placement uses a seeded RNG,
+// so the canyon is identical on every load.
+
+const ENV = {
+  // Display colours (what you see under neutral light); converted to linear below.
+  haze:      0xD8BABB,   // horizon / fog — the lavender-pink of the far mesas
+  skyLow:    0xF3DCC6,
+  skyMid:    0xEFE2D8,
+  skyTop:    0xD2D7E2,
+  sun:       0xFBF1DC,
+  cloud:     0xF8EDE3,
+  sandTop:   0xE29A5E,
+  sandRim:   0xD8854F,
+  runway:    0xEBB27A,
+  cliffHi:   0xD2663F,
+  cliffMid:  0xC0553A,
+  cliffLo:   0xA94632,
+  cliffDeep: 0x8F3A2B,
+  gorge:     0xDDA26C,
+  river:     0xF0D9B2,
+  outcrop:   0xD47448,
+  cactus:    0x6B8A4A,
+  cactusDk:  0x557540,
+  shrub:     0x9A9545,
+  shrubDk:   0x7E7E3A,
+};
+const linCol = hex => new THREE.Color(hex).convertSRGBToLinear();
+
+// ---------- deterministic RNG ----------------------------------------------
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+let wrand = mulberry32(1976);
+const wr = (a, b) => a + (b - a) * wrand();
+const wpick = arr => arr[Math.floor(wrand() * arr.length)];
+
+// ---------- merged-geometry batches ----------------------------------------
+const _bm = new THREE.Matrix4(), _bq = new THREE.Quaternion(), _be = new THREE.Euler();
+const _bv = new THREE.Vector3(), _bs = new THREE.Vector3(), _bc = new THREE.Color();
+
+function newBatch() { return { pos: [], col: [] }; }
+
+// Bake one geometry into a batch with a transform and a flat colour.
+function batchGeom(b, geom, x, y, z, rx, ry, rz, hex, vary, sx, sy, sz) {
+  const g = geom.index ? geom.toNonIndexed() : geom;
+  _be.set(rx || 0, ry || 0, rz || 0);
+  _bq.setFromEuler(_be);
+  _bm.compose(_bv.set(x, y, z), _bq, _bs.set(sx || 1, sy || 1, sz || 1));
+  g.applyMatrix4(_bm);
+  _bc.setHex(hex).convertSRGBToLinear();
+  if (vary) { const k = 1 + (wrand() - 0.5) * vary; _bc.r *= k; _bc.g *= k; _bc.b *= k; }
+  const p = g.attributes.position.array;
+  for (let i = 0; i < p.length; i += 3) {
+    b.pos.push(p[i], p[i + 1], p[i + 2]);
+    b.col.push(_bc.r, _bc.g, _bc.b);
+  }
+  if (g !== geom) g.dispose();
+  geom.dispose();
+}
+
+// A faceted rock block. Corners are jittered by position key so shared corners
+// move together — the box stays watertight, no cracks between faces.
+// flatTop keeps the top face level (for rims that must sit flush).
+function rockBox(b, w, h, d, x, y, z, ry, hex, j, flatTop, vary) {
+  const geom = new THREE.BoxGeometry(w, h, d);
+  const pos = geom.attributes.position;
+  const cache = {};
+  for (let i = 0; i < pos.count; i++) {
+    const px = pos.getX(i), py = pos.getY(i), pz = pos.getZ(i);
+    const key = px.toFixed(3) + ',' + py.toFixed(3) + ',' + pz.toFixed(3);
+    let o = cache[key];
+    if (!o) {
+      const lockY = flatTop && py > 0;
+      o = cache[key] = [(wrand() - 0.5) * j, lockY ? 0 : (wrand() - 0.5) * j * 0.6, (wrand() - 0.5) * j];
+    }
+    pos.setXYZ(i, px + o[0], py + o[1], pz + o[2]);
+  }
+  batchGeom(b, geom, x, y, z, 0, ry || 0, 0, hex, vary === undefined ? 0.07 : vary);
+}
+
+function flushBatch(b, castShadow, receiveShadow) {
+  if (!b.pos.length) return null;
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(b.pos, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(b.col, 3));
+  g.computeVertexNormals();
+  g.computeBoundingSphere();
+  const m = new THREE.Mesh(g, new THREE.MeshPhongMaterial({
+    color: 0xFFFFFF, vertexColors: true, shininess: 0, flatShading: true,
+  }));
+  m.castShadow = !!castShadow;
+  m.receiveShadow = receiveShadow !== false;
+  scene.add(m);
+  return m;
+}
+
+// ---------- SKY -------------------------------------------------------------
 function buildSkyDome() {
-  const geom = new THREE.SphereGeometry(800, 24, 12, 0, Math.PI*2, 0, Math.PI/2);
+  const R = 1200;
+  const geom = new THREE.SphereGeometry(R, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2);
   const colors = [];
   const pos = geom.attributes.position;
-  const cHi = new THREE.Color(0xFFC68A);
-  const cMid = new THREE.Color(0xF2E0D5);
-  const cTop = new THREE.Color(0xE5C8AC);
+  const cHaze = linCol(ENV.haze), cLow = linCol(ENV.skyLow);
+  const cMid = linCol(ENV.skyMid), cTop = linCol(ENV.skyTop);
   for (let i = 0; i < pos.count; i++) {
-    const y = pos.getY(i);
-    const t = THREE.MathUtils.clamp(y / 800, 0, 1);
+    const t = THREE.MathUtils.clamp(pos.getY(i) / R, 0, 1);
     let c;
-    if (t < 0.3) c = cHi.clone().lerp(cMid, t/0.3);
-    else c = cMid.clone().lerp(cTop, (t-0.3)/0.7);
+    if (t < 0.04)      c = cHaze.clone().lerp(cLow, t / 0.04);
+    else if (t < 0.35) c = cLow.clone().lerp(cMid, (t - 0.04) / 0.31);
+    else               c = cMid.clone().lerp(cTop, (t - 0.35) / 0.65);
     colors.push(c.r, c.g, c.b);
   }
   geom.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-  const mat = new THREE.MeshBasicMaterial({ vertexColors:true, side:THREE.BackSide, fog:false });
-  const sky = new THREE.Mesh(geom, mat);
+  const sky = new THREE.Mesh(geom, new THREE.MeshBasicMaterial({
+    vertexColors: true, side: THREE.BackSide, fog: false,
+  }));
   scene.add(sky);
-}
 
-function buildPlateaus() {
-  const plat1Top = new THREE.Mesh(
-    new THREE.BoxGeometry(120, 4, PLATEAU_DEPTH),
-    matPhong(COL.rockLight)
-  );
-  plat1Top.position.set(-60, -2, 0);
-  plat1Top.receiveShadow = true;
-  plat1Top.castShadow = true;
-  scene.add(plat1Top);
+  // Sun disc, upper right down the canyon (as in the reference), with a soft halo
+  const dir = new THREE.Vector3(0.42, 0.36, -0.83).normalize();
+  const disc = new THREE.Mesh(new THREE.CircleGeometry(46, 28),
+    new THREE.MeshBasicMaterial({ color: linCol(ENV.sun), fog: false }));
+  disc.position.copy(dir).multiplyScalar(1100);
+  disc.lookAt(0, 0, 0);
+  scene.add(disc);
+  const halo = new THREE.Mesh(new THREE.CircleGeometry(90, 28),
+    new THREE.MeshBasicMaterial({ color: linCol(ENV.sun), fog: false, transparent: true, opacity: 0.22, depthWrite: false }));
+  halo.position.copy(dir).multiplyScalar(1105);
+  halo.lookAt(0, 0, 0);
+  scene.add(halo);
 
-  const plat1Mid = new THREE.Mesh(
-    new THREE.BoxGeometry(120, 37, PLATEAU_DEPTH - 4),
-    matPhong(COL.rockMid)
-  );
-  plat1Mid.position.set(-60, -23.5, 0);   // base embeds into the gorge floor (-42)
-  plat1Mid.receiveShadow = true;
-  plat1Mid.castShadow = true;
-  scene.add(plat1Mid);
-
-  const edge1 = makeRockChunk(3, 24, 18, COL.rockShadow);
-  edge1.position.set(-1, -12, 0);
-  edge1.rotation.y = 0.05;
-  scene.add(edge1);
-
-  const plat2Top = new THREE.Mesh(
-    new THREE.BoxGeometry(220, 4, PLATEAU_DEPTH),
-    matPhong(COL.rockLight)
-  );
-  plat2Top.position.set(CANYON_WIDTH + 110, -2, 0);
-  plat2Top.receiveShadow = true;
-  plat2Top.castShadow = true;
-  scene.add(plat2Top);
-
-  const plat2Mid = new THREE.Mesh(
-    new THREE.BoxGeometry(220, 37, PLATEAU_DEPTH - 4),
-    matPhong(COL.rockMid)
-  );
-  plat2Mid.position.set(CANYON_WIDTH + 110, -23.5, 0);   // base embeds into the gorge floor (-42)
-  plat2Mid.receiveShadow = true;
-  plat2Mid.castShadow = true;
-  scene.add(plat2Mid);
-
-  const edge2 = makeRockChunk(3, 24, 18, COL.rockShadow);
-  edge2.position.set(CANYON_WIDTH + 2, -12, 0);   // pulled flush behind the wall plane (x=22)
-  edge2.rotation.y = -0.05;
-  scene.add(edge2);
-}
-
-function buildCanyonFloor() {
-  const floorY = -45;
-  const floor = new THREE.Mesh(
-    new THREE.BoxGeometry(180, 8, PLATEAU_DEPTH + 40),
-    matPhong(COL.rockShadow)
-  );
-  floor.position.set(60, floorY, 0);
-  floor.receiveShadow = true;
-  scene.add(floor);
-
-  for (let i = 0; i < 6; i++) {
-    const h = 8 + Math.random() * 14;
-    const sp = makeRockChunk(2 + Math.random() * 3, h, 2 + Math.random() * 3,
-      i % 2 === 0 ? COL.rockMid : COL.rockShadow);
-    sp.position.set(
-      4 + Math.random() * (CANYON_WIDTH - 6),
-      floorY + 4 + h / 2,
-      (Math.random() - 0.5) * (PLATEAU_DEPTH - 10)
-    );
-    scene.add(sp);
+  // Thin streak clouds
+  const cloudMat = new THREE.MeshBasicMaterial({
+    color: linCol(ENV.cloud), fog: false, transparent: true, opacity: 0.55, depthWrite: false,
+  });
+  const clouds = [[-0.55, 0.20, 160, 14], [-0.20, 0.27, 120, 10], [0.15, 0.17, 220, 12],
+                  [0.62, 0.24, 140, 10], [0.85, 0.15, 180, 12], [-0.85, 0.13, 200, 14]];
+  for (const [ax, ay, len, th] of clouds) {
+    const d = new THREE.Vector3(ax, ay, -1).normalize().multiplyScalar(1050);
+    const c = new THREE.Mesh(new THREE.BoxGeometry(len, th, 4), cloudMat);
+    c.position.copy(d);
+    c.lookAt(0, d.y, 0);
+    scene.add(c);
   }
-
-  const riverbed = new THREE.Mesh(
-    new THREE.BoxGeometry(CANYON_WIDTH - 4, 0.2, 6),
-    matPhong(0xA88B65)
-  );
-  riverbed.position.set(CANYON_WIDTH / 2, floorY + 4.1, 0);
-  scene.add(riverbed);
 }
 
-function buildPlateauProps() {
-  const rockSpots1 = [
-    [-100, 0, -28, 6, 4, 5], [-85, 0, 30, 4, 3, 4],
-    [-110, 0, 20, 5, 4, 4], [-95, 0, -32, 3, 2, 3],
-  ];
-  rockSpots1.forEach(([x,y,z,w,h,d]) => {
-    const r = makeRockChunk(w, h, d, COL.rockMid);
-    r.position.set(x, h/2, z);
-    scene.add(r);
-  });
+// ---------- MESAS + CLIFF FACES ---------------------------------------------
+function cliffColour(y) {
+  if (y > -10) return wrand() < 0.5 ? ENV.cliffHi : ENV.cliffMid;
+  if (y > -26) return wrand() < 0.5 ? ENV.cliffMid : ENV.cliffLo;
+  return wrand() < 0.5 ? ENV.cliffLo : ENV.cliffDeep;
+}
 
-  const rockSpots2 = [
-    [40, 0, -34, 4, 3, 4], [70, 0, 32, 6, 5, 5],
-    [110, 0, -28, 5, 4, 4], [160, 0, 30, 7, 6, 5],
-    [200, 0, -32, 4, 3, 4],
-  ];
-  rockSpots2.forEach(([x,y,z,w,h,d]) => {
-    const r = makeRockChunk(w, h, d, COL.rockMid);
-    r.position.set(x, h/2, z);
-    scene.add(r);
-  });
+// A flat-topped mesa block: dark body plus a sand-coloured cap slab.
+// The body is inset 2.5 m on every side so the stacked columns form the visible
+// cliff; the cap keeps the full footprint and gives the sand-coloured rim.
+function mesaBody(b, x0, x1, z0, z1) {
+  const w = x1 - x0, d = z1 - z0, k = 2.5;
+  batchGeom(b, new THREE.BoxGeometry(w - 2 * k, 44.5, d - 2 * k), (x0 + x1) / 2, -23.75, (z0 + z1) / 2, 0, 0, 0, ENV.cliffDeep, 0);
+  batchGeom(b, new THREE.BoxGeometry(w, 1.5, d), (x0 + x1) / 2, -0.75, (z0 + z1) / 2, 0, 0, 0, ENV.sandTop, 0);
+}
 
+// Clad a straight cliff face with stacked rock columns, like the reference.
+//   axis 'x': the face lies along z at x = fixed; 'z': along x at z = fixed.
+//   n: +1 / -1, the direction of open air.
+//   outFn(s) → [minOut, maxOut] how far a block may stand proud of the face.
+//   calm(s)  → true where the face must stay tidy (near the jump).
+function cladFace(b, axis, fixed, n, from, to, outFn, calm) {
+  let s = from;
+  while (s < to) {
+    const d = wr(3.2, 6.5);
+    const sc = Math.min(s + d / 2, to - 0.5);
+    const isCalm = calm ? calm(sc) : false;
+    const [oMin, oMax] = outFn(sc);
+    const t = wr(3.5, 5.5);                         // thickness into the rock
+    let y = -0.06;                                  // tops sit just under the mesa cap
+    if (!isCalm && wrand() < 0.22) y -= wr(0.4, 1.6);  // the odd notch in the rim
+    let first = true;
+    while (y > -46.5) {
+      const h = first ? wr(7, 12) : wr(6, 13);
+      const o = wr(oMin, oMax);
+      const cn = fixed + n * (o - t / 2);           // block centre along the normal
+      const yc = y - h / 2;
+      const ry = isCalm ? 0 : wr(-0.06, 0.06);
+      const j = isCalm ? 0.14 : 0.7;
+      if (axis === 'x') rockBox(b, t, h, d, cn, yc, sc, ry, cliffColour(yc), j, first);
+      else              rockBox(b, d, h, t, sc, yc, cn, ry, cliffColour(yc), j, first);
+      // Ledge between blocks — lighter, standing a little proud
+      if (!isCalm && !first && wrand() < 0.28 && y > -40) {
+        const lo = Math.min(oMax + 0.6, o + 0.7);
+        const ln = fixed + n * (lo - (t + 0.8) / 2);
+        if (axis === 'x') rockBox(b, t + 0.8, 0.8, d + 0.5, ln, y, sc, 0, ENV.cliffHi, 0.4, false);
+        else              rockBox(b, d + 0.5, 0.8, t + 0.8, sc, y, ln, 0, ENV.cliffHi, 0.4, false);
+      }
+      y -= h;
+      first = false;
+    }
+    s += d;
+  }
+}
+
+// Talus — fallen chunks piled along a cliff foot.
+function talus(b, axis, fixed, n, from, to, skip) {
+  for (let s = from; s < to; s += wr(2.5, 5)) {
+    if (skip && skip(s)) continue;
+    const sz = wr(1.0, 3.2);
+    const off = fixed + n * wr(sz * 0.4, sz * 1.6);
+    const hh = sz * wr(0.5, 0.9);
+    if (axis === 'x') rockBox(b, sz, hh, sz * wr(0.8, 1.3), off, -45 + hh / 2 - 0.2, s, wr(0, 3), wpick([ENV.cliffMid, ENV.cliffLo]), 0.5, false);
+    else              rockBox(b, sz * wr(0.8, 1.3), hh, sz, s, -45 + hh / 2 - 0.2, off, wr(0, 3), wpick([ENV.cliffMid, ENV.cliffLo]), 0.5, false);
+  }
+}
+
+// A free-standing rock spire / hoodoo rising from the floor.
+function spire(b, x, z, h, w) {
+  let y = -45.5;
+  let cw = w;
+  let cx = x, cz = z;
+  const n = 3 + Math.floor(wrand() * 3);
+  for (let i = 0; i < n; i++) {
+    const bh = (h / n) * wr(0.8, 1.2);
+    rockBox(b, cw * wr(0.85, 1.1), bh, cw * wr(0.85, 1.1), cx, y + bh / 2, cz, wr(-0.2, 0.2), cliffColour(y + bh / 2), 0.6, false);
+    y += bh;
+    cw *= wr(0.68, 0.85);
+    cx += wr(-0.4, 0.4); cz += wr(-0.4, 0.4);
+  }
+  // Base rubble
   for (let i = 0; i < 4; i++) {
-    const cactus = buildCactus();
-    cactus.position.set(-90 - i * 8, 0, -22 + i * 10);
-    scene.add(cactus);
+    const r = wr(1, 2.5);
+    rockBox(b, r, r * 0.7, r, x + wr(-w, w), -45 + r * 0.3, z + wr(-w, w), wr(0, 3), ENV.cliffLo, 0.5, false);
+  }
+}
+
+// A distant mesa or butte standing on the basin floor (y = -45).
+function farMesa(b, x, z, w, d, topY) {
+  const H = topY + 45;
+  // Talus apron
+  rockBox(b, w * 1.25, H * 0.12, d * 1.25, x, -45 + H * 0.06, z, wr(-0.1, 0.1), ENV.cliffMid, Math.min(4, w * 0.06), false, 0.05);
+  // Body in stepped tiers
+  const tiers = [[0.62, 1.0], [0.26, 0.86], [0.12, 0.72]];
+  let y = -45 + H * 0.08;
+  for (const [hf, sf] of tiers) {
+    const bh = H * hf;
+    rockBox(b, w * sf * wr(0.95, 1.05), bh, d * sf * wr(0.95, 1.05), x + wr(-1, 1), y + bh / 2, z + wr(-1, 1),
+      wr(-0.05, 0.05), wpick([ENV.cliffHi, ENV.cliffMid]), Math.min(3, w * 0.05), false, 0.05);
+    y += bh;
+  }
+  // Cap
+  rockBox(b, w * 0.7, 1.2, d * 0.7, x, y + 0.4, z, 0, ENV.sandRim, 0.8, false, 0.03);
+  // A couple of buttress columns for blocky facets
+  for (let i = 0; i < 2; i++) {
+    const cw = w * wr(0.12, 0.2), ch = H * wr(0.5, 0.8);
+    rockBox(b, cw, ch, cw, x + (wrand() < 0.5 ? -1 : 1) * w * 0.45, -45 + ch / 2, z + d * wr(0.2, 0.5),
+      wr(-0.1, 0.1), ENV.cliffMid, cw * 0.15, false, 0.05);
+  }
+}
+
+function buildCanyon() {
+  wrand = mulberry32(1976);
+  const W = CANYON_WIDTH, PZ = PLATEAU_HALF_Z;
+  const rock = newBatch();     // near world: casts shadows
+  const far = newBatch();      // distant mesas: no shadows
+
+  // Basin / gorge floor — one big slab whose top is exactly the gameplay floor.
+  batchGeom(rock, new THREE.BoxGeometry(2800, 10, 1700), 0, -50, -550, 0, 0, 0, ENV.gorge, 0);
+
+  // Mesas
+  mesaBody(rock, -260, 0, -130, 70);          // A — launch
+  mesaBody(rock, W, 300, -PZ, PZ);            // B — landing
+  mesaBody(rock, W + 10, 260, -200, -60);     // C — scenery across the gully
+
+  // Cliff faces
+  const nearJump = s => s > -30 && s < 45;
+  // A east face: the launch rim. Tidy near the jump, rugged further down.
+  cladFace(rock, 'x', 0, +1, -130, 70,
+    s => nearJump(s) ? [-0.35, 0.3] : [-0.8, 1.5], nearJump);
+  // B west face: the far wall. Never proud of x = W, so the wall splat sits flush.
+  cladFace(rock, 'x', W, -1, -PZ, PZ, () => [-0.6, -0.12], () => true);
+  // B north face (seen when the rider drifts toward the camera)
+  cladFace(rock, 'z', PZ, +1, W, 170, () => [-0.6, 1.2], null);
+  // C west + north faces
+  cladFace(rock, 'x', W + 10, -1, -200, -60, () => [-0.8, 1.4], null);
+  cladFace(rock, 'z', -60, +1, W + 10, 230, () => [-0.8, 1.4], null);
+
+  // Talus — none along the far wall, where the splat slides down
+  talus(rock, 'x', 0, +1, -130, 70, s => nearJump(s));
+  talus(rock, 'x', W + 10, -1, -200, -60);
+  talus(rock, 'z', -60, +1, W + 10, 230);
+  talus(rock, 'z', PZ, +1, W, 170);
+
+  // Riverbed — a pale winding channel down the gorge and out into the basin
+  for (let z = 70; z > -430; z -= 5) {
+    const amp = 6 + 8 * THREE.MathUtils.clamp((-130 - z) / 60, 0, 1);
+    const cx = W / 2 + amp * Math.sin(z / 37) + 3 * Math.sin(z / 13);
+    const nx = W / 2 + amp * Math.sin((z - 5) / 37) + 3 * Math.sin((z - 5) / 13);   // next point, for heading
+    const ang = Math.atan2(-(nx - cx), 5);          // box's long axis points from this point to the next
+    const len = Math.hypot(nx - cx, 5) + 1.2;       // overlap so the bends don't step
+    batchGeom(rock, new THREE.BoxGeometry(wr(3.6, 5.6), 0.1, len), (cx + nx) / 2, -44.95, z - 2.5, 0, ang, 0, ENV.river, 0.04);
   }
 
+  // Gorge floor rocks: small near the jump (crash cameras look here), bigger beyond
+  for (let i = 0; i < 70; i++) {
+    const z = wr(-130, 65);
+    const x = wr(2, W - 2);
+    const near = z > -30 && z < 45;
+    const r = near ? wr(0.3, 0.9) : wr(0.6, 2.6);
+    rockBox(rock, r * wr(0.8, 1.4), r * wr(0.5, 0.9), r, x, -45 + r * 0.3, z, wr(0, 3), wpick([ENV.cliffMid, ENV.cliffLo, ENV.outcrop]), 0.4, false);
+  }
+
+  // Spires standing in the canyon down-stream, and out in the basin
+  const spires = [
+    [14, -78, 30, 6], [24, -92, 22, 5], [9, -118, 34, 7], [30, -140, 26, 6],
+    [18, -165, 40, 8], [36, -182, 20, 5], [-14, -150, 28, 6], [4, -205, 36, 7],
+    [60, -225, 24, 6], [-40, -175, 22, 5], [26, -250, 44, 9], [-22, -238, 30, 6],
+  ];
+  for (const [x, z, h, w] of spires) spire(rock, x, z, h, w);
+
+  // Distant mesas and buttes (hand-placed for composition; seeded detail)
+  const mesas = [
+    // x,    z,    w,   d,  topY
+    [-75,  -300, 110,  70,  52],   // hero mesa behind the launch stand
+    [-195, -235,  80,  60,  30],
+    [ 70,  -335,  70,  50,  40],
+    [160,  -270,  60,  45,  26],
+    [250,  -345,  90,  60,  40],
+    [-20,  -455, 120,  70,  35],
+    [125,  -485, 100,  60,  28],
+    [-265, -425, 140,  80,  44],
+    [345,  -185,  80,  60,  36],
+    [-345, -120,  70,  70,  30],
+    [410,  -425, 120,  70,  40],
+    [-155, -565, 160,  80,  30],
+    [265,  -565, 140,  80,  34],
+    [-430, -300, 110,  90,  42],
+    [520,  -260,  90,  70,  30],
+    // narrow buttes
+    [ 22,  -305,  14,  12,  38],
+    [100,  -215,  11,  10,  28],
+    [-140, -335,  16,  14,  50],
+    [190,  -405,  12,  12,  44],
+    [-45,  -365,  10,  10,  32],
+    [330,  -300,  13,  11,  40],
+  ];
+  for (const [x, z, w, d, t] of mesas) farMesa(far, x, z, w, d, t);
+
+  flushBatch(rock, true, true);
+  flushBatch(far, false, false);
+}
+
+// ---------- PLATEAU-TOP DRESSING --------------------------------------------
+// Keep-out zones: the runway, both ramp lanes, ride-off path, camera paths and
+// the built props. Scatter respects these so nothing pokes through the action.
+function topKeepOut(x, z, size) {
+  // Launch mesa
+  if (x < 0) {
+    if (x > -95 && Math.abs(z - LAUNCH_RAMP_OFFSET) < 14) return true;   // runway + ramp
+    if (x > -100 && z > 14 && z < 40 && size > 1.0) return true;           // runup camera path
+    if (x > -34 && x < -6 && z > -28 && z < -9) return true;               // launch stand
+    if (x > -50 && x < -32 && z > -24 && z < -10) return true;             // caravan
+    if (x > -80 && x < -50 && z > -38 && z < -22) return true;             // big sign
+    if (x > -4) return true;                                                 // keep the rim clean
+    return false;
+  }
+  // Landing mesa
+  if (x >= CANYON_WIDTH && Math.abs(z) <= PLATEAU_HALF_Z) {
+    if (x < CANYON_WIDTH + 4) return true;                                   // rim
+    if (x < 170 && z > -24 && z < 14) return true;                           // ramp lanes + ride-off
+    if (x < 170 && z >= 14 && z < 40 && size > 0.8) return true;             // celebration camera
+    if (x > 36 && x < 64 && z > -40 && z < -24) return true;                 // landing stand
+    if (z > 22 && z < 28 && x < 140) return true;                            // distance markers
+    if (x > 86 && x < 104 && z > -38 && z < -24) return true;                // billboard
+    return false;
+  }
+  return false;
+}
+
+function onMesaTop(x, z) {
+  if (x < -2 && x > -258 && z > -128 && z < 68) return true;
+  if (x > CANYON_WIDTH + 2 && x < 298 && Math.abs(z) < PLATEAU_HALF_Z - 2) return true;
+  if (x > CANYON_WIDTH + 12 && x < 258 && z > -198 && z < -62) return true;
+  return false;
+}
+
+function saguaro(b, x, z, h, armCount, ry) {
+  const c = () => wpick([ENV.cactus, ENV.cactusDk]);
+  batchGeom(b, new THREE.BoxGeometry(0.62, h, 0.62), x, h / 2, z, 0, ry, 0, c(), 0.05);
+  batchGeom(b, new THREE.BoxGeometry(0.46, 0.3, 0.46), x, h + 0.15, z, 0, ry, 0, c(), 0.05);
+  const sides = armCount >= 2 ? [1, -1] : [wrand() < 0.5 ? 1 : -1];
+  for (const s of sides.slice(0, armCount)) {
+    const e = h * wr(0.38, 0.6);
+    const up = h * wr(0.25, 0.38);
+    const dx = Math.cos(ry) * s, dz = -Math.sin(ry) * s;
+    batchGeom(b, new THREE.BoxGeometry(0.75, 0.42, 0.42), x + dx * 0.62, e, z + dz * 0.62, 0, ry, 0, c(), 0.05);
+    batchGeom(b, new THREE.BoxGeometry(0.44, up, 0.44), x + dx * 0.92, e + up / 2 - 0.1, z + dz * 0.92, 0, ry, 0, c(), 0.05);
+  }
+}
+
+function shrub(b, x, z, r) {
+  batchGeom(b, new THREE.IcosahedronGeometry(1, 0), x, r * 0.35, z, 0, wr(0, 3), 0,
+    wpick([ENV.shrub, ENV.shrubDk]), 0.08, r, r * 0.6, r);
+}
+
+function buildTopDressing() {
+  wrand = mulberry32(76);
+  const deco = newBatch();
+
+  // Packed-dirt runway into the take-off ramp
+  batchGeom(deco, new THREE.BoxGeometry(72, 0.04, 6.5), -42, 0.02, LAUNCH_RAMP_OFFSET, 0, 0, 0, ENV.runway, 0);
+  // Tyre-worn centre line
+  batchGeom(deco, new THREE.BoxGeometry(70, 0.05, 1.4), -42, 0.025, LAUNCH_RAMP_OFFSET, 0, 0, 0, ENV.sandRim, 0);
+
+  // Low rock outcrops (the big rounded slabs of the reference foreground)
+  let placed = 0, tries = 0;
+  while (placed < 95 && tries < 2000) {
+    tries++;
+    const x = wr(-250, 290), z = wr(-195, 68);
+    const w = wr(2, 7), h = wr(0.6, 2.6), d = wr(2, 6);
+    if (!onMesaTop(x, z) || topKeepOut(x, z, h)) continue;
+    rockBox(deco, w, h, d, x, h / 2 - 0.15, z, wr(0, 3), wpick([ENV.outcrop, ENV.cliffHi, ENV.sandRim]), 0.9, false);
+    if (wrand() < 0.35) {
+      const w2 = w * wr(0.4, 0.7), h2 = h * wr(0.5, 0.8);
+      rockBox(deco, w2, h2, w2, x + wr(-1, 1), h + h2 / 2 - 0.3, z + wr(-1, 1), wr(0, 3), ENV.outcrop, 0.5, false);
+    }
+    placed++;
+  }
+
+  // Foreground slabs near the rim, framing the menu view like the reference
+  const framing = [[-9, 46, 7, 2.2, 5], [-15, 38, 5, 1.6, 4], [-5, 56, 9, 2.8, 6],
+                   [41, 33, 6, 1.8, 5], [46, 37, 4, 1.2, 3]];
+  for (const [x, z, w, h, d] of framing) rockBox(deco, w, h, d, x, h / 2 - 0.15, z, wr(0, 1), ENV.outcrop, 0.9, false);
+
+  // Pebbles
+  placed = 0; tries = 0;
+  while (placed < 320 && tries < 3000) {
+    tries++;
+    const x = wr(-200, 220), z = wr(-190, 66);
+    const r = wr(0.2, 0.7);
+    if (!onMesaTop(x, z)) continue;
+    if (x < 0 && x > -95 && Math.abs(z - LAUNCH_RAMP_OFFSET) < 9) continue;
+    rockBox(deco, r, r * 0.6, r, x, r * 0.2, z, wr(0, 3), wpick([ENV.outcrop, ENV.cliffMid, ENV.sandRim]), 0.3, false);
+    placed++;
+  }
+
+  // Scrub
+  placed = 0; tries = 0;
+  while (placed < 110 && tries < 3000) {
+    tries++;
+    const x = wr(-220, 240), z = wr(-190, 66);
+    const r = wr(0.35, 0.9);
+    if (!onMesaTop(x, z) || topKeepOut(x, z, 0.5)) continue;
+    shrub(deco, x, z, r);
+    placed++;
+  }
+
+  // Saguaros: a few hand-placed for composition, then seeded scatter
+  const keyCacti = [
+    [-8, 31, 4.6, 2], [-22, 44, 3.6, 1], [40, 30, 5.0, 2], [62, -36, 4.2, 1],
+    [-38, -30, 3.8, 2], [-64, 38, 4.0, 1], [120, 34, 3.6, 1], [-90, -40, 4.4, 2],
+  ];
+  for (const [x, z, h, a] of keyCacti) saguaro(deco, x, z, h, a, wr(0, Math.PI));
+  placed = 0; tries = 0;
+  while (placed < 26 && tries < 2000) {
+    tries++;
+    const x = wr(-240, 250), z = wr(-190, 66);
+    if (!onMesaTop(x, z) || topKeepOut(x, z, 3)) continue;
+    saguaro(deco, x, z, wr(2.6, 4.8), wrand() < 0.6 ? 2 : 1, wr(0, Math.PI));
+    placed++;
+  }
+
+
+  flushBatch(deco, true, true);
+}
+
+// Gorge cacti need to stand on the floor, not float at plateau height — build
+// them into their own batch with a y offset.
+function buildGorgeCacti() {
+  wrand = mulberry32(45);
+  const b = newBatch();
+  for (let i = 0; i < 14; i++) {
+    const x = wr(4, CANYON_WIDTH - 4), z = wr(-128, 60);
+    if (z > -30 && z < 45 && x > CANYON_WIDTH - 6) continue;   // keep the wall-splat landing clear
+    saguaro(b, x, z, wr(2, 3.4), wrand() < 0.5 ? 1 : 2, wr(0, 3));
+  }
+  for (let i = 0; i < 40; i++) shrub(b, wr(3, CANYON_WIDTH - 3), wr(-128, 62), wr(0.4, 0.9));
+  for (let i = 0; i < b.pos.length; i += 3) b.pos[i + 1] -= 45;
+  flushBatch(b, true, true);
+}
+
+// ---------- PROPS -----------------------------------------------------------
+function buildPlateauProps() {
+  // Collidable hazards beside the take-off ramp — unchanged positions (gameplay)
   for (let i = 0; i < 3; i++) {
     const drum = buildOilDrum(i % 2 === 0 ? COL.denim : COL.desertRed);
     drum.position.set(-3, 0.85, -8 - i * 2);
     scene.add(drum);
     registerProp(drum, 0.8);
   }
-
   for (let i = 0; i < 4; i++) {
     const hay = buildHayBale();
-    hay.position.set(-4 + (i % 2) * 1.5, 0.5, 6 + Math.floor(i/2) * 2);
+    hay.position.set(-4 + (i % 2) * 1.5, 0.5, 6 + Math.floor(i / 2) * 2);
     scene.add(hay);
     registerProp(hay, 0.95);
   }
 
+  // Set dressing — kept outside the runway lane (|z| > 9) so nothing is driven through
+  const hayStack = (x, z, ry) => {
+    const g = new THREE.Group();
+    [[-0.75, 0.5, 0], [0.75, 0.5, 0], [0, 1.5, 0]].forEach(([hx, hy, hz]) => {
+      const h = buildHayBale(); h.position.set(hx, hy, hz); g.add(h);
+    });
+    g.position.set(x, 0, z); g.rotation.y = ry; scene.add(g);
+  };
+  const drums = (x, z, cols) => {
+    cols.forEach((c, i) => {
+      const d = buildOilDrum(c);
+      d.position.set(x + (i % 2) * 1.3, 0.85, z + Math.floor(i / 2) * 1.3);
+      scene.add(d);
+    });
+  };
+  hayStack(-10, 12, 0.2);
+  hayStack(-30, -11.5, -0.1);
+  drums(-25, 11, [COL.desertRed, COL.denim, COL.desertRed]);
+  drums(-45, -11.5, [COL.denim, COL.desertRed]);
+  hayStack(39, -26, 0.3);
+  drums(36, -30, [COL.desertRed, COL.denim, COL.desertRed, COL.denim]);
+  hayStack(38, 17, -0.2);
+  drums(42, 18, [COL.denim, COL.desertRed]);
+
   const trailer = buildTrailer();
-  trailer.position.set(-70, 0, -20);
-  trailer.rotation.y = 0.6;
+  trailer.position.set(-41, 0, -17);
+  trailer.rotation.y = 0.12;
   scene.add(trailer);
+
+  // Low rail fences in front of the stands
+  buildFence(-18, -12.2, 18);
+  buildFence(48, -23.4, 18);
 }
 
+function buildFence(cx, z, len) {
+  const g = new THREE.Group();
+  const posts = Math.round(len / 2.5);
+  for (let i = 0; i <= posts; i++) {
+    const p = new THREE.Mesh(new THREE.BoxGeometry(0.18, 1.1, 0.18), matPhong(COL.woodDark));
+    p.position.set(-len / 2 + i * (len / posts), 0.55, 0); p.castShadow = true; g.add(p);
+  }
+  for (const y of [0.45, 0.9]) {
+    const r = new THREE.Mesh(new THREE.BoxGeometry(len, 0.12, 0.08), matPhong(COL.wood));
+    r.position.set(0, y, 0.1); r.castShadow = true; g.add(r);
+  }
+  g.position.set(cx, 0, z);
+  scene.add(g);
+}
+
+function buildTrailer() {
+  // 1970s caravan: cream body, rounded ends, twin red/orange stripes, dark windows.
+  const g = new THREE.Group();
+  const add = (geo, col, x, y, z) => {
+    const m = new THREE.Mesh(geo, matPhong(col)); m.position.set(x, y, z);
+    m.castShadow = true; m.receiveShadow = true; g.add(m); return m;
+  };
+  add(new THREE.BoxGeometry(5.0, 2.2, 2.3), COL.cream, 0, 1.75, 0);
+  add(new THREE.BoxGeometry(0.45, 1.9, 2.1), COL.cream, 2.72, 1.70, 0);     // front nose
+  add(new THREE.BoxGeometry(0.40, 1.9, 2.1), COL.cream, -2.70, 1.75, 0);    // rear
+  add(new THREE.BoxGeometry(4.6, 0.25, 2.0), COL.cream, 0, 2.95, 0);        // roof crown
+  add(new THREE.BoxGeometry(0.9, 0.35, 0.8), COL.lightGrey, -0.6, 3.2, 0);  // roof vent
+  add(new THREE.BoxGeometry(5.95, 0.14, 2.34), COL.desertRed, 0.02, 1.35, 0);
+  add(new THREE.BoxGeometry(5.95, 0.10, 2.34), COL.burntOrange, 0.02, 1.15, 0);
+  for (const s of [1, -1]) {
+    add(new THREE.BoxGeometry(1.1, 0.6, 0.04), 0x2E3A44, 1.5, 2.2, s * 1.16);
+    add(new THREE.BoxGeometry(0.9, 0.6, 0.04), 0x2E3A44, -1.6, 2.2, s * 1.16);
+  }
+  add(new THREE.BoxGeometry(0.75, 1.55, 0.05), COL.lightGrey, 0.1, 1.55, 1.17);   // door
+  add(new THREE.BoxGeometry(0.4, 0.3, 0.06), 0x2E3A44, 0.1, 2.0, 1.19);           // door window
+  add(new THREE.BoxGeometry(0.06, 0.7, 1.6), 0x2E3A44, 2.96, 2.15, 0);            // front window
+  for (const s of [1, -1]) {
+    const w = add(new THREE.CylinderGeometry(0.42, 0.42, 0.3, 10), COL.tyre, -0.2, 0.45, s * 1.05);
+    w.rotation.x = Math.PI / 2;
+    const hub = add(new THREE.CylinderGeometry(0.18, 0.18, 0.32, 8), COL.chrome, -0.2, 0.45, s * 1.05);
+    hub.rotation.x = Math.PI / 2;
+  }
+  // A-frame hitch + jack
+  const a1 = arm3D(g, 2.9, 0.75, 0.7, 3.9, 0.6, 0, 0.12, COL.lightGrey);
+  const a2 = arm3D(g, 2.9, 0.75, -0.7, 3.9, 0.6, 0, 0.12, COL.lightGrey);
+  add(new THREE.BoxGeometry(0.1, 0.6, 0.1), COL.lightGrey, 3.7, 0.3, 0);
+  return g;
+}
+
+// ---------- GRANDSTANDS -----------------------------------------------------
 function buildGrandstand() {
-  buildStand(-18, -16);   // by the ramp / launch
-  buildStand(48, -18);    // by the landing zone
+  buildStand(-18, -14);     // by the take-off ramp
+  buildStand(48, -24.8);    // by the landing zone — clear of every ramp placement
 }
 
+// Stepped bleacher facing +z: seats, footboards, posts, X-bracing, side and back
+// rails, stairs at one end, and tall poles strung with bunting.
 function buildStand(posX, posZ) {
   const stand = new THREE.Group();
-  const tiers = 4;
-  for (let t = 0; t < tiers; t++) {
-    const tier = new THREE.Mesh(
-      new THREE.BoxGeometry(16, 1.2, 1.5),
-      matPhong(t % 2 === 0 ? COL.wood : COL.woodDark)
-    );
-    tier.position.set(0, 0.6 + t * 1.2, -t * 1.5);
-    tier.castShadow = true; tier.receiveShadow = true;
-    stand.add(tier);
+  const W = 16, tiers = 4, rise = 0.85, run = 1.3;
+  const wood = COL.wood, dark = COL.woodDark;
+  const box = (w, h, d, col, x, y, z) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), matPhong(col));
+    m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; stand.add(m); return m;
+  };
+  const seatY = t => 0.75 + t * rise;
+  const rowZ  = t => -0.65 - t * run;
+  const backZ = rowZ(tiers - 1) - 0.65;
 
+  for (let t = 0; t < tiers; t++) {
+    box(W, 0.18, 0.5, t % 2 ? wood : 0x9A6834, 0, seatY(t), rowZ(t) - 0.2);   // seat
+    box(W, 0.12, 0.62, dark, 0, seatY(t) - 0.42, rowZ(t) + 0.32);              // footboard
+    for (let i = 0; i < 5; i++) {                                              // posts
+      const px = -W / 2 + 0.3 + i * (W - 0.6) / 4;
+      box(0.22, seatY(t), 0.22, dark, px, seatY(t) / 2, rowZ(t) - 0.2);
+    }
     for (let i = 0; i < 10; i++) {
       const c = buildCrowdFigure();
-      c.position.set(-6.5 + i * 1.45, 0.6 + (t+1) * 1.2, -t * 1.5);
+      c.position.set(-6.5 + i * 1.45, seatY(t) + 0.09, rowZ(t) - 0.15);
       c.userData.baseY = c.position.y;
       c.userData.phase = Math.random() * Math.PI * 2;
       stand.add(c);
       crowdFigures.push(c);
     }
   }
-  for (let i = 0; i < 3; i++) {
-    const strut = new THREE.Mesh(
-      new THREE.BoxGeometry(0.4, 6, 0.4),
-      matPhong(COL.woodDark)
-    );
-    strut.position.set(-7 + i * 7, 3, -2.5);
-    strut.castShadow = true;
-    stand.add(strut);
+  // X-bracing on the end frames and centre
+  const topY = seatY(tiers - 1);
+  for (const x of [-W / 2 + 0.3, 0, W / 2 - 0.3]) {
+    arm3D(stand, x, 0.15, rowZ(0) - 0.2, x, topY - 0.1, rowZ(tiers - 1) - 0.2, 0.14, dark);
+    arm3D(stand, x, seatY(0) - 0.1, rowZ(0) - 0.2, x, 0.15, rowZ(tiers - 1) - 0.2, 0.14, dark);
   }
+  // Back rail
+  for (let i = 0; i < 5; i++) box(0.2, topY + 1.2, 0.2, dark, -W / 2 + 0.3 + i * (W - 0.6) / 4, (topY + 1.2) / 2, backZ);
+  box(W, 0.14, 0.14, wood, 0, topY + 1.15, backZ);
+  box(W, 0.12, 0.12, wood, 0, topY + 0.6, backZ);
+  // Side rails following the rake
+  for (const s of [-1, 1]) {
+    const x = s * (W / 2 + 0.05);
+    box(0.18, 1.1, 0.18, dark, x, seatY(0) + 0.3, rowZ(0) + 0.5);
+    arm3D(stand, x, seatY(0) + 0.85, rowZ(0) + 0.5, x, topY + 1.15, backZ, 0.12, wood);
+  }
+  // Stairs up the right-hand end
+  const sx = W / 2 + 0.85;
+  for (let t = 0; t < tiers; t++) box(1.2, 0.14, run, wood, sx, seatY(t) - 0.42, rowZ(t) + 0.3);
+  arm3D(stand, sx + 0.62, 0.05, rowZ(0) + 1.2, sx + 0.62, seatY(tiers - 1) - 0.4, rowZ(tiers - 1) - 0.3, 0.14, dark);
+  arm3D(stand, sx - 0.62, 0.05, rowZ(0) + 1.2, sx - 0.62, seatY(tiers - 1) - 0.4, rowZ(tiers - 1) - 0.3, 0.14, dark);
+  arm3D(stand, sx + 0.62, 1.0, rowZ(0) + 1.2, sx + 0.62, topY + 1.15, rowZ(tiers - 1) - 0.3, 0.1, wood);
+
+  // Bunting poles and a sagging line of flags between them
+  const poleH = 9;
+  const pz = backZ - 0.4;
+  for (const s of [-1, 1]) box(0.3, poleH, 0.3, dark, s * (W / 2 + 1.6), poleH / 2, pz);
+  const colors = [COL.desertRed, COL.cream, COL.denim, COL.mustard, COL.burntOrange, COL.turquoise];
+  const span = W + 3.2, segs = 18;
+  for (let i = 0; i <= segs; i++) {
+    const t = i / segs;
+    const x = -span / 2 + span * t;
+    const y = poleH - 0.3 - Math.sin(t * Math.PI) * 1.6;
+    if (i < segs) {
+      const nx = -span / 2 + span * (i + 1) / segs;
+      const ny = poleH - 0.3 - Math.sin((i + 1) / segs * Math.PI) * 1.6;
+      arm3D(stand, x, y, pz, nx, ny, pz, 0.04, dark);
+      const flag = new THREE.Mesh(new THREE.ConeGeometry(0.32, 0.75, 3), matPhong(colors[i % colors.length]));
+      flag.position.set((x + nx) / 2, (y + ny) / 2 - 0.4, pz);
+      flag.rotation.x = Math.PI;
+      flag.castShadow = true;
+      stand.add(flag);
+    }
+  }
+
   stand.position.set(posX, 0, posZ);
   scene.add(stand);
-
-  const bunting = buildBunting(20, 5);
-  bunting.position.set(posX, 5, posZ);
-  scene.add(bunting);
 }
+
+// ---------- RAMPS -----------------------------------------------------------
+// Open timber trestle: plank deck on posts with X-bracing, red centre stripe and
+// cream rails. Built rising toward +x from a toe at the origin; the deck's top
+// surface is exactly the line (0,0)→(baseLen,height) the physics rides on.
+// sheathLip closes the tall end with a solid face — the landing ramp's front,
+// so a 'rampface' crash has something to hit.
+function buildTrestleRamp(angle, sheathLip) {
+  const g = new THREE.Group();
+  const L = RAMP_LEN, baseLen = L * Math.cos(angle), H = L * Math.sin(angle);
+  const tanA = Math.tan(angle), th = 0.25, halfW = RAMP_HALF_W;
+  const box = (w, h, d, col, x, y, z, rz) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), matPhong(col));
+    m.position.set(x, y, z); if (rz) m.rotation.z = rz;
+    m.castShadow = true; m.receiveShadow = true; g.add(m); return m;
+  };
+  const along = (t, lift) => [t * Math.cos(angle) - Math.sin(angle) * lift, t * Math.sin(angle) + Math.cos(angle) * lift];
+
+  // Deck slab + plank seams
+  const [dx, dy] = along(L / 2, -th / 2);
+  box(L, th, halfW * 2, COL.wood, dx, dy, 0, angle);
+  for (let t = 0.9; t < L - 0.3; t += 0.9) {
+    const [sx, sy] = along(t, 0.005);
+    box(0.06, 0.02, halfW * 2 - 0.1, COL.woodDark, sx, sy, 0, angle);
+  }
+  // Centre stripe and edge rails (identity)
+  const sl = L - 0.5;
+  const [cx, cy] = along(sl / 2 + 0.25, 0.04);
+  box(sl, 0.06, 0.6, COL.desertRed, cx, cy, 0, angle);
+  for (const s of [-1, 1]) {
+    const [rx, ry] = along(sl / 2 + 0.25, 0.06);
+    box(sl, 0.1, 0.15, COL.cream, rx, ry, s * (halfW - 0.2), angle);
+  }
+
+  // Trestle bents every ~2.3 m, from the lip back toward the toe
+  const zs = halfW - 0.25;
+  const bents = [];
+  for (let x = baseLen - 0.14; x > 0.8; x -= 2.3) {
+    const top = x * tanA - th / Math.cos(angle);
+    if (top < 0.45) break;
+    bents.push([x, top]);
+  }
+  for (const [x, top] of bents) {
+    for (const s of [-1, 1]) box(0.28, top, 0.28, COL.woodDark, x, top / 2, s * zs);
+    box(0.2, 0.2, zs * 2 + 0.3, COL.woodDark, x, top - 0.12, 0);         // cap tie
+    if (top > 2.2) box(0.18, 0.18, zs * 2 + 0.3, COL.woodDark, x, 0.35, 0);  // sill tie
+  }
+  // X-bracing between bents on both faces
+  for (let i = 0; i < bents.length - 1; i++) {
+    const [x0, t0] = bents[i], [x1, t1] = bents[i + 1];
+    for (const s of [-1, 1]) {
+      const z = s * (zs + 0.17);
+      arm3D(g, x0, 0.25, z, x1, t1 - 0.2, z, 0.14, COL.woodDark);
+      arm3D(g, x0, t0 - 0.25, z, x1, 0.25, z, 0.14, COL.woodDark);
+    }
+  }
+  // Last brace from the lowest bent down to the toe
+  if (bents.length) {
+    const [xl, tl] = bents[bents.length - 1];
+    for (const s of [-1, 1]) arm3D(g, xl, tl - 0.2, s * (zs + 0.17), 0.3, 0.12, s * (zs + 0.17), 0.14, COL.woodDark);
+  }
+  // Mudsills along the ground
+  for (const s of [-1, 1]) box(baseLen, 0.2, 0.32, COL.woodDark, baseLen / 2, 0.1, s * zs);
+
+  // Lip: cream header board with a star
+  box(0.14, 0.55, halfW * 2, COL.cream, baseLen - 0.05, H - 0.4, 0);
+  const star = makeStarBlock(0.42);
+  star.rotation.y = Math.PI / 2;
+  star.position.set(baseLen + 0.04, H - 0.4, 0);
+  g.add(star);
+  if (sheathLip) {
+    box(0.16, H - 0.6, halfW * 2, COL.wood, baseLen - 0.06, (H - 0.6) / 2, 0);
+    for (let y = 0.9; y < H - 0.7; y += 0.9) box(0.18, 0.04, halfW * 2, COL.woodDark, baseLen - 0.06, y, 0);
+    const s2 = makeStarBlock(0.7);
+    s2.rotation.y = Math.PI / 2;
+    s2.position.set(baseLen + 0.05, (H - 0.6) * 0.5, 0);
+    g.add(s2);
+  }
+  return g;
+}
+
+function disposeGroup(grp) {
+  grp.traverse(o => {
+    if (o.geometry) o.geometry.dispose();
+    if (o.material) o.material.dispose();
+  });
+}
+
+function rebuildRamp() {
+  if (rampGroup) { scene.remove(rampGroup); disposeGroup(rampGroup); }
+  rampGroup = new THREE.Group();
+
+  const angle = G.rampAngleDeg * Math.PI / 180;
+  G.rampAngleRad = angle;
+  const baseLen = RAMP_LEN * Math.cos(angle);
+  const height  = RAMP_LEN * Math.sin(angle);
+
+  rampGroup.add(buildTrestleRamp(angle, false));
+  rampGroup.position.set(-baseLen, 0, G.launchRampZ);
+  scene.add(rampGroup);
+
+  LAUNCH_X = 0;
+  LAUNCH_Y = height;
+}
+
+function rebuildLandingRamp() {
+  if (landingRampGroup) { scene.remove(landingRampGroup); disposeGroup(landingRampGroup); }
+  landingRampGroup = new THREE.Group();
+
+  const angle = G.landingRampAngleDeg * Math.PI / 180;
+  G.landingRampAngleRad = angle;
+  const baseLen = RAMP_LEN * Math.cos(angle);
+
+  // Same trestle, mirrored in x: the sheathed tall face now looks back across
+  // the canyon at x=0 and the deck descends toward +x.
+  const inner = buildTrestleRamp(angle, true);
+  inner.scale.x = -1;
+  inner.position.x = baseLen;
+  landingRampGroup.add(inner);
+
+  landingRampGroup.position.set(CANYON_WIDTH + G.landingRampDist, 0, G.landingRampZ);
+  scene.add(landingRampGroup);
+}
+
+// ---------- SIGNAGE, MARKERS, SMALL PROPS (kept from earlier builds) ------
 
 function buildSignage() {
   const sign = new THREE.Group();
@@ -1027,7 +1655,7 @@ function buildSignage() {
     s.position.set(-4 + i * 4, 8.5, 0.22);
     billboard.add(s);
   }
-  billboard.position.set(80, 0, -25);
+  billboard.position.set(95, 0, -31);
   billboard.rotation.y = -0.3;
   scene.add(billboard);
 }
@@ -1051,36 +1679,6 @@ function buildDistanceMarkers() {
   }
 }
 
-// ---------- ROCK / PROP HELPERS --------------------------------------------
-function makeRockChunk(w, h, d, color) {
-  const geom = new THREE.BoxGeometry(w, h, d, 2, 2, 2);
-  const pos = geom.attributes.position;
-  for (let i = 0; i < pos.count; i++) {
-    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
-    const isBottom = y < -h * 0.45;
-    const j = isBottom ? 0.1 : 0.5;
-    pos.setX(i, x + (Math.random() - 0.5) * j);
-    pos.setY(i, y + (Math.random() - 0.5) * j * 0.8);
-    pos.setZ(i, z + (Math.random() - 0.5) * j);
-  }
-  geom.computeVertexNormals();
-  const mesh = new THREE.Mesh(geom, matPhong(color));
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
-  return mesh;
-}
-
-function buildCactus() {
-  const g = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 2.4, 0.5), matPhong(0x4B6B3A));
-  body.position.y = 1.2; body.castShadow = true; g.add(body);
-  const arm1 = new THREE.Mesh(new THREE.BoxGeometry(0.4, 1, 0.4), matPhong(0x4B6B3A));
-  arm1.position.set(0.35, 1.6, 0); arm1.castShadow = true; g.add(arm1);
-  const arm1Up = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.8, 0.4), matPhong(0x4B6B3A));
-  arm1Up.position.set(0.55, 2.2, 0); arm1Up.castShadow = true; g.add(arm1Up);
-  return g;
-}
-
 function buildOilDrum(color) {
   const g = new THREE.Group();
   const body = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 1.7, 10), matPhong(color));
@@ -1102,21 +1700,6 @@ function buildHayBale() {
   return g;
 }
 
-function buildTrailer() {
-  const g = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.BoxGeometry(5, 2.2, 2.4), matPhong(COL.cream));
-  body.position.y = 1.6; body.castShadow = true; body.receiveShadow = true; g.add(body);
-  const stripe = new THREE.Mesh(new THREE.BoxGeometry(5.02, 0.4, 2.42), matPhong(COL.desertRed));
-  stripe.position.y = 1.4; g.add(stripe);
-  for (let s = -1; s <= 1; s += 2) {
-    const w = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.4, 10), matPhong(COL.tyre));
-    w.rotation.x = Math.PI / 2; w.position.set(s * 1.5, 0.5, 0); w.castShadow = true; g.add(w);
-  }
-  const door = new THREE.Mesh(new THREE.BoxGeometry(0.05, 1.4, 0.7), matPhong(COL.woodDark));
-  door.position.set(2.55, 1.4, 0); g.add(door);
-  return g;
-}
-
 function buildCrowdFigure() {
   const g = new THREE.Group();
   const colors = [COL.denim, COL.desertRed, COL.mustard, COL.turquoise, COL.cream];
@@ -1133,29 +1716,6 @@ function buildCrowdFigure() {
   return g;
 }
 
-function buildBunting(width, h) {
-  const g = new THREE.Group();
-  const p1 = new THREE.Mesh(new THREE.BoxGeometry(0.3, h, 0.3), matPhong(COL.woodDark));
-  p1.position.set(-width/2, h/2, 0); g.add(p1);
-  const p2 = new THREE.Mesh(new THREE.BoxGeometry(0.3, h, 0.3), matPhong(COL.woodDark));
-  p2.position.set(width/2, h/2, 0); g.add(p2);
-  const colors = [COL.desertRed, COL.cream, COL.denim, COL.mustard];
-  const segs = 12;
-  for (let i = 0; i < segs; i++) {
-    const t = i / segs;
-    const x = -width/2 + width * t;
-    const sag = Math.sin(t * Math.PI) * 0.6;
-    const tri = new THREE.Mesh(
-      new THREE.ConeGeometry(0.18, 0.45, 4),
-      matPhong(colors[i % colors.length])
-    );
-    tri.position.set(x, 0.5 - sag, 0);
-    tri.rotation.x = Math.PI;
-    g.add(tri);
-  }
-  return g;
-}
-
 function makeStarBlock(size) {
   const g = new THREE.Group();
   const m = matPhong(COL.cream);
@@ -1163,123 +1723,6 @@ function makeStarBlock(size) {
   const arm2 = new THREE.Mesh(new THREE.BoxGeometry(size * 0.35, size, 0.1), m);
   g.add(arm1); g.add(arm2);
   return g;
-}
-
-// ---------- RAMP ------------------------------------------------------------
-function rebuildRamp() {
-  if (rampGroup) scene.remove(rampGroup);
-  rampGroup = new THREE.Group();
-
-  const angle = G.rampAngleDeg * Math.PI / 180;
-  G.rampAngleRad = angle;
-  const baseLen = RAMP_LEN * Math.cos(angle);
-  const height  = RAMP_LEN * Math.sin(angle);
-
-  const shape = new THREE.Shape();
-  shape.moveTo(0, 0);
-  shape.lineTo(baseLen, 0);
-  shape.lineTo(baseLen, height);
-  shape.lineTo(0, 0);
-  const extr = new THREE.ExtrudeGeometry(shape, { depth: 4, bevelEnabled:false });
-  extr.translate(0, 0, -2);
-
-  const ramp = new THREE.Mesh(extr, matPhong(COL.wood));
-  ramp.castShadow = true; ramp.receiveShadow = true;
-  rampGroup.add(ramp);
-
-  const stripeLen = RAMP_LEN - 0.5;
-  const stripe = new THREE.Mesh(
-    new THREE.BoxGeometry(stripeLen, 0.06, 0.6),
-    matPhong(COL.desertRed)
-  );
-  stripe.position.set(stripeLen/2 * Math.cos(angle), stripeLen/2 * Math.sin(angle) + 0.06, 0);
-  stripe.rotation.z = angle;
-  rampGroup.add(stripe);
-
-  for (let s = -1; s <= 1; s += 2) {
-    const rail = new THREE.Mesh(
-      new THREE.BoxGeometry(stripeLen, 0.08, 0.15),
-      matPhong(COL.cream)
-    );
-    rail.position.set(stripeLen/2 * Math.cos(angle), stripeLen/2 * Math.sin(angle) + 0.05, s * 1.6);
-    rail.rotation.z = angle;
-    rampGroup.add(rail);
-  }
-
-  for (let i = 0; i < 3; i++) {
-    const star = makeStarBlock(0.4);
-    star.position.set(baseLen * 0.3 + i * (baseLen * 0.2), height * 0.3 + i * (height * 0.15), 2.05);
-    rampGroup.add(star);
-    const star2 = makeStarBlock(0.4);
-    star2.position.set(baseLen * 0.3 + i * (baseLen * 0.2), height * 0.3 + i * (height * 0.15), -2.05);
-    rampGroup.add(star2);
-  }
-
-  rampGroup.position.set(-baseLen, 0, G.launchRampZ);
-
-  scene.add(rampGroup);
-
-  LAUNCH_X = 0;
-  LAUNCH_Y = height;
-}
-
-function rebuildLandingRamp() {
-  if (landingRampGroup) scene.remove(landingRampGroup);
-  landingRampGroup = new THREE.Group();
-
-  const angle = G.landingRampAngleDeg * Math.PI / 180;
-  G.landingRampAngleRad = angle;
-  const baseLen = RAMP_LEN * Math.cos(angle);
-  const height  = RAMP_LEN * Math.sin(angle);
-
-  // Mirrored wedge: vertical face at x=0 (facing the canyon), slope descending +x
-  const shape = new THREE.Shape();
-  shape.moveTo(0, 0);
-  shape.lineTo(baseLen, 0);
-  shape.lineTo(0, height);
-  shape.lineTo(0, 0);
-  const extr = new THREE.ExtrudeGeometry(shape, { depth: 4, bevelEnabled:false });
-  extr.translate(0, 0, -2);
-
-  const ramp = new THREE.Mesh(extr, matPhong(COL.wood));
-  ramp.castShadow = true; ramp.receiveShadow = true;
-  landingRampGroup.add(ramp);
-
-  // Centre stripe along the descending slope (peak → far base)
-  const stripeLen = RAMP_LEN - 0.5;
-  const stripe = new THREE.Mesh(
-    new THREE.BoxGeometry(stripeLen, 0.06, 0.6),
-    matPhong(COL.desertRed)
-  );
-  stripe.position.set(stripeLen/2 * Math.cos(angle), height - stripeLen/2 * Math.sin(angle) + 0.06, 0);
-  stripe.rotation.z = -angle;
-  landingRampGroup.add(stripe);
-
-  for (let s = -1; s <= 1; s += 2) {
-    const rail = new THREE.Mesh(
-      new THREE.BoxGeometry(stripeLen, 0.08, 0.15),
-      matPhong(COL.cream)
-    );
-    rail.position.set(stripeLen/2 * Math.cos(angle), height - stripeLen/2 * Math.sin(angle) + 0.05, s * 1.6);
-    rail.rotation.z = -angle;
-    landingRampGroup.add(rail);
-  }
-
-  // Target stars walking down the slope from the peak
-  for (let i = 0; i < 3; i++) {
-    const t = 0.25 + i * 0.2;
-    const sx = t * baseLen;
-    const sy = (1 - t) * height;
-    const star = makeStarBlock(0.4);
-    star.position.set(sx, sy, 2.05);
-    landingRampGroup.add(star);
-    const star2 = makeStarBlock(0.4);
-    star2.position.set(sx, sy, -2.05);
-    landingRampGroup.add(star2);
-  }
-
-  landingRampGroup.position.set(CANYON_WIDTH + G.landingRampDist, 0, G.landingRampZ);
-  scene.add(landingRampGroup);
 }
 
 // ============================================================================
