@@ -262,7 +262,7 @@
 </head>
 <body>
 
-<div id="version">STUNTMANIA '76 — Build 0.11.0</div>
+<div id="version">STUNTMANIA '76 — Build 0.12.0</div>
 
 <canvas id="canvas"></canvas>
 
@@ -386,7 +386,7 @@ rider: "Z2xURgIAAACErwMACH4AAEpTT057ImFzc2V0Ijp7ImdlbmVyYXRvciI6ImdsVEYtVHJhbnNm
 // Build 0.2.0  —  Active runup (throttle + steering), camera snap on launch.
 // ============================================================================
 
-const BUILD_VERSION = '0.11.0';
+const BUILD_VERSION = '0.12.0';
 
 // ---------- PALETTE ---------------------------------------------------------
 const COL = {
@@ -2267,6 +2267,177 @@ function prepBike(gltf) {
   }
   for (const k in parts) { if (parts[k].parent) parts[k].parent.remove(parts[k]); keyRest(parts[k]); }
   ASSETS.parts = parts;
+  // Pre-cut the frame and bars into chunks for the far-side explosion
+  ASSETS.frags = {
+    frame: fragmentMesh(parts.frame, 11, mat),
+    bars:  fragmentMesh(parts.bars, 4, mat),
+  };
+}
+
+// r128's BufferAttribute.getX doesn't undo normalisation; quantized GLBs need it.
+// (InterleavedBufferAttribute exposes .array via a getter onto its shared data.)
+function attrGet(attr, i, c) {
+  // Quantized attributes are often padded/interleaved (e.g. RGB bytes on a 4-byte stride)
+  const stride = attr.isInterleavedBufferAttribute ? attr.data.stride : attr.itemSize;
+  const v = attr.array[i * stride + (attr.offset || 0) + c];
+  if (!attr.normalized) return v;
+  const A = attr.array;
+  if (A instanceof Int16Array)  return Math.max(v / 32767, -1);
+  if (A instanceof Uint16Array) return v / 65535;
+  if (A instanceof Int8Array)   return Math.max(v / 127, -1);
+  if (A instanceof Uint8Array)  return v / 255;
+  return v;
+}
+
+// Cut a mesh into k chunks by clustering its triangles (seeded k-means on
+// centroids). Each chunk is its own mesh centred on its centroid, so it spins
+// about itself; userData.offset places it back inside the parent part.
+function fragmentMesh(mesh, k, mat) {
+  if (!mesh || !mesh.geometry) return [];
+  const geo = mesh.geometry, P = geo.attributes.position, Cl = geo.attributes.color;
+  const idx = geo.index;
+  const triCount = idx ? idx.count / 3 : P.count / 3;
+  const vid = (t, j) => idx ? idx.array[t * 3 + j] : t * 3 + j;
+  const cen = new Float32Array(triCount * 3);
+  for (let t = 0; t < triCount; t++) for (let j = 0; j < 3; j++) for (let c = 0; c < 3; c++)
+    cen[t * 3 + c] += attrGet(P, vid(t, j), c) / 3;
+  const rnd = mulberry32(99);
+  const ctr = [];
+  for (let i = 0; i < k; i++) { const t = Math.floor(rnd() * triCount); ctr.push([cen[t * 3], cen[t * 3 + 1], cen[t * 3 + 2]]); }
+  const lab = new Int32Array(triCount);
+  for (let it = 0; it < 10; it++) {
+    const sum = ctr.map(() => [0, 0, 0, 0]);
+    for (let t = 0; t < triCount; t++) {
+      let best = 0, bd = Infinity;
+      for (let i = 0; i < k; i++) {
+        const dx = cen[t * 3] - ctr[i][0], dy = cen[t * 3 + 1] - ctr[i][1], dz = cen[t * 3 + 2] - ctr[i][2];
+        const d = dx * dx + dy * dy + dz * dz;
+        if (d < bd) { bd = d; best = i; }
+      }
+      lab[t] = best;
+      sum[best][0] += cen[t * 3]; sum[best][1] += cen[t * 3 + 1]; sum[best][2] += cen[t * 3 + 2]; sum[best][3]++;
+    }
+    for (let i = 0; i < k; i++) if (sum[i][3]) ctr[i] = [sum[i][0] / sum[i][3], sum[i][1] / sum[i][3], sum[i][2] / sum[i][3]];
+  }
+  const out = [];
+  for (let i = 0; i < k; i++) {
+    const pos = [], col = [];
+    for (let t = 0; t < triCount; t++) {
+      if (lab[t] !== i) continue;
+      for (let j = 0; j < 3; j++) {
+        const v = vid(t, j);
+        pos.push(attrGet(P, v, 0) - ctr[i][0], attrGet(P, v, 1) - ctr[i][1], attrGet(P, v, 2) - ctr[i][2]);
+        if (Cl) col.push(attrGet(Cl, v, 0), attrGet(Cl, v, 1), attrGet(Cl, v, 2));
+      }
+    }
+    if (!pos.length) continue;
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    if (col.length) g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    g.computeVertexNormals();
+    const m = new THREE.Mesh(g, mat);
+    m.castShadow = true;
+    m.name = mesh.name + '_chunk' + i;
+    m.userData.offset = new THREE.Matrix4().makeTranslation(ctr[i][0], ctr[i][1], ctr[i][2]);
+    out.push(m);
+  }
+  return out;
+}
+
+// Far-side crash: swap the frame and bars for their chunks, unbolt the
+// cranks, and throw in some loose bits so the bike bursts into ~30 pieces.
+const _exM = new THREE.Matrix4();
+function explodeBike(g) {
+  const P = ASSETS.parts, F = ASSETS.frags;
+  for (const name of ['frame', 'bars']) {
+    const part = P[name];
+    if (!part || part.parent !== g || !F[name] || !F[name].length) continue;
+    part.updateMatrix();
+    for (const f of F[name]) {
+      _exM.multiplyMatrices(part.matrix, f.userData.offset);
+      _exM.decompose(f.position, f.quaternion, f.scale);
+      g.add(f);
+    }
+    g.remove(part);
+  }
+  g.updateMatrixWorld(true);
+  if (RIG.crankset && RIG.crankset.parent === g) {
+    for (const c of [...RIG.crankset.children]) g.attach(c);
+    g.remove(RIG.crankset);
+  }
+  const bits = [COL.chrome, 0x2E3138, COL.desertRed, COL.mustard, COL.tyre];
+  for (let i = 0; i < 12; i++) {
+    const sz = 0.05 + Math.random() * 0.08;
+    const m = new THREE.Mesh(new THREE.BoxGeometry(sz, sz, sz * 1.6), matPhong(bits[i % bits.length]));
+    m.position.set(-0.4 + Math.random() * 0.9, 0.3 + Math.random() * 0.7, (Math.random() - 0.5) * 0.3);
+    m.castShadow = true;
+    g.add(m);
+  }
+}
+
+// ---------- RAGDOLL --------------------------------------------------------
+// Cartoon ragdoll: the body tumbles as one debris piece (pivoting at the
+// hips) while every limb swings on an underdamped spring. Bounces kick the
+// springs, tumbling keeps them stirred, and once he stops he flops flat.
+const RAG = { active: false, entry: null, wrap: null, joints: [], layQ: null };
+const RAG_JOINTS = [
+  ['Spine', 0.5], ['Spine1', 0.5], ['Neck', 0.6], ['Head', 0.6],
+  ['LeftArm', 1.9], ['RightArm', 1.9], ['LeftForeArm', 1.7], ['RightForeArm', 1.7],
+  ['LeftUpLeg', 1.4], ['RightUpLeg', 1.4], ['LeftLeg', 1.9], ['RightLeg', 1.9],
+];
+
+function makeRagdoll(riderGrp, entry) {
+  const Rd = ASSETS.rider;
+  const wrap = new THREE.Group();
+  Rd.bones.Hips.getWorldPosition(wrap.position);
+  scene.add(wrap);
+  wrap.attach(riderGrp);
+  RAG.active = true; RAG.entry = entry; RAG.wrap = wrap; RAG.layQ = null;
+  RAG.joints = RAG_JOINTS.filter(([n]) => Rd.bones[n]).map(([n, lim]) => ({
+    bone: Rd.bones[n], lim,
+    e: new THREE.Vector3(), v: new THREE.Vector3(),
+    t: new THREE.Vector3((Math.random() - 0.5) * lim, (Math.random() - 0.5) * lim, (Math.random() - 0.5) * lim * 0.6),
+  }));
+  ragKick(18);
+  entry.mesh = wrap;
+  entry.rest = 0.3;                 // body half-thickness: stop the hips sinking into the rock
+  entry.restitution = 0.4;
+  entry.onBounce = ragKick;
+  return entry;
+}
+
+function ragKick(speed) {
+  const s = Math.min(speed, 22) * 0.9;
+  for (const j of RAG.joints) {
+    j.v.x += (Math.random() - 0.5) * s; j.v.y += (Math.random() - 0.5) * s; j.v.z += (Math.random() - 0.5) * s * 0.6;
+    if (Math.random() < 0.4) j.t.set((Math.random() - 0.5) * j.lim, (Math.random() - 0.5) * j.lim, (Math.random() - 0.5) * j.lim * 0.6);
+  }
+}
+
+const _rgQ = new THREE.Quaternion(), _rgE = new THREE.Euler();
+function updateRagdoll(dt) {
+  if (!RAG.active || dt <= 0) return;
+  const d = RAG.entry;
+  const spin = d.settled ? 0 : (Math.abs(d.avx) + Math.abs(d.avy) + Math.abs(d.avz));
+  for (const j of RAG.joints) {
+    for (const ax of ['x', 'y', 'z']) {
+      j.v[ax] += (-34 * (j.e[ax] - j.t[ax]) - 3.2 * j.v[ax]) * dt + (Math.random() - 0.5) * spin * 0.5 * dt * 10;
+      j.e[ax] = THREE.MathUtils.clamp(j.e[ax] + j.v[ax] * dt, -j.lim, j.lim);
+    }
+    _rgQ.setFromEuler(_rgE.set(j.e.x, j.e.y, j.e.z));
+    j.bone.quaternion.copy(j.bone.userData.rest.q).multiply(_rgQ);
+  }
+  // Once he's stopped bouncing, flop over until he's lying flat
+  if (d.settled) {
+    if (!RAG.layQ) {
+      const up = new THREE.Vector3(0, 1, 0).applyQuaternion(ASSETS.rider.grp.getWorldQuaternion(new THREE.Quaternion()));
+      const flat = new THREE.Vector3(up.x, 0, up.z);
+      if (flat.lengthSq() < 0.01) flat.set(1, 0, 0);
+      RAG.layQ = new THREE.Quaternion().setFromUnitVectors(up.normalize(), flat.normalize()).multiply(RAG.wrap.quaternion.clone());
+      d.mesh.position.y -= 0.12;
+    }
+    RAG.wrap.quaternion.slerp(RAG.layQ, Math.min(1, dt * 7));
+  }
 }
 
 function prepRider(gltf) {
@@ -2337,6 +2508,7 @@ function buildBMXModel(def) {
   g.add(Rd.grp);
 
   RIG.crank = 0; RIG.waveAmt = 0; RIG.waveT = 0; RIG.flail = false;
+  RAG.active = false; RAG.entry = null; RAG.wrap = null;
   RIG.wheelAng = 0; RIG.wheelVel = 0; RIG.lastX = null;
   RIG.bike = g;
   g.userData.rig = RIG;
@@ -2394,6 +2566,7 @@ function solveTwoBone(upper, lower, end, target, pole) {
 function updateRig(dt) {
   const Rd = ASSETS.rider;
   if (!Rd) return;
+  if (RAG.active) { updateRagdoll(dt); return; }
   if (RIG.flail) { Rd.mixer.update(dt); return; }
   const g = RIG.bike;
   if (!g || g !== vehicleGroup) return;
@@ -2911,6 +3084,7 @@ function finishJump(where) {
 
   if (outcome === 'crashed') {
     G.crashType = (where === 'canyon') ? 'canyon' : (where === 'wall') ? 'wall' : 'plateau';
+    G.crashWhere = where;
     G.crashX = G.posX;
     G.crashY = G.posY;
     G.crashZ = G.zPos;
@@ -2919,7 +3093,9 @@ function finishJump(where) {
       initWallSplat();          // cartoon pancake + slide, vehicle stays whole
       SFX.splat();
     } else {
-      disassemble(vehicleGroup); // chunky debris (the locked crash identity)
+      // Far side (ramp face, plateau) and the yard: the bike bursts into
+      // chunks and the rider ragdolls. The canyon floor keeps the classic scatter.
+      disassemble(vehicleGroup, G.crashType === 'plateau' ? 'explode' : 'scatter');
       SFX.crash();
     }
   } else {
@@ -3080,17 +3256,22 @@ function updateParticles(dt) {
 // Carry-over momentum: each piece inherits a fraction of the bike's velocity
 // at impact, plus an outward burst from the impact point, plus random spin.
 
-function disassemble(group) {
+function disassemble(group, mode) {
   if (!group) return;
-  if (group.userData && group.userData.rig) startRiderFlail();
+  const rig = group.userData && group.userData.rig;
+  const explode = mode === 'explode';   // far ramp / plateau: burst the bike, ragdoll the rider
+  if (rig && explode) explodeBike(group);
+  else if (rig) startRiderFlail();
   group.updateMatrixWorld(true);
 
   const impactX = G.posX, impactY = G.posY, impactZ = G.zPos;
   // Carry impact momentum into the wreckage. A wall hit stops the forward
   // motion and pushes the wreck back into the gorge so it slides down.
   const isWall = G.crashType === 'wall';
-  const carryVx = isWall ? -4 : G.vx * 0.6;
-  const carryVy = isWall ? -1 : G.vy * 0.2;
+  const rebound = isWall || G.crashWhere === 'rampface';   // hit a vertical face: bounce back off it
+  const carryVx = rebound ? -4 : G.vx * 0.6;
+  const carryVy = rebound ? -1 : G.vy * 0.2;
+  const faceX = CANYON_WIDTH + G.landingRampDist;
   const carryVz = G.zVel * 0.6;
 
   const children = [...group.children];
@@ -3101,6 +3282,7 @@ function disassemble(group) {
     child.matrixWorld.decompose(wp, wq, ws);
 
     group.remove(child);
+    if (G.crashWhere === 'rampface' && wp.x > faceX - 0.3) wp.x = faceX - 0.3 - Math.random() * 0.5;   // stay in front of the face
     child.position.copy(wp);
     child.quaternion.copy(wq);
     child.scale.copy(ws);
@@ -3111,30 +3293,39 @@ function disassemble(group) {
     // Radial burst from the impact point — BIG
     const dx = wp.x - impactX, dy = wp.y - impactY, dz = wp.z - impactZ;
     const dist = Math.sqrt(dx*dx + dy*dy + dz*dz) + 0.2;
-    const burst = 10 + Math.random() * 10;
+    const burst = explode ? 15 + Math.random() * 10 : 10 + Math.random() * 10;   // explosions are always big
 
     let vx = carryVx + (dx / dist) * burst + (Math.random() - 0.5) * 9;
-    let vy = Math.max(6, carryVy) + Math.abs(dy / dist) * burst + 5 + Math.random() * 7;
+    let vy = explode
+      ? 7 + Math.random() * 6 + Math.abs(dy / dist) * burst * 0.3   // wide and low: stays in the crash camera's frame
+      : Math.max(6, carryVy) + Math.abs(dy / dist) * burst + 5 + Math.random() * 7;
     let vz = carryVz + (dz / dist) * burst + (Math.random() - 0.5) * 9;
 
     // The rider gets flung clear — proper ragdoll launch
     if (isRider) {
       vx += carryVx * 0.6 + (Math.random() - 0.15) * 8;
-      vy += 8 + Math.random() * 8;
+      vy += explode ? 4 + Math.random() * 4 : 8 + Math.random() * 8;
       vz += (Math.random() - 0.5) * 8;
     }
 
-    debris.push({
+    const spin = explode ? 40 : 28;
+    let entry = {
       mesh: child,
       vx, vy, vz,
-      avx: (Math.random() - 0.5) * 28,
-      avy: (Math.random() - 0.5) * 28,
-      avz: (Math.random() - 0.5) * 28,
+      avx: (Math.random() - 0.5) * spin,
+      avy: (Math.random() - 0.5) * spin,
+      avz: (Math.random() - 0.5) * spin,
       restitution: 0.3 + Math.random() * 0.3,
       settled: false,
       dead: false,
-    });
+    };
+    if (isRider && explode && rig && ASSETS.rider) {
+      entry.avx *= 0.45; entry.avy *= 0.45; entry.avz *= 0.45;   // he cartwheels; the limbs do the flopping
+      entry = makeRagdoll(child, entry);
+    }
+    debris.push(entry);
   }
+  if (explode) for (let i = 0; i < 14; i++) spawnSmoke(impactX + (Math.random() - 0.5) * 2, impactY + Math.random() * 1.5);
 
   // Dust poof at the impact
   for (let i = 0; i < 18; i++) {
@@ -3166,10 +3357,13 @@ function updateDebris(dt) {
     d.vz *= (1 - dt * 0.2);
 
     const gy = getGroundAt(d.mesh.position.x, d.mesh.position.z);
-    if (d.mesh.position.y < gy + 0.08) {
-      d.mesh.position.y = gy + 0.08;
+    const rest = d.rest || 0.08;
+    if (d.mesh.position.y < gy + rest) {
+      d.mesh.position.y = gy + rest;
+      if (d.vy > 0) continue;   // spawned inside a surface and still rising: lift it out, don't freeze it
       const downSpeed = -d.vy;
       if (downSpeed > 0.7) {
+        if (d.onBounce) d.onBounce(downSpeed);
         // Bounce
         d.vy = downSpeed * d.restitution;
         d.vx *= 0.55;
@@ -3460,9 +3654,18 @@ function updateCamera(dt) {
       desiredPos.set(camX - 2, cy + 15 - pushIn * 3, cz + 17 - pushIn * 3);
       desiredTarget.set(cx, cy + 0.6, cz);
     } else {
-      // Plateau crash — pull just off the wreckage and ease in
-      desiredPos.set(cx - 5, cy + 4 + pushIn * 0.6, cz + 17 - pushIn * 4);
-      desiredTarget.set(cx + 1, cy + 0.8, cz);
+      // Plateau crash — frame the wreck and the ragdoll together: aim between
+      // them and pull back as he flies further from the impact.
+      let fx = cx + 1, fy = cy + 0.8, fz = cz, spread = 0;
+      if (RAG.active && RAG.wrap) {
+        const r = RAG.wrap.position;
+        fx = THREE.MathUtils.lerp(fx, r.x, 0.55);
+        fy = THREE.MathUtils.lerp(fy, r.y, 0.55);
+        fz = THREE.MathUtils.lerp(fz, r.z, 0.55);
+        spread = Math.min(9, Math.hypot(r.x - cx, r.y - cy, r.z - cz) * 0.4);
+      }
+      desiredPos.set(fx - 6 - spread * 0.3, fy + 4 + pushIn * 0.6 + spread * 0.25, fz + 17 - pushIn * 4 + spread);
+      desiredTarget.set(fx, fy, fz);
     }
   }
 
