@@ -90,6 +90,15 @@
   .veh-btn .name { font-size: 13px; letter-spacing: 0.5px; }
   .veh-btn .tag { font-size: 9px; opacity: 0.7; letter-spacing: 1px; }
   .veh-btn .cost { font-size: 10px; color: #2C568A; margin-top: 2px; }
+  .venue-label { font-size: 10px; letter-spacing: 2px; opacity: 0.6; margin: 10px 0 4px; }
+  .venue-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 8px; }
+  .venue-btn { background: #F2E0D5; border: 2px solid #2a1a10; box-shadow: 3px 3px 0 #2a1a10; padding: 6px 4px;
+    cursor: pointer; font-family: inherit; color: #2a1a10; display: flex; flex-direction: column; align-items: center; gap: 1px; }
+  .venue-btn:hover { transform: translate(-1px, -1px); }
+  .venue-btn.selected { background: #F2C54B; }
+  .venue-btn .vname { font-size: 11px; letter-spacing: 0.5px; }
+  .venue-btn .vgap { font-size: 15px; color: #E24A2E; }
+  .venue-btn .vtag { font-size: 8px; letter-spacing: 1.5px; opacity: 0.65; }
 
   .controls-row { display: flex; gap: 10px; align-items: center; margin: 14px 0 8px; }
   .controls-row label {
@@ -262,7 +271,7 @@
 </head>
 <body>
 
-<div id="version">STUNTMANIA '76 — Build 0.15.0</div>
+<div id="version">STUNTMANIA '76 — Build 0.16.0</div>
 
 <canvas id="canvas"></canvas>
 
@@ -274,6 +283,9 @@
     <div class="tagline">★ SHOW ★ THRILLS ★ SPILLS ★</div>
 
     <div id="vehicleGrid" class="vehicle-grid"></div>
+
+    <div class="venue-label">VENUE · WIDOWMAKER GULCH</div>
+    <div id="venueRow" class="venue-row"></div>
 
     <div class="controls-row">
       <label>RAMP ANGLE</label>
@@ -392,7 +404,7 @@ rocketcar: "Z2xURgIAAAA8RwQA+BIAAEpTT057ImFzc2V0Ijp7ImdlbmVyYXRvciI6ImdsVEYtVHJh
 // Build 0.2.0  —  Active runup (throttle + steering), camera snap on launch.
 // ============================================================================
 
-const BUILD_VERSION = '0.15.0';
+const BUILD_VERSION = '0.16.0';
 
 // ---------- PALETTE ---------------------------------------------------------
 const COL = {
@@ -462,7 +474,14 @@ const LAUNCH_RAMP_OFFSET = -5;  // take-off ramp sits off-centre; you must steer
 const LANDING_RAMP_OFFSET = LAUNCH_RAMP_OFFSET;  // landing ramp lined up across from take-off
 const PLATEAU_HALF_Z = 40;      // plateau-top half depth; drift past this and you fall off the side
 const PEDAL_CADENCE = 1.5;      // crank radians per m/s of runup; capped so legs don't blur
-const CANYON_WIDTH = 34;
+// Three stretches of Widowmaker Gulch. The player picks one on the setup
+// screen; any vehicle can jump any venue. Width is rim-to-rim in metres.
+const VENUES = [
+  { id: 'narrows', name: 'THE NARROWS',   width: 34,  tag: 'BIKES',   seed: 1976 },
+  { id: 'wide',    name: 'THE WIDE SPOT', width: 55,  tag: 'CARS',    seed: 1977 },
+  { id: 'drop',    name: 'THE BIG DROP',  width: 130, tag: 'ROCKETS', seed: 1978 },
+];
+let CANYON_WIDTH = 34;           // set by setVenue(); everything reads it live
 const PLATEAU_DEPTH = 80;
 const STEER_MAX_Z = 8;          // max lateral drift on runway
 const STEER_ACCEL = 22;         // lateral accel m/s²
@@ -518,7 +537,7 @@ const FLOOR_SQUASH = new THREE.Vector3(1.40, 0.20, 1.55);
 const WALL_SPLAT_FLOOR_Y = -44.7;   // sits the flattened wreck on the gorge floor (top at -45)
 // The far wall's rock columns are all recessed behind x=CANYON_WIDTH. Park the
 // splat just in front of it — back face ~0.2 off the wall, snug, no clip-through.
-const WALL_SPLAT_X = CANYON_WIDTH - 0.35;
+const wallSplatX = () => CANYON_WIDTH - 0.35;
 
 // ---------- THREE STATE -----------------------------------------------------
 let scene, camera, renderer, sun;
@@ -536,6 +555,7 @@ let crowdFigures = [];
 const G = {
   phase:        'menu',  // 'menu' | 'runup' | 'airborne' | 'landed' | 'crashed'
   vehicleIdx:   0,
+  venue:        0,       // index into VENUES
   unlocked:     new Set(['bmx']),
   cash:         0,
   bestDist:     0,
@@ -803,16 +823,8 @@ function init() {
   fill.position.set(-90, 40, 40);
   scene.add(fill);
 
-  buildCanyon();
-  buildTopDressing();
-  buildGorgeCacti();
-  buildPlateauProps();
-  buildGrandstand();
-  buildSignage();
-  buildDistanceMarkers();
-  rebuildRamp();
-  rebuildLandingRamp();
-
+  try { G.venue = THREE.MathUtils.clamp(+localStorage.getItem('sm76venue') || 0, 0, VENUES.length - 1); } catch (e) {}
+  buildVenue();
   window.addEventListener('resize', onResize);
 
   setupInput();
@@ -823,6 +835,57 @@ function init() {
   if (!matchMedia('(pointer:fine)').matches) {
     document.getElementById('touch').classList.add('show');
   }
+}
+
+// ---------- VENUE ------------------------------------------------------------
+// Everything that depends on the canyon width is built into WORLD and torn
+// down/rebuilt when the venue changes. Sky, lights and ramps live outside it.
+let WORLD = [];
+function buildVenue() {
+  CANYON_WIDTH = VENUES[G.venue].width;
+  const before = new Set(scene.children);
+  props = []; crowdFigures = [];
+  buildCanyon();
+  buildTopDressing();
+  buildGorgeCacti();
+  buildPlateauProps();
+  buildGrandstand();
+  buildSignage();
+  buildDistanceMarkers();
+  WORLD = scene.children.filter(o => !before.has(o));
+  // Sun and its shadow box follow the jump; haze starts beyond the far rim
+  sun.target.position.set(CANYON_WIDTH * 0.45, 0, -10);
+  sun.position.copy(sun.target.position).add(new THREE.Vector3(95, 120, 85));
+  const half = Math.max(140, CANYON_WIDTH * 0.5 + 110);
+  const sc = sun.shadow.camera;
+  sc.left = -half; sc.right = half; sc.top = half; sc.bottom = -half; sc.far = 420 + CANYON_WIDTH;
+  sc.updateProjectionMatrix();
+  scene.fog.near = 110 + Math.max(0, CANYON_WIDTH - 34);
+  scene.fog.far = 700 + Math.max(0, CANYON_WIDTH - 34);
+  // Landing ramp back at the rim: the old placement may sit off a new mesa
+  G.landingRampDist = Math.min(G.landingRampDist, PLACE.distMax);
+  rebuildRamp();
+  rebuildLandingRamp();
+}
+
+function setVenue(i) {
+  if (i === G.venue) return;
+  G.venue = i;
+  try { localStorage.setItem('sm76venue', String(i)); } catch (e) {}
+  for (const o of WORLD) {
+    scene.remove(o);
+    o.traverse(c => {
+      if (c.geometry) c.geometry.dispose();
+      if (c.material) (Array.isArray(c.material) ? c.material : [c.material]).forEach(m => m.dispose());
+    });
+  }
+  WORLD = [];
+  buildVenue();
+  updateVenueButtons();
+}
+
+function updateVenueButtons() {
+  document.querySelectorAll('.venue-btn').forEach((b, i) => b.classList.toggle('selected', i === G.venue));
 }
 
 function onResize() {
@@ -1106,8 +1169,8 @@ function farMesa(b, x, z, w, d, topY) {
 }
 
 function buildCanyon() {
-  wrand = mulberry32(1976);
-  const W = CANYON_WIDTH, PZ = PLATEAU_HALF_Z;
+  wrand = mulberry32(VENUES[G.venue].seed);
+  const W = CANYON_WIDTH, PZ = PLATEAU_HALF_Z, ks = W / 34;   // ks: spread canyon features to the width
   const rock = newBatch();     // near world: casts shadows
   const far = newBatch();      // distant mesas: no shadows
 
@@ -1116,8 +1179,8 @@ function buildCanyon() {
 
   // Mesas
   mesaBody(rock, -260, 0, -130, 70);          // A — launch
-  mesaBody(rock, W, 300, -PZ, PZ);            // B — landing
-  mesaBody(rock, W + 10, 260, -200, -60);     // C — scenery across the gully
+  mesaBody(rock, W, W + 270, -PZ, PZ);        // B — landing
+  mesaBody(rock, W + 10, W + 230, -200, -60); // C — scenery across the gully
 
   // Cliff faces
   const nearJump = s => s > -30 && s < 45;
@@ -1127,20 +1190,20 @@ function buildCanyon() {
   // B west face: the far wall. Never proud of x = W, so the wall splat sits flush.
   cladFace(rock, 'x', W, -1, -PZ, PZ, () => [-0.6, -0.12], () => true);
   // B north face (seen when the rider drifts toward the camera)
-  cladFace(rock, 'z', PZ, +1, W, 170, () => [-0.6, 1.2], null);
+  cladFace(rock, 'z', PZ, +1, W, W + 136, () => [-0.6, 1.2], null);
   // C west + north faces
   cladFace(rock, 'x', W + 10, -1, -200, -60, () => [-0.8, 1.4], null);
-  cladFace(rock, 'z', -60, +1, W + 10, 230, () => [-0.8, 1.4], null);
+  cladFace(rock, 'z', -60, +1, W + 10, W + 196, () => [-0.8, 1.4], null);
 
   // Talus — none along the far wall, where the splat slides down
   talus(rock, 'x', 0, +1, -130, 70, s => nearJump(s));
   talus(rock, 'x', W + 10, -1, -200, -60);
-  talus(rock, 'z', -60, +1, W + 10, 230);
-  talus(rock, 'z', PZ, +1, W, 170);
+  talus(rock, 'z', -60, +1, W + 10, W + 196);
+  talus(rock, 'z', PZ, +1, W, W + 136);
 
   // Riverbed — a pale winding channel down the gorge and out into the basin
   for (let z = 70; z > -430; z -= 5) {
-    const amp = 6 + 8 * THREE.MathUtils.clamp((-130 - z) / 60, 0, 1);
+    const amp = (6 + 8 * THREE.MathUtils.clamp((-130 - z) / 60, 0, 1)) * Math.sqrt(ks);
     const cx = W / 2 + amp * Math.sin(z / 37) + 3 * Math.sin(z / 13);
     const nx = W / 2 + amp * Math.sin((z - 5) / 37) + 3 * Math.sin((z - 5) / 13);   // next point, for heading
     const ang = Math.atan2(-(nx - cx), 5);          // box's long axis points from this point to the next
@@ -1149,7 +1212,7 @@ function buildCanyon() {
   }
 
   // Gorge floor rocks: small near the jump (crash cameras look here), bigger beyond
-  for (let i = 0; i < 70; i++) {
+  for (let i = 0; i < Math.round(70 * ks); i++) {
     const z = wr(-130, 65);
     const x = wr(2, W - 2);
     const near = z > -30 && z < 45;
@@ -1163,7 +1226,15 @@ function buildCanyon() {
     [18, -165, 40, 8], [36, -182, 20, 5], [-14, -150, 28, 6], [4, -205, 36, 7],
     [60, -225, 24, 6], [-40, -175, 22, 5], [26, -250, 44, 9], [-22, -238, 30, 6],
   ];
-  for (const [x, z, h, w] of spires) spire(rock, x, z, h, w);
+  for (const [x, z, h, w] of spires) spire(rock, x * ks, z, h, w);
+  // Wide venues get a few hoodoos standing on the gorge floor by the jump —
+  // well below the flight path, there to sell the scale of the drop.
+  if (ks > 1.2) {
+    for (let i = 0; i < Math.round(ks * 3); i++) {
+      const x = W * (0.25 + 0.5 * wrand()), z = wr(-55, -20);
+      spire(rock, x, z, wr(12, 22), wr(4, 7));
+    }
+  }
 
   // Distant mesas and buttes (hand-placed for composition; seeded detail)
   const mesas = [
@@ -1185,7 +1256,7 @@ function buildCanyon() {
     [520,  -260,  90,  70,  30],
     // narrow buttes
     [ 22,  -305,  14,  12,  38],
-    [100,  -215,  11,  10,  28],
+    [100 * ks, -215, 11, 10, 28],
     [-140, -335,  16,  14,  50],
     [190,  -405,  12,  12,  44],
     [-45,  -365,  10,  10,  32],
@@ -1213,12 +1284,13 @@ function topKeepOut(x, z, size) {
   }
   // Landing mesa
   if (x >= CANYON_WIDTH && Math.abs(z) <= PLATEAU_HALF_Z) {
-    if (x < CANYON_WIDTH + 4) return true;                                   // rim
-    if (x < 170 && z > -24 && z < 14) return true;                           // ramp lanes + ride-off
-    if (x < 170 && z >= 14 && z < 40 && size > 0.8) return true;             // celebration camera
-    if (x > 36 && x < 64 && z > -40 && z < -24) return true;                 // landing stand
-    if (z > 22 && z < 28 && x < 140) return true;                            // distance markers
-    if (x > 86 && x < 104 && z > -38 && z < -24) return true;                // billboard
+    const r = x - CANYON_WIDTH;                                               // metres past the far rim
+    if (r < 4) return true;                                                   // rim
+    if (r < 136 && z > -24 && z < 14) return true;                           // ramp lanes + ride-off
+    if (r < 136 && z >= 14 && z < 40 && size > 0.8) return true;             // celebration camera
+    if (r > 2 && r < 30 && z > -40 && z < -24) return true;                  // landing stand
+    if (z > 22 && z < 28 && r < 106) return true;                            // distance markers
+    if (r > 52 && r < 70 && z > -38 && z < -24) return true;                 // billboard
     return false;
   }
   return false;
@@ -1226,8 +1298,8 @@ function topKeepOut(x, z, size) {
 
 function onMesaTop(x, z) {
   if (x < -2 && x > -258 && z > -128 && z < 68) return true;
-  if (x > CANYON_WIDTH + 2 && x < 298 && Math.abs(z) < PLATEAU_HALF_Z - 2) return true;
-  if (x > CANYON_WIDTH + 12 && x < 258 && z > -198 && z < -62) return true;
+  if (x > CANYON_WIDTH + 2 && x < CANYON_WIDTH + 264 && Math.abs(z) < PLATEAU_HALF_Z - 2) return true;
+  if (x > CANYON_WIDTH + 12 && x < CANYON_WIDTH + 224 && z > -198 && z < -62) return true;
   return false;
 }
 
@@ -1251,7 +1323,8 @@ function shrub(b, x, z, r) {
 }
 
 function buildTopDressing() {
-  wrand = mulberry32(76);
+  wrand = mulberry32(76 + G.venue);
+  const W = CANYON_WIDTH;
   const deco = newBatch();
 
   // Packed-dirt runway into the take-off ramp
@@ -1263,7 +1336,7 @@ function buildTopDressing() {
   let placed = 0, tries = 0;
   while (placed < 95 && tries < 2000) {
     tries++;
-    const x = wr(-250, 290), z = wr(-195, 68);
+    const x = wr(-250, W + 256), z = wr(-195, 68);
     const w = wr(2, 7), h = wr(0.6, 2.6), d = wr(2, 6);
     if (!onMesaTop(x, z) || topKeepOut(x, z, h)) continue;
     rockBox(deco, w, h, d, x, h / 2 - 0.15, z, wr(0, 3), wpick([ENV.outcrop, ENV.cliffHi, ENV.sandRim]), 0.9, false);
@@ -1276,14 +1349,14 @@ function buildTopDressing() {
 
   // Foreground slabs near the rim, framing the menu view like the reference
   const framing = [[-9, 46, 7, 2.2, 5], [-15, 38, 5, 1.6, 4], [-5, 56, 9, 2.8, 6],
-                   [41, 33, 6, 1.8, 5], [46, 37, 4, 1.2, 3]];
+                   [W + 7, 33, 6, 1.8, 5], [W + 12, 37, 4, 1.2, 3]];
   for (const [x, z, w, h, d] of framing) rockBox(deco, w, h, d, x, h / 2 - 0.15, z, wr(0, 1), ENV.outcrop, 0.9, false);
 
   // Pebbles
   placed = 0; tries = 0;
   while (placed < 320 && tries < 3000) {
     tries++;
-    const x = wr(-200, 220), z = wr(-190, 66);
+    const x = wr(-200, W + 186), z = wr(-190, 66);
     const r = wr(0.2, 0.7);
     if (!onMesaTop(x, z)) continue;
     if (x < 0 && x > -95 && Math.abs(z - LAUNCH_RAMP_OFFSET) < 9) continue;
@@ -1295,7 +1368,7 @@ function buildTopDressing() {
   placed = 0; tries = 0;
   while (placed < 110 && tries < 3000) {
     tries++;
-    const x = wr(-220, 240), z = wr(-190, 66);
+    const x = wr(-220, W + 206), z = wr(-190, 66);
     const r = wr(0.35, 0.9);
     if (!onMesaTop(x, z) || topKeepOut(x, z, 0.5)) continue;
     shrub(deco, x, z, r);
@@ -1304,14 +1377,14 @@ function buildTopDressing() {
 
   // Saguaros: a few hand-placed for composition, then seeded scatter
   const keyCacti = [
-    [-8, 31, 4.6, 2], [-22, 44, 3.6, 1], [40, 30, 5.0, 2], [62, -36, 4.2, 1],
-    [-38, -30, 3.8, 2], [-64, 38, 4.0, 1], [120, 34, 3.6, 1], [-90, -40, 4.4, 2],
+    [-8, 31, 4.6, 2], [-22, 44, 3.6, 1], [W + 6, 30, 5.0, 2], [W + 28, -36, 4.2, 1],
+    [-38, -30, 3.8, 2], [-64, 38, 4.0, 1], [W + 86, 34, 3.6, 1], [-90, -40, 4.4, 2],
   ];
   for (const [x, z, h, a] of keyCacti) saguaro(deco, x, z, h, a, wr(0, Math.PI));
   placed = 0; tries = 0;
   while (placed < 26 && tries < 2000) {
     tries++;
-    const x = wr(-240, 250), z = wr(-190, 66);
+    const x = wr(-240, W + 216), z = wr(-190, 66);
     if (!onMesaTop(x, z) || topKeepOut(x, z, 3)) continue;
     saguaro(deco, x, z, wr(2.6, 4.8), wrand() < 0.6 ? 2 : 1, wr(0, Math.PI));
     placed++;
@@ -1324,14 +1397,14 @@ function buildTopDressing() {
 // Gorge cacti need to stand on the floor, not float at plateau height — build
 // them into their own batch with a y offset.
 function buildGorgeCacti() {
-  wrand = mulberry32(45);
+  wrand = mulberry32(45 + G.venue);
   const b = newBatch();
-  for (let i = 0; i < 14; i++) {
+  for (let i = 0; i < Math.round(14 * CANYON_WIDTH / 34); i++) {
     const x = wr(4, CANYON_WIDTH - 4), z = wr(-128, 60);
     if (z > -30 && z < 45 && x > CANYON_WIDTH - 6) continue;   // keep the wall-splat landing clear
     saguaro(b, x, z, wr(2, 3.4), wrand() < 0.5 ? 1 : 2, wr(0, 3));
   }
-  for (let i = 0; i < 40; i++) shrub(b, wr(3, CANYON_WIDTH - 3), wr(-128, 62), wr(0.4, 0.9));
+  for (let i = 0; i < Math.round(40 * CANYON_WIDTH / 34); i++) shrub(b, wr(3, CANYON_WIDTH - 3), wr(-128, 62), wr(0.4, 0.9));
   for (let i = 0; i < b.pos.length; i += 3) b.pos[i + 1] -= 45;
   flushBatch(b, true, true);
 }
@@ -1371,10 +1444,11 @@ function buildPlateauProps() {
   hayStack(-30, -11.5, -0.1);
   drums(-25, 11, [COL.desertRed, COL.denim, COL.desertRed]);
   drums(-45, -11.5, [COL.denim, COL.desertRed]);
-  hayStack(39, -26, 0.3);
-  drums(36, -30, [COL.desertRed, COL.denim, COL.desertRed, COL.denim]);
-  hayStack(38, 17, -0.2);
-  drums(42, 18, [COL.denim, COL.desertRed]);
+  const W = CANYON_WIDTH;
+  hayStack(W + 5, -26, 0.3);
+  drums(W + 2, -30, [COL.desertRed, COL.denim, COL.desertRed, COL.denim]);
+  hayStack(W + 4, 17, -0.2);
+  drums(W + 8, 18, [COL.denim, COL.desertRed]);
 
   const trailer = buildTrailer();
   trailer.position.set(-41, 0, -17);
@@ -1383,7 +1457,7 @@ function buildPlateauProps() {
 
   // Low rail fences in front of the stands
   buildFence(-18, -12.2, 18);
-  buildFence(48, -23.4, 18);
+  buildFence(W + 14, -23.4, 18);
 }
 
 function buildFence(cx, z, len) {
@@ -1438,7 +1512,7 @@ function buildTrailer() {
 // ---------- GRANDSTANDS -----------------------------------------------------
 function buildGrandstand() {
   buildStand(-18, -14);     // by the take-off ramp
-  buildStand(48, -24.8);    // by the landing zone — clear of every ramp placement
+  buildStand(CANYON_WIDTH + 14, -24.8);    // by the landing zone — clear of every ramp placement
 }
 
 // Stepped bleacher facing +z: seats, footboards, posts, X-bracing, side and back
@@ -1713,7 +1787,7 @@ function buildSignage() {
     s.position.set(-4 + i * 4, 8.5, 0.22);
     billboard.add(s);
   }
-  billboard.position.set(95, 0, -31);
+  billboard.position.set(CANYON_WIDTH + 61, 0, -31);
   billboard.rotation.y = -0.3;
   scene.add(billboard);
 }
@@ -2252,6 +2326,18 @@ const RIG = {
   bike: null, crankset: null, cfg: null, veh: null, wheels: [], roll: 0, flame: null,
 };
 
+// Free a throwaway object's GPU memory. Reused assets (vehicle parts, crash
+// chunks, the rider) are flagged userData.keep and survive.
+function freeObj(o) {
+  if (!o) return;
+  o.traverse(c => {
+    if (!c.isMesh || c.userData.keep) return;
+    if (c.geometry) c.geometry.dispose();
+    (Array.isArray(c.material) ? c.material : [c.material]).forEach(m => m && m.dispose());
+  });
+}
+const markKeep = o => o.traverse(c => { if (c.isMesh) c.userData.keep = true; });
+
 function b64ToBuffer(b64) {
   const bin = atob(b64);
   const u = new Uint8Array(bin.length);
@@ -2333,6 +2419,8 @@ function finishVehicle(id, parts, mat) {
   }
   const frags = {};
   for (const k in cfg.frag) frags[k] = fragmentMesh(parts[k], cfg.frag[k], mat);
+  for (const k in parts) markKeep(parts[k]);
+  for (const k in frags) frags[k].forEach(markKeep);
   ASSETS.veh[id] = { parts, frags, mat };
 }
 
@@ -2537,6 +2625,7 @@ function prepRider(gltf) {
   const mixer = new THREE.AnimationMixer(root);
   const clip = gltf.animations && gltf.animations[0];
   const action = clip ? mixer.clipAction(clip) : null;
+  markKeep(grp);
   ASSETS.rider = { grp, root, bones, mixer, action, hipsLocal };
 }
 
@@ -2580,6 +2669,9 @@ function buildVehicleModel(def) {
   g.add(Rd.grp);
 
   RIG.flame = null;
+  for (const k in V.parts) for (const c of [...V.parts[k].children]) {
+    if (c.name === 'flame') { V.parts[k].remove(c); freeObj(c); }   // last run's plume
+  }
   if (cfg.nozzle) {
     g.updateMatrixWorld(true);
     RIG.flame = buildRocketFlame(cfg.nozzleR);
@@ -2837,7 +2929,7 @@ function startRiderFlail() {
 // VEHICLE LIFECYCLE
 // ============================================================================
 function spawnVehicle() {
-  if (vehicleGroup) scene.remove(vehicleGroup);
+  if (vehicleGroup) { scene.remove(vehicleGroup); freeObj(vehicleGroup); }
   const def = VEHICLE_DEFS[G.vehicleIdx];
   vehicleGroup = (ASSETS.ready && ASSETS.veh[def.id]) ? buildVehicleModel(def) : def.builder(def);
   vehicleGroup.position.set(-(RAMP_LEN * Math.cos(G.rampAngleRad)) - RUNWAY_LEN, 0, 0);
@@ -3135,7 +3227,7 @@ function updateAirborne(dt) {
     }
   }
 
-  if (G.posY < -120 || G.posX > 350) {
+  if (G.posY < -120 || G.posX > CANYON_WIDTH + 300) {
     finishJump('canyon');
     return;
   }
@@ -3403,7 +3495,7 @@ function updateParticles(dt) {
     d.userData.vy -= 4 * dt;
     d.material.opacity = Math.max(0, 0.8 * (1 - d.userData.life / d.userData.maxLife));
     if (d.userData.life >= d.userData.maxLife) {
-      scene.remove(d);
+      scene.remove(d); d.geometry.dispose(); d.material.dispose();
       dustParticles.splice(i, 1);
     }
   }
@@ -3414,7 +3506,7 @@ function updateParticles(dt) {
     d.position.y += d.userData.vy * dt;
     d.material.opacity = Math.max(0, 0.85 * (1 - d.userData.life / d.userData.maxLife));
     if (d.userData.life >= d.userData.maxLife) {
-      scene.remove(d);
+      scene.remove(d); d.geometry.dispose(); d.material.dispose();
       smokeTrail.splice(i, 1);
     }
   }
@@ -3563,7 +3655,7 @@ function updateDebris(dt) {
     }
 
     if (d.mesh.position.y < -150) {
-      scene.remove(d.mesh);
+      scene.remove(d.mesh); freeObj(d.mesh);
       d.dead = true;
       d.settled = true;
     }
@@ -3572,7 +3664,7 @@ function updateDebris(dt) {
 }
 
 function clearDebris() {
-  for (const d of debris) scene.remove(d.mesh);
+  for (const d of debris) { scene.remove(d.mesh); freeObj(d.mesh); }
   debris = [];
 }
 
@@ -3662,7 +3754,7 @@ function crashIntoProp(p, hitX) {
 // into a heap on the gorge floor (FLUMP). Wile E. Coyote, desert edition.
 
 function initWallSplat() {
-  G.splatX = WALL_SPLAT_X;          // clear in front of the cliff-edge rock
+  G.splatX = wallSplatX();          // clear in front of the cliff-edge rock
   G.splatY = G.crashY;
   G.splatZ = G.crashZ;
   G.splatVelY = 0;
@@ -3670,7 +3762,7 @@ function initWallSplat() {
   // Impact dust straddling the wall and the splat so it still reads as contact
   for (let i = 0; i < 16; i++) {
     spawnDust(
-      WALL_SPLAT_X + Math.random() * (CANYON_WIDTH - WALL_SPLAT_X + 0.5),
+      wallSplatX() + Math.random() * (CANYON_WIDTH - wallSplatX() + 0.5),
       G.crashY - 0.5 + Math.random() * 1.4,
       G.crashZ + (Math.random() - 0.5) * 1.6
     );
@@ -3765,14 +3857,14 @@ function updateFireworks(dt) {
     f.mesh.position.z += f.vz * dt;
     f.mesh.material.opacity = Math.max(0, 1 - f.life / f.maxLife);
     if (f.life >= f.maxLife) {
-      scene.remove(f.mesh);
+      scene.remove(f.mesh); f.mesh.geometry.dispose(); f.mesh.material.dispose();
       fireworks.splice(i, 1);
     }
   }
 }
 
 function clearFireworks() {
-  for (const f of fireworks) scene.remove(f.mesh);
+  for (const f of fireworks) { scene.remove(f.mesh); f.mesh.geometry.dispose(); f.mesh.material.dispose(); }
   fireworks = [];
 }
 
@@ -3799,8 +3891,9 @@ function updateCamera(dt) {
 
   if (G.camMode === 'arena' || G.phase === 'menu') {
     // Side-on wide framing showing both the launch and landing ramps
-    desiredPos.set(11, 8, 36);
-    desiredTarget.set(11, 4, 0);
+    const k = CANYON_WIDTH / 34, cx = 11 + (CANYON_WIDTH - 34) * 0.5;   // centred on the gap, both ramps in frame
+    desiredPos.set(cx, 8 * Math.pow(k, 0.75), 36 * Math.pow(k, 0.85));
+    desiredTarget.set(cx, 4, 0);
   } else if (G.phase === 'runup' || G.phase === 'airborne') {
     const vx = vehicleGroup ? vehicleGroup.position.x : 0;
     const vy = vehicleGroup ? vehicleGroup.position.y : 0;
@@ -3969,7 +4062,7 @@ function setupInput() {
 // LANDING-RAMP PLACEMENT SCREEN (top-down map, drag to set distance + lane)
 // ============================================================================
 const PLACE = {
-  x0: 0, x1: 92, z0: -24, z1: 24,   // world window shown on the map
+  x0: 0, x1: 92, z0: -24, z1: 24,   // world window shown on the map (x set per venue)
   w: 340, h: 200, pad: 12,
   distMin: 0, distMax: 40,
   laneMin: LAUNCH_RAMP_OFFSET - 12, laneMax: LAUNCH_RAMP_OFFSET + 12,
@@ -3982,6 +4075,8 @@ const wz_px = p => PLACE.z0 + (p - PLACE.pad)/(PLACE.h - 2*PLACE.pad) * (PLACE.z
 
 function openPlacement() {
   SFX.ensure(); SFX.click();
+  PLACE.x1 = CANYON_WIDTH + 58;            // 58 m of plateau past the rim…
+  PLACE.x0 = Math.max(0, CANYON_WIDTH - 34); // …and the last 34 m of gorge, at the same scale in every venue
   G.landingRampAngleRad = G.landingRampAngleDeg * Math.PI / 180;
   document.getElementById('menu').classList.add('hidden');
   document.getElementById('placement').classList.add('show');
@@ -3993,21 +4088,22 @@ function closePlacement() { document.getElementById('placement').classList.remov
 function buildPlaceMap() {
   const svg = document.getElementById('placeMap');
   const rimPx = px_x(CANYON_WIDTH);
-  const launchPx = px_x(0);
+  const launchPx = Math.max(0, px_x(0));   // off-map in wide venues: the gorge runs off the left edge
   const llz = px_z(G.launchRampZ);
   let s = '';
   // plateau (flat rock) from rim to right edge
   s += `<rect x="${rimPx}" y="0" width="${PLACE.w - rimPx}" height="${PLACE.h}" fill="#D67A55"/>`;
   // canyon hazard band
   s += `<rect x="${launchPx}" y="0" width="${rimPx - launchPx}" height="${PLACE.h}" fill="#3A1A12"/>`;
-  for (let xx = 4; xx < CANYON_WIDTH; xx += 6) {
+  for (let xx = Math.ceil(PLACE.x0 / 6) * 6 + 4; xx < CANYON_WIDTH; xx += 6) {
     const lx = px_x(xx);
     s += `<line x1="${lx}" y1="0" x2="${lx}" y2="${PLACE.h}" stroke="#6B2A1A" stroke-width="1"/>`;
   }
   // take-off lane (dashed) + marker
   s += `<line x1="${launchPx}" y1="${llz}" x2="${PLACE.w}" y2="${llz}" stroke="#F2E0D5" stroke-width="1.5" stroke-dasharray="5 5" opacity="0.65"/>`;
   s += `<polygon points="${launchPx},${llz-7} ${launchPx+13},${llz} ${launchPx},${llz+7}" fill="#E24A2E" stroke="#2a1a10" stroke-width="1.5"/>`;
-  s += `<text x="${launchPx+5}" y="${llz-10}" fill="#F2E0D5" font-size="9" font-family="monospace">TAKE-OFF</text>`;
+  const offMap = px_x(0) < 0;
+  s += `<text x="${launchPx+5}" y="${llz-10}" fill="#F2E0D5" font-size="9" font-family="monospace">${offMap ? '◀ TAKE-OFF ' + Math.round(PLACE.x0) + 'M BACK' : 'TAKE-OFF'}</text>`;
   // distance ticks from the rim
   for (let d = 0; d <= PLACE.distMax + 10; d += 10) {
     const tx = px_x(CANYON_WIDTH + d);
@@ -4016,7 +4112,8 @@ function buildPlaceMap() {
     s += `<text x="${tx+2}" y="${PLACE.h-4}" fill="#2a1a10" font-size="8" font-family="monospace">${d}m</text>`;
   }
   s += `<text x="${rimPx+2}" y="12" fill="#2a1a10" font-size="8" font-family="monospace">RIM</text>`;
-  s += `<text x="${launchPx+3}" y="${PLACE.h*0.4}" fill="#E8C9A0" font-size="9" font-family="monospace" transform="rotate(-90 ${launchPx+3} ${PLACE.h*0.4})">CANYON</text>`;
+  const cy = PLACE.h * 0.78, cxL = (launchPx + rimPx) / 2 - 3;
+  s += `<text x="${cxL}" y="${cy}" fill="#E8C9A0" font-size="9" font-family="monospace" transform="rotate(-90 ${cxL} ${cy})">CANYON ${CANYON_WIDTH}M</text>`;
   // draggable landing-ramp token
   s += `<g style="cursor:grab">`;
   s += `<rect id="rampToken" x="0" y="0" width="10" height="10" rx="1.5" fill="#8B5A2B" stroke="#2a1a10" stroke-width="2"/>`;
@@ -4068,6 +4165,13 @@ function updatePlaceToken() {
 
 function setupUI() {
   rebuildVehicleGrid();
+  const vr = document.getElementById('venueRow');
+  vr.innerHTML = VENUES.map((v, i) =>
+    `<button class="venue-btn" data-i="${i}"><span class="vname">${v.name}</span><span class="vgap">${v.width} M</span><span class="vtag">FOR ${v.tag}</span></button>`).join('');
+  vr.querySelectorAll('.venue-btn').forEach(b => b.addEventListener('click', () => {
+    SFX.ensure(); SFX.click(); setVenue(+b.dataset.i);
+  }));
+  updateVenueButtons();
 
   const slider = document.getElementById('angleSlider');
   slider.addEventListener('input', (e) => {
