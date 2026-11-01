@@ -262,7 +262,7 @@
 </head>
 <body>
 
-<div id="version">STUNTMANIA '76 — Build 0.12.0</div>
+<div id="version">STUNTMANIA '76 — Build 0.13.0</div>
 
 <canvas id="canvas"></canvas>
 
@@ -292,7 +292,8 @@
     <div><span class="cash">CASH: £<span id="cashVal">0</span></span></div>
     <div style="font-size:10px; opacity:0.55; margin-top:10px; letter-spacing:1px;">
       DESKTOP: ▲ THROTTLE/PITCH · ▼ BRAKE/PITCH · ◀ ▶ STEER<br>
-      SPACE BOOST · R RETRY · M MUTE
+      SPACE BOOST · R RETRY · M MUTE<br>
+      CAMERA: DRAG TO ORBIT · WHEEL / PINCH ZOOM · DOUBLE-CLICK OR C TO RESET
     </div>
   </div>
 </div>
@@ -386,7 +387,7 @@ rider: "Z2xURgIAAACErwMACH4AAEpTT057ImFzc2V0Ijp7ImdlbmVyYXRvciI6ImdsVEYtVHJhbnNm
 // Build 0.2.0  —  Active runup (throttle + steering), camera snap on launch.
 // ============================================================================
 
-const BUILD_VERSION = '0.12.0';
+const BUILD_VERSION = '0.13.0';
 
 // ---------- PALETTE ---------------------------------------------------------
 const COL = {
@@ -812,6 +813,7 @@ function init() {
   setupInput();
   setupUI();
   loadAssets();
+  setupCameraControls();
 
   if (!matchMedia('(pointer:fine)').matches) {
     document.getElementById('touch').classList.add('show');
@@ -2726,8 +2728,7 @@ function startLaunch() {
   const startX = -baseLen - RUNWAY_LEN;
   camPos.set(startX - 6, 7, 28);
   camTarget.set(startX + 8, 1.5, 0);
-  camera.position.copy(camPos);
-  camera.lookAt(camTarget);
+  applyUserCam();
 
   G.camMode = 'launch';
 
@@ -3672,9 +3673,73 @@ function updateCamera(dt) {
   const lerpK = (G.phase === 'crashed') ? 2.4 : (G.celebrate ? 8 : 4);
   camPos.lerp(desiredPos, Math.min(1, dt * lerpK));
   camTarget.lerp(desiredTarget, Math.min(1, dt * lerpK));
-  camera.position.copy(camPos);
+  applyUserCam();
+}
+
+// ---------- PLAYER CAMERA CONTROL ---------------------------------------------
+// The scripted camera still decides WHAT to look at; the player chooses the
+// angle. Drag orbits around the current target, wheel / pinch zooms, double
+// click / double tap resets. Applied after the smoothing so dragging is instant.
+const CAM = { yaw: 0, pitch: 0, zoom: 1 };
+try { Object.assign(CAM, JSON.parse(localStorage.getItem('sm76cam') || '{}')); } catch (e) {}
+function saveCam() { try { localStorage.setItem('sm76cam', JSON.stringify(CAM)); } catch (e) {} }
+
+const _uc = new THREE.Vector3(), _us = new THREE.Spherical();
+function applyUserCam() {
+  _uc.subVectors(camPos, camTarget);
+  _us.setFromVector3(_uc);
+  // Spherical.phi is measured from +y; clamp so you can't go under the ground or flip over the top
+  _us.theta += CAM.yaw;
+  _us.phi = THREE.MathUtils.clamp(_us.phi - CAM.pitch, 0.12, 1.5);
+  _us.radius = THREE.MathUtils.clamp(_us.radius * CAM.zoom, 3, 160);
+  _uc.setFromSpherical(_us);
+  camera.position.copy(camTarget).add(_uc);
+  const floor = getGroundAt(camera.position.x, camera.position.z) + 1;   // never under the rock
+  if (camera.position.y < floor) camera.position.y = floor;
   camera.lookAt(camTarget);
 }
+
+function setupCameraControls() {
+  const el = renderer.domElement;
+  const pts = new Map();
+  let pinch0 = 0, zoom0 = 1, lastTap = 0;
+  el.addEventListener('pointerdown', e => {
+    el.setPointerCapture(e.pointerId);
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pts.size === 2) {
+      const [a, b] = [...pts.values()];
+      pinch0 = Math.hypot(a.x - b.x, a.y - b.y); zoom0 = CAM.zoom;
+    }
+    const now = performance.now();
+    if (pts.size === 1 && now - lastTap < 300) resetCam();
+    lastTap = now;
+  });
+  el.addEventListener('pointermove', e => {
+    const p = pts.get(e.pointerId);
+    if (!p) return;
+    if (pts.size === 1) {
+      CAM.yaw   -= (e.clientX - p.x) * 0.006;
+      CAM.pitch += (e.clientY - p.y) * 0.004;
+      CAM.pitch = THREE.MathUtils.clamp(CAM.pitch, -1.2, 1.2);
+    }
+    p.x = e.clientX; p.y = e.clientY;
+    if (pts.size === 2 && pinch0 > 0) {
+      const [a, b] = [...pts.values()];
+      CAM.zoom = THREE.MathUtils.clamp(zoom0 * pinch0 / Math.max(20, Math.hypot(a.x - b.x, a.y - b.y)), 0.35, 3);
+    }
+  });
+  const up = e => { pts.delete(e.pointerId); if (pts.size < 2) pinch0 = 0; saveCam(); };
+  el.addEventListener('pointerup', up);
+  el.addEventListener('pointercancel', up);
+  el.addEventListener('wheel', e => {
+    e.preventDefault();
+    CAM.zoom = THREE.MathUtils.clamp(CAM.zoom * Math.exp(e.deltaY * 0.0012), 0.35, 3);
+    saveCam();
+  }, { passive: false });
+  el.addEventListener('dblclick', resetCam);
+  document.addEventListener('keydown', e => { if (e.key === 'c' || e.key === 'C') resetCam(); });
+}
+function resetCam() { CAM.yaw = 0; CAM.pitch = 0; CAM.zoom = 1; saveCam(); }
 
 // ============================================================================
 // INPUT
