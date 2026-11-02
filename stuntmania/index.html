@@ -271,7 +271,7 @@
 </head>
 <body>
 
-<div id="version">STUNTMANIA '76 — Build 0.16.0</div>
+<div id="version">STUNTMANIA '76 — Build 0.17.0</div>
 
 <canvas id="canvas"></canvas>
 
@@ -404,7 +404,7 @@ rocketcar: "Z2xURgIAAAA8RwQA+BIAAEpTT057ImFzc2V0Ijp7ImdlbmVyYXRvciI6ImdsVEYtVHJh
 // Build 0.2.0  —  Active runup (throttle + steering), camera snap on launch.
 // ============================================================================
 
-const BUILD_VERSION = '0.16.0';
+const BUILD_VERSION = '0.17.0';
 
 // ---------- PALETTE ---------------------------------------------------------
 const COL = {
@@ -476,11 +476,13 @@ const PLATEAU_HALF_Z = 40;      // plateau-top half depth; drift past this and y
 const PEDAL_CADENCE = 1.5;      // crank radians per m/s of runup; capped so legs don't blur
 // Three stretches of Widowmaker Gulch. The player picks one on the setup
 // screen; any vehicle can jump any venue. Width is rim-to-rim in metres.
+// rampLen: landing-ramp deck length; distMax: how far past the rim it can go.
 const VENUES = [
-  { id: 'narrows', name: 'THE NARROWS',   width: 34,  tag: 'BIKES',   seed: 1976 },
-  { id: 'wide',    name: 'THE WIDE SPOT', width: 55,  tag: 'CARS',    seed: 1977 },
-  { id: 'drop',    name: 'THE BIG DROP',  width: 130, tag: 'ROCKETS', seed: 1978 },
+  { id: 'narrows', name: 'THE NARROWS',   width: 34,  tag: 'BIKES',   seed: 1976, rampLen: 14, distMax: 40 },
+  { id: 'wide',    name: 'THE WIDE SPOT', width: 55,  tag: 'CARS',    seed: 1977, rampLen: 20, distMax: 60 },
+  { id: 'drop',    name: 'THE BIG DROP',  width: 130, tag: 'ROCKETS', seed: 1978, rampLen: 40, distMax: 110 },
 ];
+const landingLen = () => VENUES[G.venue].rampLen;
 let CANYON_WIDTH = 34;           // set by setVenue(); everything reads it live
 const PLATEAU_DEPTH = 80;
 const STEER_MAX_Z = 8;          // max lateral drift on runway
@@ -495,10 +497,10 @@ const RAMP_FILLET_R = 7;        // radius of the curved transition from flat int
 // from the old wedge toe (x=0), the slope rising toward +x to the lip at
 // (baseLen, H). The foot is a circular fillet tangent to the ground at x=-d
 // and to the slope beyond it, so the bike rolls from flat into the climb.
-function rampShape(a) {
-  const R = RAMP_FILLET_R, d = R * Math.tan(a / 2);
-  return { a, R, d, baseLen: RAMP_LEN * Math.cos(a), H: RAMP_LEN * Math.sin(a),
-           arcLen: R * a, path: R * a + RAMP_LEN - d, foot: RAMP_LEN * Math.cos(a) + d };
+function rampShape(a, len) {
+  const L = len || RAMP_LEN, R = RAMP_FILLET_R, d = R * Math.tan(a / 2);
+  return { a, R, d, L, baseLen: L * Math.cos(a), H: L * Math.sin(a),
+           arcLen: R * a, path: R * a + L - d, foot: L * Math.cos(a) + d };
 }
 function rampYAt(S, x) {
   if (x <= -S.d) return 0;
@@ -524,7 +526,7 @@ function rampPathPoint(S, s) {
 }
 // Landing ramp, in world x: the take-off profile mirrored about its own lip.
 function landingRampLocal(x) {
-  const S = rampShape(G.landingRampAngleRad);
+  const S = rampShape(G.landingRampAngleRad, landingLen());
   const faceX = CANYON_WIDTH + G.landingRampDist;
   return { S, faceX, xl: S.baseLen - (x - faceX) };
 }
@@ -863,7 +865,7 @@ function buildVenue() {
   scene.fog.near = 110 + Math.max(0, CANYON_WIDTH - 34);
   scene.fog.far = 700 + Math.max(0, CANYON_WIDTH - 34);
   // Landing ramp back at the rim: the old placement may sit off a new mesa
-  G.landingRampDist = Math.min(G.landingRampDist, PLACE.distMax);
+  G.landingRampDist = Math.min(G.landingRampDist, VENUES[G.venue].distMax);
   rebuildRamp();
   rebuildLandingRamp();
 }
@@ -1286,8 +1288,8 @@ function topKeepOut(x, z, size) {
   if (x >= CANYON_WIDTH && Math.abs(z) <= PLATEAU_HALF_Z) {
     const r = x - CANYON_WIDTH;                                               // metres past the far rim
     if (r < 4) return true;                                                   // rim
-    if (r < 136 && z > -24 && z < 14) return true;                           // ramp lanes + ride-off
-    if (r < 136 && z >= 14 && z < 40 && size > 0.8) return true;             // celebration camera
+    if (r < 240 && z > -24 && z < 14) return true;                           // ramp lanes + ride-off
+    if (r < 240 && z >= 14 && z < 40 && size > 0.8) return true;             // celebration camera
     if (r > 2 && r < 30 && z > -40 && z < -24) return true;                  // landing stand
     if (z > 22 && z < 28 && r < 106) return true;                            // distance markers
     if (r > 52 && r < 70 && z > -38 && z < -24) return true;                 // billboard
@@ -1600,9 +1602,9 @@ function buildStand(posX, posZ) {
 // rampShape profile the physics rides on — a curved foot, then the straight slope.
 // sheathLip closes the tall end with a solid face — the landing ramp's front,
 // so a 'rampface' crash has something to hit.
-function buildTrestleRamp(angle, sheathLip) {
+function buildTrestleRamp(angle, sheathLip, len) {
   const g = new THREE.Group();
-  const S = rampShape(angle);
+  const S = rampShape(angle, len);
   const baseLen = S.baseLen, H = S.H;
   const th = 0.25, halfW = RAMP_HALF_W;
   const box = (w, h, d, col, x, y, z, rz) => {
@@ -1707,11 +1709,11 @@ function rebuildLandingRamp() {
 
   const angle = G.landingRampAngleDeg * Math.PI / 180;
   G.landingRampAngleRad = angle;
-  const baseLen = RAMP_LEN * Math.cos(angle);
+  const baseLen = landingLen() * Math.cos(angle);
 
   // Same trestle, mirrored in x: the sheathed tall face now looks back across
   // the canyon at x=0 and the deck descends toward +x.
-  const inner = buildTrestleRamp(angle, true);
+  const inner = buildTrestleRamp(angle, true, landingLen());
   inner.scale.x = -1;
   inner.position.x = baseLen;
   landingRampGroup.add(inner);
@@ -3193,7 +3195,7 @@ function updateAirborne(dt) {
   //  - cross the far rim below its lip  → smack the cliff (wall splat).
   //  - reach the ramp's front face in-lane, below its peak → nose into the ramp.
   // Clear both and getGroundAt decides ramp-slope landing vs. flat-rock death.
-  const landingPeak = RAMP_LEN * Math.sin(G.landingRampAngleRad);
+  const landingPeak = landingLen() * Math.sin(G.landingRampAngleRad);
   const faceX = CANYON_WIDTH + G.landingRampDist;
   const inRampLane = Math.abs(G.zPos - G.landingRampZ) <= RAMP_HALF_W;
   const prevX = G.posX - G.vx * dt;
@@ -3382,7 +3384,7 @@ function finishJump(where) {
     // through the landing-ramp descent and lose the rider out of frame.
     if (celebrating && vehicleGroup) {
       const v = vehicleGroup.position;
-      const rampPeak = RAMP_LEN * Math.sin(G.landingRampAngleRad);
+      const rampPeak = landingLen() * Math.sin(G.landingRampAngleRad);
       camPos.set(v.x - 8, Math.max(rampPeak + 6, v.y + 6), G.zPos + 18);
       camTarget.set(v.x, v.y + 1.2, G.zPos);
     }
@@ -3906,7 +3908,7 @@ function updateCamera(dt) {
       // Lock the rider at frame centre — target directly on the rider's torso,
       // camera floored above the landing-ramp peak so the wedge stays out of
       // his silhouette.
-      const rampPeak = RAMP_LEN * Math.sin(G.landingRampAngleRad);
+      const rampPeak = landingLen() * Math.sin(G.landingRampAngleRad);
       desiredPos.set(vx - 8, Math.max(rampPeak + 6, vy + 6), G.zPos + 18);
       desiredTarget.set(vx, vy + 1.2, G.zPos);
     } else {
@@ -4075,8 +4077,10 @@ const wz_px = p => PLACE.z0 + (p - PLACE.pad)/(PLACE.h - 2*PLACE.pad) * (PLACE.z
 
 function openPlacement() {
   SFX.ensure(); SFX.click();
-  PLACE.x1 = CANYON_WIDTH + 58;            // 58 m of plateau past the rim…
-  PLACE.x0 = Math.max(0, CANYON_WIDTH - 34); // …and the last 34 m of gorge, at the same scale in every venue
+  const V = VENUES[G.venue];
+  PLACE.distMax = V.distMax;
+  PLACE.x1 = CANYON_WIDTH + V.distMax + rampShape(G.landingRampAngleRad, V.rampLen).foot + 6;  // whole placeable range…
+  PLACE.x0 = Math.max(0, CANYON_WIDTH - 34);                                                   // …plus the last 34 m of gorge
   G.landingRampAngleRad = G.landingRampAngleDeg * Math.PI / 180;
   document.getElementById('menu').classList.add('hidden');
   document.getElementById('placement').classList.add('show');
@@ -4105,7 +4109,8 @@ function buildPlaceMap() {
   const offMap = px_x(0) < 0;
   s += `<text x="${launchPx+5}" y="${llz-10}" fill="#F2E0D5" font-size="9" font-family="monospace">${offMap ? '◀ TAKE-OFF ' + Math.round(PLACE.x0) + 'M BACK' : 'TAKE-OFF'}</text>`;
   // distance ticks from the rim
-  for (let d = 0; d <= PLACE.distMax + 10; d += 10) {
+  const tickStep = PLACE.distMax > 60 ? 20 : 10;
+  for (let d = 0; d <= PLACE.distMax + tickStep; d += tickStep) {
     const tx = px_x(CANYON_WIDTH + d);
     if (tx > PLACE.w - 2) continue;
     s += `<line x1="${tx}" y1="${PLACE.h-13}" x2="${tx}" y2="${PLACE.h}" stroke="#2a1a10" stroke-width="1"/>`;
@@ -4133,7 +4138,7 @@ function placeFromPointer(e) {
   const r = svg.getBoundingClientRect();
   const px = (e.clientX - r.left) / r.width  * PLACE.w;
   const py = (e.clientY - r.top)  / r.height * PLACE.h;
-  const baseLen = rampShape(G.landingRampAngleRad).foot;   // footprint incl. curved foot
+  const baseLen = rampShape(G.landingRampAngleRad, landingLen()).foot;   // footprint incl. curved foot
   // pointer drives the CENTRE of the ramp footprint
   let dist = (wx_px(px) - baseLen/2) - CANYON_WIDTH;
   dist = Math.max(PLACE.distMin, Math.min(PLACE.distMax, dist));
@@ -4144,7 +4149,7 @@ function placeFromPointer(e) {
 }
 
 function updatePlaceToken() {
-  const baseLen = rampShape(G.landingRampAngleRad).foot;   // footprint incl. curved foot
+  const baseLen = rampShape(G.landingRampAngleRad, landingLen()).foot;   // footprint incl. curved foot
   const faceX = CANYON_WIDTH + G.landingRampDist;
   const x0 = px_x(faceX), x1 = px_x(faceX + baseLen);
   const z0 = px_z(G.landingRampZ - RAMP_HALF_W), z1 = px_z(G.landingRampZ + RAMP_HALF_W);
