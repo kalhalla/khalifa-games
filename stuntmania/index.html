@@ -90,6 +90,21 @@
   .veh-btn .name { font-size: 13px; letter-spacing: 0.5px; }
   .veh-btn .tag { font-size: 9px; opacity: 0.7; letter-spacing: 1px; }
   .veh-btn .cost { font-size: 10px; color: #2C568A; margin-top: 2px; }
+  #dev { display: none; position: fixed; top: 44px; right: 10px; width: 270px; z-index: 60; background: rgba(34,43,51,0.92);
+    color: #F2E0D5; border: 2px solid #F2C54B; padding: 8px; font: 11px/1.35 ui-monospace, Menlo, monospace; }
+  #dev.show { display: block; }
+  #dev .dev-head { color: #F2C54B; font-weight: bold; letter-spacing: 2px; margin-bottom: 6px; }
+  #dev .dev-head span { float: right; opacity: 0.6; font-weight: normal; letter-spacing: 0; }
+  #dev .dev-sub { opacity: 0.6; margin: 8px 0 3px; letter-spacing: 1px; font-size: 10px; }
+  #dev .dev-row { display: flex; gap: 4px; margin-bottom: 4px; }
+  #dev .dev-row > * { flex: 1; min-width: 0; }
+  #dev .dev-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+  #dev button, #dev select { background: #2C568A; color: #F2E0D5; border: 1px solid #F2E0D5; padding: 4px; font: inherit; cursor: pointer; }
+  #dev button:hover { background: #E24A2E; }
+  #dev button.on { background: #F2C54B; color: #222; }
+  #dev .dev-check { display: block; margin: 4px 0; }
+  #dev .dev-status { margin-top: 6px; color: #F2C54B; min-height: 2.6em; }
+  #dev .dev-tele { margin-top: 4px; opacity: 0.85; min-height: 2.6em; }
   .venue-label { font-size: 10px; letter-spacing: 2px; opacity: 0.6; margin: 10px 0 4px; }
   .venue-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 8px; }
   .venue-btn { background: #F2E0D5; border: 2px solid #2a1a10; box-shadow: 3px 3px 0 #2a1a10; padding: 6px 4px;
@@ -271,11 +286,24 @@
 </head>
 <body>
 
-<div id="version">STUNTMANIA '76 — Build 0.17.0</div>
+<div id="version">STUNTMANIA '76 — Build 0.18.0</div>
 
 <canvas id="canvas"></canvas>
 
 <!-- MENU -->
+<div id="dev">
+  <div class="dev-head">DEV MODE <span>` to hide</span></div>
+  <div class="dev-row"><select id="devVehicle"></select><select id="devVenue"></select></div>
+  <div class="dev-row"><button id="devUnlock">Unlock all + £10k</button><button id="devMenu">Menu</button></div>
+  <div class="dev-sub">SCENARIOS (current vehicle + venue)</div>
+  <div id="devScen" class="dev-grid"></div>
+  <div class="dev-sub">TIME</div>
+  <div id="devSpeed" class="dev-row"><button data-s="1" class="on">1×</button><button data-s="0.5">½×</button><button data-s="0.25">¼×</button><button data-s="0.1">⅒×</button></div>
+  <div class="dev-row"><button id="devPause">Pause (P)</button><button id="devStep">Step (.)</button></div>
+  <label class="dev-check"><input type="checkbox" id="devFast"> Fast runup (3×)</label>
+  <div id="devStatus" class="dev-status">Pick a scenario.</div>
+  <div id="devTele" class="dev-tele"></div>
+</div>
 <div id="menu">
   <div class="menu-card panel">
     <div class="logo">STUNTMANIA</div>
@@ -404,7 +432,7 @@ rocketcar: "Z2xURgIAAAA8RwQA+BIAAEpTT057ImFzc2V0Ijp7ImdlbmVyYXRvciI6ImdsVEYtVHJh
 // Build 0.2.0  —  Active runup (throttle + steering), camera snap on launch.
 // ============================================================================
 
-const BUILD_VERSION = '0.17.0';
+const BUILD_VERSION = '0.18.0';
 
 // ---------- PALETTE ---------------------------------------------------------
 const COL = {
@@ -833,6 +861,7 @@ function init() {
   setupUI();
   loadAssets();
   setupCameraControls();
+  setupDev();
 
   if (!matchMedia('(pointer:fine)').matches) {
     document.getElementById('touch').classList.add('show');
@@ -2927,6 +2956,175 @@ function startRiderFlail() {
   RIG.flail = true;
 }
 
+
+// ============================================================================
+// DEV MODE — press ` (backtick) or open with ?dev=1
+// ============================================================================
+//
+// Scenario buttons find a setup that produces the outcome for the current
+// vehicle + venue by simulating silently (fixed 60 Hz, sound muted, cash and
+// unlocks restored afterwards), then launch it for real with an autopilot
+// flying the same inputs. Plus slow-mo, pause/frame-step and telemetry.
+const DEV = {
+  on: false, speed: 1, paused: false, step: false, fastRunup: false,
+  pilot: null, busy: false, cache: {},
+};
+const DEV_SCENARIOS = [
+  { id: 'perfect',  label: 'Perfect landing',   pilot: 'level', ok: r => r.grade === 'STUCK THE LANDING' },
+  { id: 'rough',    label: 'Rough landing',     pilot: 'none',  ok: r => r.phase === 'landed' && r.grade !== 'STUCK THE LANDING' },
+  { id: 'wall',     label: 'Wall splat',        pilot: 'none',  ok: r => r.type === 'wall' },
+  { id: 'canyon',   label: 'Canyon floor',      pilot: 'none',  ok: r => r.type === 'canyon' },
+  { id: 'rampface', label: 'Into the ramp',     pilot: 'level', ok: r => r.where === 'rampface' },
+  { id: 'short',    label: 'Short on the flat', pilot: 'level', ok: r => r.grade === 'ATE THE DIRT' },
+  { id: 'long',     label: 'Sailed past',       pilot: 'level', ok: r => r.grade === 'SAILED PAST' },
+  { id: 'lane',     label: 'Wrong lane',        pilot: 'level', laneLand: 6, ok: r => r.grade === 'WRONG LANE' },
+  { id: 'flip',     label: 'Over-rotate',       pilot: 'flip',  ok: r => r.grade === 'MEDICAL PENDING' },
+  { id: 'yard',     label: 'Yard sale',         pilot: 'none',  laneRun: -4, ok: r => r.grade === 'YARD SALE' },
+];
+
+// Inputs for one frame, shared by the silent search and the live run
+function devAutopilot() {
+  const P = DEV.pilot;
+  if (!P) return;
+  if (G.phase === 'runup') {
+    keys.up = G.runupDist < P.throttle * (RUNWAY_LEN + 20);
+    keys.down = false;
+  } else if (G.phase === 'airborne') {
+    keys.boost = false;
+    if (P.mode === 'level') {
+      const err = G.pitch + G.landingRampAngleRad;
+      keys.up = err < -0.15; keys.down = err > 0.15;
+    } else if (P.mode === 'flip') { keys.up = true; keys.down = false; }
+    else { keys.up = keys.down = false; }
+  } else { keys.up = keys.down = false; DEV.pilot = null; }
+}
+
+function devApply(st) {
+  G.rampAngleDeg = st.deg; G.landingRampAngleDeg = st.land; G.landingRampDist = st.dist;
+  G.landingRampZ = LAUNCH_RAMP_OFFSET + (st.laneLand || 0);
+}
+function devStart(st) {
+  devApply(st);
+  startLaunch();
+  G.zPos = LAUNCH_RAMP_OFFSET + (st.laneRun || 0);
+  DEV.pilot = { mode: st.mode, throttle: st.throttle };
+}
+
+function devSimulate(st) {
+  devStart(st);
+  const dt = 1 / 60;
+  let n = 0;
+  while ((G.phase === 'runup' || G.phase === 'airborne') && n < 9000) {
+    devAutopilot();
+    if (G.phase === 'runup') updateRunup(dt); else updateAirborne(dt);
+    n++;
+  }
+  const r = { phase: G.phase, type: G.phase === 'crashed' ? G.crashType : null, where: G.crashWhere,
+              grade: document.getElementById('grade').textContent };
+  DEV.pilot = null; keys.up = keys.down = keys.boost = false;
+  clearDebris();
+  for (const d of dustParticles) { scene.remove(d); d.geometry.dispose(); d.material.dispose(); } dustParticles = [];
+  for (const d of smokeTrail) { scene.remove(d); d.geometry.dispose(); d.material.dispose(); } smokeTrail = [];
+  G.phase = 'menu';
+  return r;
+}
+
+async function devRunScenario(sc) {
+  if (DEV.busy) return;
+  const key = sc.id + '|' + G.vehicleIdx + '|' + G.venue;
+  const status = document.getElementById('devStatus');
+  let st = DEV.cache[key];
+  if (!st) {
+    DEV.busy = true;
+    status.textContent = 'Searching: ' + sc.label + '…';
+    // Silence the search and keep the player's economy untouched
+    const muted = {};
+    for (const k in SFX) if (typeof SFX[k] === 'function') { muted[k] = SFX[k]; SFX[k] = () => {}; }
+    const keep = { cash: G.cash, best: G.bestDist, unlocked: new Set(G.unlocked) };
+    const V = VENUES[G.venue], hits = [];
+    let tries = 0;
+    outer:
+    for (const throttle of [1, 0.85, 0.7, 0.6, 0.5, 0.42, 0.35, 0.28, 0.2, 0.14]) {
+      for (let deg = 20; deg <= 55; deg += 3) {
+        for (let dist = 0; dist <= V.distMax; dist += 4) {
+          const cand = { deg, land: G.landingRampAngleDeg, dist, throttle, mode: sc.pilot,
+                         laneRun: sc.laneRun || 0, laneLand: sc.laneLand || 0 };
+          const r = devSimulate(cand);
+          tries++;
+          if (sc.ok(r)) { hits.push(cand); if (hits.length >= 9) break outer; }
+          if (tries % 25 === 0) await new Promise(res => setTimeout(res, 0));
+        }
+        if (sc.id === 'wall' || sc.id === 'canyon' || sc.id === 'yard') if (hits.length) break outer;
+      }
+      if (hits.length) break;
+    }
+    Object.assign(SFX, muted);
+    G.cash = keep.cash; G.bestDist = keep.best; G.unlocked = keep.unlocked;
+    document.getElementById('scorecard').classList.remove('show');
+    DEV.busy = false;
+    if (!hits.length) { status.textContent = sc.label + ': not possible with ' + VEHICLE_DEFS[G.vehicleIdx].name + ' at ' + V.name + ' (' + tries + ' tries)'; backToMenu(); return; }
+    st = hits[Math.floor(hits.length / 2)];   // middle of the working range: robust to frame-time jitter
+    DEV.cache[key] = st;
+  }
+  status.textContent = sc.label + ' — ramp ' + st.deg + '°, landing ' + st.land + '° at ' + st.dist + ' m' + (st.throttle < 1 ? ', throttle ' + Math.round(st.throttle * 100) + '%' : '');
+  document.getElementById('angleSlider').value = st.deg; document.getElementById('angleVal').textContent = st.deg;
+  document.getElementById('menu').classList.add('hidden');
+  document.getElementById('scorecard').classList.remove('show');
+  devStart(st);
+}
+
+function devPopulate() {
+  const vSel = document.getElementById('devVehicle'), wSel = document.getElementById('devVenue');
+  vSel.innerHTML = VEHICLE_DEFS.map((d, i) => `<option value="${i}">${d.name}</option>`).join('');
+  wSel.innerHTML = VENUES.map((v, i) => `<option value="${i}">${v.name} (${v.width} m)</option>`).join('');
+  vSel.value = G.vehicleIdx; wSel.value = G.venue;
+}
+
+function setupDev() {
+  const el = document.getElementById('dev');
+  document.getElementById('devScen').innerHTML = DEV_SCENARIOS.map((sc, i) => `<button data-i="${i}">${sc.label}</button>`).join('');
+  document.querySelectorAll('#devScen button').forEach(b => b.addEventListener('click', () => devRunScenario(DEV_SCENARIOS[+b.dataset.i])));
+  document.getElementById('devVehicle').addEventListener('change', e => {
+    G.vehicleIdx = +e.target.value; G.unlocked.add(VEHICLE_DEFS[G.vehicleIdx].id); rebuildVehicleGrid();
+  });
+  document.getElementById('devVenue').addEventListener('change', e => setVenue(+e.target.value));
+  document.getElementById('devUnlock').addEventListener('click', () => {
+    VEHICLE_DEFS.forEach(d => G.unlocked.add(d.id)); G.cash += 10000; rebuildVehicleGrid();
+  });
+  document.querySelectorAll('#devSpeed button').forEach(b => b.addEventListener('click', () => {
+    DEV.speed = +b.dataset.s;
+    document.querySelectorAll('#devSpeed button').forEach(x => x.classList.toggle('on', x === b));
+  }));
+  document.getElementById('devPause').addEventListener('click', () => { DEV.paused = !DEV.paused; });
+  document.getElementById('devStep').addEventListener('click', () => { DEV.paused = true; DEV.step = true; });
+  document.getElementById('devFast').addEventListener('change', e => { DEV.fastRunup = e.target.checked; });
+  document.getElementById('devMenu').addEventListener('click', () => { DEV.pilot = null; backToMenu(); });
+  document.addEventListener('keydown', e => {
+    if (e.key === '`') toggleDev();
+    if (!DEV.on) return;
+    if (e.key === 'p' || e.key === 'P') DEV.paused = !DEV.paused;
+    if (e.key === '.') { DEV.paused = true; DEV.step = true; }
+  });
+  let on = /[?&]dev=1/.test(location.search);
+  try { on = on || localStorage.getItem('sm76dev') === '1'; } catch (e) {}
+  if (on) toggleDev();
+}
+function toggleDev() {
+  DEV.on = !DEV.on;
+  try { localStorage.setItem('sm76dev', DEV.on ? '1' : '0'); } catch (e) {}
+  document.getElementById('dev').classList.toggle('show', DEV.on);
+  if (DEV.on) devPopulate();
+  if (!DEV.on) { DEV.speed = 1; DEV.paused = false; DEV.pilot = null; }
+}
+function devTelemetry() {
+  if (!DEV.on) return;
+  const v = Math.hypot(G.vx, G.vy);
+  document.getElementById('devTele').textContent =
+    `${G.phase.toUpperCase()}${DEV.paused ? ' · PAUSED' : ''}  x ${G.posX.toFixed(1)}  y ${G.posY.toFixed(1)}  ` +
+    `${G.phase === 'runup' ? 'speed ' + G.runupSpeed.toFixed(1) : 'v ' + v.toFixed(1)}  pitch ${(G.pitch * 57.3).toFixed(0)}°` +
+    (G.phase === 'crashed' ? `  · ${G.crashType}/${G.crashWhere}` : '');
+}
+
 // ============================================================================
 // VEHICLE LIFECYCLE
 // ============================================================================
@@ -2950,6 +3148,7 @@ function updateVehicleVisual(x, y, pitch) {
 function startLaunch() {
   // Reset all transient state
   G.phase = 'runup';
+  G.crashWhere = null;
   G.runupSpeed = 0;
   G.runupDist = 0;
   G.crankAngle = 0;
@@ -4029,7 +4228,7 @@ function setupInput() {
     if (e.key === 'ArrowLeft'  || e.key === 'a' || e.key === 'A') keys.left = true;
     if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = true;
     if (e.key === ' ')          { keys.boost = true; e.preventDefault(); }
-    if (e.key === 'r' || e.key === 'R') retry();
+    if (e.key === 'r' || e.key === 'R') { if (DEV.pilot === null) retry(); }
     if (e.key === 'm' || e.key === 'M') SFX.toggleMute();
   });
   document.addEventListener('keyup', (e) => {
@@ -4261,7 +4460,14 @@ function animate() {
     else if (G.crashTimer < 2.1) G.timeScale = 0.35 + (G.crashTimer - 1.3) / 0.8 * 0.65;
     else                         G.timeScale = 1.0;
   }
-  const dt = rawDt * G.timeScale;
+  let dt = rawDt * G.timeScale;
+  if (DEV.on) {
+    dt *= DEV.speed;
+    if (DEV.paused) { dt = DEV.step ? (1 / 60) * G.timeScale : 0; DEV.step = false; }
+    if (G.phase === 'runup' && DEV.fastRunup) dt *= 3;
+    devAutopilot();
+    devTelemetry();
+  }
 
   if (G.phase === 'runup') {
     updateRunup(dt);
