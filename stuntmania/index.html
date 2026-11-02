@@ -105,6 +105,12 @@
   #dev .dev-check { display: block; margin: 4px 0; }
   #dev .dev-status { margin-top: 6px; color: #F2C54B; min-height: 2.6em; }
   #dev .dev-tele { margin-top: 4px; opacity: 0.85; min-height: 2.6em; }
+  #tutHint { display: none; position: fixed; left: 50%; bottom: 22%; transform: translateX(-50%); z-index: 30;
+    background: rgba(34,43,51,0.82); color: #F2E0D5; border: 2px solid #CFF8FF; padding: 8px 16px;
+    font-family: inherit; font-size: 15px; letter-spacing: 1.5px; white-space: nowrap; pointer-events: none; }
+  #tutHint.show { display: block; }
+  @media (max-width: 640px) { #tutHint { font-size: 11px; white-space: normal; width: 86%; text-align: center; } }
+  .sc-tip { color: #2C568A; font-size: 11px; letter-spacing: 1px; margin: 6px 0 2px; }
   .place-btn { display: block; margin: 8px auto 2px; background: transparent; border: 2px dashed #2a1a10; padding: 6px 12px;
     font-family: inherit; font-size: 11px; letter-spacing: 1px; color: #2a1a10; cursor: pointer; }
   .place-btn:hover { background: #F2C54B; }
@@ -292,7 +298,7 @@
 </head>
 <body>
 
-<div id="version">STUNTMANIA '76 — Build 0.19.0</div>
+<div id="version">STUNTMANIA '76 — Build 0.20.0</div>
 
 <canvas id="canvas"></canvas>
 
@@ -334,8 +340,6 @@
     </div>
 
     <button class="launch-btn" id="launchBtn">▶ LAUNCH</button>
-    <button class="place-btn" id="placeBtn">PLACE THE RAMP YOURSELF · ×1.5 CASH</button>
-    <div id="autoTip" class="auto-tip"></div>
 
     <div><span class="cash">CASH: £<span id="cashVal">0</span></span></div>
     <div style="font-size:10px; opacity:0.55; margin-top:10px; letter-spacing:1px;">
@@ -370,6 +374,7 @@
 </div>
 
 <!-- RUNUP HINT -->
+<div id="tutHint"></div>
 <div id="runupHint">
   ▲ HOLD TO THROTTLE
   <small>◀ ▶ STEER</small>
@@ -416,6 +421,7 @@
     <div class="score-line"><span class="lbl">STYLE</span> <span class="num" id="scStyle">—</span></div>
     <div class="score-line"><span class="lbl">HYPE</span> <span class="num" id="scHype">—</span></div>
     <div class="score-line total"><span class="lbl">CASH EARNED</span> <span>£<span class="num" id="scCash">0</span></span></div>
+    <div id="scTip" class="sc-tip"></div>
     <div class="score-actions">
       <button id="scRetry">RETRY</button>
       <button class="primary" id="scMenu">▶ SETUP</button>
@@ -444,7 +450,7 @@ rocketcar: "Z2xURgIAAAA8RwQA+BIAAEpTT057ImFzc2V0Ijp7ImdlbmVyYXRvciI6ImdsVEYtVHJh
 // Build 0.2.0  —  Active runup (throttle + steering), camera snap on launch.
 // ============================================================================
 
-const BUILD_VERSION = '0.19.0';
+const BUILD_VERSION = '0.20.0';
 
 // ---------- PALETTE ---------------------------------------------------------
 const COL = {
@@ -598,7 +604,8 @@ const G = {
   phase:        'menu',  // 'menu' | 'runup' | 'airborne' | 'landed' | 'crashed'
   vehicleIdx:   0,
   venue:        0,       // index into VENUES
-  placeMode:    'auto',  // 'auto' (ramp placed for you) | 'manual' (1.5x cash)
+  placeMode:    'auto',
+  tutorialDone: false,   // ghost rider shows on the BMX until its first landing
   unlocked:     new Set(['bmx']),
   cash:         0,
   bestDist:     0,
@@ -673,9 +680,39 @@ const keys = { up:false, down:false, left:false, right:false, boost:false };
 // commissioned samples can replace each play function later without touching
 // the call sites scattered through the game.
 // ============================================================================
+// Engine profiles. base/top: firing pitch Hz at idle/redline; chop: firing-
+// pulse rate; cut: low-pass range; sub: sub-octave level; rate: sample
+// playback-rate range when a recorded loop is supplied.
+const ENGINE_PROFILES = {
+  dirtbike:   { base: 62, top: 230, chop: [24, 85], cut: [900, 3000], sub: 0.15, gain: 0.16, sample: 'dirtbike',  rate: [0.75, 2.0] },
+  motorbike:  { base: 38, top: 140, chop: [12, 44], cut: [500, 1800], sub: 0.45, gain: 0.2,  sample: 'motorbike', rate: [0.6, 1.7] },
+  car:        { base: 34, top: 120, chop: [9, 36],  cut: [400, 1500], sub: 0.55, gain: 0.22, sample: 'car',       rate: [0.55, 1.6] },
+  rocketcar:  { base: 34, top: 120, chop: [9, 36],  cut: [400, 1500], sub: 0.55, gain: 0.18, sample: 'car', rate: [0.55, 1.6], rocket: true },
+  rocketsled: { rocket: true },
+};
+// Recorded engine loops (base64 ogg/mp3/wav) — empty until real samples are added.
+const ENGINE_SAMPLES = {};
+
 const SFX = (() => {
   let ctx = null, master = null, dead = false, muted = false;
   let runOsc = null, runFlt = null, runGain = null;   // the rolling runup whir
+  const ENG = { n: null, noise: null, bufs: {} };
+  function noiseBuf() {
+    if (ENG.noise) return ENG.noise;
+    const b = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate), d = b.getChannelData(0);
+    let last = 0;
+    for (let i = 0; i < d.length; i++) { last = 0.97 * last + 0.03 * (Math.random() * 2 - 1); d[i] = last * 6; }  // brown-ish: a roar, not a hiss
+    return (ENG.noise = b);
+  }
+  // Decode ENGINE_SAMPLES on first use; until decoded the synth plays.
+  function sampleBuf(name) {
+    if (ENG.bufs[name] instanceof AudioBuffer) return ENG.bufs[name];
+    if (!ENG.bufs[name] && typeof ENGINE_SAMPLES !== 'undefined' && ENGINE_SAMPLES[name]) {
+      ENG.bufs[name] = 'pending';
+      ctx.decodeAudioData(b64ToBuffer(ENGINE_SAMPLES[name]), b => { ENG.bufs[name] = b; }, () => { ENG.bufs[name] = 'bad'; });
+    }
+    return null;
+  }
 
   function ensure() {
     if (dead) return null;
@@ -803,6 +840,83 @@ const SFX = (() => {
       tone(420, 0.1, { type:'square', gain:0.08 });
     },
     click() { tone(760, 0.05, { type:'square', gain:0.12 }); },
+    // ---- engines ---------------------------------------------------------------
+    // Sample-ready: put base64 audio in ENGINE_SAMPLES[name] (a steady loop) and
+    // it is looped with pitch following RPM. Without a sample, a synthesised
+    // engine plays: sawtooth + sub-octave through a low-pass, amplitude-chopped
+    // at the firing rate. Rockets add a deep filtered-noise roar.
+    engineStart(id) {
+      this.engineStop('cut');
+      const P = ENGINE_PROFILES[id];
+      if (!P || muted || !ensure()) return;
+      const out = ctx.createGain(); out.gain.value = 0; out.connect(master);
+      const N = { P, out, srcs: [] };
+      const smp = P.sample && sampleBuf(P.sample);
+      if (P.base) {
+        if (smp) {
+          const src = ctx.createBufferSource(); src.buffer = smp; src.loop = true;
+          src.connect(out); src.start(); N.sample = src; N.srcs.push(src);
+        } else {
+          const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 2.5;
+          const chop = ctx.createGain(); chop.gain.value = 0.55;
+          const lfo = ctx.createOscillator(); lfo.type = 'square';
+          const lfoAmt = ctx.createGain(); lfoAmt.gain.value = 0.45;
+          lfo.connect(lfoAmt); lfoAmt.connect(chop.gain);
+          const o1 = ctx.createOscillator(); o1.type = 'sawtooth';
+          const o2 = ctx.createOscillator(); o2.type = 'square';
+          const g2 = ctx.createGain(); g2.gain.value = P.sub;
+          o1.connect(lp); o2.connect(g2); g2.connect(lp); lp.connect(chop); chop.connect(out);
+          [o1, o2, lfo].forEach(o => o.start());
+          Object.assign(N, { o1, o2, lfo, lp });
+          N.srcs.push(o1, o2, lfo);
+        }
+      }
+      if (P.rocket) {
+        const rsmp = sampleBuf('rocket');
+        const src = ctx.createBufferSource(); src.buffer = rsmp || noiseBuf(); src.loop = true;
+        const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 600;
+        const rg = ctx.createGain(); rg.gain.value = 0;
+        if (rsmp) src.connect(rg); else { src.connect(lp); lp.connect(rg); }
+        rg.connect(master); src.start();
+        Object.assign(N, { roarSrc: src, roarLp: lp, roarGain: rg, roarSample: !!rsmp });
+        N.srcs.push(src);
+      }
+      ENG.n = N;
+      this.engineSet(0, 0);
+    },
+    engineSet(rpm, roar) {
+      const N = ENG.n; if (!N || !ctx) return;
+      const P = N.P, t = ctx.currentTime, k = 0.06;
+      if (P.base) {
+        N.out.gain.setTargetAtTime(P.gain * (0.55 + 0.45 * rpm), t, k);
+        if (N.sample) N.sample.playbackRate.setTargetAtTime(P.rate[0] + (P.rate[1] - P.rate[0]) * rpm, t, k);
+        else {
+          const f = P.base + (P.top - P.base) * rpm;
+          N.o1.frequency.setTargetAtTime(f, t, k);
+          N.o2.frequency.setTargetAtTime(f / 2, t, k);
+          N.lfo.frequency.setTargetAtTime(P.chop[0] + (P.chop[1] - P.chop[0]) * rpm, t, k);
+          N.lp.frequency.setTargetAtTime(P.cut[0] + (P.cut[1] - P.cut[0]) * rpm, t, k);
+        }
+      }
+      if (N.roarGain) {
+        const r = Math.min(roar, 2);
+        N.roarGain.gain.setTargetAtTime(0.32 * r, t, k);
+        N.roarLp.frequency.setTargetAtTime(350 + 900 * r, t, k);
+        if (N.roarSample) N.roarSrc.playbackRate.setTargetAtTime(0.8 + 0.25 * r, t, k);
+      }
+    },
+    engineStop(mode) {
+      const N = ENG.n; ENG.n = null;
+      if (!N || !ctx) return;
+      const t = ctx.currentTime, die = mode === 'die';
+      const end = t + (die ? 0.9 : 0.12);
+      N.out.gain.setTargetAtTime(0, t, die ? 0.25 : 0.03);
+      if (N.roarGain) N.roarGain.gain.setTargetAtTime(0, t, die ? 0.2 : 0.03);
+      if (die && N.o1) { N.o1.frequency.exponentialRampToValueAtTime(20, end); N.lfo.frequency.exponentialRampToValueAtTime(3, end); }
+      if (die && N.sample) N.sample.playbackRate.exponentialRampToValueAtTime(0.3, end);
+      N.srcs.forEach(s => { try { s.stop(end + 0.3); } catch (e) {} });
+    },
+
     // One pedal stroke. Two of these per crank revolution gives "whep-whep";
     // v alternates the two feet with a slight pitch difference.
     whep(v) {
@@ -2981,6 +3095,7 @@ function saveGame() {
     localStorage.setItem(SAVE_KEY, JSON.stringify({
       cash: G.cash, best: G.bestDist, unlocked: [...G.unlocked], vehicle: G.vehicleIdx,
       ramp: G.rampAngleDeg, land: G.landingRampAngleDeg, played: true,
+      dist: G.landingRampDist, lane: G.landingRampZ, tut: G.tutorialDone,
     }));
   } catch (e) {}
 }
@@ -2994,16 +3109,21 @@ function loadGame() {
     if (VEHICLE_DEFS[d.vehicle] && G.unlocked.has(VEHICLE_DEFS[d.vehicle].id)) G.vehicleIdx = d.vehicle;
     if (d.ramp >= 20 && d.ramp <= 55) G.rampAngleDeg = d.ramp;
     if (d.land >= 20 && d.land <= 55) G.landingRampAngleDeg = d.land;
+    if (d.dist >= 0) G.landingRampDist = d.dist;
+    if (typeof d.lane === 'number') G.landingRampZ = d.lane;
+    G.tutorialDone = !!d.tut;
   } catch (e) {}
 }
 
 // Run something through the silent simulator: no sound, economy untouched.
 function silently(fn) {
+  const wasSim = SIM; SIM = true;
   const muted = {};
   for (const k in SFX) if (typeof SFX[k] === 'function') { muted[k] = SFX[k]; SFX[k] = () => {}; }
   const keep = { cash: G.cash, best: G.bestDist, unlocked: new Set(G.unlocked) };
   try { return fn(); }
   finally {
+    SIM = wasSim;
     Object.assign(SFX, muted);
     G.cash = keep.cash; G.bestDist = keep.best; G.unlocked = keep.unlocked;
     document.getElementById('scorecard').classList.remove('show');
@@ -3041,12 +3161,22 @@ function autoPlaceRamp() {
   return d !== null;
 }
 
-function updateAutoTip() {
-  const tip = document.getElementById('autoTip');
-  if (!tip) return;
+function updateAutoTip() {}
+
+// Engine RPM each frame: road speed on the runup (plus a rev when you're on the
+// throttle), free-revving in the air, cruising on the ride-off. Rocket roar
+// follows the flame level so sound and plume always agree.
+let ENG_RPM = 0;
+function engineTick(dt) {
+  if (SIM) return;
   const def = VEHICLE_DEFS[G.vehicleIdx];
-  tip.textContent = AUTO_CACHE[[G.vehicleIdx, G.venue, G.rampAngleDeg, G.landingRampAngleDeg].join('|')] === null
-    ? `${def.name} can't make ${VENUES[G.venue].name} at ${G.rampAngleDeg}° — try another angle or venue` : '';
+  let target = 0;
+  if (G.phase === 'runup') target = Math.min(1, G.runupSpeed / def.maxSpeed) * 0.85 + (keys.up ? 0.15 : 0);
+  else if (G.phase === 'airborne') target = 0.9;
+  else if (G.phase === 'landed') target = G.celebrate ? 0.45 : 0.1;
+  ENG_RPM += (target - ENG_RPM) * Math.min(1, dt * 4);
+  const roar = RIG.flame ? RIG.flameI : (G.phase === 'airborne' ? (G.boostActive ? 2 : 0.6) : keys.up ? 1.1 : 0.4);
+  SFX.engineSet(ENG_RPM, roar);
 }
 
 function launchAuto() {
@@ -3079,8 +3209,98 @@ function firstRunIfNew() {
   setVehicle(0);
   G.placeMode = 'auto';
   if (!autoPlaceRamp()) return;
+  saveGame();
   document.getElementById('menu').classList.add('hidden');
   startLaunch();
+}
+
+// ---------- GHOST TUTORIAL ----------------------------------------------------
+// Until the BMX has landed once, a see-through rider runs the right line
+// alongside you: steer into the ramp lane, hold throttle, match the landing
+// ramp's slope. It is a silent recording of that pilot, replayed in step with
+// your run, and a coaching line reacts to what you are doing.
+let SIM = false;
+const GHOST = { frames: null, mesh: null, t: 0, active: false, key: '' };
+function tutorialActive() { return VEHICLE_DEFS[G.vehicleIdx].id === 'bmx' && !G.tutorialDone; }
+
+function recordGhost() {
+  const key = [G.vehicleIdx, G.venue, G.rampAngleDeg, G.landingRampAngleDeg, G.landingRampDist, G.landingRampZ].join('|');
+  if (GHOST.key === key && GHOST.frames) return GHOST.frames;
+  const frames = silently(() => {
+    startLaunch();
+    const out = [], dt = 1 / 60;
+    let n = 0;
+    while ((G.phase === 'runup' || G.phase === 'airborne') && n < 9000) {
+      if (G.phase === 'runup') {
+        keys.up = true;
+        const want = THREE.MathUtils.clamp((G.launchRampZ - G.zPos) * 2.2, -STEER_TOP_SPEED, STEER_TOP_SPEED);
+        keys.right = G.zVel < want - 0.4; keys.left = G.zVel > want + 0.4;
+        updateRunup(dt);
+      } else {
+        keys.left = keys.right = false;
+        const err = G.pitch + G.landingRampAngleRad;
+        keys.up = err < -0.15; keys.down = err > 0.15;
+        updateAirborne(dt);
+      }
+      const v = vehicleGroup;
+      if (v) out.push([v.position.x, v.position.y, v.position.z, v.rotation.x, v.rotation.z, G.crankAngle]);
+      n++;
+    }
+    keys.up = keys.down = keys.left = keys.right = false;
+    return out;
+  });
+  GHOST.key = key; GHOST.frames = frames;
+  return frames;
+}
+
+function ghostMesh() {
+  if (GHOST.mesh) return GHOST.mesh;
+  const mat = new THREE.MeshBasicMaterial({ color: 0x3CC1C3, transparent: true, opacity: 0.6, depthWrite: false });   // palette turquoise: reads on sand and rock
+  const g = buildBMX(VEHICLE_DEFS[0]);          // the procedural BMX, with its own pedalling legs
+  g.traverse(o => { if (o.isMesh) { o.material = mat; o.castShadow = false; o.receiveShadow = false; o.userData.keep = true; } });
+  g.name = 'ghost';
+  GHOST.mesh = g;
+  return g;
+}
+
+function startGhost() {
+  GHOST.active = false;
+  if (GHOST.mesh) scene.remove(GHOST.mesh);
+  if (!tutorialActive()) { setTutorialHint(''); return; }
+  recordGhost();
+  if (!GHOST.frames || !GHOST.frames.length) return;
+  scene.add(ghostMesh());
+  GHOST.t = 0; GHOST.active = true;
+}
+
+function updateGhost(dt) {
+  if (!GHOST.active) return;
+  GHOST.t += dt;
+  const F = GHOST.frames, i = Math.floor(GHOST.t * 60);
+  const m = GHOST.mesh;
+  if (i >= F.length + 60) { scene.remove(m); GHOST.active = false; setTutorialHint(''); return; }
+  const f = F[Math.min(i, F.length - 1)];
+  m.position.set(f[0], f[1], f[2]);
+  m.rotation.set(f[3], 0, f[4]);
+  poseBMXLegs(m, f[5]);
+  m.visible = G.phase === 'runup' || G.phase === 'airborne';
+  // Coaching line, from what YOU are doing right now
+  let hint = '';
+  if (G.phase === 'runup') {
+    hint = Math.abs(G.zPos - G.launchRampZ) > RAMP_HALF_W * 0.6
+      ? '◀ ▶ STEER INTO THE RAMP — FOLLOW THE GHOST'
+      : '▲ HOLD THROTTLE — STAY IN THE LANE';
+  } else if (G.phase === 'airborne') {
+    hint = '▲ ▼ TILT TO MATCH THE LANDING RAMP';
+  }
+  setTutorialHint(hint);
+}
+function setTutorialHint(t) {
+  const el = document.getElementById('tutHint');
+  if (!el) return;
+  if (el.textContent !== t) el.textContent = t;
+  el.classList.toggle('show', !!t);
+  if (t) document.getElementById('runupHint').classList.remove('show');
 }
 
 // ============================================================================
@@ -3272,6 +3492,8 @@ function updateVehicleVisual(x, y, pitch) {
 // GAME PHASES
 // ============================================================================
 function startLaunch() {
+  if (!SIM) startGhost();
+  SFX.engineStart(VEHICLE_DEFS[G.vehicleIdx].id);
   // Reset all transient state
   G.phase = 'runup';
   G.crashWhere = null;
@@ -3284,7 +3506,7 @@ function startLaunch() {
   G.netRotation = 0;
   G.pitchVel = 0;
   G.maxAirHeight = 0;
-  G.zPos = LAUNCH_RAMP_OFFSET;   // start lined up with the take-off ramp; steering is for drifting, not finding it
+  G.zPos = 0;                    // start on the centre line: you have to steer into the off-centre ramp
   G.zVel = 0;
   G.bankAngle = 0;
   G.targetBank = 0;
@@ -3364,7 +3586,7 @@ function updateRunup(dt) {
 
   // "whep" once per pedal stroke (every half revolution), alternating feet.
   const stroke = Math.floor(G.crankAngle / Math.PI);
-  if (stroke > G.lastStroke) { SFX.whep(stroke % 2); G.lastStroke = stroke; }
+  if (stroke > G.lastStroke) { if (VEHICLE_DEFS[G.vehicleIdx].id === 'bmx') SFX.whep(stroke % 2); G.lastStroke = stroke; }
 
   // If the player has touched a control, hide the hint
   if (G.playerActed || keys.left || keys.right) {
@@ -3642,7 +3864,6 @@ function finishJump(where) {
   else if (outcome === 'technical') cash += 30;
   if (fullRotations > 0) cash += fullRotations * 50;
   if (outcome === 'crashed') cash = Math.round(cash * 0.2);   // debris-field consolation, however you died
-  else if (G.placeMode === 'manual') cash = Math.round(cash * 1.5);   // showman's bonus: you placed it yourself
   cash = Math.max(0, cash);
 
   G.cash += cash;
@@ -3651,6 +3872,11 @@ function finishJump(where) {
   for (const def of VEHICLE_DEFS) {
     if (G.cash >= def.unlockCost) G.unlocked.add(def.id);
   }
+  if (!SIM && outcome !== 'crashed' && VEHICLE_DEFS[G.vehicleIdx].id === 'bmx' && !G.tutorialDone) {
+    G.tutorialDone = true;
+    document.getElementById('scTip').textContent = 'NICE. FROM NOW ON YOU PLACE YOUR OWN LANDING RAMP.';
+  } else document.getElementById('scTip').textContent = '';
+  if (!SIM) setTutorialHint('');
   saveGame();
 
   let pool;
@@ -3689,15 +3915,18 @@ function finishJump(where) {
     G.crashTimer = 0;
     if (G.crashType === 'wall') {
       initWallSplat();          // cartoon pancake + slide, vehicle stays whole
+      SFX.engineStop('cut');
       SFX.splat();
     } else {
       // Far side (ramp face, plateau) and the yard: the bike bursts into
       // chunks and the rider ragdolls. The canyon floor keeps the classic scatter.
       disassemble(vehicleGroup, G.crashType === 'plateau' ? 'explode' : 'scatter');
+      SFX.engineStop('cut');
       SFX.crash();
     }
   } else {
     SFX.land();
+    if (!celebrating) SFX.engineStop('die');
     if (celebrating) { SFX.success(); SFX.cheer(); }
     G.celebrate = celebrating;
     G.celebrateTimer = 0;
@@ -4404,7 +4633,6 @@ const wz_px = p => PLACE.z0 + (p - PLACE.pad)/(PLACE.h - 2*PLACE.pad) * (PLACE.z
 
 function openPlacement() {
   SFX.ensure(); SFX.click();
-  if (G.placeMode !== 'manual') autoPlaceRamp();   // start from where you'd land, then tweak
   const V = VENUES[G.venue];
   PLACE.distMax = V.distMax;
   PLACE.x1 = CANYON_WIDTH + V.distMax + rampShape(G.landingRampAngleRad, V.rampLen).foot + 6;  // whole placeable range…
@@ -4523,13 +4751,12 @@ function setupUI() {
     rebuildLandingRamp(); updateAutoTip(); saveGame();
   });
 
-  document.getElementById('launchBtn').addEventListener('click', launchAuto);
-  document.getElementById('placeBtn').addEventListener('click', openPlacement);
+  document.getElementById('launchBtn').addEventListener('click', () => tutorialActive() ? launchAuto() : openPlacement());
   document.querySelectorAll('.place-nudge button').forEach(b => b.addEventListener('click', () => {
     const [dx, dz] = b.dataset.n.split(',').map(Number);
     SFX.click(); setPlacement(G.landingRampDist + dx, G.landingRampZ + dz);
   }));
-  document.getElementById('placeGo').addEventListener('click', () => { SFX.click(); closePlacement(); G.placeMode = 'manual'; startLaunch(); });
+  document.getElementById('placeGo').addEventListener('click', () => { SFX.click(); closePlacement(); G.placeMode = 'manual'; saveGame(); startLaunch(); });
   // Sliders show the loaded save
   document.getElementById('angleSlider').value = G.rampAngleDeg; document.getElementById('angleVal').textContent = G.rampAngleDeg;
   document.getElementById('landingAngleSlider').value = G.landingRampAngleDeg; document.getElementById('landingAngleVal').textContent = G.landingRampAngleDeg;
@@ -4566,6 +4793,8 @@ function rebuildVehicleGrid() {
 
 function backToMenu() {
   G.phase = 'menu';
+  GHOST.active = false; if (GHOST.mesh) scene.remove(GHOST.mesh); setTutorialHint('');
+  SFX.engineStop('cut');
   G.camMode = 'arena';
   SFX.runupStop();
   document.getElementById('menu').classList.remove('hidden');
@@ -4668,7 +4897,9 @@ function animate() {
 
   updateParticles(dt);
   updateDebris(dt);
+  updateGhost(dt);
   updateRig(dt);
+  engineTick(dt);
   updateRocketFX(dt);
   updateFireworks(dt);
   updateCamera(rawDt);
