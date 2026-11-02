@@ -105,6 +105,12 @@
   #dev .dev-check { display: block; margin: 4px 0; }
   #dev .dev-status { margin-top: 6px; color: #F2C54B; min-height: 2.6em; }
   #dev .dev-tele { margin-top: 4px; opacity: 0.85; min-height: 2.6em; }
+  .place-btn { display: block; margin: 8px auto 2px; background: transparent; border: 2px dashed #2a1a10; padding: 6px 12px;
+    font-family: inherit; font-size: 11px; letter-spacing: 1px; color: #2a1a10; cursor: pointer; }
+  .place-btn:hover { background: #F2C54B; }
+  .auto-tip { font-size: 10px; color: #E24A2E; min-height: 1.2em; letter-spacing: 0.5px; }
+  .place-nudge { display: flex; gap: 6px; justify-content: center; margin: 6px 0; }
+  .place-nudge button { font-family: inherit; font-size: 12px; padding: 4px 10px; border: 2px solid #2a1a10; background: #F2E0D5; cursor: pointer; }
   .venue-label { font-size: 10px; letter-spacing: 2px; opacity: 0.6; margin: 10px 0 4px; }
   .venue-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 8px; }
   .venue-btn { background: #F2E0D5; border: 2px solid #2a1a10; box-shadow: 3px 3px 0 #2a1a10; padding: 6px 4px;
@@ -286,7 +292,7 @@
 </head>
 <body>
 
-<div id="version">STUNTMANIA '76 — Build 0.18.0</div>
+<div id="version">STUNTMANIA '76 — Build 0.19.0</div>
 
 <canvas id="canvas"></canvas>
 
@@ -328,6 +334,8 @@
     </div>
 
     <button class="launch-btn" id="launchBtn">▶ LAUNCH</button>
+    <button class="place-btn" id="placeBtn">PLACE THE RAMP YOURSELF · ×1.5 CASH</button>
+    <div id="autoTip" class="auto-tip"></div>
 
     <div><span class="cash">CASH: £<span id="cashVal">0</span></span></div>
     <div style="font-size:10px; opacity:0.55; margin-top:10px; letter-spacing:1px;">
@@ -342,13 +350,17 @@
 <div id="placement">
   <div class="place-card panel">
     <div class="place-title">PLACE THE LANDING RAMP</div>
-    <div class="place-sub">DRAG IT — FARTHER PAYS MORE. MISS THE WOOD AND YOU'RE DEBRIS.</div>
+    <div class="place-sub">DRAG ANYWHERE TO SLIDE IT — FARTHER PAYS MORE. MISS THE WOOD AND YOU'RE DEBRIS.</div>
     <div id="placeMapWrap">
       <svg id="placeMap" viewBox="0 0 340 200" preserveAspectRatio="xMidYMid meet"></svg>
     </div>
     <div class="place-readout">
       <span>DISTANCE OUT <b><span id="placeDist">6</span>M</b></span>
       <span>LANE <b><span id="placeLane">0</span></b></span>
+    </div>
+    <div class="place-nudge">
+      <button data-n="-1,0">◀ 1M</button><button data-n="1,0">1M ▶</button>
+      <button data-n="0,-1">▲ LANE</button><button data-n="0,1">▼ LANE</button>
     </div>
     <div class="place-actions">
       <button id="placeBack">◀ BACK</button>
@@ -432,7 +444,7 @@ rocketcar: "Z2xURgIAAAA8RwQA+BIAAEpTT057ImFzc2V0Ijp7ImdlbmVyYXRvciI6ImdsVEYtVHJh
 // Build 0.2.0  —  Active runup (throttle + steering), camera snap on launch.
 // ============================================================================
 
-const BUILD_VERSION = '0.18.0';
+const BUILD_VERSION = '0.19.0';
 
 // ---------- PALETTE ---------------------------------------------------------
 const COL = {
@@ -467,27 +479,27 @@ function matPhong(color) {
 
 // ---------- VEHICLES --------------------------------------------------------
 const VEHICLE_DEFS = [
-  { id:'bmx',        name:'BMX BIKE',       tagline:'NO MONEY',
+  { id:'bmx', defaultAngle:45,        name:'BMX BIKE',       tagline:'NO MONEY',
     primary:COL.desertRed, secondary:COL.cream, accent:COL.mustard,
     mass:1.0, maxSpeed:23, rotRate:5.0, boost:0,  boostFuel:0,
     unlockCost:0,    builder:buildBMX },
-  { id:'dirtbike',   name:'DIRT BIKE',      tagline:'SCRAPPY',
+  { id:'dirtbike', defaultAngle:35,   name:'DIRT BIKE',      tagline:'SCRAPPY',
     primary:COL.burntOrange, secondary:COL.cream, accent:COL.denim,
     mass:1.3, maxSpeed:28, rotRate:3.8, boost:0,  boostFuel:0,
     unlockCost:150,  builder:buildDirtBike },
-  { id:'motorbike',  name:'BIG MOTORBIKE',  tagline:'POWER',
+  { id:'motorbike', defaultAngle:35,  name:'BIG MOTORBIKE',  tagline:'POWER',
     primary:COL.denim, secondary:COL.chrome, accent:COL.desertRed,
     mass:1.7, maxSpeed:32, rotRate:2.8, boost:0,  boostFuel:0,
     unlockCost:400,  builder:buildBigBike },
-  { id:'car',        name:'STUNT CAR',      tagline:'CLASSIC',
+  { id:'car', defaultAngle:35,        name:'STUNT CAR',      tagline:'CLASSIC',
     primary:COL.turquoise, secondary:COL.cream, accent:COL.desertRed,
     mass:2.5, maxSpeed:34, rotRate:1.8, boost:0,  boostFuel:0,
     unlockCost:800,  builder:buildCar },
-  { id:'rocketcar',  name:'ROCKET CAR',     tagline:'MORE SPEED',
+  { id:'rocketcar', defaultAngle:35,  name:'ROCKET CAR',     tagline:'MORE SPEED',
     primary:COL.mustard, secondary:COL.desertRed, accent:COL.cream,
     mass:2.5, maxSpeed:36, rotRate:2.0, boost:24, boostFuel:1.4,
     unlockCost:1500, builder:buildRocketCar },
-  { id:'rocketsled', name:'ROCKET SLED',    tagline:'ULTIMATE',
+  { id:'rocketsled', defaultAngle:38, name:'ROCKET SLED',    tagline:'ULTIMATE',
     primary:COL.desertRed, secondary:COL.cream, accent:COL.denim,
     mass:2.0, maxSpeed:55, rotRate:1.4, boost:40, boostFuel:2.2,
     unlockCost:3500, builder:buildRocketSled },
@@ -586,6 +598,7 @@ const G = {
   phase:        'menu',  // 'menu' | 'runup' | 'airborne' | 'landed' | 'crashed'
   vehicleIdx:   0,
   venue:        0,       // index into VENUES
+  placeMode:    'auto',  // 'auto' (ramp placed for you) | 'manual' (1.5x cash)
   unlocked:     new Set(['bmx']),
   cash:         0,
   bestDist:     0,
@@ -854,6 +867,7 @@ function init() {
   scene.add(fill);
 
   try { G.venue = THREE.MathUtils.clamp(+localStorage.getItem('sm76venue') || 0, 0, VENUES.length - 1); } catch (e) {}
+  loadGame();
   buildVenue();
   window.addEventListener('resize', onResize);
 
@@ -2382,7 +2396,7 @@ function loadAssets() {
   const jobs = [['rider', prepRider], ['bmx', prepBike]];
   for (const id of ['dirtbike', 'motorbike', 'car', 'rocketcar', 'rocketsled']) jobs.push([id, g => prepVehicle(id, g)]);
   let pending = jobs.length;
-  const done = () => { if (--pending === 0) { ASSETS.ready = !!ASSETS.rider; console.log('Models ready.'); } };
+  const done = () => { if (--pending === 0) { ASSETS.ready = !!ASSETS.rider; console.log('Models ready.'); firstRunIfNew(); } };
   for (const [id, prep] of jobs) {
     const fail = e => { console.warn('Model failed to load (' + id + '); using procedural version.', e); done(); };
     try {
@@ -2958,6 +2972,118 @@ function startRiderFlail() {
 
 
 // ============================================================================
+// SAVE, AUTO-PLACEMENT, FIRST RUN
+// ============================================================================
+const SAVE_KEY = 'sm76save';
+let SAVE_FOUND = false;
+function saveGame() {
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify({
+      cash: G.cash, best: G.bestDist, unlocked: [...G.unlocked], vehicle: G.vehicleIdx,
+      ramp: G.rampAngleDeg, land: G.landingRampAngleDeg, played: true,
+    }));
+  } catch (e) {}
+}
+function loadGame() {
+  try {
+    const d = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null');
+    if (!d) return;
+    SAVE_FOUND = !!d.played;
+    G.cash = d.cash | 0; G.bestDist = +d.best || 0;
+    (d.unlocked || []).forEach(id => G.unlocked.add(id));
+    if (VEHICLE_DEFS[d.vehicle] && G.unlocked.has(VEHICLE_DEFS[d.vehicle].id)) G.vehicleIdx = d.vehicle;
+    if (d.ramp >= 20 && d.ramp <= 55) G.rampAngleDeg = d.ramp;
+    if (d.land >= 20 && d.land <= 55) G.landingRampAngleDeg = d.land;
+  } catch (e) {}
+}
+
+// Run something through the silent simulator: no sound, economy untouched.
+function silently(fn) {
+  const muted = {};
+  for (const k in SFX) if (typeof SFX[k] === 'function') { muted[k] = SFX[k]; SFX[k] = () => {}; }
+  const keep = { cash: G.cash, best: G.bestDist, unlocked: new Set(G.unlocked) };
+  try { return fn(); }
+  finally {
+    Object.assign(SFX, muted);
+    G.cash = keep.cash; G.bestDist = keep.best; G.unlocked = keep.unlocked;
+    document.getElementById('scorecard').classList.remove('show');
+    // Leave no trace of the test runs on screen
+    document.getElementById('hud').classList.add('hidden');
+    document.getElementById('runupHint').classList.remove('show');
+    if (vehicleGroup) { scene.remove(vehicleGroup); freeObj(vehicleGroup); vehicleGroup = null; }
+    G.phase = 'menu'; G.celebrate = false;
+  }
+}
+
+// Default placement: put the landing ramp where this vehicle, at this
+// take-off angle, actually comes down on full throttle with a level nose —
+// the middle of the range that lands clean. Players can still place it
+// themselves for a 1.5x cash bonus.
+const AUTO_CACHE = {};
+function autoPlaceRamp() {
+  const key = [G.vehicleIdx, G.venue, G.rampAngleDeg, G.landingRampAngleDeg].join('|');
+  if (!(key in AUTO_CACHE)) {
+    AUTO_CACHE[key] = silently(() => {
+      const V = VENUES[G.venue], clean = [], any = [];
+      for (let dist = 0; dist <= V.distMax; dist += 2) {
+        const r = devSimulate({ deg: G.rampAngleDeg, land: G.landingRampAngleDeg, dist, throttle: 1, mode: 'level' });
+        if (r.grade === 'STUCK THE LANDING') clean.push(dist);
+        else if (r.phase === 'landed') any.push(dist);
+      }
+      const pick = clean.length ? clean : any;
+      return pick.length ? pick[Math.floor(pick.length / 2)] : null;
+    });
+  }
+  const d = AUTO_CACHE[key];
+  G.landingRampDist = d === null ? 0 : d;
+  G.landingRampZ = LAUNCH_RAMP_OFFSET;
+  rebuildLandingRamp();
+  return d !== null;
+}
+
+function updateAutoTip() {
+  const tip = document.getElementById('autoTip');
+  if (!tip) return;
+  const def = VEHICLE_DEFS[G.vehicleIdx];
+  tip.textContent = AUTO_CACHE[[G.vehicleIdx, G.venue, G.rampAngleDeg, G.landingRampAngleDeg].join('|')] === null
+    ? `${def.name} can't make ${VENUES[G.venue].name} at ${G.rampAngleDeg}° — try another angle or venue` : '';
+}
+
+function launchAuto() {
+  SFX.ensure(); SFX.click();
+  G.placeMode = 'auto';
+  const ok = autoPlaceRamp();
+  updateAutoTip();
+  if (!ok) { document.getElementById('menu').classList.remove('hidden'); return; }
+  document.getElementById('menu').classList.add('hidden');
+  startLaunch();
+}
+
+function setVehicle(idx) {
+  G.vehicleIdx = idx;
+  const a = VEHICLE_DEFS[idx].defaultAngle;
+  if (a) {
+    G.rampAngleDeg = a;
+    document.getElementById('angleSlider').value = a;
+    document.getElementById('angleVal').textContent = a;
+    rebuildRamp();
+  }
+  updateAutoTip();
+  saveGame();
+}
+
+// First visit: straight into a BMX run at the Narrows once the models load.
+function firstRunIfNew() {
+  if (SAVE_FOUND || G.phase !== 'menu') return;
+  if (G.venue !== 0) { G.venue = -1; setVenue(0); }
+  setVehicle(0);
+  G.placeMode = 'auto';
+  if (!autoPlaceRamp()) return;
+  document.getElementById('menu').classList.add('hidden');
+  startLaunch();
+}
+
+// ============================================================================
 // DEV MODE — press ` (backtick) or open with ?dev=1
 // ============================================================================
 //
@@ -3158,7 +3284,7 @@ function startLaunch() {
   G.netRotation = 0;
   G.pitchVel = 0;
   G.maxAirHeight = 0;
-  G.zPos = 0;
+  G.zPos = LAUNCH_RAMP_OFFSET;   // start lined up with the take-off ramp; steering is for drifting, not finding it
   G.zVel = 0;
   G.bankAngle = 0;
   G.targetBank = 0;
@@ -3516,6 +3642,7 @@ function finishJump(where) {
   else if (outcome === 'technical') cash += 30;
   if (fullRotations > 0) cash += fullRotations * 50;
   if (outcome === 'crashed') cash = Math.round(cash * 0.2);   // debris-field consolation, however you died
+  else if (G.placeMode === 'manual') cash = Math.round(cash * 1.5);   // showman's bonus: you placed it yourself
   cash = Math.max(0, cash);
 
   G.cash += cash;
@@ -3524,6 +3651,7 @@ function finishJump(where) {
   for (const def of VEHICLE_DEFS) {
     if (G.cash >= def.unlockCost) G.unlocked.add(def.id);
   }
+  saveGame();
 
   let pool;
   if (where === 'canyon') pool = ANNOUNCER.canyon;
@@ -4276,6 +4404,7 @@ const wz_px = p => PLACE.z0 + (p - PLACE.pad)/(PLACE.h - 2*PLACE.pad) * (PLACE.z
 
 function openPlacement() {
   SFX.ensure(); SFX.click();
+  if (G.placeMode !== 'manual') autoPlaceRamp();   // start from where you'd land, then tweak
   const V = VENUES[G.venue];
   PLACE.distMax = V.distMax;
   PLACE.x1 = CANYON_WIDTH + V.distMax + rampShape(G.landingRampAngleRad, V.rampLen).foot + 6;  // whole placeable range…
@@ -4325,26 +4454,29 @@ function buildPlaceMap() {
   s += `</g>`;
   svg.innerHTML = s;
 
-  svg.onpointerdown  = e => { PLACE.dragging = true; placeFromPointer(e); };
+  // Relative drag: grab anywhere and the ramp moves by how far you drag, so
+  // your finger never sits on top of it.
+  svg.onpointerdown  = e => { e.preventDefault(); svg.setPointerCapture(e.pointerId); PLACE.dragging = svgPoint(e);
+                              PLACE.drag0 = { dist: G.landingRampDist, lane: G.landingRampZ }; };
   svg.onpointermove  = e => { if (PLACE.dragging) placeFromPointer(e); };
   svg.onpointerup    = () => { PLACE.dragging = false; };
-  svg.onpointerleave = () => { PLACE.dragging = false; };
+  svg.onpointercancel = () => { PLACE.dragging = false; };
 }
 
+function svgPoint(e) {
+  const r = document.getElementById('placeMap').getBoundingClientRect();
+  return { px: (e.clientX - r.left) / r.width * PLACE.w, py: (e.clientY - r.top) / r.height * PLACE.h };
+}
+function setPlacement(dist, lane) {
+  G.landingRampDist = Math.round(Math.max(PLACE.distMin, Math.min(PLACE.distMax, dist)));
+  G.landingRampZ = Math.round(Math.max(PLACE.laneMin, Math.min(PLACE.laneMax, lane)));
+  updatePlaceToken();
+}
 function placeFromPointer(e) {
   e.preventDefault();
-  const svg = document.getElementById('placeMap');
-  const r = svg.getBoundingClientRect();
-  const px = (e.clientX - r.left) / r.width  * PLACE.w;
-  const py = (e.clientY - r.top)  / r.height * PLACE.h;
-  const baseLen = rampShape(G.landingRampAngleRad, landingLen()).foot;   // footprint incl. curved foot
-  // pointer drives the CENTRE of the ramp footprint
-  let dist = (wx_px(px) - baseLen/2) - CANYON_WIDTH;
-  dist = Math.max(PLACE.distMin, Math.min(PLACE.distMax, dist));
-  let lane = Math.max(PLACE.laneMin, Math.min(PLACE.laneMax, wz_px(py)));
-  G.landingRampDist = Math.round(dist);
-  G.landingRampZ = Math.round(lane);
-  updatePlaceToken();
+  const p = svgPoint(e), p0 = PLACE.dragging;
+  setPlacement(PLACE.drag0.dist + (wx_px(p.px) - wx_px(p0.px)),
+               PLACE.drag0.lane + (wz_px(p.py) - wz_px(p0.py)));
 }
 
 function updatePlaceToken() {
@@ -4381,18 +4513,26 @@ function setupUI() {
   slider.addEventListener('input', (e) => {
     G.rampAngleDeg = parseInt(e.target.value);
     document.getElementById('angleVal').textContent = G.rampAngleDeg;
-    rebuildRamp();
+    rebuildRamp(); updateAutoTip(); saveGame();
   });
 
   const landingSlider = document.getElementById('landingAngleSlider');
   landingSlider.addEventListener('input', (e) => {
     G.landingRampAngleDeg = parseInt(e.target.value);
     document.getElementById('landingAngleVal').textContent = G.landingRampAngleDeg;
-    rebuildLandingRamp();
+    rebuildLandingRamp(); updateAutoTip(); saveGame();
   });
 
-  document.getElementById('launchBtn').addEventListener('click', openPlacement);
-  document.getElementById('placeGo').addEventListener('click', () => { SFX.click(); closePlacement(); startLaunch(); });
+  document.getElementById('launchBtn').addEventListener('click', launchAuto);
+  document.getElementById('placeBtn').addEventListener('click', openPlacement);
+  document.querySelectorAll('.place-nudge button').forEach(b => b.addEventListener('click', () => {
+    const [dx, dz] = b.dataset.n.split(',').map(Number);
+    SFX.click(); setPlacement(G.landingRampDist + dx, G.landingRampZ + dz);
+  }));
+  document.getElementById('placeGo').addEventListener('click', () => { SFX.click(); closePlacement(); G.placeMode = 'manual'; startLaunch(); });
+  // Sliders show the loaded save
+  document.getElementById('angleSlider').value = G.rampAngleDeg; document.getElementById('angleVal').textContent = G.rampAngleDeg;
+  document.getElementById('landingAngleSlider').value = G.landingRampAngleDeg; document.getElementById('landingAngleVal').textContent = G.landingRampAngleDeg;
   document.getElementById('placeBack').addEventListener('click', () => { SFX.click(); closePlacement(); document.getElementById('menu').classList.remove('hidden'); });
   document.getElementById('scRetry').addEventListener('click', () => { SFX.click(); retry(true); });
   document.getElementById('scMenu').addEventListener('click', () => { SFX.click(); backToMenu(); });
@@ -4416,7 +4556,7 @@ function rebuildVehicleGrid() {
     `;
     div.addEventListener('click', () => {
       if (!G.unlocked.has(def.id)) return;
-      G.vehicleIdx = idx;
+      setVehicle(idx);
       rebuildVehicleGrid();
     });
     grid.appendChild(div);
