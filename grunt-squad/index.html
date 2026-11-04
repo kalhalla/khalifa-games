@@ -89,6 +89,11 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
 #truck.hot{color:#ff7a68;border-color:var(--blood);animation:pulse .55s infinite}
 #bc,#bski,#bsw{font-size:8.5px!important;letter-spacing:.5px;font-weight:bold}
 #bs,#bt{font-size:8.5px!important;letter-spacing:.5px;font-weight:bold;line-height:1.15}
+/* v171: the jeep run's steering, big and low on either side of the screen */
+.jlane{position:fixed;bottom:calc(64px + env(safe-area-inset-bottom));z-index:12;display:none;width:66px;height:66px;border-radius:50%;border:2px solid rgba(255,211,74,.7);background:rgba(14,18,10,.62);color:#ffd34a;font:900 30px/62px Arial,sans-serif;text-align:center;padding:0;touch-action:none}
+#jl{left:calc(80px + env(safe-area-inset-left))} #jr{right:calc(20px + env(safe-area-inset-right))}
+.jlane:active{background:rgba(255,211,74,.35)}
+@media (orientation:portrait){.jlane{bottom:calc(30vh + env(safe-area-inset-bottom))}}
 #bt.tA{border-color:#ffd25a;color:#ffd25a;background:rgba(255,210,90,.14)}
 #bt.tB{border-color:#6fd8ff;color:#6fd8ff;background:rgba(111,216,255,.14)}
 #wbar button.slung{opacity:.32;filter:grayscale(1)}
@@ -447,6 +452,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
 <div id="introtxt"><div class="a"></div><div class="b"></div></div>
 <div id="hint"></div>
 <div id="tarrow">◀</div>
+<button id="jl" class="jlane" aria-label="Swerve left">◀</button><button id="jr" class="jlane" aria-label="Swerve right">▶</button>
 <div id="rotcard"><b>⟳ TURN YOUR PHONE</b>Sideways, you see three times as much of the field.</div>
 
 <div id="hud">
@@ -495,7 +501,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
     <button id="tset">SETTINGS <small>sound · music · graphics</small></button>
   </div>
   <div class="foot">© KHALIFA.GAMES · NO GRUNTS WERE CONSULTED</div>
-  <div id="tver">v170</div>
+  <div id="tver">v171</div>
 </div>
 
 <div id="ops" class="screen">
@@ -8950,12 +8956,16 @@ const MISSIONS = [
     name: 'The Jeep Run', th: 'af', desert: 1, night: true, size: [100, 180], noExtras: true, noTraffic: true,
     obj: 'Shoot up the airfield from the jeeps, then hide them in the wadi at dawn',
     sub: "An Axis airfield · Night, a bright moon, then dawn · The finale · North Africa", drawn: "Drawn from the jeep raid on the airfield at Sidi Haneish, July 1942.",
-    brief: "Eighteen jeeps once drove straight down an enemy airfield at night, every gun firing. You have two. They drive; you choose. Tap a target and both pairs of twin Vickers swing onto it. Shoot the flak pits first, or keep out of their way. Ten aircraft burning by the top of the runway, or it wasn't worth the petrol. At dawn, into the wadi, nets over the jeeps, and lie still until the spotter has gone.",
+    brief: "Eighteen jeeps once drove straight down an enemy airfield at night, every gun firing. You have two. They drive; you choose. Tap a target and both pairs of twin Vickers swing onto it; tap nothing and they stay quiet. A red ring on the runway is a flak burst coming: swerve out of it (◀ ▶), or shoot the flak first. Ten aircraft burning by the top of the runway, or it wasn't worth the petrol. At dawn, into the wadi, nets over the jeeps, and lie still until the spotter has gone.",
     scatter: 2, diff: 0.6,
     roads: [{ k: 'road', w: 12, pts: [[.5, .92], [.5, .2]] }],
     grounds: [{ k: 'gravel', x0: 0, z0: 0, x1: 1, z1: .16 }],
     wadi: { pts: [[.6, -.02], [.62, .04], [.66, .09], [.64, .14], [.62, .17]], w: 7, d: 2.2, bank: 4 },
     jeeps: { route: [[.48, .995], [.48, .92], [.48, .233], [.55, .178], [.62, .122], [.645, .075]], top: 2, n: 10 },
+    hints: [   // v171
+      { after: 1.5, text: '<b>Tap a target</b>: an aircraft, a flak gun, a searchlight. Both jeeps open up on it, and only on it.', secs: 9 },
+      { after: 0.5, text: 'A <b>red ring</b> on the runway: flak coming there. Swerve with <b>◀ ▶</b> (or A/D).', secs: 9, btn: 'jl' },
+    ],
     targets: [
       { t: 'plane', type: 'fighter', x: 0.34, z: 0.2556, a: Math.PI / 2 },
       { t: 'plane', type: 'fighter', x: 0.34, z: 0.3333, a: Math.PI / 2 },
@@ -12896,11 +12906,17 @@ function fireGreen(u) {
 /*───────────────────── v100: the jeep run (A6) ─────────────────────
    Khal, 20 Oct 2026: jeeps on rails. Two raiding jeeps drive up the runway abreast on a fixed route (M.jeeps.route), the
    squad riding in them. A tap picks a target (an aircraft, a flak crew, a searchlight, the fuel dump) and both pairs of
-   twin Vickers swing onto it; with nothing picked they spray the nearest aircraft within 30 m at 0.3 of the rate. Flak in reach
-   chews at the jeeps, harder when a searchlight is on them. At the top (M.jeeps.top) it is dawn; the jeeps drive on into
+   twin Vickers swing onto it. v171 (Ramsey: "they drive along just spraying bullets with no interaction"): no target, no
+   fire (it used to spray the nearest aircraft on its own), and the run steers: three lanes across the runway (◀ ▶, A/D or
+   the arrow keys). The flak no longer chips at the jeeps unseen: each gun fires a burst at where a jeep will be, marked by a
+   red ring on the ground 1.3 s ahead, over the pair's lane, and a jeep still in it is hit hard. Swerve out of it, or kill the gun. A
+   searchlight holding a jeep makes the bursts come faster. At the top (M.jeeps.top) it is dawn; the jeeps drive on into
    the wadi and the men jump down. Then nets over both jeeps before the spotter comes; a spotter that passes over a jeep
    without one, or sees a man standing, brings a dive-bomber down on the spot. */
-const JEEP_R = 42, JEEP_V = 2.6;
+const JEEP_R = 42, JEEP_V = 2.6, JEEP_LANE = 7, FLAK_WARN = 1.3, FLAK_HIT = 2.4, FLAK_R = 4.4;   // v171: lane width, ring warning, damage per burst (a jeep has 12), the burst's reach
+// v171: the red rings, pooled
+const flakRingMat = new THREE.MeshBasicMaterial({ color: SC(0xff3a2a), transparent: true, depthWrite: false, depthTest: false });
+const flakRings = [0, 1, 2, 3, 4, 5].map(() => { const m = new THREE.Mesh(new THREE.RingGeometry(FLAK_R - 0.8, FLAK_R, 40), flakRingMat.clone()); m.rotation.x = -Math.PI / 2; m.visible = false; m.renderOrder = 6; scene.add(m); return m; });
 let jeepRun = null;
 const TRC_N = 96, trcPos = new Float32Array(TRC_N * 6), trcCol = new Float32Array(TRC_N * 6), trcList = [];
 const trcGeo = new THREE.BufferGeometry(); trcGeo.setAttribute('position', new THREE.BufferAttribute(trcPos, 3)); trcGeo.setAttribute('color', new THREE.BufferAttribute(trcCol, 3));
@@ -12963,7 +12979,8 @@ function jeepInit(M) {
   const route = C.route.map(([x, z]) => [x * MW, z * MH]);
   const jeeps = [-1, 1].map(s => ({ ...mkJeep(), side: s, hp: 12, dead: false, netted: false, net0: 0, riders: [] }));
   sol.forEach((u, i) => { const J = jeeps[i % 2]; J.riders.push(u); u.riding = J; u.mesh.visible = false; });
-  jeepRun = { phase: 'run', route, seg: 0, d: 0, jeeps, tgt: null, fireT: 0, top: C.top, n: C.n, kills: 0, toastT: -9, dawnT: 0, bombs: [] };
+  jeepRun = { phase: 'run', route, seg: 0, d: 0, jeeps, tgt: null, fireT: 0, top: C.top, n: C.n, kills: 0, toastT: -9, dawnT: 0, bombs: [], lane: 0, off: 0, bursts: [] };   // v171: lane, off, bursts
+  flakRings.forEach(m => m.visible = false); setJeepLanes(true);
   for (const T of targets) if (T.ring && T.kind !== 'slight') T.ring.visible = false;
   jeepPlace(0);
 }
@@ -12976,12 +12993,13 @@ function jeepPlace(dt) {
   }
   const a = P[R.seg], b = P[Math.min(P.length - 1, R.seg + 1)], L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, t = Math.min(1, R.d / L);
   const cx = a[0] + (b[0] - a[0]) * t, cz = a[1] + (b[1] - a[1]) * t, yaw = Math.atan2(b[0] - a[0], b[1] - a[1]);
+  R.off += ((R.phase === 'run' ? R.lane * JEEP_LANE : 0) - R.off) * Math.min(1, dt * 5.5);   // v171: swerving across, eased (most of a lane in half a second)
   for (const J of R.jeeps) {
     if (J.dead) continue;
     if (R.phase === 'hide') continue;
-    J.x = cx + Math.cos(yaw) * J.side * 2.4; J.z = cz - Math.sin(yaw) * J.side * 2.4; J.yaw = yaw;
+    J.x = cx + Math.cos(yaw) * (J.side * 2.4 + R.off); J.z = cz - Math.sin(yaw) * (J.side * 2.4 + R.off); J.yaw = yaw;
     J.root.position.set(J.x, groundY(J.x, J.z), J.z); J.root.rotation.y = yaw;
-    J.root.rotation.z = Math.sin(missionTime * 9 + J.side) * 0.015;
+    J.root.rotation.z = Math.sin(missionTime * 9 + J.side) * 0.015 - (R.lane * JEEP_LANE - R.off) * 0.03;   // v171: leaning into the swerve
     J.riders.forEach((u, i) => { if (u.dead) return; u.x = u.tx = J.x + Math.sin(yaw) * (i ? -0.6 : 0.4); u.z = u.tz = J.z + Math.cos(yaw) * (i ? -0.6 : 0.4); u.path = null; u.angle = u.aim = yaw; });
   }
   return R.seg >= P.length - 1 && t >= 1;
@@ -13003,6 +13021,9 @@ function jeepHit(J, n) {
   for (const u of J.riders) if (!u.dead) { damage(u, 1, 'blast'); O.riders.push(u); u.riding = O; }
   J.riders = []; showToast('JEEP HIT', 'it’s burning: they jump across to the other one');
 }
+// v171: steering. Three lanes across the runway; the buttons show only on the run
+function setJeepLanes(on) { $('jl').style.display = $('jr').style.display = on ? 'block' : 'none'; }
+function jeepSteer(d) { const R = jeepRun; if (!R || R.phase !== 'run' || outcome || paused) return; const n = clamp(R.lane + d, -1, 1); if (n !== R.lane) { R.lane = n; SFX.ui(); } }
 function stepJeeps(dt) {
   const R = jeepRun; if (!R || phase !== 'play') return;
   stepTracers(dt);
@@ -13010,11 +13031,12 @@ function stepJeeps(dt) {
   const live = R.jeeps.filter(J => !J.dead);
   if (R.phase === 'run' || R.phase === 'drive') {
     const end = jeepPlace(dt);
-    // the guns: the picked target, or the nearest aircraft at half the rate
+    // the guns: the picked target only (v171: they used to spray the nearest aircraft on their own)
     if (R.phase === 'run') {
-      if (R.tgt && (R.tgt.dead)) R.tgt = null;
-      let T = R.tgt, half = false;
-      if (!T) { let bd = 30; for (const q of targets) { if (q.dead || q.kind !== 'plane') continue; const d = Math.hypot(q.x - live[0].x, q.z - live[0].z); if (d < bd) { bd = d; T = q; } } half = true; }
+      if (R.tgt && (R.tgt.dead)) { R.tgt = null; R.idleT = 0; }
+      const T = R.tgt, half = false;
+      R.idleT = T ? 0 : (R.idleT || 0) + dt;
+      if (R.idleT > 4 && missionTime - R.toastT > 7) { R.toastT = missionTime; showToast('GUNS SILENT', 'tap a target: an aircraft, a flak gun, a searchlight'); }
       R.fireT -= dt;
       for (const J of live) {
         if (!T) continue;
@@ -13037,8 +13059,25 @@ function stepJeeps(dt) {
         if (!J) continue;
         e.angle = e.aim = Math.atan2(J.x - e.x, J.z - e.z);
         const lit = targets.some(t => t.kind === 'slight' && !t.dead && Math.hypot(t.lx - J.x, t.lz - J.z) < 5);
-        jeepHit(J, dt * 0.32 * (lit ? 1.7 : 1)); if (outcome) return;
-        e.flakT = (e.flakT || 0) - dt; if (e.flakT <= 0) { e.flakT = 0.16; tracer(e.x, groundY(e.x, e.z) + 1.6, e.z, J.x + (Math.random() - 0.5) * 4, groundY(J.x, J.z) + 1 + Math.random() * 3, J.z + (Math.random() - 0.5) * 4, true); SFX.shot(e.x, e.z, 'lmg'); }
+        // v171: a burst at where the jeep will be: the ring first, the hit FLAK_WARN later. Sooner when a searchlight has him
+        e.burstT = (e.burstT === undefined ? 1.5 + Math.random() * 2 : e.burstT) - dt;
+        if (e.burstT <= 0) { e.burstT = (lit ? 1.9 : 3.0) + Math.random() * 0.8;
+          // at a lane, not a jeep: the lane the pair is nearest now, so a ring always sits squarely in one of the three and one
+          // swerve (JEEP_LANE) clears it. Aiming at the pair itself caught it halfway through a swerve, which can't be dodged
+          const px = live.reduce((a, q) => a + q.x, 0) / live.length, pz = live.reduce((a, q) => a + q.z, 0) / live.length, cy = Math.cos(J.yaw), sy = Math.sin(J.yaw);
+          const lo = Math.round(R.off / JEEP_LANE) * JEEP_LANE - R.off;   // from the pair to its nearest lane's middle, across the runway
+          const fx = px + cy * lo + sy * JEEP_V * FLAK_WARN, fz = pz - sy * lo + cy * JEEP_V * FLAK_WARN, m = flakRings.find(q => !q.visible);
+          if (m) { m.visible = true; m.position.set(fx, groundY(fx, fz) + 0.1, fz); R.bursts.push({ x: fx, z: fz, t: FLAK_WARN, m, e }); } }
+        e.flakT = (e.flakT || 0) - dt; if (e.flakT <= 0) { e.flakT = 0.16; const B = R.bursts.find(q => q.e === e); const ax = B ? B.x : J.x, az = B ? B.z : J.z; if (B || Math.random() < 0.3) { tracer(e.x, groundY(e.x, e.z) + 1.6, e.z, ax + (Math.random() - 0.5) * 4, groundY(ax, az) + 1 + Math.random() * 3, az + (Math.random() - 0.5) * 4, true); SFX.shot(e.x, e.z, 'lmg'); } }
+      }
+      // v171: the bursts land. A jeep still within FLAK_HIT's reach of the ring's middle is hit hard
+      for (let i = R.bursts.length - 1; i >= 0; i--) {
+        const B = R.bursts[i]; B.t -= dt;
+        B.m.material.opacity = 0.45 + 0.45 * Math.abs(Math.sin(B.t * 9)); B.m.scale.setScalar(0.85 + 0.15 * (B.t / FLAK_WARN));
+        if (B.t > 0) continue;
+        R.bursts.splice(i, 1); B.m.visible = false;
+        boomFX(B.x, groundY(B.x, B.z) + 0.6, B.z, 0.7); SFX.boom(B.x, B.z); spawnParts(B.x, groundY(B.x, B.z) + 0.4, B.z, 14, 0xffb060, 7, 0.16, 0.5, 6);
+        for (const J of R.jeeps) if (!J.dead && Math.hypot(J.x - B.x, J.z - B.z) < FLAK_R) { jeepHit(J, FLAK_HIT); camShake = Math.min(camShake + 0.35, 0.8); if (outcome) return; }
       }
       // the searchlights sweep the runway, and hold a jeep they find
       for (const T of targets) if (T.kind === 'slight' && !T.dead) {
@@ -13051,7 +13090,7 @@ function stepJeeps(dt) {
     if (R.phase === 'run' && R.seg >= R.top) {   // the top of the runway: dawn
       const k = targets.filter(t => t.kind === 'plane' && t.dead).length;
       if (k < R.n) { failOp(['THE AIRFIELD STILL FLIES', `${k} of ${R.n} aircraft: not worth the petrol`]); return; }
-      R.phase = 'drive';
+      R.phase = 'drive'; R.lane = 0; for (const B of R.bursts) B.m.visible = false; R.bursts.length = 0; setJeepLanes(false);   // v171
       night = false; setNightLighting(false); applyLight('desertdawn'); setLightsOn(false);
       for (const t of targets) if (t.kind === 'slight' && !t.dead) { t.beam.visible = t.pool.visible = false; }
       showToast('DAWN', 'into the wadi, and under the nets before the planes come');
@@ -15153,6 +15192,7 @@ function initMission(idx) {
   alliesInit(M);   // v113
   mkCliffRopes();   // v112
   jeepRun = null; trcList.length = 0; tracerMesh.visible = false;   // v100: the jeeps went with propRoot
+  setJeepLanes(false); flakRings.forEach(m => m.visible = false);   // v171
   buildPuddles(M); buildFlowers(M);   // v34: after the obstacles, so neither lands under a hut
 
   topUpRoster();
@@ -18709,6 +18749,8 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyK' && !paused) setWeapon(weapon === 'knife' ? 'gun' : 'knife');
   if (e.code === 'KeyS' && !paused && sniperOf()) setWeapon(weapon === 'snipe' ? 'gun' : 'snipe');
   if (e.code === 'KeyX' && !paused) setFocus(null);
+  if ((e.code === 'KeyA' || e.code === 'ArrowLeft') && jeepRun) { e.preventDefault(); jeepSteer(-1); }   // v171
+  if ((e.code === 'KeyD' || e.code === 'ArrowRight') && jeepRun) { e.preventDefault(); jeepSteer(1); }
   if (e.code === 'Space' || e.code === 'Escape') { e.preventDefault(); togglePause(); }
   if (e.code === 'KeyR' && paused && !ironman) { SFX.ui(); restartOp(); }
 });
@@ -18982,6 +19024,7 @@ function toggleFps(on) {
 }
 try { if (new URLSearchParams(location.search).get('fps') === '1') toggleFps(true); } catch (e) { }
 addEventListener('keydown', e => { if (e.code === 'KeyF') toggleFps(!fpsBox); });
+for (const [id, d] of [['jl', -1], ['jr', 1]]) $(id).addEventListener('pointerdown', ev => { ev.preventDefault(); ev.stopPropagation(); initAudio(); jeepSteer(d); });   // v171
 /* Telegram Mini App: harmless when the SDK is not loaded */
 if (window.Telegram && Telegram.WebApp) {
   try { Telegram.WebApp.ready(); Telegram.WebApp.expand(); if (Telegram.WebApp.disableVerticalSwipes) Telegram.WebApp.disableVerticalSwipes(); } catch (e) { }
@@ -19054,6 +19097,7 @@ Object.defineProperty(window,'builds',{get:()=>builds});
 Object.defineProperty(window,'hostage',{get:()=>hostage});Object.defineProperty(window,'prisoners',{get:()=>prisoners});window.inSearchlight=inSearchlight;Object.defineProperty(window,'globalAlert',{get:()=>globalAlert});Object.defineProperty(window,'outcome',{get:()=>outcome});
 window.killUnit = killUnit; window.sun = sun; window.MISSIONS = MISSIONS; window.setFocus = setFocus; window.plantCharge = plantCharge; Object.defineProperty(window,'charges',{get:()=>charges}); Object.defineProperty(window,'truck',{get:()=>truck}); Object.defineProperty(window,'truckT',{get:()=>truckT}); window.setWeaponX = setWeapon; window.orderAt = (x, z) => { const v = new THREE.Vector3(x, surfY(x, z), z).project(camera); order((v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight); }; Object.defineProperty(window,'focus',{get:()=>focus});
 window.missionIdxRead = () => missionIdx;
+Object.defineProperty(window, '__jeep', { get: () => jeepRun }); Object.defineProperty(window, '__targets', { get: () => targets });   // v171 dev: the jeep run, for its tests
 window.throwGrenade = throwGrenade;
 // freeze one grunt in a chosen pose so limb articulation can be inspected frame by frame
 window.__armProbe = (shX, elX) => {
