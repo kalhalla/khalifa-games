@@ -118,7 +118,16 @@
   .place-nudge { display: flex; gap: 6px; justify-content: center; margin: 6px 0; }
   .place-nudge button { font-family: inherit; font-size: 12px; padding: 4px 10px; border: 2px solid #2a1a10; background: #F2E0D5; cursor: pointer; }
   .venue-label { font-size: 10px; letter-spacing: 2px; opacity: 0.6; margin: 10px 0 4px; }
-  .venue-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 8px; }
+  .venue-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-bottom: 8px; }
+  @media (max-width: 520px) { .venue-row { grid-template-columns: repeat(2, 1fr); } }
+  #bill { background: #F2C54B; border: 2px solid #2a1a10; box-shadow: 3px 3px 0 #2a1a10; padding: 6px 8px; margin: 6px 0 10px; text-align: left; }
+  #bill .bill-head { font-size: 11px; letter-spacing: 1.5px; color: #E24A2E; text-align: center; margin-bottom: 4px; }
+  #bill .bill-head span { color: #2a1a10; }
+  #bill .bill-row { display: flex; justify-content: space-between; gap: 8px; font-size: 10px; letter-spacing: 0.5px; line-height: 1.6; color: #2a1a10; }
+  #bill .bill-row.done { opacity: 0.55; text-decoration: line-through; }
+  #bill .bill-row b { color: #2C568A; font-weight: normal; white-space: nowrap; }
+  .bus-step { font-family: inherit; font-size: 14px; width: 28px; border: 2px solid #2a1a10; background: #F2E0D5; cursor: pointer; }
+  #busRec { font-size: 10px; color: #2C568A; letter-spacing: 1px; margin-left: 8px; }
   .venue-btn { background: #F2E0D5; border: 2px solid #2a1a10; box-shadow: 3px 3px 0 #2a1a10; padding: 6px 4px;
     cursor: pointer; font-family: inherit; color: #2a1a10; display: flex; flex-direction: column; align-items: center; gap: 1px; }
   .venue-btn:hover { transform: translate(-1px, -1px); }
@@ -298,7 +307,7 @@
 </head>
 <body>
 
-<div id="version">STUNTMANIA '76 — Build 0.21.2</div>
+<div id="version">STUNTMANIA '76 — Build 0.22.0</div>
 
 <canvas id="canvas"></canvas>
 
@@ -326,6 +335,11 @@
 
     <div class="venue-label">VENUE · WIDOWMAKER GULCH</div>
     <div id="venueRow" class="venue-row"></div>
+    <div id="bill"></div>
+    <div class="controls-row" id="busRow" style="display:none">
+      <label>BUSES</label>
+      <span><button class="bus-step" id="busMinus">−</button> <span class="val" id="busVal">5</span> <button class="bus-step" id="busPlus">+</button><span id="busRec"></span></span>
+    </div>
 
     <div class="controls-row">
       <label>RAMP ANGLE</label>
@@ -450,7 +464,7 @@ rocketcar: "Z2xURgIAAAA8RwQA+BIAAEpTT057ImFzc2V0Ijp7ImdlbmVyYXRvciI6ImdsVEYtVHJh
 // Build 0.2.0  —  Active runup (throttle + steering), camera snap on launch.
 // ============================================================================
 
-const BUILD_VERSION = '0.21.2';
+const BUILD_VERSION = '0.22.0';
 
 // ---------- PALETTE ---------------------------------------------------------
 const COL = {
@@ -527,6 +541,7 @@ const VENUES = [
   { id: 'narrows', name: 'THE NARROWS',   width: 34,  tag: 'BIKES',   seed: 1976, rampLen: 14, distMax: 40 },
   { id: 'wide',    name: 'THE WIDE SPOT', width: 55,  tag: 'CARS',    seed: 1977, rampLen: 20, distMax: 60 },
   { id: 'drop',    name: 'THE BIG DROP',  width: 130, tag: 'ROCKETS', seed: 1978, rampLen: 40, distMax: 110 },
+  { id: 'buses',   name: 'BUS JUMP',      width: 0,   tag: 'DAREDEVILS', seed: 1979, rampLen: 12, distMax: 0, kind: 'buses' },
 ];
 const landingLen = () => VENUES[G.venue].rampLen;
 let CANYON_WIDTH = 34;           // set by setVenue(); everything reads it live
@@ -582,10 +597,11 @@ function landingRampLocal(x) {
 // Floor: crush along Y (lying on the canyon floor), spread in X/Z — a heap.
 const WALL_SQUASH  = { x: 0.16, y: 1.45, z: 1.60 };
 const FLOOR_SQUASH = new THREE.Vector3(1.40, 0.20, 1.55);
-const WALL_SPLAT_FLOOR_Y = -44.7;   // sits the flattened wreck on the gorge floor (top at -45)
+// The wall splat runs on the canyon's far wall, or the side of the first bus
+const splatFloorY = () => isBusVenue() ? 0.3 : -44.7;   // sits the flattened wreck on the floor
 // The far wall's rock columns are all recessed behind x=CANYON_WIDTH. Park the
 // splat just in front of it — back face ~0.2 off the wall, snug, no clip-through.
-const wallSplatX = () => CANYON_WIDTH - 0.35;
+const wallSplatX = () => (isBusVenue() ? BUS.START : CANYON_WIDTH) - 0.35;
 
 // ---------- THREE STATE -----------------------------------------------------
 let scene, camera, renderer, sun;
@@ -604,6 +620,9 @@ const G = {
   phase:        'menu',  // 'menu' | 'runup' | 'airborne' | 'landed' | 'crashed'
   vehicleIdx:   0,
   venue:        0,       // index into VENUES
+  busCount:     5,       // buses lined up at the Bus Jump
+  busRecord:    {},      // most buses cleared, per vehicle
+  bill:         new Set(),   // stunt-bill feats completed
   placeMode:    'auto',
   tutorialDone: false,   // ghost rider shows on the BMX until its first landing
   unlocked:     new Set(['bmx']),
@@ -1069,12 +1088,16 @@ function init() {
 // down/rebuilt when the venue changes. Sky, lights and ramps live outside it.
 let WORLD = [];
 function buildVenue() {
-  CANYON_WIDTH = VENUES[G.venue].width;
+  CANYON_WIDTH = isBusVenue() ? busEnd() + BUS.GAP : VENUES[G.venue].width;
   const before = new Set(scene.children);
   props = []; crowdFigures = [];
-  buildCanyon();
-  buildTopDressing();
-  buildGorgeCacti();
+  if (isBusVenue()) {
+    buildBusArena();
+  } else {
+    buildCanyon();
+    buildTopDressing();
+    buildGorgeCacti();
+  }
   buildPlateauProps();
   buildGrandstand();
   buildSignage();
@@ -1112,6 +1135,7 @@ function setVenue(i) {
 }
 
 function updateVenueButtons() {
+  updateBill();
   document.querySelectorAll('.venue-btn').forEach((b, i) => b.classList.toggle('selected', i === G.venue));
 }
 
@@ -3164,6 +3188,7 @@ function saveGame() {
       cash: G.cash, best: G.bestDist, unlocked: [...G.unlocked], vehicle: G.vehicleIdx,
       ramp: G.rampAngleDeg, land: G.landingRampAngleDeg, played: true,
       dist: G.landingRampDist, lane: G.landingRampZ, tut: G.tutorialDone,
+      buses: G.busCount, busRec: G.busRecord, bill: [...G.bill],
     }));
   } catch (e) {}
 }
@@ -3180,6 +3205,9 @@ function loadGame() {
     if (d.dist >= 0) G.landingRampDist = d.dist;
     if (typeof d.lane === 'number') G.landingRampZ = d.lane;
     G.tutorialDone = !!d.tut;
+    if (d.buses >= 1) G.busCount = d.buses;
+    if (d.busRec) G.busRecord = d.busRec;
+    (d.bill || []).forEach(id => G.bill.add(id));
   } catch (e) {}
 }
 
@@ -3369,6 +3397,146 @@ function setTutorialHint(t) {
   if (el.textContent !== t) el.textContent = t;
   el.classList.toggle('show', !!t);
   if (t) document.getElementById('runupHint').classList.remove('show');
+}
+
+// ============================================================================
+// BUS JUMP — a fourth venue on flat ground: a row of school buses between the
+// ramps. You pick how many; the landing ramp sits right after the last bus.
+// ============================================================================
+const BUS = { W: 2.6, START: 3, LEN: 10.5, ROOF: 3.0, GAP: 1.5 };
+const isBusVenue = () => VENUES[G.venue].kind === 'buses';
+const busEnd = () => BUS.START + G.busCount * BUS.W;
+const busZ = () => LAUNCH_RAMP_OFFSET;
+function overBuses(x, z) {
+  return isBusVenue() && x >= BUS.START && x < busEnd() && Math.abs(z - busZ()) < BUS.LEN / 2;
+}
+// How many whole buses a landing at x has cleared
+function busesCleared(x) { return Math.max(0, Math.min(G.busCount, Math.floor((x - BUS.START) / BUS.W))); }
+
+// One merged mesh for the whole line: yellow 1970s school buses, nose toward
+// the grandstand camera, long axis across the jump.
+function buildBusLine(b) {
+  const Y = 0xF2B632, YD = 0xD99A22, BLK = 0x222222, GLASS = 0x2E3A44, CR = 0xF2E0D5, CHR = 0xB8B8C0;
+  const L = BUS.LEN, z0 = busZ();
+  for (let i = 0; i < G.busCount; i++) {
+    const x = BUS.START + BUS.W * (i + 0.5), w = BUS.W - 0.22;
+    const box = (sx, sy, sz, px, py, pz, col) => batchGeom(b, new THREE.BoxGeometry(sx, sy, sz), x + px, py, z0 + pz, 0, 0, 0, col, 0.03);
+    box(w, 2.25, L - 1.6, 0, 1.68, -0.8, Y);                 // body
+    box(w - 0.15, 0.18, L - 1.8, 0, 2.88, -0.8, YD);          // roof crown
+    box(w + 0.02, 0.1, L - 1.6, 0, 1.15, -0.8, BLK);          // rub rails
+    box(w + 0.02, 0.1, L - 1.6, 0, 1.45, -0.8, BLK);
+    for (let k = 0; k < 8; k++) {                              // window rows, both long sides
+      const wz = -0.8 - (L - 1.6) / 2 + 0.75 + k * ((L - 2.6) / 7);
+      box(w + 0.04, 0.6, 0.85, 0, 2.2, wz, GLASS);
+    }
+    box(w - 0.1, 0.95, 1.5, 0, 1.0, L / 2 - 0.85, Y);         // engine hood
+    box(w - 0.3, 0.12, 1.5, 0, 1.52, L / 2 - 0.85, YD);
+    box(w - 0.2, 0.8, 0.06, 0, 2.15, L / 2 - 1.6, GLASS);     // windscreen
+    box(w - 0.3, 0.3, 0.06, 0, 2.72, L / 2 - 1.58, CR);       // SCHOOL BUS board
+    box(w + 0.1, 0.22, 0.25, 0, 0.62, L / 2 + 0.02, BLK);     // bumper
+    box(0.6, 0.45, 0.05, 0, 1.0, L / 2 - 0.08, CHR);          // grille
+    for (const s of [-1, 1]) box(0.2, 0.2, 0.06, s * (w / 2 - 0.25), 1.22, L / 2 - 0.08, CR);   // headlights
+    box(w + 0.1, 0.22, 0.25, 0, 0.62, -L / 2 + 0.05, BLK);    // rear bumper
+    for (const wz of [L / 2 - 1.3, -L / 2 + 2.0]) for (const s of [-1, 1]) {
+      batchGeom(b, new THREE.CylinderGeometry(0.5, 0.5, 0.32, 10), x + s * (w / 2 - 0.05), 0.5, z0 + wz, 0, 0, Math.PI / 2, BLK, 0);
+    }
+  }
+}
+
+function buildBusArena() {
+  wrand = mulberry32(VENUES[G.venue].seed);
+  const rock = newBatch(), far = newBatch(), deco = newBatch();
+  // One flat desert lot, top exactly y = 0
+  batchGeom(rock, new THREE.BoxGeometry(2800, 10, 1700), 0, -5, -550, 0, 0, 0, ENV.sandTop, 0);
+  // Packed-dirt jump strip from the runway to past the landing ramp
+  batchGeom(deco, new THREE.BoxGeometry(CANYON_WIDTH + 170, 0.04, 9), (CANYON_WIDTH + 170) / 2 - 85, 0.02, LAUNCH_RAMP_OFFSET, 0, 0, 0, ENV.runway, 0);
+  // Painted start line on the lot under the buses
+  batchGeom(deco, new THREE.BoxGeometry(busEnd() - BUS.START + 2, 0.05, BUS.LEN + 4), (BUS.START + busEnd()) / 2, 0.03, busZ(), 0, 0, 0, ENV.sandRim, 0);
+  buildBusLine(deco);
+  // Distant mesas ring the lot (their feet are buried in the flat ground)
+  const mesas = [[-75, -300, 110, 70, 52], [70, -335, 70, 50, 40], [250, -345, 90, 60, 40], [-195, -235, 80, 60, 30],
+                 [-20, -455, 120, 70, 35], [125, -485, 100, 60, 28], [345, -185, 80, 60, 36], [-345, -120, 70, 70, 30],
+                 [22, -305, 14, 12, 38], [-140, -335, 16, 14, 50], [190, -405, 12, 12, 44]];
+  for (const [x, z, w, d, t] of mesas) farMesa(far, x, z, w, d, t);
+  // A few outcrops and cacti out on the lot, away from the action
+  for (let i = 0; i < 40; i++) {
+    const x = wr(-220, CANYON_WIDTH + 220), z = wr(-190, -45);
+    const w = wr(2, 6), h = wr(0.6, 2.4);
+    rockBox(deco, w, h, w * wr(0.7, 1.2), x, h / 2 - 0.15, z, wr(0, 3), wpick([ENV.outcrop, ENV.cliffHi, ENV.sandRim]), 0.9, false);
+  }
+  for (let i = 0; i < 14; i++) saguaro(deco, wr(-200, CANYON_WIDTH + 200), wr(-180, -50), wr(2.8, 4.6), wrand() < 0.6 ? 2 : 1, wr(0, 3));
+  flushBatch(rock, true, true);
+  flushBatch(far, false, false);
+  flushBatch(deco, true, true);
+}
+
+// ============================================================================
+// STUNT BILL — billed feats per venue, paid once each. Some are crash feats:
+// crashes are the point.
+// ============================================================================
+const BILL = {
+  narrows: [
+    { id: 'n1', text: 'Land the BMX across the Narrows',      reward: 100, test: r => r.landed && r.veh === 'bmx' },
+    { id: 'n2', text: 'Backflip and land it on any bike',     reward: 200, test: r => r.landed && r.bike && r.flips >= 1 },
+    { id: 'n3', text: 'Land with the ramp 20 m past the rim', reward: 200, test: r => r.landed && r.rampOut >= 20 },
+    { id: 'n4', text: 'Perfect landing on the dirt bike',     reward: 150, test: r => r.perfect && r.veh === 'dirtbike' },
+    { id: 'n5', text: 'Plough into the hay bales',            reward: 50,  test: r => r.where === 'prop' },
+  ],
+  wide: [
+    { id: 'w1', text: 'Land the stunt car',                   reward: 250, test: r => r.landed && r.veh === 'car' },
+    { id: 'w2', text: 'Dare: clear it on the big bike',       reward: 400, test: r => r.landed && r.veh === 'motorbike' },
+    { id: 'w3', text: 'Land the rocket car without boosting', reward: 300, test: r => r.landed && r.veh === 'rocketcar' && r.boostLeft > 0.99 },
+    { id: 'w4', text: 'Land with the ramp 25 m out',          reward: 350, test: r => r.landed && r.rampOut >= 25 },
+    { id: 'w5', text: 'Pancake a car on the far wall',        reward: 100, test: r => r.where === 'wall' && !r.bike },
+  ],
+  drop: [
+    { id: 'd1', text: 'Land the rocket sled',                 reward: 500, test: r => r.landed && r.veh === 'rocketsled' },
+    { id: 'd2', text: 'Sled lands with the ramp 45 m out',    reward: 700, test: r => r.landed && r.veh === 'rocketsled' && r.rampOut >= 45 },
+    { id: 'd3', text: 'Perfect landing on the sled',          reward: 600, test: r => r.perfect && r.veh === 'rocketsled' },
+    { id: 'd4', text: 'Splat the sled on the canyon wall',    reward: 150, test: r => r.where === 'wall' && r.veh === 'rocketsled' },
+  ],
+  buses: [
+    { id: 'b1', text: 'Clear 5 buses',                        reward: 150, test: r => r.landed && r.buses >= 5 },
+    { id: 'b2', text: 'Clear 10 buses',                       reward: 300, test: r => r.landed && r.buses >= 10 },
+    { id: 'b3', text: 'Clear 15 buses',                       reward: 500, test: r => r.landed && r.buses >= 15 },
+    { id: 'b4', text: 'Clear 6 buses on the BMX',             reward: 400, test: r => r.landed && r.veh === 'bmx' && r.buses >= 6 },
+    { id: 'b5', text: 'Land on a bus roof',                   reward: 75,  test: r => r.where === 'busroof' },
+  ],
+};
+
+function checkBill(r) {
+  const feats = BILL[VENUES[G.venue].id] || [];
+  let paid = 0; const names = [];
+  for (const f of feats) {
+    if (G.bill.has(f.id) || !f.test(r)) continue;
+    G.bill.add(f.id); paid += f.reward; names.push(f.text);
+  }
+  return { paid, names };
+}
+
+function updateBill() {
+  const el = document.getElementById('bill');
+  if (!el) return;
+  const V = VENUES[G.venue], feats = BILL[V.id] || [];
+  const done = feats.filter(f => G.bill.has(f.id)).length;
+  el.innerHTML = `<div class="bill-head">★ TONIGHT AT ${V.name} ★ <span>${done}/${feats.length}</span></div>` +
+    feats.map(f => `<div class="bill-row${G.bill.has(f.id) ? ' done' : ''}"><span>${G.bill.has(f.id) ? '✔' : '☐'} ${f.text}</span><b>£${f.reward}</b></div>`).join('');
+  const br = document.getElementById('busRow');
+  if (br) {
+    br.style.display = isBusVenue() ? '' : 'none';
+    document.getElementById('busVal').textContent = G.busCount;
+    const rec = G.busRecord[VEHICLE_DEFS[G.vehicleIdx].id] || 0;
+    document.getElementById('busRec').textContent = rec ? `RECORD ${rec}` : '';
+  }
+}
+
+function setBusCount(n) {
+  n = THREE.MathUtils.clamp(n, 1, 25);
+  if (n === G.busCount) return;
+  G.busCount = n;
+  saveGame();
+  if (isBusVenue()) { const v = G.venue; G.venue = -1; setVenue(v); }
+  updateBill();
 }
 
 // ============================================================================
@@ -3825,7 +3993,12 @@ function updateAirborne(dt) {
   const inRampLane = Math.abs(G.zPos - G.landingRampZ) <= RAMP_HALF_W;
   const prevX = G.posX - G.vx * dt;
 
-  if (prevX < CANYON_WIDTH && G.posX >= CANYON_WIDTH && G.posY < 0) {
+  if (isBusVenue() && prevX < BUS.START && G.posX >= BUS.START && G.posY < BUS.ROOF - 0.2 && Math.abs(G.zPos - busZ()) < BUS.LEN / 2) {
+    G.posX = BUS.START;
+    finishJump('busside');
+    return;
+  }
+  if (!isBusVenue() && prevX < CANYON_WIDTH && G.posX >= CANYON_WIDTH && G.posY < 0) {
     G.posX = CANYON_WIDTH;
     finishJump('wall');
     return;
@@ -3849,7 +4022,7 @@ function updateAirborne(dt) {
     } else {
       G.posY = groundY + 0.4;
       if (vehicleGroup) vehicleGroup.position.set(G.posX, G.posY, G.zPos);
-      finishJump(G.posX > CANYON_WIDTH ? 'plateau2' : 'plateau1');
+      finishJump(overBuses(G.posX, G.zPos) ? 'busroof' : G.posX > CANYON_WIDTH ? 'plateau2' : 'plateau1');
       return;
     }
   }
@@ -3863,6 +4036,14 @@ function updateAirborne(dt) {
 }
 
 function getGroundAt(x, z) {
+  if (isBusVenue()) {
+    if (overBuses(x, z)) return BUS.ROOF;
+    if (x >= CANYON_WIDTH) {
+      const L = landingRampLocal(x);
+      if (x < L.faceX + L.S.foot && Math.abs(z - G.landingRampZ) <= RAMP_HALF_W) return rampYAt(L.S, L.xl);
+    }
+    return 0;                          // flat lot everywhere else
+  }
   if (x < 0) return 0;                 // near (launch) plateau top
   if (x < CANYON_WIDTH) return -45;    // the gorge
   // Over the landing plateau. Drift past its side edge in z and there's nothing
@@ -3898,6 +4079,10 @@ function finishJump(where) {
     outcome = 'crashed'; gradeText = 'YARD SALE'; landingText = 'Into the scenery';
   } else if (where === 'rampface') {
     outcome = 'crashed'; gradeText = 'INTO THE RAMP'; landingText = 'Nose-first into the wood';
+  } else if (where === 'busside') {
+    outcome = 'crashed'; gradeText = 'BUS STOP'; landingText = 'Side of bus number one';
+  } else if (where === 'busroof') {
+    outcome = 'crashed'; gradeText = 'ROOF RACK'; landingText = `On top of bus ${busesCleared(G.posX) + 1}`;
   } else {
     // Plateau 2 — the ONLY scoring outcome is landing on the ramp slope, in its
     // lane, at a survivable pitch. Everything else on the plateau is bare rock,
@@ -3909,7 +4094,7 @@ function finishJump(where) {
     landedOnRamp  = xOnRamp && latErr <= RAMP_HALF_W;
     if (landedOnRamp) {
       const errDeg = Math.abs((p - (-rampSlopeAt(LR.S, LR.xl))) * 180 / Math.PI);
-      if (errDeg < 20)      { outcome = 'perfect';   gradeText = 'STUCK THE LANDING';  landingText = 'Dead on the ramp'; }
+      if (errDeg < 20)      { outcome = 'perfect';   gradeText = 'STUCK THE LANDING';  landingText = isBusVenue() ? `Cleared ${G.busCount} buses` : 'Dead on the ramp'; }
       else if (errDeg < 50) { outcome = 'survived';  gradeText = 'WALK IT OFF';        landingText = 'Rough on the ramp'; }
       else if (errDeg < 95) { outcome = 'technical'; gradeText = 'TECHNICALLY LANDED'; landingText = 'On the rear wheel'; }
       else                  { outcome = 'crashed';   gradeText = 'MEDICAL PENDING';    landingText = 'New canyon feature'; }
@@ -3941,6 +4126,8 @@ function finishJump(where) {
   else if (outcome === 'survived') cash += 80;
   else if (outcome === 'technical') cash += 30;
   if (fullRotations > 0) cash += fullRotations * 50;
+  const busesNow = isBusVenue() && outcome !== 'crashed' ? G.busCount : 0;
+  if (busesNow) cash += busesNow * 30;
   if (outcome === 'crashed') cash = Math.round(cash * 0.2);   // debris-field consolation, however you died
   cash = Math.max(0, cash);
 
@@ -3950,16 +4137,32 @@ function finishJump(where) {
   for (const def of VEHICLE_DEFS) {
     if (G.cash >= def.unlockCost) G.unlocked.add(def.id);
   }
-  if (!SIM && outcome !== 'crashed' && VEHICLE_DEFS[G.vehicleIdx].id === 'bmx' && !G.tutorialDone) {
-    G.tutorialDone = true;
-    document.getElementById('scTip').textContent = 'NICE. FROM NOW ON YOU PLACE YOUR OWN LANDING RAMP.';
-  } else document.getElementById('scTip').textContent = '';
+  const defNow = VEHICLE_DEFS[G.vehicleIdx];
+  let tip = '';
+  if (!SIM) {
+    if (busesNow) {
+      const prev = G.busRecord[defNow.id] || 0;
+      if (busesNow > prev) { G.busRecord[defNow.id] = busesNow; tip = `NEW RECORD: ${busesNow} BUSES ON THE ${defNow.name}. `; }
+    }
+    const bill = checkBill({
+      landed: outcome !== 'crashed', perfect: outcome === 'perfect', veh: defNow.id, bike: !defNow.fourWheel,
+      flips: fullRotations, rampOut: G.landingRampDist, where, buses: busesNow,
+      boostLeft: defNow.boostFuel ? G.boostFuel / defNow.boostFuel : 1,
+    });
+    if (bill.paid) { G.cash += bill.paid; cash += bill.paid; tip += `★ ON THE BILL: ${bill.names.join(' · ').toUpperCase()} +£${bill.paid}`; }
+    if (outcome !== 'crashed' && defNow.id === 'bmx' && !G.tutorialDone) {
+      G.tutorialDone = true;
+      tip = 'NICE. FROM NOW ON YOU PLACE YOUR OWN LANDING RAMP. ' + tip;
+    }
+  }
+  document.getElementById('scTip').textContent = tip;
   if (!SIM) setTutorialHint('');
   saveGame();
 
   let pool;
   if (where === 'canyon') pool = ANNOUNCER.canyon;
-  else if (where === 'wall') pool = ANNOUNCER.wall;
+  else if (where === 'wall' || where === 'busside') pool = ANNOUNCER.wall;
+  else if (where === 'busroof') pool = ANNOUNCER.busroof;
   else if (where === 'rampface') pool = ANNOUNCER.rampface;
   else if (where === 'plateau1') pool = ANNOUNCER.short;
   else if (where === 'prop') pool = ANNOUNCER.prop;
@@ -3985,7 +4188,7 @@ function finishJump(where) {
   }, scoreDelay);
 
   if (outcome === 'crashed') {
-    G.crashType = (where === 'canyon') ? 'canyon' : (where === 'wall') ? 'wall' : 'plateau';
+    G.crashType = (where === 'canyon') ? 'canyon' : (where === 'wall' || where === 'busside') ? 'wall' : 'plateau';
     G.crashWhere = where;
     G.crashX = G.posX;
     G.crashY = G.posY;
@@ -4029,6 +4232,12 @@ function finishJump(where) {
 
 // ---------- ANNOUNCER -------------------------------------------------------
 const ANNOUNCER = {
+  busroof: [
+    "He's riding the bus now, folks! Exact fare not required!",
+    "That's one way to catch the school run!",
+    "Somebody tell the district we need a new roof!",
+    "Short by a bus! Long on courage!",
+  ],
   perfect: [
     "Now THAT'S how you sponsor a hospital wing!",
     "Smooth as desert silk!",
@@ -4398,7 +4607,7 @@ function initWallSplat() {
   // Impact dust straddling the wall and the splat so it still reads as contact
   for (let i = 0; i < 16; i++) {
     spawnDust(
-      wallSplatX() + Math.random() * (CANYON_WIDTH - wallSplatX() + 0.5),
+      wallSplatX() + Math.random() * 0.85,
       G.crashY - 0.5 + Math.random() * 1.4,
       G.crashZ + (Math.random() - 0.5) * 1.6
     );
@@ -4430,14 +4639,14 @@ function updateWallSplat(dt) {
       G.splatVelY -= GRAVITY * 0.6 * dt;
       if (G.splatVelY < -15) G.splatVelY = -15;
       G.splatY += G.splatVelY * dt;
-      if (G.splatY <= WALL_SPLAT_FLOOR_Y) {
-        G.splatY = WALL_SPLAT_FLOOR_Y;
+      if (G.splatY <= splatFloorY()) {
+        G.splatY = splatFloorY();
         G.splatVelY = 0;
         G.splatLanded = true;
         for (let i = 0; i < 10; i++) {
           spawnDust(
             G.splatX - 0.5 + Math.random(),
-            WALL_SPLAT_FLOOR_Y + Math.random() * 0.6,
+            splatFloorY() + Math.random() * 0.6,
             G.splatZ + (Math.random() - 0.5) * 1.6
           );
         }
@@ -4809,7 +5018,9 @@ function setupUI() {
   rebuildVehicleGrid();
   const vr = document.getElementById('venueRow');
   vr.innerHTML = VENUES.map((v, i) =>
-    `<button class="venue-btn" data-i="${i}"><span class="vname">${v.name}</span><span class="vgap">${v.width} M</span><span class="vtag">FOR ${v.tag}</span></button>`).join('');
+    `<button class="venue-btn" data-i="${i}"><span class="vname">${v.name}</span><span class="vgap">${v.kind === 'buses' ? 'BUSES' : v.width + ' M'}</span><span class="vtag">FOR ${v.tag}</span></button>`).join('');
+  document.getElementById('busMinus').addEventListener('click', () => { SFX.click(); setBusCount(G.busCount - 1); });
+  document.getElementById('busPlus').addEventListener('click', () => { SFX.click(); setBusCount(G.busCount + 1); });
   vr.querySelectorAll('.venue-btn').forEach(b => b.addEventListener('click', () => {
     SFX.ensure(); SFX.click(); setVenue(+b.dataset.i);
   }));
@@ -4829,7 +5040,13 @@ function setupUI() {
     rebuildLandingRamp(); updateAutoTip(); saveGame();
   });
 
-  document.getElementById('launchBtn').addEventListener('click', () => tutorialActive() ? launchAuto() : openPlacement());
+  document.getElementById('launchBtn').addEventListener('click', () => {
+    if (isBusVenue()) {   // the landing ramp sits right after the buses; the dare is the bus count
+      SFX.ensure(); SFX.click();
+      G.landingRampDist = 0; G.landingRampZ = LAUNCH_RAMP_OFFSET; rebuildLandingRamp();
+      document.getElementById('menu').classList.add('hidden'); startLaunch();
+    } else if (tutorialActive()) launchAuto(); else openPlacement();
+  });
   document.querySelectorAll('.place-nudge button').forEach(b => b.addEventListener('click', () => {
     const [dx, dz] = b.dataset.n.split(',').map(Number);
     SFX.click(); setPlacement(G.landingRampDist + dx, G.landingRampZ + dz);
@@ -4881,6 +5098,7 @@ function backToMenu() {
   document.getElementById('runupHint').classList.remove('show');
   if (vehicleGroup) { scene.remove(vehicleGroup); vehicleGroup = null; }
   rebuildVehicleGrid();
+  updateBill();
 }
 
 function retry(fromScorecard) {
