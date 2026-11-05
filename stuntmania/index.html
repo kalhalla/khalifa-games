@@ -298,7 +298,7 @@
 </head>
 <body>
 
-<div id="version">STUNTMANIA '76 — Build 0.21.0</div>
+<div id="version">STUNTMANIA '76 — Build 0.21.1</div>
 
 <canvas id="canvas"></canvas>
 
@@ -450,7 +450,7 @@ rocketcar: "Z2xURgIAAAA8RwQA+BIAAEpTT057ImFzc2V0Ijp7ImdlbmVyYXRvciI6ImdsVEYtVHJh
 // Build 0.2.0  —  Active runup (throttle + steering), camera snap on launch.
 // ============================================================================
 
-const BUILD_VERSION = '0.21.0';
+const BUILD_VERSION = '0.21.1';
 
 // ---------- PALETTE ---------------------------------------------------------
 const COL = {
@@ -685,10 +685,12 @@ const keys = { up:false, down:false, left:false, right:false, boost:false };
 // playback-rate range when a recorded loop is supplied.
 const ENGINE_PROFILES = {
   // the dirt bike is the motorbike recording, wound higher and buzzier
-  dirtbike:   { base: 62, top: 230, chop: [24, 85], cut: [900, 3000], sub: 0.15, gain: 0.16, sample: 'motorbike', sgain: 0.5,  rate: [1.0, 2.3] },
-  motorbike:  { base: 38, top: 140, chop: [12, 44], cut: [500, 1800], sub: 0.45, gain: 0.2,  sample: 'motorbike', sgain: 0.6,  rate: [0.62, 1.5] },
-  car:        { base: 34, top: 120, chop: [9, 36],  cut: [400, 1500], sub: 0.55, gain: 0.22, sample: 'car',       sgain: 0.65, rate: [0.6, 1.55] },
-  rocketcar:  { base: 34, top: 120, chop: [9, 36],  cut: [400, 1500], sub: 0.55, gain: 0.18, sample: 'car',       sgain: 0.5,  rate: [0.6, 1.55], rocket: true },
+  // Kenney's loops are recorded near idle and meant to be pitched up to ~3x
+  // (his kit: 0.5 idle -> 3.0 flat out). eq: filter that gives each its body.
+  dirtbike:   { base: 62, top: 230, chop: [24, 85], cut: [900, 3000], sub: 0.15, gain: 0.16, sample: 'motorbike', sgain: 0.75, rate: [1.1, 3.4],  eq: ['highpass', 260] },
+  motorbike:  { base: 38, top: 140, chop: [12, 44], cut: [500, 1800], sub: 0.45, gain: 0.2,  sample: 'motorbike', sgain: 0.7,  rate: [0.8, 2.8],  eq: ['highpass', 120] },
+  car:        { base: 34, top: 120, chop: [9, 36],  cut: [400, 1500], sub: 0.55, gain: 0.22, sample: 'car',       sgain: 0.75, rate: [0.55, 2.3], eq: ['lowpass', 2600] },
+  rocketcar:  { base: 34, top: 120, chop: [9, 36],  cut: [400, 1500], sub: 0.55, gain: 0.18, sample: 'car',       sgain: 0.55, rate: [0.55, 2.3], eq: ['lowpass', 2600], rocket: true },
   rocketsled: { rocket: true },
 };
 // Recorded engine loops, CC0 (public domain, no credit required):
@@ -871,7 +873,11 @@ const SFX = (() => {
         if (smp) {
           const src = ctx.createBufferSource(); src.buffer = smp; src.loop = true;
           if (ENG.fmt[P.sample] === 'mp3') { src.loopStart = 0.06; src.loopEnd = smp.duration - 0.06; }
-          src.connect(out); src.start(0, Math.random() * smp.duration * 0.5); N.sample = src; N.srcs.push(src);
+          if (P.eq) {
+            const eq = ctx.createBiquadFilter(); eq.type = P.eq[0]; eq.frequency.value = P.eq[1]; eq.Q.value = 0.7;
+            src.connect(eq); eq.connect(out);
+          } else src.connect(out);
+          src.start(0, Math.random() * smp.duration * 0.5); N.sample = src; N.srcs.push(src);
         } else {
           const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 2.5;
           const chop = ctx.createGain(); chop.gain.value = 0.55;
@@ -895,8 +901,13 @@ const SFX = (() => {
         if (rsmp && ENG.fmt.rocket === 'mp3') { src.loopStart = 0.06; src.loopEnd = rsmp.duration - 0.06; }
         if (rsmp) src.connect(rg); else { src.connect(lp); lp.connect(rg); }
         rg.connect(master); src.start();
-        Object.assign(N, { roarSrc: src, roarLp: lp, roarGain: rg, roarSample: !!rsmp });
-        N.srcs.push(src);
+        // Crackle/hiss on top: the part of a rocket that cuts through small speakers
+        const hs = ctx.createBufferSource(); hs.buffer = noiseBuf(); hs.loop = true; hs.playbackRate.value = 3.5;
+        const hb = ctx.createBiquadFilter(); hb.type = 'bandpass'; hb.frequency.value = 1800; hb.Q.value = 0.5;
+        const hg = ctx.createGain(); hg.gain.value = 0;
+        hs.connect(hb); hb.connect(hg); hg.connect(master); hs.start();
+        Object.assign(N, { roarSrc: src, roarLp: lp, roarGain: rg, roarSample: !!rsmp, hissGain: hg, hissBp: hb });
+        N.srcs.push(src, hs);
       }
       ENG.n = N;
       this.engineSet(0, 0);
@@ -917,9 +928,12 @@ const SFX = (() => {
       }
       if (N.roarGain) {
         const r = Math.min(roar, 2);
-        N.roarGain.gain.setTargetAtTime(0.32 * r, t, k);
-        N.roarLp.frequency.setTargetAtTime(350 + 900 * r, t, k);
-        if (N.roarSample) N.roarSrc.playbackRate.setTargetAtTime(0.8 + 0.25 * r, t, k);
+        N.roarGain.gain.setTargetAtTime(0.55 * r, t, k);
+        N.roarLp.frequency.setTargetAtTime(500 + 1200 * r, t, k);
+        // The recording is all sub-400 Hz rumble; wind it up 1.8-3x so it lands where speakers can play it
+        if (N.roarSample) N.roarSrc.playbackRate.setTargetAtTime(1.8 + 0.6 * r, t, k);
+        N.hissGain.gain.setTargetAtTime(0.09 * r * r, t, k);
+        N.hissBp.frequency.setTargetAtTime(1400 + 900 * r, t, k);
       }
     },
     engineStop(mode) {
@@ -928,7 +942,7 @@ const SFX = (() => {
       const t = ctx.currentTime, die = mode === 'die';
       const end = t + (die ? 0.9 : 0.12);
       N.out.gain.setTargetAtTime(0, t, die ? 0.25 : 0.03);
-      if (N.roarGain) N.roarGain.gain.setTargetAtTime(0, t, die ? 0.2 : 0.03);
+      if (N.roarGain) { N.roarGain.gain.setTargetAtTime(0, t, die ? 0.2 : 0.03); N.hissGain.gain.setTargetAtTime(0, t, 0.03); }
       if (die && N.o1) { N.o1.frequency.exponentialRampToValueAtTime(20, end); N.lfo.frequency.exponentialRampToValueAtTime(3, end); }
       if (die && N.sample) N.sample.playbackRate.exponentialRampToValueAtTime(0.3, end);
       N.srcs.forEach(s => { try { s.stop(end + 0.3); } catch (e) {} });
