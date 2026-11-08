@@ -351,7 +351,7 @@
 </head>
 <body>
 
-<div id="version">STUNTMANIA '76 — Build 0.25.1</div>
+<div id="version">STUNTMANIA '76 — Build 0.26.0</div>
 
 <canvas id="canvas"></canvas>
 
@@ -404,7 +404,7 @@
 
     <div><span class="cash">CASH: £<span id="cashVal">0</span></span></div>
     <div style="font-size:10px; opacity:0.55; margin-top:10px; letter-spacing:1px;">
-      QUICK: TAP TO SET SPEED · HOLD IN THE AIR TO BACKFLIP, LET GO TO LAND<br>
+      QUICK: TAP TO SET SPEED · IN THE AIR, HOLD TO LEAN BACK (HOLD LONGER TO FLIP), LET GO TO LAND<br>
       CLASSIC: ▲ THROTTLE/PITCH · ▼ BRAKE/PITCH · ◀ ▶ STEER<br>
       SPACE BOOST · R RETRY · M MUTE<br>
       CAMERA: DRAG TO ORBIT · WHEEL / PINCH ZOOM · DOUBLE-CLICK OR C TO RESET
@@ -516,7 +516,7 @@ rocketcar: "Z2xURgIAAAA8RwQA+BIAAEpTT057ImFzc2V0Ijp7ImdlbmVyYXRvciI6ImdsVEYtVHJh
 // Build 0.2.0  —  Active runup (throttle + steering), camera snap on launch.
 // ============================================================================
 
-const BUILD_VERSION = '0.25.1';
+const BUILD_VERSION = '0.26.0';
 
 // ---------- PALETTE ---------------------------------------------------------
 const COL = {
@@ -3293,7 +3293,7 @@ function saveGame() {
       ramp: G.rampAngleDeg, land: G.landingRampAngleDeg, played: true,
       dist: G.landingRampDist, lane: G.landingRampZ, tut: G.tutorialDone,
       buses: G.busCount, busRec: G.busRecord, bill: [...G.bill],
-      landedAt: [...G.landedAt], allVenues: G.allVenues, quick: G.quick,
+      landedAt: [...G.landedAt], allVenues: G.allVenues, quick: G.quick, lean: G.leanTips || 0,
     }));
   } catch (e) {}
 }
@@ -3317,6 +3317,7 @@ function loadGame() {
     // Saves from before the bus-first order had every venue open: keep it that way
     G.allVenues = !!d.allVenues || (!!d.played && !d.landedAt);
     if (d.quick !== undefined) G.quick = !!d.quick;
+    G.leanTips = d.lean || 0;
   } catch (e) {}
 }
 
@@ -3531,7 +3532,7 @@ function updateGhost(dt) {
   m.rotation.set(f[3], 0, f[4]);
   poseBMXLegs(m, f[5]);
   m.visible = G.phase === 'runup' || G.phase === 'airborne';
-  if (G.quickRun) { setTutorialHint(''); return; }   // quick run-up: the ghost teaches by riding, no banner
+  if (G.quickRun) { if (G.phase !== 'airborne') setTutorialHint(''); return; }   // quick run-up: the ghost teaches by riding
   // Coaching line, from what YOU are doing right now
   let hint = '';
   if (G.phase === 'runup') {
@@ -4007,29 +4008,29 @@ function drawMeter() {
   else gt.style.display = 'none';
 }
 
-// ONE BUTTON IN THE AIR. Hold to throw a backflip; let go and the rider
-// tucks the nose down onto the landing ramp — but only if he's within reach
-// of it. Let go upside down and he keeps tumbling: that's the crash.
+// ONE BUTTON IN THE AIR. Gravity tips the nose down, more the longer you
+// fly; hands off, you nose-dive into the ramp. Hold to lean back: the
+// back-spin builds the longer you hold, so a dab levels you out and a long
+// hold winds up a backflip. Let go at the right moment to land flat.
 const actHeld = () => !!(keys.act || keys.up || keys.down || keys.left || keys.right);
-function flipRate(def) { return def.fourWheel ? (def.id === 'rocketsled' ? 4.2 : 4.8) : (def.id === 'bmx' ? 7.6 : 7.0); }
+const AIR = { D0: 1.05, D1: 1.05, J: 9, FMAX: 8.5, K: 6 };   // rad/s, rad/s², rad/s², rad/s, 1/s
 function quickAir(dt, def) {
   const held = actHeld();
   if (!held) G.actReady = true;                    // the tap that set the speed doesn't count
   G.flipping = held && G.actReady;
+  const heavy = def.fourWheel ? 0.75 : 1;          // cars and sleds turn slower both ways
+  if (!SIM && (G.leanTips || 0) < 3) setTutorialHint(G.flipping ? 'LET GO TO LAND FLAT' : 'HOLD TO LEAN BACK');   // first few jumps only
   if (G.flipping) {
-    G.pitchVel += (flipRate(def) - G.pitchVel) * Math.min(1, dt * 10);
-    return;
+    G.pitchVel = Math.min(AIR.FMAX * heavy, G.pitchVel + AIR.J * heavy * dt);
+  } else {
+    const dive = -(AIR.D0 + AIR.D1 * G.airborneT) * heavy;
+    G.pitchVel += (dive - G.pitchVel) * Math.min(1, AIR.K * dt);
   }
-  // Settle onto the landing slope: nearest equivalent angle, within ~90°
-  const want = -G.landingRampAngleRad, TAU = Math.PI * 2;
-  const err = want + Math.round((G.pitch - want) / TAU) * TAU - G.pitch;
-  if (Math.abs(err) < 1.6) G.pitchVel += (err * 30 - G.pitchVel * 11) * dt;
-  else G.pitchVel *= 1 - dt * 0.8;                 // too far gone: he tumbles in
 }
 function setActLabel() {
   const t = document.getElementById('actTxt');
   if (!t) return;
-  const txt = G.meter === 'swing' ? 'GO!' : (G.phase === 'airborne' || G.phase === 'runup') ? 'HOLD<br>FLIP' : 'GO';
+  const txt = G.meter === 'swing' ? 'GO!' : (G.phase === 'airborne' || G.phase === 'runup') ? 'HOLD<br>LEAN<br>BACK' : 'GO';
   if (t.innerHTML !== txt) t.innerHTML = txt;
 }
 
@@ -4684,7 +4685,7 @@ function updateAirborne(dt) {
     if (keys.up)   G.pitchVel += rot * dt * 2;
     if (keys.down) G.pitchVel -= rot * dt * 2;
   }
-  G.pitchVel *= 0.985;
+  if (!G.quickRun) G.pitchVel *= 0.985;
   G.pitch += G.pitchVel * dt;
   G.cumRotation += Math.abs(G.pitchVel * dt);
   G.netRotation += G.pitchVel * dt;
@@ -4850,9 +4851,11 @@ function finishJump(where) {
     landedOnRamp  = xOnRamp && latErr <= RAMP_HALF_W;
     if (landedOnRamp) {
       const errDeg = Math.abs((p - (-rampSlopeAt(LR.S, LR.xl))) * 180 / Math.PI);
-      if (errDeg < 20)      { outcome = 'perfect';   gradeText = 'STUCK THE LANDING';  landingText = isBusVenue() ? `Cleared ${G.busCount} buses` : 'Dead on the ramp'; }
-      else if (errDeg < 50) { outcome = 'survived';  gradeText = 'WALK IT OFF';        landingText = 'Rough on the ramp'; }
-      else if (errDeg < 95) { outcome = 'technical'; gradeText = 'TECHNICALLY LANDED'; landingText = 'On the rear wheel'; }
+      // Quick run-up grades tighter: you flew it yourself, so it should matter
+      const GR = G.quickRun ? [15, 30, 45] : [20, 50, 95];
+      if (errDeg < GR[0])      { outcome = 'perfect';   gradeText = 'STUCK THE LANDING';  landingText = isBusVenue() ? `Cleared ${G.busCount} buses` : 'Dead on the ramp'; }
+      else if (errDeg < GR[1]) { outcome = 'survived';  gradeText = 'WALK IT OFF';        landingText = 'Rough on the ramp'; }
+      else if (errDeg < GR[2]) { outcome = 'technical'; gradeText = 'TECHNICALLY LANDED'; landingText = 'On the rear wheel'; }
       else                  { outcome = 'crashed';   gradeText = 'MEDICAL PENDING';    landingText = 'New canyon feature'; }
     } else {
       outcome = 'crashed';
@@ -4960,6 +4963,7 @@ function finishJump(where) {
     }
   }, scoreDelay);
   recFinish(gradeText, scoreDelay + 700);
+  if (G.quickRun) { G.leanTips = (G.leanTips || 0) + 1; setTutorialHint(''); }
   G.bframe = null;
   if (G.quickRun && outcome === 'crashed') G.camCut = true;
 
