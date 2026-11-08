@@ -112,6 +112,29 @@
   #trainBoard { display: none; position: fixed; left: 50%; top: 74px; transform: translateX(-50%); z-index: 30; width: 320px; max-width: 86vw;
     background: #F2E0D5; border: 2px solid #2a1a10; box-shadow: 3px 3px 0 #2a1a10; padding: 6px 10px 7px; color: #2a1a10; pointer-events: none; }
   #trainBoard.show { display: block; }
+  /* QUICK RUN-UP: swing meter */
+  #meter { display: none; position: fixed; left: 50%; top: 70px; transform: translateX(-50%); z-index: 30; width: 360px; max-width: 88vw;
+    background: #F2E0D5; border: 3px solid #2a1a10; box-shadow: 4px 4px 0 #2a1a10; padding: 6px 12px 6px; pointer-events: none; text-align: center; }
+  #meter.show { display: block; }
+  #meter .m-head { font-size: 22px; letter-spacing: 4px; color: #E24A2E; line-height: 1; margin-bottom: 5px; animation: mpulse 0.5s ease-in-out infinite alternate; }
+  #meter.locked .m-head { animation: none; color: #2a1a10; }
+  @keyframes mpulse { from { transform: scale(1); } to { transform: scale(1.12); } }
+  #meter .m-track { position: relative; height: 26px; border: 2px solid #2a1a10;
+    background: linear-gradient(90deg, #E8D2A8 0%, #F2C54B 55%, #E2873A 82%, #E24A2E 100%); }
+  #meter .m-hot { position: absolute; right: 0; top: 0; bottom: 0; width: 6.7%; background: repeating-linear-gradient(45deg, #2a1a10 0 4px, #E24A2E 4px 8px); opacity: 0.85; }
+  #meter .m-needle { position: absolute; top: -6px; bottom: -6px; width: 6px; margin-left: -3px; background: #2a1a10; box-shadow: 0 0 0 2px #F2E0D5; }
+  #meter .m-ghost { position: absolute; top: -3px; bottom: -3px; width: 10px; margin-left: -5px; background: rgba(60,193,195,0.85); border: 1px solid #2a1a10; }
+  #meter .m-scale { display: flex; justify-content: space-between; font-size: 9px; letter-spacing: 2px; margin-top: 3px; color: #2a1a10; }
+  #modeRow .seg { display: flex; gap: 0; }
+  #modeRow .seg button { font-family: inherit; font-size: 12px; letter-spacing: 2px; padding: 5px 12px; border: 2px solid #2a1a10; background: #F2E0D5; color: #2a1a10; cursor: pointer; }
+  #modeRow .seg button + button { border-left: none; }
+  #modeRow .seg button.on { background: #E24A2E; color: #F2E0D5; }
+  body.quick .btn-up, body.quick .btn-down { visibility: hidden; }
+  body.quick .btn-left, body.quick .btn-right { transform: scale(1.25); }
+  body.noboost #btnBoost { display: none; }
+  #scorecard.show .score-card { animation: cardslam 0.26s cubic-bezier(.2, 1.5, .4, 1); }
+  @keyframes cardslam { from { transform: scale(1.35) rotate(-2deg); opacity: 0; } to { transform: none; opacity: 1; } }
+  #scShare:disabled { opacity: 0.55; cursor: default; }
   #trainBoard.air { opacity: 0.45; }
   #trainBoard .tb-head { font-size: 10px; letter-spacing: 2px; margin-bottom: 4px; }
   #trainBoard .tb-track { position: relative; height: 20px; background: #5D3C1A; border: 2px solid #2a1a10; overflow: hidden; }
@@ -322,7 +345,7 @@
 </head>
 <body>
 
-<div id="version">STUNTMANIA '76 — Build 0.24.0</div>
+<div id="version">STUNTMANIA '76 — Build 0.25.0</div>
 
 <canvas id="canvas"></canvas>
 
@@ -363,6 +386,7 @@
       <span class="val"><span id="angleVal">35</span>°</span>
     </div>
 
+    <div class="controls-row" id="modeRow"><label>RUN-UP</label><div class="seg"><button data-q="1">QUICK</button><button data-q="0">CLASSIC</button></div></div>
     <div class="controls-row" id="trainTip" style="display:none"></div>
     <div class="controls-row">
       <label>LANDING ANGLE</label>
@@ -406,6 +430,7 @@
 
 <!-- RUNUP HINT -->
 <div id="tutHint"></div>
+<div id="meter"><div class="m-head" id="meterTxt">TAP!</div><div class="m-track"><div class="m-hot"></div><div class="m-ghost" id="meterGhost"></div><div class="m-needle" id="meterNeedle"></div></div><div class="m-scale"><span>SLOW</span><span>SPEED</span><span>FLAT OUT</span></div></div>
 <div id="trainBoard"><div class="tb-head">FREIGHT LINE · OPEN CAR</div><div class="tb-track"><div class="tb-go" id="tbGo">GO</div><div class="tb-car" id="tbCar"></div></div><div class="tb-line" id="tbLine"></div></div>
 <div id="runupHint">
   ▲ HOLD TO THROTTLE
@@ -456,6 +481,7 @@
     <div id="scTip" class="sc-tip"></div>
     <div class="score-actions">
       <button id="scRetry">RETRY</button>
+      <button id="scShare" style="display:none" disabled>⇪ SHARE</button>
       <button class="primary" id="scMenu">▶ SETUP</button>
     </div>
   </div>
@@ -482,7 +508,7 @@ rocketcar: "Z2xURgIAAAA8RwQA+BIAAEpTT057ImFzc2V0Ijp7ImdlbmVyYXRvciI6ImdsVEYtVHJh
 // Build 0.2.0  —  Active runup (throttle + steering), camera snap on launch.
 // ============================================================================
 
-const BUILD_VERSION = '0.24.0';
+const BUILD_VERSION = '0.25.0';
 
 // ---------- PALETTE ---------------------------------------------------------
 const COL = {
@@ -653,6 +679,7 @@ const G = {
   busCount:     4,       // buses lined up at the Bus Jump
   landedAt:     new Set(),   // venues with at least one clean landing
   allVenues:    false,       // every venue open (older saves, dev)
+  quick:        true,        // QUICK run-up (swing meter) vs CLASSIC (throttle + steer)
   busRecord:    {},      // most buses cleared, per vehicle
   bill:         new Set(),   // stunt-bill feats completed
   placeMode:    'auto',
@@ -1062,6 +1089,12 @@ const SFX = (() => {
     },
     bell(v) { tone(v ? 1480 : 1400, 0.35, { type:'triangle', gain:0.05 }); tone(v ? 2960 : 2800, 0.2, { type:'sine', gain:0.015 }); },
     whoosh() { noise(0.35, { type:'bandpass', freq:500, q:0.6, gain:0.22, sweepTo:2200 }); },
+    // Tap of the master bus for replay recording
+    recStream() {
+      if (!ensure() || !ctx.createMediaStreamDestination) return null;
+      if (!this._rd) { this._rd = ctx.createMediaStreamDestination(); master.connect(this._rd); }
+      return this._rd.stream;
+    },
     toggleMute() {
       muted = !muted;
       if (master) master.gain.setTargetAtTime(muted ? 0 : 0.5, ctx.currentTime, 0.02);
@@ -3252,7 +3285,7 @@ function saveGame() {
       ramp: G.rampAngleDeg, land: G.landingRampAngleDeg, played: true,
       dist: G.landingRampDist, lane: G.landingRampZ, tut: G.tutorialDone,
       buses: G.busCount, busRec: G.busRecord, bill: [...G.bill],
-      landedAt: [...G.landedAt], allVenues: G.allVenues,
+      landedAt: [...G.landedAt], allVenues: G.allVenues, quick: G.quick,
     }));
   } catch (e) {}
 }
@@ -3275,6 +3308,7 @@ function loadGame() {
     (d.landedAt || []).forEach(id => G.landedAt.add(id));
     // Saves from before the bus-first order had every venue open: keep it that way
     G.allVenues = !!d.allVenues || (!!d.played && !d.landedAt);
+    if (d.quick !== undefined) G.quick = !!d.quick;
   } catch (e) {}
 }
 
@@ -3389,8 +3423,9 @@ const GHOST = { frames: null, mesh: null, t: 0, active: false, key: '' };
 function tutorialActive() { return VEHICLE_DEFS[G.vehicleIdx].id === 'bmx' && !G.tutorialDone; }
 
 function recordGhost() {
-  const key = [G.vehicleIdx, G.venue, G.rampAngleDeg, G.landingRampAngleDeg, G.landingRampDist, G.landingRampZ].join('|');
+  const key = [G.vehicleIdx, G.venue, G.rampAngleDeg, G.landingRampAngleDeg, G.landingRampDist, G.landingRampZ, G.quick].join('|');
   if (GHOST.key === key && GHOST.frames) return GHOST.frames;
+  if (G.quick) return recordQuickGhost(key);
   // Try full throttle first, then ease off until a clean landing: at a short
   // bus jump the lesson IS letting go of the throttle in time.
   const fly = (thr) => silently(() => {
@@ -3427,6 +3462,33 @@ function recordGhost() {
   return frames;
 }
 
+// Quick run-up: find meter settings that stick the landing and ride the middle one.
+function recordQuickGhost(key) {
+  const fly = (f) => silently(() => {
+    startLaunch(); quickSetup(); lockMeter(f);
+    const out = [], dt = 1 / 60; let n = 0;
+    while ((G.phase === 'runup' || G.phase === 'airborne') && n < 9000) {
+      if (G.phase === 'runup') updateRunup(dt);
+      else {
+        const err = G.pitch + G.landingRampAngleRad;
+        keys.up = err < -0.15; keys.down = err > 0.15;
+        updateAirborne(dt);
+      }
+      const v = vehicleGroup;
+      if (v) out.push([v.position.x, v.position.y, v.position.z, v.rotation.x, v.rotation.z, G.crankAngle, G.phase === 'runup' ? G.runupSpeed : -1]);
+      n++;
+    }
+    keys.up = keys.down = false;
+    return { out, f, ok: G.phase === 'landed', stuck: document.getElementById('grade').textContent === 'STUCK THE LANDING' };
+  });
+  const runs = [];
+  for (let f = METER.LO; f <= 1.0001; f += 0.05) runs.push(fly(f));
+  const stuck = runs.filter(r => r.stuck), ok = runs.filter(r => r.ok);
+  const pick = stuck.length ? stuck[Math.floor(stuck.length / 2)] : ok.length ? ok[Math.floor(ok.length / 2)] : runs[runs.length - 1];
+  GHOST.key = key; GHOST.frames = pick.out; GHOST.f = pick.f;
+  return pick.out;
+}
+
 function ghostMesh() {
   if (GHOST.mesh) return GHOST.mesh;
   const mat = new THREE.MeshBasicMaterial({ color: 0x3CC1C3, transparent: true, opacity: 0.6, depthWrite: false });   // palette turquoise: reads on sand and rock
@@ -3449,7 +3511,7 @@ function startGhost() {
 
 function updateGhost(dt) {
   if (!GHOST.active) return;
-  GHOST.t += dt;
+  if (G.meter !== 'swing') GHOST.t += dt;     // quick run-up: the ghost waits on the line until you tap
   const F = GHOST.frames, i = Math.floor(GHOST.t * 60);
   const m = GHOST.mesh;
   if (i >= F.length + 60) { scene.remove(m); GHOST.active = false; setTutorialHint(''); return; }
@@ -3458,6 +3520,7 @@ function updateGhost(dt) {
   m.rotation.set(f[3], 0, f[4]);
   poseBMXLegs(m, f[5]);
   m.visible = G.phase === 'runup' || G.phase === 'airborne';
+  if (G.quickRun) { setTutorialHint(''); return; }   // quick run-up: the ghost teaches by riding, no banner
   // Coaching line, from what YOU are doing right now
   let hint = '';
   if (G.phase === 'runup') {
@@ -3876,6 +3939,172 @@ function buildTrain() {
 }
 
 // ============================================================================
+// QUICK RUN-UP — the default since 0.25. One tap on a swinging speed meter
+// sets your speed; a 1–2 second approach does the rest; the skill is in the
+// air, where gusts knock you about and ◀ ▶ rotate you back onto the landing
+// ramp. Each attempt is a ten-second clip. CLASSIC (throttle and steer the
+// whole runway) is still a menu toggle. Silent sims always run classic.
+// ============================================================================
+const METER = { PERIOD: 1.5, LO: 0.3, HI: 1.05 };
+function meterValue(t) {
+  const p = (t / METER.PERIOD) % 2, tri = p < 1 ? p : 2 - p;   // 0→1→0
+  const e = tri * tri * (3 - 2 * tri);                          // ease, so it lingers at the ends
+  return METER.LO + (METER.HI - METER.LO) * e;
+}
+function quickApproachLen() { return THREE.MathUtils.clamp(VEHICLE_DEFS[G.vehicleIdx].maxSpeed * 0.6, 12, 30); }
+
+// Put the vehicle on the line, a short roll from the ramp, lined up.
+function quickSetup() {
+  const RS = rampShape(G.rampAngleRad);
+  G.meter = 'swing'; G.meterT = 0; G.meterF = 0; G.meterSpeed = 0;
+  G.zPos = G.launchRampZ; G.zVel = 0;
+  G.landingRampZ = LAUNCH_RAMP_OFFSET;
+  G.runupDist = Math.max(0, RUNWAY_LEN - RS.d - quickApproachLen());
+  G.gust = 0; G.gustT = 0.3; G.gustTarget = 0;
+}
+function lockMeter(f) {
+  if (G.meter !== 'swing') return;
+  G.meterF = f === undefined ? meterValue(G.meterT) : f;
+  G.meterSpeed = VEHICLE_DEFS[G.vehicleIdx].maxSpeed * G.meterF;
+  G.meter = 'go';
+  if (SIM) return;
+  SFX.click();
+  const el = document.getElementById('meter');
+  el.classList.add('locked');
+  document.getElementById('meterTxt').textContent = G.meterF > 1.0 ? 'TOO HOT!' : G.meterF < 0.45 ? 'GENTLE…' : 'GO!';
+  setTimeout(() => el.classList.remove('show', 'locked'), 650);
+  recStart();
+}
+// Any key or tap locks the meter (not the menu, the card or the dev panel)
+function meterTap(e) {
+  if (G.phase !== 'runup' || G.meter !== 'swing' || G.meterT < 0.3) return;
+  if (e && e.target && e.target.closest && e.target.closest('#dev, #scorecard, #placement, #menu, button')) return;
+  if (e && e.key && /^(r|R|m|M|`)$/.test(e.key)) return;
+  lockMeter();
+}
+function drawMeter() {
+  const el = document.getElementById('meter');
+  if (!el) return;
+  const show = G.phase === 'runup' && (G.meter === 'swing' || el.classList.contains('locked'));
+  el.classList.toggle('show', show);
+  if (!show || G.meter !== 'swing') return;
+  const f = meterValue(G.meterT), k = (f - METER.LO) / (METER.HI - METER.LO);
+  document.getElementById('meterNeedle').style.left = (k * 100).toFixed(2) + '%';
+  const gt = document.getElementById('meterGhost');
+  if (GHOST.active && GHOST.f) { gt.style.display = ''; gt.style.left = ((GHOST.f - METER.LO) / (METER.HI - METER.LO) * 100).toFixed(2) + '%'; }
+  else gt.style.display = 'none';
+}
+
+// In-flight gusts: a smoothed random shove on the pitch you have to ride out.
+function quickGust(dt, rot) {
+  G.gustT -= dt;
+  if (G.gustT <= 0) { G.gustT = 0.35 + Math.random() * 0.55; G.gustTarget = (Math.random() * 2 - 1) * rot * GUST_K; }
+  G.gust += (G.gustTarget - G.gust) * Math.min(1, dt * 5);
+  G.pitchVel += G.gust * dt;
+}
+const GUST_K = 0.55;
+
+// Side-on broadcast frame for the flight: both ramps (and every bus) in shot.
+function broadcastFrame() {
+  const x0 = -RAMP_LEN * Math.cos(G.rampAngleRad) - 2;
+  const x1 = CANYON_WIDTH + G.landingRampDist + landingLen() * Math.cos(G.landingRampAngleRad) + 4;
+  const vfov = camera.fov * Math.PI / 180, th = Math.tan(vfov / 2), tw = th * camera.aspect;
+  const need = ((x1 - x0) / 2) / tw * 1.04;
+  const d = THREE.MathUtils.clamp(Math.max(need, 13 / th), 24, 80);
+  return { x0, x1, d, halfW: tw * d * 0.8, th };
+}
+
+// ---- REPLAY: record each attempt off the canvas, share it from the card ----
+const REC = { ok: typeof MediaRecorder !== 'undefined' && !!HTMLCanvasElement.prototype.captureStream,
+  on: false, rec: null, chunks: [], blob: null, cv: null, cx: null, banner: '', bannerAt: 0, ext: 'webm', stopTimer: 0, discard: false };
+function recMime() {
+  for (const m of ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'])
+    if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(m)) return m;
+  return '';
+}
+function recStart() {
+  if (!REC.ok || SIM) return;
+  recAbort();
+  try {
+    const src = renderer.domElement, W = src.width, H = src.height, s = Math.min(1, 960 / Math.max(W, H));
+    if (!REC.cv) { REC.cv = document.createElement('canvas'); REC.cx = REC.cv.getContext('2d'); }
+    REC.cv.width = Math.round(W * s / 2) * 2; REC.cv.height = Math.round(H * s / 2) * 2;
+    const stream = REC.cv.captureStream(30);
+    const au = SFX.recStream && SFX.recStream();
+    if (au) au.getAudioTracks().forEach(t => stream.addTrack(t));
+    const mime = recMime();
+    REC.ext = mime.includes('mp4') ? 'mp4' : 'webm';
+    REC.rec = new MediaRecorder(stream, mime ? { mimeType: mime, videoBitsPerSecond: 3500000 } : { videoBitsPerSecond: 3500000 });
+    REC.chunks = []; REC.blob = null; REC.banner = ''; REC.discard = false;
+    REC.rec.ondataavailable = e => { if (e.data && e.data.size) REC.chunks.push(e.data); };
+    REC.rec.onstop = () => {
+      if (REC.discard) return;
+      REC.blob = new Blob(REC.chunks, { type: REC.rec.mimeType || mime || 'video/webm' });
+      setShareBtn('ready');
+    };
+    REC.rec.start(250);
+    REC.on = true;
+    setShareBtn('rec');
+  } catch (e) { REC.on = false; REC.ok = false; setShareBtn('off'); }
+}
+function recAbort() {
+  clearTimeout(REC.stopTimer);
+  if (REC.rec && REC.rec.state !== 'inactive') { REC.discard = true; try { REC.rec.stop(); } catch (e) {} }
+  REC.on = false; REC.blob = null;
+  setShareBtn('off');
+}
+function recFinish(banner, afterMs) {
+  if (!REC.on) return;
+  REC.banner = banner; REC.bannerAt = performance.now() + 900;
+  clearTimeout(REC.stopTimer);
+  REC.stopTimer = setTimeout(() => { REC.on = false; try { REC.rec.stop(); } catch (e) {} }, afterMs);
+}
+// Called right after renderer.render, while the WebGL frame is still readable
+function recFrame() {
+  if (!REC.on) return;
+  const c = REC.cx, W = REC.cv.width, H = REC.cv.height, u = Math.min(W, H) / 360;
+  c.drawImage(renderer.domElement, 0, 0, W, H);
+  c.font = `${Math.round(11 * u)}px Impact, sans-serif`; c.textBaseline = 'bottom'; c.textAlign = 'left';
+  c.fillStyle = 'rgba(42,26,16,0.55)'; c.fillRect(0, H - 22 * u, 210 * u, 22 * u);
+  c.fillStyle = '#F2E0D5'; c.fillText("STUNTMANIA '76 · KHALIFA.GAMES", 8 * u, H - 6 * u);
+  if (REC.banner && performance.now() > REC.bannerAt) {
+    c.font = `${Math.round(30 * u)}px Impact, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
+    const tw = c.measureText(REC.banner).width + 30 * u, y = H * 0.2;
+    c.fillStyle = '#F2E0D5'; c.fillRect(W / 2 - tw / 2, y - 22 * u, tw, 44 * u);
+    c.strokeStyle = '#2a1a10'; c.lineWidth = 3 * u; c.strokeRect(W / 2 - tw / 2, y - 22 * u, tw, 44 * u);
+    c.fillStyle = '#E24A2E'; c.fillText(REC.banner, W / 2, y + 1 * u);
+  }
+}
+function setShareBtn(state) {
+  const b = document.getElementById('scShare');
+  if (!b) return;
+  b.style.display = (state === 'off' || !REC.ok) ? 'none' : '';
+  b.disabled = state !== 'ready';
+  b.textContent = state === 'ready' ? '⇪ SHARE' : 'SAVING…';
+}
+function shareReplay() {
+  if (!REC.blob) return;
+  const name = `stuntmania76-${(REC.banner || 'jump').toLowerCase().replace(/[^a-z0-9]+/g, '-')}.${REC.ext}`;
+  const file = new File([REC.blob], name, { type: REC.blob.type });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    navigator.share({ files: [file], title: "STUNTMANIA '76", text: `${REC.banner} — khalifa.games/stuntmania` }).catch(() => {});
+  } else {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(file); a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  }
+}
+
+// Menu toggle: QUICK (default) or CLASSIC run-up
+function setQuick(on) {
+  G.quick = !!on;
+  document.querySelectorAll('#modeRow button').forEach(b => b.classList.toggle('on', (b.dataset.q === '1') === G.quick));
+  if (G.quick && !isTrainVenue()) G.landingRampZ = LAUNCH_RAMP_OFFSET;
+  saveGame();
+}
+
+// ============================================================================
 // STUNT BILL — billed feats per venue, paid once each. Some are crash feats:
 // crashes are the point.
 // ============================================================================
@@ -4191,9 +4420,16 @@ function startLaunch() {
   G.landPitch = 0;
 
   G.launchRampZ  = LAUNCH_RAMP_OFFSET;    // take-off is fixed
+  // Quick run-up (default): swing meter, short approach, skill in the air
+  G.meter = null; G.meterSpeed = 0; G.camCut = false;
+  G.quickRun = !SIM && G.quick && !isTrainVenue();
+  if (G.quickRun) quickSetup();
+  if (!SIM) { recAbort(); G.runId = (G.runId || 0) + 1; }
+  document.body.classList.toggle('quick', !!G.quickRun);
+  document.body.classList.toggle('noboost', !(VEHICLE_DEFS[G.vehicleIdx].boost > 0));
   // Freight Line: held at the line until you rev and let go
   G.hold = (isTrainVenue() && !SIM) ? 'wait' : null;
-  G.releaseT = undefined; G.revT = 0;
+  G.releaseT = undefined; G.revT = 0; G.recStarted = false;
   G.trainLine = 'none'; G.trainMiss = 99; G.splatOnTrain = false;
   if (isTrainVenue() && !SIM) startTrain();
   // landingRampZ / landingRampDist come from the placement screen — left as set.
@@ -4211,8 +4447,13 @@ function startLaunch() {
   // ---- CAMERA SNAP (fixes the v0.1 lerping-from-landing bug) -------------
   const baseLen = RAMP_LEN * Math.cos(G.rampAngleRad);
   const startX = -baseLen - RUNWAY_LEN;
-  camPos.set(startX - 6, 7, 28);
-  camTarget.set(startX + 8, 1.5, 0);
+  if (G.quickRun) {
+    const qx = startX + G.runupDist;
+    camPos.set(qx - 7.5, 3, G.zPos + 2.2); camTarget.set(qx + 10, 1, G.zPos);
+  } else {
+    camPos.set(startX - 6, 7, 28);
+    camTarget.set(startX + 8, 1.5, 0);
+  }
   applyUserCam();
 
   G.camMode = 'launch';
@@ -4223,7 +4464,8 @@ function startLaunch() {
   document.getElementById('runupHint').innerHTML = G.hold
     ? '▲ HOLD TO REV · LET GO TO LAUNCH<small>TIME IT FOR THE OPEN BOXCAR</small>'
     : '▲ HOLD TO THROTTLE<small>◀ ▶ STEER</small>';
-  document.getElementById('runupHint').classList.add('show');
+  document.getElementById('runupHint').classList.toggle('show', !G.quickRun);
+  if (!G.quickRun && !G.hold && !SIM) recStart();   // classic: record the whole run
   const def = VEHICLE_DEFS[G.vehicleIdx];
   document.getElementById('hudBoostBlock').style.display = def.boost > 0 ? 'block' : 'none';
 }
@@ -4250,8 +4492,16 @@ function updateRunup(dt) {
       return;
     }
   }
+  if (G.hold === 'go' && G.releaseT !== undefined && !G.recStarted) { G.recStarted = true; recStart(); }
   const autoThrottle = G.hold === 'go' && !keys.down;   // once released it's flat out; ▼ still brakes
-  if (keys.up || autoThrottle) {
+  if (G.meter === 'swing') {
+    G.meterT += dt; G.runupSpeed = 0;
+    if (!SIM) drawMeter();
+  } else if (G.meter === 'go') {
+    // Rolling start to the speed you tapped: hard launch, then hold it
+    G.runupSpeed = Math.min(G.meterSpeed, G.runupSpeed + G.meterSpeed / 0.4 * dt);
+    G.playerActed = true;
+  } else if (keys.up || autoThrottle) {
     G.runupSpeed = Math.min(G.runupSpeed + maxAccel * dt, def.maxSpeed);
     G.playerActed = true;
   } else if (keys.down) {
@@ -4261,8 +4511,9 @@ function updateRunup(dt) {
     G.runupSpeed = Math.max(G.runupSpeed - coastDecel * dt, 0);
   }
 
-  // Steering (lateral z)
-  updateSteering(dt);
+  // Steering (lateral z) — the quick run-up starts lined up
+  if (!G.meter) updateSteering(dt);
+  else { G.zVel = 0; G.targetBank = 0; G.bankAngle *= 0.9; }
 
   // Pump the legs from how far the bike has rolled (capped cadence so the legs
   // read as fast pedalling rather than a blur at top speed). No motion, no pump.
@@ -4311,6 +4562,7 @@ function updateRunup(dt) {
         G.vy = G.runupSpeed * Math.sin(G.rampAngleRad);
         G.phase = 'airborne';
         G.airborneT = 0;
+        if (G.quickRun) G.camCut = true;          // hard cut to the broadcast angle
         SFX.runupStop();
         SFX.launch();
         poseBMXLegs(vehicleGroup, Math.PI / 2);   // feet level for the flight
@@ -4336,6 +4588,7 @@ function updateRunup(dt) {
         G.vy = 0;
         G.phase = 'airborne';
         G.airborneT = 0;
+        if (G.quickRun) G.camCut = true;          // hard cut to the broadcast angle
         SFX.runupStop();
         SFX.launch();
         poseBMXLegs(vehicleGroup, Math.PI / 2);   // feet level for the flight
@@ -4396,15 +4649,18 @@ function updateAirborne(dt) {
 
   // Pitch (UP/DOWN now control pitch in air)
   const rot = def.rotRate;
-  if (keys.up)   G.pitchVel += rot * dt * 2;
-  if (keys.down) G.pitchVel -= rot * dt * 2;
+  // Quick: ◀ ▶ rotate (◀ = lean back, nose up), and ▲ ▼ still work
+  const back = keys.up || (G.quickRun && keys.left), fwd = keys.down || (G.quickRun && keys.right);
+  if (back) G.pitchVel += rot * dt * 2;
+  if (fwd)  G.pitchVel -= rot * dt * 2;
+  if (G.quickRun) quickGust(dt, rot);
   G.pitchVel *= 0.985;
   G.pitch += G.pitchVel * dt;
   G.cumRotation += Math.abs(G.pitchVel * dt);
   G.netRotation += G.pitchVel * dt;
 
-  // Steering (lateral lean)
-  updateSteering(dt);
+  // Steering (lateral lean) — none in the quick run-up: ◀ ▶ are rotation
+  if (!G.quickRun) updateSteering(dt);
 
   // Boost
   G.boostActive = keys.boost && G.boostFuel > 0 && def.boost > 0;
@@ -4665,12 +4921,17 @@ function finishJump(where) {
   document.getElementById('scHype').textContent = hype + '%';
   document.getElementById('scCash').textContent = cash;
   const celebrating = (outcome !== 'crashed');
-  const scoreDelay = celebrating ? 4200 : (where === 'wall' ? 4800 : 3200);
+  const scoreDelay = G.quickRun ? (celebrating ? 2600 : 2300)
+    : celebrating ? 4200 : (where === 'wall' ? 4800 : 3200);
+  const runId = G.runId;
   setTimeout(() => {
-    if (G.phase === 'crashed' || G.phase === 'landed') {
+    if ((G.phase === 'crashed' || G.phase === 'landed') && G.runId === runId) {
       document.getElementById('scorecard').classList.add('show');
     }
   }, scoreDelay);
+  recFinish(gradeText, scoreDelay + 700);
+  G.bframe = null;
+  if (G.quickRun && outcome === 'crashed') G.camCut = true;
 
   if (outcome === 'crashed') {
     G.crashType = (where === 'canyon') ? 'canyon' : (where === 'wall' || where === 'busside' || where === 'trainside' || where === 'trestle') ? 'wall' : 'plateau';
@@ -5240,6 +5501,7 @@ function resetCrowd() {
 const camTarget = new THREE.Vector3(0, 4, 0);
 const camPos = new THREE.Vector3(-20, 14, 38);
 
+const _crashV = new THREE.Vector3();
 function updateCamera(dt) {
   let desiredPos = new THREE.Vector3();
   let desiredTarget = new THREE.Vector3();
@@ -5252,7 +5514,20 @@ function updateCamera(dt) {
   } else if (G.phase === 'runup' || G.phase === 'airborne') {
     const vx = vehicleGroup ? vehicleGroup.position.x : 0;
     const vy = vehicleGroup ? vehicleGroup.position.y : 0;
-    if (isTrainVenue() && (G.phase === 'airborne' || vx > -14)) {
+    if (G.quickRun && G.phase === 'runup') {
+      // Tight chase on the approach
+      desiredPos.set(vx - 7.5, vy + 3, G.zPos + 2.2);
+      desiredTarget.set(vx + 10, vy + 1, G.zPos);
+    } else if (G.quickRun && G.phase === 'airborne' && !isTrainVenue()) {
+      // Side-on broadcast: both ramps and the whole bus row in frame. Pans only
+      // when the gap is too wide to hold (the Big Drop, portrait phones).
+      const B = G.bframe || (G.bframe = broadcastFrame());
+      const span = B.x1 - B.x0;
+      const cx = span / 2 <= B.halfW ? (B.x0 + B.x1) / 2 : THREE.MathUtils.clamp(vx, B.x0 + B.halfW, B.x1 - B.halfW);
+      const ty = Math.max(6, vy - B.d * B.th * 0.55);
+      desiredPos.set(cx, ty + 3, G.launchRampZ + B.d);
+      desiredTarget.set(cx, ty, G.launchRampZ);
+    } else if (isTrainVenue() && (G.phase === 'airborne' || vx > -14)) {
       // Freight Line: the side camera would look down the length of the train,
       // so ride high behind the jump instead and watch the doorway come at you.
       desiredPos.set(vx - 11, vy + 3.5, G.zPos + 7);
@@ -5279,7 +5554,13 @@ function updateCamera(dt) {
     // Linger on the wreckage with a slow cinematic push-in.
     const cx = G.crashX, cy = G.crashY, cz = G.crashZ;
     const pushIn = Math.min(1, G.crashTimer / 3.5);
-    if (G.crashType === 'wall') {
+    if (G.quickRun && G.crashTimer < 1.6) {
+      // Quick run-up: cut close on the rider for the slow-motion bit, then pull out
+      const r = (RAG.active && RAG.wrap) ? RAG.wrap.position
+        : G.crashType === 'wall' ? _crashV.set(G.splatX, G.splatY, G.splatZ) : _crashV.set(cx, cy, cz);
+      desiredPos.set(r.x - 4.2, r.y + 2.6, r.z + 8);
+      desiredTarget.set(r.x, r.y + 0.4, r.z);
+    } else if (G.crashType === 'wall') {
       // Watch from the gorge side, high and pulled back. The y-clamp keeps the
       // camera above the canyon-floor rock spurs (tops reach ~-19) so it never
       // ends up buried inside geometry — it tilts down to follow instead.
@@ -5307,9 +5588,12 @@ function updateCamera(dt) {
     }
   }
 
-  const lerpK = (G.phase === 'crashed') ? 2.4 : (G.celebrate ? 8 : 4);
-  camPos.lerp(desiredPos, Math.min(1, dt * lerpK));
-  camTarget.lerp(desiredTarget, Math.min(1, dt * lerpK));
+  const lerpK = (G.phase === 'crashed') ? (G.quickRun && G.crashTimer < 1.6 ? 6 : 2.4) : (G.celebrate ? 8 : 4);
+  if (G.camCut) { camPos.copy(desiredPos); camTarget.copy(desiredTarget); G.camCut = false; }   // hard cut
+  else {
+    camPos.lerp(desiredPos, Math.min(1, dt * lerpK));
+    camTarget.lerp(desiredTarget, Math.min(1, dt * lerpK));
+  }
   applyUserCam();
 }
 
@@ -5384,6 +5668,7 @@ function resetCam() { CAM.yaw = 0; CAM.pitch = 0; CAM.zoom = 1; saveCam(); }
 function setupInput() {
   document.addEventListener('keydown', (e) => {
     SFX.ensure();   // first key is a valid gesture to unlock audio
+    if (!e.repeat) meterTap(e);
     if (e.key === 'ArrowUp'    || e.key === 'w' || e.key === 'W') keys.up = true;
     if (e.key === 'ArrowDown'  || e.key === 's' || e.key === 'S') keys.down = true;
     if (e.key === 'ArrowLeft'  || e.key === 'a' || e.key === 'A') keys.left = true;
@@ -5415,6 +5700,12 @@ function setupInput() {
   press('btnLeft',  'left');
   press('btnRight', 'right');
   press('btnBoost', 'boost');
+  document.addEventListener('pointerdown', e => meterTap(e), true);
+  const mr = document.getElementById('modeRow');
+  if (mr) mr.addEventListener('click', e => { const b = e.target.closest('button'); if (b) { SFX.click(); setQuick(b.dataset.q === '1'); } });
+  setQuick(G.quick);
+  const sh = document.getElementById('scShare');
+  if (sh) sh.addEventListener('click', shareReplay);
 }
 
 // ============================================================================
@@ -5507,7 +5798,8 @@ function svgPoint(e) {
 }
 function setPlacement(dist, lane) {
   G.landingRampDist = Math.round(Math.max(PLACE.distMin, Math.min(PLACE.distMax, dist)));
-  G.landingRampZ = Math.round(Math.max(PLACE.laneMin, Math.min(PLACE.laneMax, lane)));
+  G.landingRampZ = (G.quick && !isTrainVenue()) ? LAUNCH_RAMP_OFFSET      // quick run-up: always lined up
+    : Math.round(Math.max(PLACE.laneMin, Math.min(PLACE.laneMax, lane)));
   updatePlaceToken();
 }
 function placeFromPointer(e) {
@@ -5722,6 +6014,7 @@ function animate() {
   }
 
   updateTrain(dt);
+  drawMeter();
   updateParticles(dt);
   updateDebris(dt);
   updateGhost(dt);
@@ -5746,6 +6039,7 @@ function animate() {
   }
 
   renderer.render(scene, camera);
+  recFrame();
 }
 
 // ============================================================================
