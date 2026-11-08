@@ -39,13 +39,16 @@
   /* TITLE / MENU */
   #menu {
     position: fixed; inset: 0; z-index: 50;
-    display: flex; align-items: flex-end; justify-content: center;
-    padding: 0 0 3vh 0;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 0;
+    overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y;
     background: linear-gradient(180deg, rgba(26,14,8,0) 22%, rgba(26,14,8,0.5) 55%, rgba(26,14,8,0.92) 100%);
     pointer-events: auto;
   }
   #menu.hidden { display: none; }
   .menu-card {
+    margin: auto 0 3vh;          /* sits at the bottom when it fits, scrolls when it doesn't */
+    flex-shrink: 0;
     width: min(560px, 92vw); padding: 24px 28px;
     text-align: center;
   }
@@ -116,7 +119,7 @@
   #meter { display: none; position: fixed; left: 50%; top: 70px; transform: translateX(-50%); z-index: 30; width: 360px; max-width: 88vw;
     background: #F2E0D5; border: 3px solid #2a1a10; box-shadow: 4px 4px 0 #2a1a10; padding: 6px 12px 6px; pointer-events: none; text-align: center; }
   #meter.show { display: block; }
-  #meter .m-head { font-size: 22px; letter-spacing: 4px; color: #E24A2E; line-height: 1; margin-bottom: 5px; animation: mpulse 0.5s ease-in-out infinite alternate; }
+  #meter .m-head { font-size: 20px; letter-spacing: 3px; color: #E24A2E; line-height: 1; margin-bottom: 5px; animation: mpulse 0.5s ease-in-out infinite alternate; }
   #meter.locked .m-head { animation: none; color: #2a1a10; }
   @keyframes mpulse { from { transform: scale(1); } to { transform: scale(1.12); } }
   #meter .m-track { position: relative; height: 26px; border: 2px solid #2a1a10;
@@ -129,8 +132,11 @@
   #modeRow .seg button { font-family: inherit; font-size: 12px; letter-spacing: 2px; padding: 5px 12px; border: 2px solid #2a1a10; background: #F2E0D5; color: #2a1a10; cursor: pointer; }
   #modeRow .seg button + button { border-left: none; }
   #modeRow .seg button.on { background: #E24A2E; color: #F2E0D5; }
-  body.quick .btn-up, body.quick .btn-down { visibility: hidden; }
-  body.quick .btn-left, body.quick .btn-right { transform: scale(1.25); }
+  .touch-btn.act { display: none; width: 104px; height: 104px; border-radius: 50%; font-size: 17px; letter-spacing: 1px; line-height: 1.05;
+    text-align: center; background: rgba(242,197,75,0.95); }
+  body.quick .dpad { display: none; }
+  body.quick .touch-btn.act { display: flex; }
+  body.quick .touch-cluster { gap: 14px; }
   body.noboost #btnBoost { display: none; }
   #scorecard.show .score-card { animation: cardslam 0.26s cubic-bezier(.2, 1.5, .4, 1); }
   @keyframes cardslam { from { transform: scale(1.35) rotate(-2deg); opacity: 0; } to { transform: none; opacity: 1; } }
@@ -345,7 +351,7 @@
 </head>
 <body>
 
-<div id="version">STUNTMANIA '76 — Build 0.25.0</div>
+<div id="version">STUNTMANIA '76 — Build 0.25.1</div>
 
 <canvas id="canvas"></canvas>
 
@@ -398,7 +404,8 @@
 
     <div><span class="cash">CASH: £<span id="cashVal">0</span></span></div>
     <div style="font-size:10px; opacity:0.55; margin-top:10px; letter-spacing:1px;">
-      DESKTOP: ▲ THROTTLE/PITCH · ▼ BRAKE/PITCH · ◀ ▶ STEER<br>
+      QUICK: TAP TO SET SPEED · HOLD IN THE AIR TO BACKFLIP, LET GO TO LAND<br>
+      CLASSIC: ▲ THROTTLE/PITCH · ▼ BRAKE/PITCH · ◀ ▶ STEER<br>
       SPACE BOOST · R RETRY · M MUTE<br>
       CAMERA: DRAG TO ORBIT · WHEEL / PINCH ZOOM · DOUBLE-CLICK OR C TO RESET
     </div>
@@ -430,7 +437,7 @@
 
 <!-- RUNUP HINT -->
 <div id="tutHint"></div>
-<div id="meter"><div class="m-head" id="meterTxt">TAP!</div><div class="m-track"><div class="m-hot"></div><div class="m-ghost" id="meterGhost"></div><div class="m-needle" id="meterNeedle"></div></div><div class="m-scale"><span>SLOW</span><span>SPEED</span><span>FLAT OUT</span></div></div>
+<div id="meter"><div class="m-head" id="meterTxt">TAP TO SET SPEED</div><div class="m-track"><div class="m-hot"></div><div class="m-ghost" id="meterGhost"></div><div class="m-needle" id="meterNeedle"></div></div><div class="m-scale"><span>SLOW</span><span>SPEED</span><span>FLAT OUT</span></div></div>
 <div id="trainBoard"><div class="tb-head">FREIGHT LINE · OPEN CAR</div><div class="tb-track"><div class="tb-go" id="tbGo">GO</div><div class="tb-car" id="tbCar"></div></div><div class="tb-line" id="tbLine"></div></div>
 <div id="runupHint">
   ▲ HOLD TO THROTTLE
@@ -465,6 +472,7 @@
   </div>
   <div class="touch-cluster">
     <div class="touch-btn boost" id="btnBoost">🔥</div>
+    <div class="touch-btn act" id="btnAct"><span id="actTxt">GO</span></div>
   </div>
 </div>
 
@@ -508,7 +516,7 @@ rocketcar: "Z2xURgIAAAA8RwQA+BIAAEpTT057ImFzc2V0Ijp7ImdlbmVyYXRvciI6ImdsVEYtVHJh
 // Build 0.2.0  —  Active runup (throttle + steering), camera snap on launch.
 // ============================================================================
 
-const BUILD_VERSION = '0.25.0';
+const BUILD_VERSION = '0.25.1';
 
 // ---------- PALETTE ---------------------------------------------------------
 const COL = {
@@ -750,7 +758,7 @@ const G = {
 let LAUNCH_X = 0, LAUNCH_Y = 0;
 
 // Keys
-const keys = { up:false, down:false, left:false, right:false, boost:false };
+const keys = { up:false, down:false, left:false, right:false, boost:false, act:false };
 
 // ============================================================================
 // AUDIO — Web Audio synthesis. No files, no network, works offline on the
@@ -3318,9 +3326,12 @@ function silently(fn) {
   const muted = {};
   for (const k in SFX) if (typeof SFX[k] === 'function') { muted[k] = SFX[k]; SFX[k] = () => {}; }
   const keep = { cash: G.cash, best: G.bestDist, unlocked: new Set(G.unlocked) };
+  const dust0 = new Set(dustParticles);
   try { return fn(); }
   finally {
     SIM = wasSim;
+    // Test runs kick up dust too: sweep away everything they spawned
+    dustParticles = dustParticles.filter(p => { if (dust0.has(p)) return true; scene.remove(p); p.geometry.dispose(); p.material.dispose(); return false; });
     Object.assign(SFX, muted);
     G.cash = keep.cash; G.bestDist = keep.best; G.unlocked = keep.unlocked;
     document.getElementById('scorecard').classList.remove('show');
@@ -3960,7 +3971,8 @@ function quickSetup() {
   G.zPos = G.launchRampZ; G.zVel = 0;
   G.landingRampZ = LAUNCH_RAMP_OFFSET;
   G.runupDist = Math.max(0, RUNWAY_LEN - RS.d - quickApproachLen());
-  G.gust = 0; G.gustT = 0.3; G.gustTarget = 0;
+  G.actReady = false; G.flipping = false; keys.act = false;
+  if (!SIM) document.getElementById('meterTxt').textContent = 'TAP TO SET SPEED';
 }
 function lockMeter(f) {
   if (G.meter !== 'swing') return;
@@ -3995,14 +4007,31 @@ function drawMeter() {
   else gt.style.display = 'none';
 }
 
-// In-flight gusts: a smoothed random shove on the pitch you have to ride out.
-function quickGust(dt, rot) {
-  G.gustT -= dt;
-  if (G.gustT <= 0) { G.gustT = 0.35 + Math.random() * 0.55; G.gustTarget = (Math.random() * 2 - 1) * rot * GUST_K; }
-  G.gust += (G.gustTarget - G.gust) * Math.min(1, dt * 5);
-  G.pitchVel += G.gust * dt;
+// ONE BUTTON IN THE AIR. Hold to throw a backflip; let go and the rider
+// tucks the nose down onto the landing ramp — but only if he's within reach
+// of it. Let go upside down and he keeps tumbling: that's the crash.
+const actHeld = () => !!(keys.act || keys.up || keys.down || keys.left || keys.right);
+function flipRate(def) { return def.fourWheel ? (def.id === 'rocketsled' ? 4.2 : 4.8) : (def.id === 'bmx' ? 7.6 : 7.0); }
+function quickAir(dt, def) {
+  const held = actHeld();
+  if (!held) G.actReady = true;                    // the tap that set the speed doesn't count
+  G.flipping = held && G.actReady;
+  if (G.flipping) {
+    G.pitchVel += (flipRate(def) - G.pitchVel) * Math.min(1, dt * 10);
+    return;
+  }
+  // Settle onto the landing slope: nearest equivalent angle, within ~90°
+  const want = -G.landingRampAngleRad, TAU = Math.PI * 2;
+  const err = want + Math.round((G.pitch - want) / TAU) * TAU - G.pitch;
+  if (Math.abs(err) < 1.6) G.pitchVel += (err * 30 - G.pitchVel * 11) * dt;
+  else G.pitchVel *= 1 - dt * 0.8;                 // too far gone: he tumbles in
 }
-const GUST_K = 0.55;
+function setActLabel() {
+  const t = document.getElementById('actTxt');
+  if (!t) return;
+  const txt = G.meter === 'swing' ? 'GO!' : (G.phase === 'airborne' || G.phase === 'runup') ? 'HOLD<br>FLIP' : 'GO';
+  if (t.innerHTML !== txt) t.innerHTML = txt;
+}
 
 // Side-on broadcast frame for the flight: both ramps (and every bus) in shot.
 function broadcastFrame() {
@@ -4449,7 +4478,8 @@ function startLaunch() {
   const startX = -baseLen - RUNWAY_LEN;
   if (G.quickRun) {
     const qx = startX + G.runupDist;
-    camPos.set(qx - 7.5, 3, G.zPos + 2.2); camTarget.set(qx + 10, 1, G.zPos);
+    const narrow = Math.min(1, camera.aspect);
+    camPos.set(qx - 7.5 - (1 - narrow) * 5, 3 + (1 - narrow) * 1.5, G.zPos + 2.2 * narrow); camTarget.set(qx + 10, 1, G.zPos);
   } else {
     camPos.set(startX - 6, 7, 28);
     camTarget.set(startX + 8, 1.5, 0);
@@ -4649,11 +4679,11 @@ function updateAirborne(dt) {
 
   // Pitch (UP/DOWN now control pitch in air)
   const rot = def.rotRate;
-  // Quick: ◀ ▶ rotate (◀ = lean back, nose up), and ▲ ▼ still work
-  const back = keys.up || (G.quickRun && keys.left), fwd = keys.down || (G.quickRun && keys.right);
-  if (back) G.pitchVel += rot * dt * 2;
-  if (fwd)  G.pitchVel -= rot * dt * 2;
-  if (G.quickRun) quickGust(dt, rot);
+  if (G.quickRun) quickAir(dt, def);
+  else {
+    if (keys.up)   G.pitchVel += rot * dt * 2;
+    if (keys.down) G.pitchVel -= rot * dt * 2;
+  }
   G.pitchVel *= 0.985;
   G.pitch += G.pitchVel * dt;
   G.cumRotation += Math.abs(G.pitchVel * dt);
@@ -4851,7 +4881,7 @@ function finishJump(where) {
   if (outcome === 'perfect') cash += 200;
   else if (outcome === 'survived') cash += 80;
   else if (outcome === 'technical') cash += 30;
-  if (fullRotations > 0) cash += fullRotations * 50;
+  if (fullRotations > 0) cash += fullRotations * (G.quickRun ? 100 : 50);
   const busesNow = isBusVenue() && outcome !== 'crashed' ? G.busCount : 0;
   if (busesNow) cash += busesNow * 30;
   if (isTrainVenue()) cash += { door: 120, under: 100, over: 60, gap: 150 }[G.trainLine] || 0;
@@ -5502,6 +5532,7 @@ const camTarget = new THREE.Vector3(0, 4, 0);
 const camPos = new THREE.Vector3(-20, 14, 38);
 
 const _crashV = new THREE.Vector3();
+const quickTouch = new Set();
 function updateCamera(dt) {
   let desiredPos = new THREE.Vector3();
   let desiredTarget = new THREE.Vector3();
@@ -5516,7 +5547,8 @@ function updateCamera(dt) {
     const vy = vehicleGroup ? vehicleGroup.position.y : 0;
     if (G.quickRun && G.phase === 'runup') {
       // Tight chase on the approach
-      desiredPos.set(vx - 7.5, vy + 3, G.zPos + 2.2);
+      const narrow = Math.min(1, camera.aspect);        // portrait: sit further back and more directly behind
+      desiredPos.set(vx - 7.5 - (1 - narrow) * 5, vy + 3 + (1 - narrow) * 1.5, G.zPos + 2.2 * narrow);
       desiredTarget.set(vx + 10, vy + 1, G.zPos);
     } else if (G.quickRun && G.phase === 'airborne' && !isTrainVenue()) {
       // Side-on broadcast: both ramps and the whole bus row in frame. Pans only
@@ -5625,6 +5657,9 @@ function setupCameraControls() {
   const pts = new Map();
   let pinch0 = 0, zoom0 = 1, lastTap = 0;
   el.addEventListener('pointerdown', e => {
+    if (G.quickRun && (G.phase === 'runup' || G.phase === 'airborne')) {   // the whole screen is the button
+      keys.act = true; el.setPointerCapture(e.pointerId); quickTouch.add(e.pointerId); return;
+    }
     el.setPointerCapture(e.pointerId);
     pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pts.size === 2) {
@@ -5649,7 +5684,10 @@ function setupCameraControls() {
       CAM.zoom = THREE.MathUtils.clamp(zoom0 * pinch0 / Math.max(20, Math.hypot(a.x - b.x, a.y - b.y)), 0.35, 3);
     }
   });
-  const up = e => { pts.delete(e.pointerId); if (pts.size < 2) pinch0 = 0; saveCam(); };
+  const up = e => {
+    if (quickTouch.delete(e.pointerId)) { if (!quickTouch.size) keys.act = false; return; }
+    pts.delete(e.pointerId); if (pts.size < 2) pinch0 = 0; saveCam();
+  };
   el.addEventListener('pointerup', up);
   el.addEventListener('pointercancel', up);
   el.addEventListener('wheel', e => {
@@ -5700,6 +5738,7 @@ function setupInput() {
   press('btnLeft',  'left');
   press('btnRight', 'right');
   press('btnBoost', 'boost');
+  press('btnAct', 'act');
   document.addEventListener('pointerdown', e => meterTap(e), true);
   const mr = document.getElementById('modeRow');
   if (mr) mr.addEventListener('click', e => { const b = e.target.closest('button'); if (b) { SFX.click(); setQuick(b.dataset.q === '1'); } });
@@ -6015,6 +6054,7 @@ function animate() {
 
   updateTrain(dt);
   drawMeter();
+  setActLabel();
   updateParticles(dt);
   updateDebris(dt);
   updateGhost(dt);
