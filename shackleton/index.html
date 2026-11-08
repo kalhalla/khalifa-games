@@ -573,6 +573,11 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   window.THREE = Object.assign({}, T, { GLTFLoader, SkeletonUtils });
 </script>
 <script type="module">
+  // MASCON's lunar terrain generator (shared module) — crater floor detail.
+  import { createHeightfield } from '/shackleton/lunar-terrain.js?v=0.7.1';   // bump with the module (stale-cache guard)
+  window.ShackletonLunar = { createHeightfield };
+</script>
+<script type="module">
 (function(){
   'use strict';
 
@@ -583,7 +588,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.7.0';  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.7.1';  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -828,7 +833,12 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       )
       .replace(
         '#include <worldpos_vertex>',
-        '#include <worldpos_vertex>\nvWorldPos_regolith = (modelMatrix * vec4(transformed, 1.0)).xyz;'
+        '#include <worldpos_vertex>\nvWorldPos_regolith = (modelMatrix * vec4(transformed, 1.0)).xyz;' +
+        '\n#ifdef USE_LUNAR_SURF\nvSurf = surf;\n#endif'
+      )
+      .replace(
+        '#include <common>',
+        '#include <common>\n#ifdef USE_LUNAR_SURF\nattribute vec2 surf;\nvarying vec2 vSurf;\n#endif'
       );
     // Inject the noise into the diffuse colour just before lighting.
     // hash3() turns a 3D world position into a deterministic 0..1
@@ -877,6 +887,9 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
            // Apply as multiplicative shade. 1 + n in roughly [0.92, 1.08].
            diffuseColor.rgb *= (1.0 + n);
            // v0.6.2 albedo: maturity patches + fresh-crater halos and rays.
+           // (Skipped on the floor grid: its vertex colours carry MASCON's
+           // albedo from the real crater list.)
+           #ifndef USE_COLOR
            vec2 wp = vWorldPos_regolith.xz;
            float alb = 1.0
              + (valueNoise(vec3(wp * 0.022, 3.1)) - 0.5) * 0.30
@@ -895,6 +908,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
              alb += 0.26 * rays * reach;
            }
            diffuseColor.rgb *= clamp(alb, 0.62, 1.35) * 0.88;   // 0.88: headroom for halos
+           #endif
          }`
       )
       .replace(
@@ -907,8 +921,13 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
            vec3 upV = normalize((viewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
            float slopeCos = abs(dot(faceN, upV));
            float rock = 1.0 - smoothstep(0.80, 0.92, slopeCos);       // > ~37° = rock
+           float facetFloor = DUST_FACET_U;
+           #ifdef USE_LUNAR_SURF
+             rock = max(rock, clamp(vSurf.x * 1.3, 0.0, 1.0));        // MASCON rock map
+             facetFloor = mix(DUST_FACET_U, 0.15, clamp(vSurf.y, 0.0, 1.0));   // settled dust reads smooth
+           #endif
            if (dot(faceN, normal) < 0.0) faceN = -faceN;
-           normal = normalize(mix(normal, faceN, max(rock, DUST_FACET_U)));
+           normal = normalize(mix(normal, faceN, max(rock, facetFloor)));
            // Grain normal: world-space gradient of value noise, two scales,
            // strong on dust, faint on rock.
            vec3 p = vWorldPos_regolith;
@@ -918,6 +937,9 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
            float g2x = valueNoise(p * 0.9 + vec3(e, 0.0, 0.0)) - valueNoise(p * 0.9 - vec3(e, 0.0, 0.0));
            float g2z = valueNoise(p * 0.9 + vec3(0.0, 0.0, e)) - valueNoise(p * 0.9 - vec3(0.0, 0.0, e));
            float amp = mix(1.6, 0.5, rock);
+           #ifdef USE_LUNAR_SURF
+             amp *= 1.0 - 0.6 * clamp(vSurf.y, 0.0, 1.0);   // fine dust: softer grain
+           #endif
            vec3 gW = vec3(g1x * 0.9 + g2x * 1.4, 0.0, g1z * 0.9 + g2z * 1.4) * amp;
            normal = normalize(normal - (viewMatrix * vec4(gW, 0.0)).xyz);
          }`
@@ -933,13 +955,13 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
            float ls = min(2.0 * dotNL / max(dotNL + dotNV_l, 1e-3), dotNL * 1.7);
            // Opposition surge: sun straight behind the viewer.
            float phase = saturate(dot(${GEO_V}, directLight.direction));
-           float surge = 1.0 + 0.30 * exp(-(1.0 - phase) * 22.0);
+           float surge = 1.0 + 0.18 * exp(-(1.0 - phase) * 22.0);   // 0.30 blew out fresh ejecta down-sun (v0.7.1)
            vec3 irradiance = mix(dotNL, ls, LUNAR_K_U) * surge * directLight.color;`
         )
       );
     shader.fragmentShader = shader.fragmentShader.replace(
       '#include <common>',
-      '#include <common>\nuniform vec4 uFresh[6];\n#define LUNAR_K_U ' + REGOLITH_LUNAR_K.toFixed(3) +
+      '#include <common>\n#ifdef USE_LUNAR_SURF\nvarying vec2 vSurf;\n#endif\nuniform vec4 uFresh[6];\n#define LUNAR_K_U ' + REGOLITH_LUNAR_K.toFixed(3) +
       '\n#define DUST_FACET_U ' + DUST_FACET.toFixed(3));
     shader.uniforms.uFresh = { value: REGOLITH_FRESH };
   };
@@ -1356,7 +1378,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // Safe to tune from screenshots: AMP is the single knob for
   // "how lumpy"; pull it toward 0.6 if objects with hardcoded Y
   // heights start floating or sinking.
-  const FLOOR_NOISE_AMP   = 1.1;    // metres, primary component
+  const FLOOR_NOISE_AMP   = 0.6;    // metres, primary component (v0.7.1: 1.1 → 0.6, MASCON detail adds the rest)
   const FLOOR_FREQ_A      = 0.045;  // rad/m — broad rolling swells (~140m)
   const FLOOR_FREQ_B      = 0.11;   // rad/m — mid detail (~57m)
   const FLOOR_FREQ_C      = 0.19;   // rad/m — fine facets (~33m)
@@ -1369,6 +1391,43 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // floor edge (r >= CRATER_FLOOR) and small noise elsewhere.
   // Tapered near the edge so the floor seats flush against the
   // wall transition without a visible step.
+  // ── LUNAR FLOOR DETAIL (v0.7.1) — MASCON's generator ──
+  // Real crater geometry (bowl, raised rim, ejecta; fresh / mature /
+  // degraded), rock fields, settled dust patches and albedo, from the
+  // shared lunar-terrain.js. Shackleton-specific settings: no maria
+  // (south-polar highlands), no map-edge craters (they'd land in the
+  // walls), broad rolling ground scaled down (the floor keeps its own
+  // swells), hand-placed landmark craters clear of every work site.
+  const LUNAR_FLOOR_OPTS = {
+    seed: 0, size: 408, cacheRes: 408, cacheBound: 204,
+    pad: { radius: 0, blend: 1 },          // Shackleton applies its own pads below
+    maria: [], rim: [], backdrop: false, baseScale: 0.35,
+    landmarks: [[95, -60, 22, 'mature'], [-120, -70, 16, 'fresh'], [60, 120, 26, 'degraded'], [135, 55, 12, 'fresh']],
+    craters: [
+      { count: 22,  spread: 390, clear: 0, rMin: 5,   rMax: 16,  fresh: 0.22, mature: 0.43 },
+      { count: 90,  spread: 395, clear: 0, rMin: 1.6, rMax: 5.2, fresh: 0.25, mature: 0.40 },
+      { count: 160, spread: 395, clear: 0, rMin: 0.7, rMax: 1.7, fresh: 0.12, mature: 0.38 },
+    ],
+    dust: { first: null, count: 14, rMin: 20, rMax: 180, sizeMin: 8, sizeMax: 24 },
+  };
+  const lunarFloor = window.ShackletonLunar.createHeightfield(LUNAR_FLOOR_OPTS);
+  // Level work sites: noise AND craters fade to zero inside r, back to
+  // full over `blend`. Literal coordinates — the peak/ice constants are
+  // declared further down the file (TDZ at mesh-build time).
+  const FLOOR_PADS = [
+    { x: 8,   z: -2, r: 30, blend: 20 },     // wreck / wake site / Flyer / refill panel (the v0.4 apron)
+    { x: -75, z: 80, r: 10, blend: 10 },     // ice pocket (ICE_POCKET)
+    { x: -60, z: 30, r: 16.5, blend: 8 },    // central peak foot (PEAK_CENTER, base r 12.5 + 4)
+  ];
+  function floorPadMask(x, z) {
+    let m = 1;
+    for (const p of FLOOR_PADS) {
+      const d = Math.hypot(x - p.x, z - p.z);
+      m = Math.min(m, d < p.r ? 0 : Math.min(1, (d - p.r) / p.blend));
+    }
+    return m * m * (3 - 2 * m);
+  }
+
   function floorHeight(x, z) {
     const r = Math.hypot(x, z);
     if (r >= CRATER_FLOOR) return 0;
@@ -1381,10 +1440,8 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     // area so the opening, refill panel, and Flyer assembly sit on
     // near-level ground regardless of AMP tuning. Radius 30m around
     // the wreck at (8,-2); smooth ramp out over a further 20m.
-    const dxW = x - 8, dzW = z + 2;
-    const rW = Math.hypot(dxW, dzW);
-    const apron = rW < 30 ? 0 : Math.min(1, (rW - 30) / 20);
-    return noise * tEdge * apron;
+    // (v0.7.1: the wreck apron is now FLOOR_PADS[0]; same 30m + 20m ramp.)
+    return (noise + lunarFloor.heightAt(x, z)) * tEdge * floorPadMask(x, z);
   }
 
   const craterContents = new THREE.Group();
@@ -1419,7 +1476,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // declared near the top of the file (hoisted so the outer mesh
   // can reference them at construction time). Wall ring count is
   // local to this block — only the rim ring needs cross-mesh sync.
-  const INNER_FLOOR_RINGS = 24;  // dense rings through floor (r=0..CRATER_FLOOR)
+  const INNER_FLOOR_RINGS = 3;   // v0.7.1: wall-foot collar only (r = FLOOR-6 .. FLOOR)
   const INNER_WALL_RINGS = 28;   // dense rings through wall transition
 
   // Wall surface elevation in the rim transition zone.
@@ -1461,15 +1518,18 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     // Floor rings — packed tighter near the edge where the wall
     // transition begins. Range: r=0 (excluded — that's the centre
     // vertex) to r=CRATER_FLOOR.
+    // v0.7.1: the floor itself is now the 1.5m grid (buildFloorGrid).
+    // These rings only form a narrow 6m collar at the foot of the wall,
+    // 8cm below the true surface so the grid draws over it with no seam.
+    // (The centre vertex above stays in the buffer, unreferenced.)
     for (let ring = 1; ring <= INNER_FLOOR_RINGS; ring++) {
       const t = ring / INNER_FLOOR_RINGS;
-      // Quadratic spacing so rings cluster near the floor edge
-      const r = CRATER_FLOOR * (t * t * 0.7 + t * 0.3);
+      const r = (CRATER_FLOOR - 6) + 6 * t;
       for (let i = 0; i < INNER_SEGS; i++) {
         const a = (i / INNER_SEGS) * Math.PI * 2;
         const x = Math.cos(a) * r;
         const z = Math.sin(a) * r;
-        positions.push(x, -CRATER_DEPTH + floorHeight(x, z), z);
+        positions.push(x, -CRATER_DEPTH + floorHeight(x, z) - (ring < INNER_FLOOR_RINGS ? 0.08 : 0), z);
       }
     }
 
@@ -1489,13 +1549,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       }
     }
 
-    // Triangle indices.
-    // Centre fan.
-    for (let i = 0; i < INNER_SEGS; i++) {
-      const i1 = 1 + i;
-      const i2 = 1 + ((i + 1) % INNER_SEGS);
-      indices.push(0, i2, i1);
-    }
+    // Triangle indices. (v0.7.1: no centre fan — the grid owns the floor.)
     // Ring quads — wound for outward-facing normals.
     const totalRings = INNER_FLOOR_RINGS + INNER_WALL_RINGS;
     for (let ring = 1; ring < totalRings; ring++) {
@@ -1540,6 +1594,77 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   innerSurface.castShadow = false;
   innerSurface.receiveShadow = true;
   root.add(innerSurface);
+
+  // ============================================================
+  // FLOOR GRID (v0.7.1) — the crater floor at ~1.5m, MASCON-style.
+  // The old polar floor ran 8m triangles at the edge: too coarse to
+  // hold a crater. This square grid (jittered so it never reads as a
+  // grid) covers r ≤ 204 and is clipped to the circle; past the floor
+  // edge it follows the wall 6cm low, so the wall mesh hides the seam.
+  // Per vertex, from lunarFloor:
+  //   color  albedo (0.22–0.86, normalised to the regolith base)
+  //   surf   x = rockiness (crater rims, boulder fields, steep faces)
+  //          y = fine dust (smooth, settled patches)
+  // Height comes from floorHeight → the same function getGroundY uses,
+  // so what you see is what you walk on.
+  // ============================================================
+  const FLOOR_GRID_CELL = 1.5, FLOOR_GRID_HALF = 204;
+  function buildFloorGrid() {
+    const N = Math.ceil((FLOOR_GRID_HALF * 2) / FLOOR_GRID_CELL);
+    const g = new THREE.PlaneGeometry(FLOOR_GRID_HALF * 2, FLOOR_GRID_HALF * 2, N, N);
+    g.rotateX(-Math.PI / 2);
+    const pos = g.attributes.position;
+    const hsh = lunarFloor.hash;
+    const cols = new Float32Array(pos.count * 3), surfA = new Float32Array(pos.count * 2);
+    for (let i = 0; i < pos.count; i++) {
+      let x = pos.getX(i), z = pos.getZ(i);
+      if (Math.abs(x) < FLOOR_GRID_HALF - 0.5 && Math.abs(z) < FLOOR_GRID_HALF - 0.5) {
+        x += (hsh(Math.round(x * 7 + 1000), Math.round(z * 7 + 3000)) - 0.5) * 0.9;
+        z += (hsh(Math.round(x * 5 + 2000), Math.round(z * 11 + 4000)) - 0.5) * 0.9;
+      }
+      const r = Math.hypot(x, z);
+      const y = r < CRATER_FLOOR ? -CRATER_DEPTH + floorHeight(x, z) : getGroundYNoPeak(x, z) - 0.06;
+      pos.setXYZ(i, x, y, z);
+      const pad = r < CRATER_FLOOR ? floorPadMask(x, z) : 0;
+      const edge = Math.min(1, Math.max(0, (CRATER_FLOOR - r) / 40));
+      const a = 0.6 + (lunarFloor.albedoAt(x, z) - 0.6) * edge * (0.35 + 0.65 * pad);
+      const c = Math.min(1.25, a / 0.66);      // 0.6 normalisation ran hot on fresh ejecta
+      cols[i * 3] = c; cols[i * 3 + 1] = c * 0.995; cols[i * 3 + 2] = c * 0.99;
+      const dust = lunarFloor.dustAt(x, z) * edge;
+      surfA[i * 2] = lunarFloor.rockAt(x, z) * (1 - dust) * edge * pad;
+      surfA[i * 2 + 1] = dust;
+    }
+    // Clip to the circle: keep triangles with every vertex inside r 204.
+    const idx = g.index.array, keep = [];
+    const inside = (k) => Math.hypot(pos.getX(k), pos.getZ(k)) < FLOOR_GRID_HALF;
+    for (let t = 0; t < idx.length; t += 3) {
+      if (inside(idx[t]) && inside(idx[t + 1]) && inside(idx[t + 2])) keep.push(idx[t], idx[t + 1], idx[t + 2]);
+    }
+    g.setIndex(keep);
+    g.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
+    g.setAttribute('surf', new THREE.Float32BufferAttribute(surfA, 2));
+    g.computeVertexNormals();
+    g.computeBoundingSphere();
+    return g;
+  }
+  // Wall height without the central peak (getGroundY is defined later).
+  function getGroundYNoPeak(x, z) {
+    const r = Math.hypot(x, z);
+    if (r <= CRATER_FLOOR) return -CRATER_DEPTH + floorHeight(x, z);
+    return wallY(r, Math.atan2(z, x));
+  }
+  const floorGridMat = regolith.clone();
+  floorGridMat.vertexColors = true;
+  floorGridMat.defines = Object.assign({}, floorGridMat.defines, { USE_LUNAR_SURF: '' });
+  floorGridMat.onBeforeCompile = regolith.onBeforeCompile;          // clone() drops it (r128 and r187)
+  floorGridMat.customProgramCacheKey = () => 'regolith-lunar-v2-grid';
+  const floorGrid = new THREE.Mesh(buildFloorGrid(), floorGridMat);
+  floorGrid.name = 'crater-floor';
+  // Craters' rims now cast into their own bowls (MASCON does the same);
+  // a small normal bias keeps the flat stretches clean.
+  floorGrid.castShadow = true;
+  floorGrid.receiveShadow = true;
+  root.add(floorGrid);
 
   // ============================================================
   // CENTRAL PEAK — a wide chunky pyramid with a three-turn spiral
@@ -2370,6 +2495,11 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       // the central peak. The peak is contained well inside
       // CRATER_FLOOR so we don't need to consult it elsewhere.
       const baseY = -CRATER_DEPTH + floorHeight(x, z);
+      // v0.7.1 FIX: peakHeight returns 0 (not "absent") outside the peak,
+      // so max(peak, floor) clamped every floor hollow up to the datum —
+      // the walk height floated over dips the mesh showed (±1.9m sines
+      // since v0.4; 5m crater bowls now). Only consult the peak on it.
+      if (Math.hypot(x - PEAK_CENTER_X, z - PEAK_CENTER_Z) >= PEAK_BASE_R) return baseY;
       const peakY = -CRATER_DEPTH + peakHeight(x, z);
       return peakY > baseY ? peakY : baseY;
     }
@@ -2396,7 +2526,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // Mesh references — handy for raycasting, debug visualisation,
   // and future scene swap/unload paths. Order: outer field, far
   // ring, inner surface (single mesh; replaced the old floor+wall pair).
-  shackletonScene.meshes = [outerSurface, outerFarRing, innerSurface];
+  shackletonScene.meshes = [outerSurface, outerFarRing, innerSurface, floorGrid];
 
   // ============================================================
   // GROUND-CLAMP LANDED VEHICLES
