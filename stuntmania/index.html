@@ -132,6 +132,8 @@
     cursor: pointer; font-family: inherit; color: #2a1a10; display: flex; flex-direction: column; align-items: center; gap: 1px; }
   .venue-btn:hover { transform: translate(-1px, -1px); }
   .venue-btn.selected { background: #F2C54B; }
+  .venue-btn.locked { opacity: 0.5; cursor: not-allowed; background: #CFC7BD; }
+  .venue-btn.locked .vtag { opacity: 1; color: #E24A2E; }
   .venue-btn .vname { font-size: 11px; letter-spacing: 0.5px; }
   .venue-btn .vgap { font-size: 15px; color: #E24A2E; }
   .venue-btn .vtag { font-size: 8px; letter-spacing: 1.5px; opacity: 0.65; }
@@ -307,7 +309,7 @@
 </head>
 <body>
 
-<div id="version">STUNTMANIA '76 — Build 0.22.0</div>
+<div id="version">STUNTMANIA '76 — Build 0.23.0</div>
 
 <canvas id="canvas"></canvas>
 
@@ -316,6 +318,7 @@
   <div class="dev-head">DEV MODE <span>` to hide</span></div>
   <div class="dev-row"><select id="devVehicle"></select><select id="devVenue"></select></div>
   <div class="dev-row"><button id="devUnlock">Unlock all + £10k</button><button id="devMenu">Menu</button></div>
+  <div class="dev-row"><button id="devReset">Reset progress (new player)</button></div>
   <div class="dev-sub">SCENARIOS (current vehicle + venue)</div>
   <div id="devScen" class="dev-grid"></div>
   <div class="dev-sub">TIME</div>
@@ -464,7 +467,7 @@ rocketcar: "Z2xURgIAAAA8RwQA+BIAAEpTT057ImFzc2V0Ijp7ImdlbmVyYXRvciI6ImdsVEYtVHJh
 // Build 0.2.0  —  Active runup (throttle + steering), camera snap on launch.
 // ============================================================================
 
-const BUILD_VERSION = '0.22.0';
+const BUILD_VERSION = '0.23.0';
 
 // ---------- PALETTE ---------------------------------------------------------
 const COL = {
@@ -537,12 +540,23 @@ const PEDAL_CADENCE = 1.5;      // crank radians per m/s of runup; capped so leg
 // Three stretches of Widowmaker Gulch. The player picks one on the setup
 // screen; any vehicle can jump any venue. Width is rim-to-rim in metres.
 // rampLen: landing-ramp deck length; distMax: how far past the rim it can go.
+// The show runs in this order: the bus jump opens the night, then the canyon.
+// need: what opens a venue (shown on its locked button).
 const VENUES = [
-  { id: 'narrows', name: 'THE NARROWS',   width: 34,  tag: 'BIKES',   seed: 1976, rampLen: 14, distMax: 40 },
-  { id: 'wide',    name: 'THE WIDE SPOT', width: 55,  tag: 'CARS',    seed: 1977, rampLen: 20, distMax: 60 },
-  { id: 'drop',    name: 'THE BIG DROP',  width: 130, tag: 'ROCKETS', seed: 1978, rampLen: 40, distMax: 110 },
-  { id: 'buses',   name: 'BUS JUMP',      width: 0,   tag: 'DAREDEVILS', seed: 1979, rampLen: 12, distMax: 0, kind: 'buses' },
+  { id: 'buses',   name: 'BUS JUMP',      width: 0,   tag: 'OPENING ACT', seed: 1979, rampLen: 12, distMax: 0, kind: 'buses' },
+  { id: 'narrows', name: 'THE NARROWS',   width: 34,  tag: 'BIKES',   seed: 1976, rampLen: 14, distMax: 40,  need: 'CLEAR 5 BUSES' },
+  { id: 'wide',    name: 'THE WIDE SPOT', width: 55,  tag: 'CARS',    seed: 1977, rampLen: 20, distMax: 60,  need: 'LAND THE NARROWS' },
+  { id: 'drop',    name: 'THE BIG DROP',  width: 130, tag: 'ROCKETS', seed: 1978, rampLen: 40, distMax: 110, need: 'LAND THE WIDE SPOT' },
 ];
+const venueIdx = id => VENUES.findIndex(v => v.id === id);
+function venueOpen(i) {
+  const id = VENUES[i].id;
+  if (G.allVenues || id === 'buses') return true;
+  if (id === 'narrows') return G.bill.has('b1');
+  if (id === 'wide') return G.landedAt.has('narrows');
+  if (id === 'drop') return G.landedAt.has('wide');
+  return true;
+}
 const landingLen = () => VENUES[G.venue].rampLen;
 let CANYON_WIDTH = 34;           // set by setVenue(); everything reads it live
 const PLATEAU_DEPTH = 80;
@@ -620,7 +634,9 @@ const G = {
   phase:        'menu',  // 'menu' | 'runup' | 'airborne' | 'landed' | 'crashed'
   vehicleIdx:   0,
   venue:        0,       // index into VENUES
-  busCount:     5,       // buses lined up at the Bus Jump
+  busCount:     4,       // buses lined up at the Bus Jump
+  landedAt:     new Set(),   // venues with at least one clean landing
+  allVenues:    false,       // every venue open (older saves, dev)
   busRecord:    {},      // most buses cleared, per vehicle
   bill:         new Set(),   // stunt-bill feats completed
   placeMode:    'auto',
@@ -1067,8 +1083,14 @@ function init() {
   fill.position.set(-90, 40, 40);
   scene.add(fill);
 
-  try { G.venue = THREE.MathUtils.clamp(+localStorage.getItem('sm76venue') || 0, 0, VENUES.length - 1); } catch (e) {}
+  try {
+    const OLD = ['narrows', 'wide', 'drop', 'buses'];   // pre-0.23 order, stored as an index
+    let id = localStorage.getItem('sm76venueId');
+    if (!id && localStorage.getItem('sm76venue') !== null) id = OLD[+localStorage.getItem('sm76venue')] || 'buses';
+    G.venue = Math.max(0, venueIdx(id || 'buses'));
+  } catch (e) { G.venue = 0; }
   loadGame();
+  if (!venueOpen(G.venue)) G.venue = 0;
   buildVenue();
   window.addEventListener('resize', onResize);
 
@@ -1121,7 +1143,7 @@ function buildVenue() {
 function setVenue(i) {
   if (i === G.venue) return;
   G.venue = i;
-  try { localStorage.setItem('sm76venue', String(i)); } catch (e) {}
+  try { localStorage.setItem('sm76venueId', VENUES[i].id); } catch (e) {}
   for (const o of WORLD) {
     scene.remove(o);
     o.traverse(c => {
@@ -1136,7 +1158,12 @@ function setVenue(i) {
 
 function updateVenueButtons() {
   updateBill();
-  document.querySelectorAll('.venue-btn').forEach((b, i) => b.classList.toggle('selected', i === G.venue));
+  document.querySelectorAll('.venue-btn').forEach((b, i) => {
+    const open = venueOpen(i), tag = b.querySelector('.vtag');
+    b.classList.toggle('selected', i === G.venue);
+    b.classList.toggle('locked', !open);
+    if (tag) tag.textContent = open ? tag.dataset.tag : '🔒 ' + VENUES[i].need;
+  });
 }
 
 function onResize() {
@@ -3189,6 +3216,7 @@ function saveGame() {
       ramp: G.rampAngleDeg, land: G.landingRampAngleDeg, played: true,
       dist: G.landingRampDist, lane: G.landingRampZ, tut: G.tutorialDone,
       buses: G.busCount, busRec: G.busRecord, bill: [...G.bill],
+      landedAt: [...G.landedAt], allVenues: G.allVenues,
     }));
   } catch (e) {}
 }
@@ -3208,6 +3236,9 @@ function loadGame() {
     if (d.buses >= 1) G.busCount = d.buses;
     if (d.busRec) G.busRecord = d.busRec;
     (d.bill || []).forEach(id => G.bill.add(id));
+    (d.landedAt || []).forEach(id => G.landedAt.add(id));
+    // Saves from before the bus-first order had every venue open: keep it that way
+    G.allVenues = !!d.allVenues || (!!d.played && !d.landedAt);
   } catch (e) {}
 }
 
@@ -3298,13 +3329,13 @@ function setVehicle(idx) {
   saveGame();
 }
 
-// First visit: straight into a BMX run at the Narrows once the models load.
+// First visit: straight into a BMX run at the bus jump once the models load.
 function firstRunIfNew() {
   if (SAVE_FOUND || G.phase !== 'menu') return;
-  if (G.venue !== 0) { G.venue = -1; setVenue(0); }
+  G.busCount = 4;
+  G.venue = -1; setVenue(venueIdx('buses'));
   setVehicle(0);
-  G.placeMode = 'auto';
-  if (!autoPlaceRamp()) return;
+  G.landingRampDist = 0; G.landingRampZ = LAUNCH_RAMP_OFFSET; rebuildLandingRamp();
   saveGame();
   document.getElementById('menu').classList.add('hidden');
   startLaunch();
@@ -3322,13 +3353,15 @@ function tutorialActive() { return VEHICLE_DEFS[G.vehicleIdx].id === 'bmx' && !G
 function recordGhost() {
   const key = [G.vehicleIdx, G.venue, G.rampAngleDeg, G.landingRampAngleDeg, G.landingRampDist, G.landingRampZ].join('|');
   if (GHOST.key === key && GHOST.frames) return GHOST.frames;
-  const frames = silently(() => {
+  // Try full throttle first, then ease off until a clean landing: at a short
+  // bus jump the lesson IS letting go of the throttle in time.
+  const fly = (thr) => silently(() => {
     startLaunch();
     const out = [], dt = 1 / 60;
     let n = 0;
     while ((G.phase === 'runup' || G.phase === 'airborne') && n < 9000) {
       if (G.phase === 'runup') {
-        keys.up = true;
+        keys.up = G.runupDist < thr * (RUNWAY_LEN + 20);
         const want = THREE.MathUtils.clamp((G.launchRampZ - G.zPos) * 2.2, -STEER_TOP_SPEED, STEER_TOP_SPEED);
         keys.right = G.zVel < want - 0.4; keys.left = G.zVel > want + 0.4;
         updateRunup(dt);
@@ -3339,12 +3372,19 @@ function recordGhost() {
         updateAirborne(dt);
       }
       const v = vehicleGroup;
-      if (v) out.push([v.position.x, v.position.y, v.position.z, v.rotation.x, v.rotation.z, G.crankAngle]);
+      if (v) out.push([v.position.x, v.position.y, v.position.z, v.rotation.x, v.rotation.z, G.crankAngle, G.phase === 'runup' ? G.runupSpeed : -1]);
       n++;
     }
     keys.up = keys.down = keys.left = keys.right = false;
-    return out;
+    return { out, ok: G.phase === 'landed', grade: document.getElementById('grade').textContent };
   });
+  let best = null;
+  for (const thr of [1, 0.92, 0.85, 0.8, 0.75, 0.7, 0.65, 0.6, 0.55, 0.5]) {
+    const r = fly(thr);
+    if (r.ok && r.grade === 'STUCK THE LANDING') { best = r; break; }
+    if (r.ok && !best) best = r;
+  }
+  const frames = (best || fly(1)).out;
   GHOST.key = key; GHOST.frames = frames;
   return frames;
 }
@@ -3383,9 +3423,11 @@ function updateGhost(dt) {
   // Coaching line, from what YOU are doing right now
   let hint = '';
   if (G.phase === 'runup') {
-    hint = Math.abs(G.zPos - G.launchRampZ) > RAMP_HALF_W * 0.6
-      ? '◀ ▶ STEER INTO THE RAMP — FOLLOW THE GHOST'
-      : '▲ HOLD THROTTLE — STAY IN THE LANE';
+    const gs = f[6];   // the ghost's speed at this moment (-1 once it's airborne)
+    if (Math.abs(G.zPos - G.launchRampZ) > RAMP_HALF_W * 0.6) hint = '◀ ▶ STEER INTO THE RAMP — FOLLOW THE GHOST';
+    else if (gs >= 0 && G.runupSpeed > gs + 1.5) hint = '▼ EASE OFF — YOU\'RE FASTER THAN THE GHOST';
+    else if (gs >= 0 && G.runupSpeed < gs - 1.5) hint = '▲ MORE THROTTLE — KEEP UP WITH THE GHOST';
+    else hint = '▲ MATCH THE GHOST\'S SPEED — STAY IN THE LANE';
   } else if (G.phase === 'airborne') {
     hint = '▲ ▼ TILT TO MATCH THE LANDING RAMP';
   }
@@ -3496,7 +3538,7 @@ const BILL = {
     { id: 'd4', text: 'Splat the sled on the canyon wall',    reward: 150, test: r => r.where === 'wall' && r.veh === 'rocketsled' },
   ],
   buses: [
-    { id: 'b1', text: 'Clear 5 buses',                        reward: 150, test: r => r.landed && r.buses >= 5 },
+    { id: 'b1', text: 'Clear 5 buses — opens the canyon',     reward: 150, test: r => r.landed && r.buses >= 5 },
     { id: 'b2', text: 'Clear 10 buses',                       reward: 300, test: r => r.landed && r.buses >= 10 },
     { id: 'b3', text: 'Clear 15 buses',                       reward: 500, test: r => r.landed && r.buses >= 15 },
     { id: 'b4', text: 'Clear 6 buses on the BMX',             reward: 400, test: r => r.landed && r.veh === 'bmx' && r.buses >= 6 },
@@ -3671,7 +3713,12 @@ function setupDev() {
   });
   document.getElementById('devVenue').addEventListener('change', e => setVenue(+e.target.value));
   document.getElementById('devUnlock').addEventListener('click', () => {
-    VEHICLE_DEFS.forEach(d => G.unlocked.add(d.id)); G.cash += 10000; rebuildVehicleGrid();
+    VEHICLE_DEFS.forEach(d => G.unlocked.add(d.id)); G.cash += 10000; G.allVenues = true; saveGame(); rebuildVehicleGrid(); updateVenueButtons();
+  });
+  document.getElementById('devReset').addEventListener('click', () => {
+    if (!confirm('Wipe all progress and start as a new player?')) return;
+    try { localStorage.removeItem(SAVE_KEY); localStorage.removeItem('sm76venueId'); localStorage.removeItem('sm76venue'); } catch (e) {}
+    location.reload();
   });
   document.querySelectorAll('#devSpeed button').forEach(b => b.addEventListener('click', () => {
     DEV.speed = +b.dataset.s;
@@ -4144,15 +4191,19 @@ function finishJump(where) {
       const prev = G.busRecord[defNow.id] || 0;
       if (busesNow > prev) { G.busRecord[defNow.id] = busesNow; tip = `NEW RECORD: ${busesNow} BUSES ON THE ${defNow.name}. `; }
     }
+    const wasOpen = VENUES.map((v, i) => venueOpen(i));   // before this run's feats are counted
     const bill = checkBill({
       landed: outcome !== 'crashed', perfect: outcome === 'perfect', veh: defNow.id, bike: !defNow.fourWheel,
       flips: fullRotations, rampOut: G.landingRampDist, where, buses: busesNow,
       boostLeft: defNow.boostFuel ? G.boostFuel / defNow.boostFuel : 1,
     });
-    if (bill.paid) { G.cash += bill.paid; cash += bill.paid; tip += `★ ON THE BILL: ${bill.names.join(' · ').toUpperCase()} +£${bill.paid}`; }
+    if (bill.paid) { G.cash += bill.paid; cash += bill.paid; tip += `★ ON THE BILL: ${bill.names.join(' · ').toUpperCase()} +£${bill.paid}. `; }
+    // Venue progression: what this run just opened
+    if (outcome !== 'crashed') G.landedAt.add(VENUES[G.venue].id);
+    VENUES.forEach((v, i) => { if (!wasOpen[i] && venueOpen(i)) tip += `${i === 1 ? 'THE CANYON IS OPEN — ' : 'NOW OPEN: '}${v.name}! `; });
     if (outcome !== 'crashed' && defNow.id === 'bmx' && !G.tutorialDone) {
       G.tutorialDone = true;
-      tip = 'NICE. FROM NOW ON YOU PLACE YOUR OWN LANDING RAMP. ' + tip;
+      tip = (isBusVenue() ? 'NICE. NO MORE GHOST — YOU\'RE ON YOUR OWN NOW. ' : 'NICE. FROM NOW ON YOU PLACE YOUR OWN LANDING RAMP. ') + tip;
     }
   }
   document.getElementById('scTip').textContent = tip;
@@ -5018,11 +5069,13 @@ function setupUI() {
   rebuildVehicleGrid();
   const vr = document.getElementById('venueRow');
   vr.innerHTML = VENUES.map((v, i) =>
-    `<button class="venue-btn" data-i="${i}"><span class="vname">${v.name}</span><span class="vgap">${v.kind === 'buses' ? 'BUSES' : v.width + ' M'}</span><span class="vtag">FOR ${v.tag}</span></button>`).join('');
+    `<button class="venue-btn" data-i="${i}"><span class="vname">${v.name}</span><span class="vgap">${v.kind === 'buses' ? 'BUSES' : v.width + ' M'}</span><span class="vtag" data-tag="${v.kind === 'buses' ? v.tag : 'FOR ' + v.tag}">${v.tag}</span></button>`).join('');
   document.getElementById('busMinus').addEventListener('click', () => { SFX.click(); setBusCount(G.busCount - 1); });
   document.getElementById('busPlus').addEventListener('click', () => { SFX.click(); setBusCount(G.busCount + 1); });
   vr.querySelectorAll('.venue-btn').forEach(b => b.addEventListener('click', () => {
-    SFX.ensure(); SFX.click(); setVenue(+b.dataset.i);
+    SFX.ensure(); SFX.click();
+    if (!venueOpen(+b.dataset.i)) return;
+    setVenue(+b.dataset.i);
   }));
   updateVenueButtons();
 
@@ -5098,7 +5151,7 @@ function backToMenu() {
   document.getElementById('runupHint').classList.remove('show');
   if (vehicleGroup) { scene.remove(vehicleGroup); vehicleGroup = null; }
   rebuildVehicleGrid();
-  updateBill();
+  updateVenueButtons();
 }
 
 function retry(fromScorecard) {
