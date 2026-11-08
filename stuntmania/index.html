@@ -109,6 +109,19 @@
     background: rgba(34,43,51,0.82); color: #F2E0D5; border: 2px solid #CFF8FF; padding: 8px 16px;
     font-family: inherit; font-size: 15px; letter-spacing: 1.5px; white-space: nowrap; pointer-events: none; }
   #tutHint.show { display: block; }
+  #trainBoard { display: none; position: fixed; left: 50%; top: 74px; transform: translateX(-50%); z-index: 30; width: 320px; max-width: 86vw;
+    background: #F2E0D5; border: 2px solid #2a1a10; box-shadow: 3px 3px 0 #2a1a10; padding: 6px 10px 7px; color: #2a1a10; pointer-events: none; }
+  #trainBoard.show { display: block; }
+  #trainBoard.air { opacity: 0.45; }
+  #trainBoard .tb-head { font-size: 10px; letter-spacing: 2px; margin-bottom: 4px; }
+  #trainBoard .tb-track { position: relative; height: 20px; background: #5D3C1A; border: 2px solid #2a1a10; overflow: hidden; }
+  #trainBoard .tb-go { position: absolute; top: 0; bottom: 0; width: 3px; margin-left: -1px; background: #F2C54B; font-size: 0; }
+  #trainBoard .tb-go::after { content: 'GO'; position: absolute; left: 5px; top: 2px; font-size: 10px; color: #F2C54B; letter-spacing: 1px; }
+  #trainBoard .tb-car { position: absolute; top: 3px; width: 26px; height: 10px; margin-left: -13px; background: #E24A2E; border: 1px solid #F2E0D5; }
+  #trainBoard .tb-car::after { content: ''; position: absolute; left: 8px; top: 1px; width: 8px; height: 6px; background: #F2E0D5; }
+  #trainBoard .tb-line { font-size: 11px; letter-spacing: 1px; margin-top: 4px; }
+  .tb-line.good, .tt.good { color: #2E7D4F; } .tb-line.ok, .tt.ok { color: #2C568A; } .tb-line.bad, .tt.bad { color: #E24A2E; }
+  #trainTip .tt { font-size: 11px; letter-spacing: 1px; }
   @media (max-width: 640px) { #tutHint { font-size: 11px; white-space: normal; width: 86%; text-align: center; } }
   .sc-tip { color: #2C568A; font-size: 11px; letter-spacing: 1px; margin: 6px 0 2px; }
   .place-btn { display: block; margin: 8px auto 2px; background: transparent; border: 2px dashed #2a1a10; padding: 6px 12px;
@@ -118,8 +131,8 @@
   .place-nudge { display: flex; gap: 6px; justify-content: center; margin: 6px 0; }
   .place-nudge button { font-family: inherit; font-size: 12px; padding: 4px 10px; border: 2px solid #2a1a10; background: #F2E0D5; cursor: pointer; }
   .venue-label { font-size: 10px; letter-spacing: 2px; opacity: 0.6; margin: 10px 0 4px; }
-  .venue-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-bottom: 8px; }
-  @media (max-width: 520px) { .venue-row { grid-template-columns: repeat(2, 1fr); } }
+  .venue-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-bottom: 8px; }
+  @media (max-width: 520px) { .venue-row { grid-template-columns: repeat(3, 1fr); } }
   #bill { background: #F2C54B; border: 2px solid #2a1a10; box-shadow: 3px 3px 0 #2a1a10; padding: 6px 8px; margin: 6px 0 10px; text-align: left; }
   #bill .bill-head { font-size: 11px; letter-spacing: 1.5px; color: #E24A2E; text-align: center; margin-bottom: 4px; }
   #bill .bill-head span { color: #2a1a10; }
@@ -309,7 +322,7 @@
 </head>
 <body>
 
-<div id="version">STUNTMANIA '76 — Build 0.23.0</div>
+<div id="version">STUNTMANIA '76 — Build 0.24.0</div>
 
 <canvas id="canvas"></canvas>
 
@@ -350,6 +363,7 @@
       <span class="val"><span id="angleVal">35</span>°</span>
     </div>
 
+    <div class="controls-row" id="trainTip" style="display:none"></div>
     <div class="controls-row">
       <label>LANDING ANGLE</label>
       <input type="range" id="landingAngleSlider" min="20" max="55" value="30" step="1">
@@ -392,6 +406,7 @@
 
 <!-- RUNUP HINT -->
 <div id="tutHint"></div>
+<div id="trainBoard"><div class="tb-head">FREIGHT LINE · OPEN CAR</div><div class="tb-track"><div class="tb-go" id="tbGo">GO</div><div class="tb-car" id="tbCar"></div></div><div class="tb-line" id="tbLine"></div></div>
 <div id="runupHint">
   ▲ HOLD TO THROTTLE
   <small>◀ ▶ STEER</small>
@@ -467,7 +482,7 @@ rocketcar: "Z2xURgIAAAA8RwQA+BIAAEpTT057ImFzc2V0Ijp7ImdlbmVyYXRvciI6ImdsVEYtVHJh
 // Build 0.2.0  —  Active runup (throttle + steering), camera snap on launch.
 // ============================================================================
 
-const BUILD_VERSION = '0.23.0';
+const BUILD_VERSION = '0.24.0';
 
 // ---------- PALETTE ---------------------------------------------------------
 const COL = {
@@ -545,6 +560,7 @@ const PEDAL_CADENCE = 1.5;      // crank radians per m/s of runup; capped so leg
 const VENUES = [
   { id: 'buses',   name: 'BUS JUMP',      width: 0,   tag: 'OPENING ACT', seed: 1979, rampLen: 12, distMax: 0, kind: 'buses' },
   { id: 'narrows', name: 'THE NARROWS',   width: 34,  tag: 'BIKES',   seed: 1976, rampLen: 14, distMax: 40,  need: 'CLEAR 5 BUSES' },
+  { id: 'train',   name: 'FREIGHT LINE',  width: 0,   tag: 'TIMING',  seed: 1980, rampLen: 14, distMax: 65,  need: 'LAND THE NARROWS', kind: 'train' },
   { id: 'wide',    name: 'THE WIDE SPOT', width: 55,  tag: 'CARS',    seed: 1977, rampLen: 20, distMax: 60,  need: 'LAND THE NARROWS' },
   { id: 'drop',    name: 'THE BIG DROP',  width: 130, tag: 'ROCKETS', seed: 1978, rampLen: 40, distMax: 110, need: 'LAND THE WIDE SPOT' },
 ];
@@ -553,7 +569,7 @@ function venueOpen(i) {
   const id = VENUES[i].id;
   if (G.allVenues || id === 'buses') return true;
   if (id === 'narrows') return G.bill.has('b1');
-  if (id === 'wide') return G.landedAt.has('narrows');
+  if (id === 'wide' || id === 'train') return G.landedAt.has('narrows');
   if (id === 'drop') return G.landedAt.has('wide');
   return true;
 }
@@ -612,10 +628,10 @@ function landingRampLocal(x) {
 const WALL_SQUASH  = { x: 0.16, y: 1.45, z: 1.60 };
 const FLOOR_SQUASH = new THREE.Vector3(1.40, 0.20, 1.55);
 // The wall splat runs on the canyon's far wall, or the side of the first bus
-const splatFloorY = () => isBusVenue() ? 0.3 : -44.7;   // sits the flattened wreck on the floor
+const splatFloorY = () => isTrainVenue() ? (G.splatOnTrain ? TRAIN.DECK + 1.0 : 0.3) : isBusVenue() ? 0.3 : -44.7;   // sits the flattened wreck on the floor
 // The far wall's rock columns are all recessed behind x=CANYON_WIDTH. Park the
 // splat just in front of it — back face ~0.2 off the wall, snug, no clip-through.
-const wallSplatX = () => (isBusVenue() ? BUS.START : CANYON_WIDTH) - 0.35;
+const wallSplatX = () => (isTrainVenue() ? trainNearX() : isBusVenue() ? BUS.START : CANYON_WIDTH) - 0.35;
 
 // ---------- THREE STATE -----------------------------------------------------
 let scene, camera, renderer, sun;
@@ -1028,6 +1044,24 @@ const SFX = (() => {
       noise(0.06, { type:'bandpass', freq: v ? 1000 : 1300, q:0.8, gain:0.09, attack:0.004 });
       tone(base, 0.12, { type:'triangle', gain:0.18, glideTo:end, glideDur:0.09, attack:0.005 });
     },
+    // Freight Line: a three-note diesel horn (long, short), crossing bell, doorway whoosh
+    horn() {
+      if (muted || !ensure()) return;
+      const t0 = ctx.currentTime, out = ctx.createGain(), lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass'; lp.frequency.value = 1500; lp.connect(out); out.connect(master);
+      out.gain.setValueAtTime(0.0001, t0);
+      for (const [a, d] of [[0, 1.1], [1.35, 0.5]]) {
+        out.gain.linearRampToValueAtTime(0.12, t0 + a + 0.06);
+        out.gain.setValueAtTime(0.12, t0 + a + d);
+        out.gain.linearRampToValueAtTime(0.0001, t0 + a + d + 0.12);
+      }
+      for (const f of [233, 277, 349]) {
+        const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f; o.detune.value = (Math.random() - 0.5) * 14;
+        o.connect(lp); o.start(t0); o.stop(t0 + 2.1);
+      }
+    },
+    bell(v) { tone(v ? 1480 : 1400, 0.35, { type:'triangle', gain:0.05 }); tone(v ? 2960 : 2800, 0.2, { type:'sine', gain:0.015 }); },
+    whoosh() { noise(0.35, { type:'bandpass', freq:500, q:0.6, gain:0.22, sweepTo:2200 }); },
     toggleMute() {
       muted = !muted;
       if (master) master.gain.setTargetAtTime(muted ? 0 : 0.5, ctx.currentTime, 0.02);
@@ -1110,11 +1144,13 @@ function init() {
 // down/rebuilt when the venue changes. Sky, lights and ramps live outside it.
 let WORLD = [];
 function buildVenue() {
-  CANYON_WIDTH = isBusVenue() ? busEnd() + BUS.GAP : VENUES[G.venue].width;
+  CANYON_WIDTH = isBusVenue() ? busEnd() + BUS.GAP : isTrainVenue() ? TRAIN.RIM : VENUES[G.venue].width;
   const before = new Set(scene.children);
   props = []; crowdFigures = [];
   if (isBusVenue()) {
     buildBusArena();
+  } else if (isTrainVenue()) {
+    buildTrainArena();
   } else {
     buildCanyon();
     buildTopDressing();
@@ -3288,7 +3324,7 @@ function autoPlaceRamp() {
   return d !== null;
 }
 
-function updateAutoTip() {}
+function updateAutoTip() { updateTrainTip(); }
 
 // Engine RPM each frame: road speed on the runup (plus a rev when you're on the
 // throttle), free-revving in the air, cruising on the ride-off. Rocket roar
@@ -3298,7 +3334,9 @@ function engineTick(dt) {
   if (SIM) return;
   const def = VEHICLE_DEFS[G.vehicleIdx];
   let target = 0;
-  if (G.phase === 'runup') target = Math.min(1, G.runupSpeed / def.maxSpeed) * 0.85 + (keys.up ? 0.15 : 0);
+  if (G.phase === 'runup' && G.hold === 'rev') target = 0.62 + 0.2 * Math.abs(Math.sin(G.revT * 6));
+  else if (G.phase === 'runup' && G.hold === 'wait') target = 0;
+  else if (G.phase === 'runup') target = Math.min(1, G.runupSpeed / def.maxSpeed) * 0.85 + (keys.up || G.hold === 'go' ? 0.15 : 0);
   else if (G.phase === 'airborne') target = 0.9;
   else if (G.phase === 'landed') target = G.celebrate ? 0.45 : 0.1;
   ENG_RPM += (target - ENG_RPM) * Math.min(1, dt * 4);
@@ -3513,6 +3551,331 @@ function buildBusArena() {
 }
 
 // ============================================================================
+// FREIGHT LINE — a timing stunt. A freight train crosses the lot on a timber
+// trestle between the ramps, and one boxcar runs with both doors open. You sit
+// on the line revving (hold ▲), let go to launch, and fly through the open car
+// as it comes into line. Early or late, you meet the side of a boxcar and ride
+// off with the train. A steeper ramp clears the roof; a flat one goes under
+// the bridge between the timber bents.
+// ============================================================================
+const TRAIN = {
+  X: 12, HALF: 1.5,          // track centre in x; boxcar half-width
+  RIM: 17,                   // the landing ramp is placed from here (CANYON_WIDTH)
+  DECK: 11.5,                // top of the trestle deck
+  DOOR: 5.4, DOOR_LO: 1.3, DOOR_HI: 6.0, ROOF: 6.6,   // a high-cube car: tall enough to fly through   // open doorway (z length, y range) and roof, above the deck
+  V: 10,                     // train speed along +z, m/s
+  BENT: 6, BENT0: -2,        // trestle bents every 6 m, placed to leave the take-off lane between two
+  SEGS: [], t: 0, z0: 0, tDoor: 8, group: null, lamps: [], bellT: 0, hornDone: false,
+};
+const isTrainVenue = () => VENUES[G.venue].kind === 'train';
+const flatVenue = () => isBusVenue() || isTrainVenue();
+const trainLive = () => isTrainVenue() && !SIM;       // silent sims fly straight through
+const trainNearX = () => TRAIN.X - TRAIN.HALF;
+const overTrestle = x => trainLive() && x >= trainNearX() && x < TRAIN.X + 2.1;   // the near face is judged by trainCross
+const vehTop = () => VEHICLE_DEFS[G.vehicleIdx].fourWheel ? 1.4 : 1.7;   // roof / helmet above the vehicle origin
+const TRAIN_LINE_TEXT = { door: 'Through the open boxcar', over: 'Clean over the freight', under: 'Under the trestle', gap: 'Between two boxcars' };
+
+// Car list, front to back. off = distance from the loco's nose to the car's front.
+(function layoutTrain() {
+  const cars = [['loco', 16], ['box', 14], ['box', 14], ['open', 14], ['box', 14], ['box', 14], ['box', 14], ['caboose', 10]];
+  let off = 0;
+  for (const [kind, len] of cars) { TRAIN.SEGS.push({ kind, len, off, open: kind === 'open' }); off += len + 1.6; }
+})();
+const trainFront = t => TRAIN.z0 + TRAIN.V * t;
+const trainTail = t => trainFront(t) - TRAIN.SEGS[TRAIN.SEGS.length - 1].off - TRAIN.SEGS[TRAIN.SEGS.length - 1].len;
+const openSeg = () => TRAIN.SEGS.find(s => s.open);
+const doorZ = t => trainFront(t) - openSeg().off - openSeg().len / 2;   // centre of the open doorway
+
+// Which car (if any) covers z at time t; hw widens the test by the vehicle's half-width.
+function trainSegAt(z, t, hw) {
+  const zf = trainFront(t);
+  for (const s of TRAIN.SEGS) {
+    const front = zf - s.off, back = front - s.len;
+    if (z + hw > back && z - hw < front) return { s, open: s.open, local: z - (front + back) / 2 };
+  }
+  return null;
+}
+
+// New train for a new run: the open car reaches the take-off lane 7–9.5 s in.
+function startTrain() {
+  TRAIN.t = 0;
+  TRAIN.tDoor = 7 + Math.random() * 2.5;
+  TRAIN.z0 = 0;
+  TRAIN.z0 = LAUNCH_RAMP_OFFSET - doorZ(TRAIN.tDoor);
+  TRAIN.hornDone = false; TRAIN.bellT = 0;
+  placeTrain();
+}
+function placeTrain() { if (TRAIN.group) TRAIN.group.position.z = trainFront(TRAIN.t); }
+
+// Crossing the train's near face: decide the line taken. Returns a crash
+// 'where' or null if you're through (or over, or under).
+function trainCross() {
+  const z = G.zPos, y = G.posY, fw = !!VEHICLE_DEFS[G.vehicleIdx].fourWheel;
+  const top = y + vehTop(), bot = y - 0.4, D = TRAIN.DECK;
+  const tMid = TRAIN.t + TRAIN.HALF / Math.max(1, G.vx);   // judge the doorway at mid-crossing
+  G.trainMiss = (z - doorZ(tMid)) / TRAIN.V;                // + : the open car hadn't got here yet
+  if (top < D - 1.0) {
+    const bz = (((z - TRAIN.BENT0) % TRAIN.BENT) + TRAIN.BENT) % TRAIN.BENT;
+    if (Math.min(bz, TRAIN.BENT - bz) < (fw ? 1.2 : 0.6)) { G.trainLine = 'bent'; return 'trestle'; }
+    G.trainLine = 'under'; return null;
+  }
+  if (bot < D) { G.trainLine = 'deck'; return 'trestle'; }
+  const hw = fw ? 1.0 : 0.45;
+  const c = trainSegAt(z, tMid, hw);
+  if (!c) { G.trainLine = (z < trainFront(tMid) && z > trainTail(tMid)) ? 'gap' : 'clear'; return null; }
+  if (bot > D + TRAIN.ROOF - 0.2) { G.trainLine = 'over'; return null; }
+  if (c.open && Math.abs(c.local) < TRAIN.DOOR / 2 - hw && bot > D + TRAIN.DOOR_LO - 0.2 && top < D + TRAIN.DOOR_HI + 0.3) {
+    G.trainLine = 'door'; SFX.whoosh && SFX.whoosh(); return null;
+  }
+  G.trainLine = 'side'; return 'trainside';
+}
+
+// What you'd land on, over the trestle
+function trainGroundAt(z) {
+  if (G.trainLine === 'under') return 0;
+  if (G.trainLine === 'door') return TRAIN.DECK + 0.7;      // the span check above fires first
+  return trainSegAt(z, TRAIN.t, 0) ? TRAIN.DECK + TRAIN.ROOF : TRAIN.DECK;
+}
+
+// The predicted line for a ramp angle, from a silent full-throttle run.
+const TPLAN = {};
+function trainPlan() {
+  const key = G.vehicleIdx + '|' + G.rampAngleDeg;
+  if (TPLAN[key]) return TPLAN[key];
+  const nx = trainNearX(), fx = TRAIN.X + TRAIN.HALF;
+  const r = silently(() => {
+    startLaunch();
+    const dt = 1 / 60; let n = 0, t = 0, out = null;
+    while ((G.phase === 'runup' || G.phase === 'airborne') && n < 4000) {
+      if (G.phase === 'runup') {
+        keys.up = true;
+        const want = THREE.MathUtils.clamp((G.launchRampZ - G.zPos) * 2.2, -STEER_TOP_SPEED, STEER_TOP_SPEED);
+        keys.right = G.zVel < want - 0.4; keys.left = G.zVel > want + 0.4;
+        updateRunup(dt);
+      } else {
+        keys.up = keys.down = keys.left = keys.right = false;
+        const px = G.posX; updateAirborne(dt);
+        if (px < nx && G.posX >= nx) out = { tArr: t + dt, y: G.posY, yMax: G.posY, yMin: G.posY };
+        if (out && G.posX < fx + 0.3) { out.yMax = Math.max(out.yMax, G.posY); out.yMin = Math.min(out.yMin, G.posY); }
+        if (out && G.posX >= fx + 0.3) break;
+      }
+      t += dt; n++;
+    }
+    return out || { tArr: 0, y: -99, yMax: -99, yMin: -99 };
+  });
+  keys.up = keys.down = keys.left = keys.right = false;
+  r.line = planLine(r);
+  return (TPLAN[key] = r);
+}
+function planLine(r) {
+  const D = TRAIN.DECK, top = vehTop();
+  if (r.y < -50) return 'none';
+  if (r.yMax + top < D - 1.0) return 'under';
+  if (r.y + top < D - 1.0) return 'lowbridge';
+  if (r.y - 0.4 < D) return 'trestle';
+  if (r.y - 0.4 > D + TRAIN.ROOF - 0.2) return 'over';
+  if (r.y - 0.4 > D + TRAIN.DOOR_LO - 0.2 && r.y + top < D + TRAIN.DOOR_HI + 0.3)
+    return (r.yMin - 0.4 < D + TRAIN.DOOR_LO - 0.5 || r.yMax + top > D + TRAIN.ROOF - 0.15) ? 'clip' : 'door';
+  return r.y - 0.4 < D + TRAIN.DOOR_LO ? 'low' : 'high';
+}
+const PLAN_TEXT = {
+  door: ['THROUGH THE OPEN DOOR', 'good'], over: ['OVER THE ROOF', 'ok'], under: ['UNDER THE TRESTLE', 'ok'],
+  lowbridge: ['INTO THE DECK — LESS ANGLE', 'bad'], trestle: ['INTO THE TRESTLE — MORE ANGLE', 'bad'],
+  low: ['UNDER THE DOOR — MORE ANGLE', 'bad'], clip: ['CLIPS THE TOP OF THE DOORWAY — LESS ANGLE', 'bad'], high: ['ABOVE THE DOOR — LESS ANGLE', 'bad'], none: ['NO LINE', 'bad'],
+};
+
+// Main-loop tick: move the train, flash the crossing lamps, run the board.
+function updateTrain(dt) {
+  if (!isTrainVenue() || !TRAIN.group) { setTrainBoard(false); return; }
+  const running = G.phase !== 'menu';
+  if (running) TRAIN.t += dt;
+  placeTrain();
+  // Lamps flash while the train is on the bridge near the lane
+  const near = running && trainFront(TRAIN.t) > LAUNCH_RAMP_OFFSET - 60 && trainTail(TRAIN.t) < LAUNCH_RAMP_OFFSET + 10;
+  const flip = Math.floor(TRAIN.t * 2.4) % 2;
+  TRAIN.lamps.forEach((m, i) => { m.material.color.setHex(near && flip === i ? 0xFF3A1A : 0x3A1A12); });
+  if (near && !SIM && G.phase === 'runup' && flip !== TRAIN.bellFlip) { SFX.bell && SFX.bell(flip); }
+  TRAIN.bellFlip = flip;
+  if (running && !TRAIN.hornDone && TRAIN.t > 0.6) { TRAIN.hornDone = true; SFX.horn && SFX.horn(); }
+  // Held at the line and the whole train went by: send the next one
+  if (G.phase === 'runup' && G.hold !== 'go' && trainTail(TRAIN.t) > LAUNCH_RAMP_OFFSET + 25) {
+    startTrain();
+    setTutorialHint('MISSED IT — HERE COMES THE NEXT ONE');
+    setTimeout(() => { if (document.getElementById('tutHint').textContent.startsWith('MISSED')) setTutorialHint(''); }, 2200);
+  }
+  setTrainBoard(G.phase === 'runup' || G.phase === 'airborne');
+}
+
+// The signal board: the open car slides toward the GO line; let go of the
+// throttle as it crosses. GO sits at your full-throttle travel time.
+function setTrainBoard(show) {
+  const el = document.getElementById('trainBoard');
+  if (!el) return;
+  el.classList.toggle('show', !!show);
+  if (!show) return;
+  el.classList.toggle('air', G.phase === 'airborne');     // fade back so it doesn't hide the doorway
+  const P = TRAIN.plan || { tArr: 3, line: 'none' }, span = 10;
+  const eta = TRAIN.tDoor - TRAIN.t;
+  const carF = 1 - eta / span, goF = 1 - P.tArr / span;
+  const car = document.getElementById('tbCar');
+  car.style.left = (THREE.MathUtils.clamp(carF, -0.1, 1.1) * 100).toFixed(2) + '%';
+  car.style.visibility = carF < -0.05 || carF > 1.05 ? 'hidden' : 'visible';
+  document.getElementById('tbGo').style.left = (goF * 100).toFixed(2) + '%';
+  const [txt, cls] = PLAN_TEXT[P.line] || PLAN_TEXT.none;
+  let status = 'LINE: ' + txt, scls = cls;
+  if (G.hold === 'go' && G.releaseT !== undefined) {
+    const miss = TRAIN.tDoor - (G.releaseT + P.tArr);    // + : you'll be there before the door
+    const win = (TRAIN.DOOR / 2 - (VEHICLE_DEFS[G.vehicleIdx].fourWheel ? 1.0 : 0.45)) / TRAIN.V;
+    status = Math.abs(miss) <= win ? 'ON TIME!' : (miss > 0 ? 'EARLY ' : 'LATE ') + Math.abs(miss).toFixed(2) + ' S';
+    scls = Math.abs(miss) <= win ? 'good' : 'bad';
+  }
+  const ln = document.getElementById('tbLine');
+  if (ln.textContent !== status) ln.textContent = status;
+  ln.className = 'tb-line ' + scls;
+}
+
+// Menu line under the sliders: what this angle does at the Freight Line
+let trainTipTimer = 0;
+function updateTrainTip() {
+  const el = document.getElementById('trainTip');
+  if (!el) return;
+  if (!isTrainVenue()) { el.style.display = 'none'; return; }
+  el.style.display = '';
+  clearTimeout(trainTipTimer);
+  trainTipTimer = setTimeout(() => {
+    if (G.phase !== 'menu' || !isTrainVenue()) return;
+    // The silent run borrows startLaunch: put the menu and its camera back after
+    const cm = G.camMode, cp = camPos.clone(), ct = camTarget.clone();
+    const P = trainPlan(), [txt, cls] = PLAN_TEXT[P.line] || PLAN_TEXT.none;
+    G.camMode = cm; camPos.copy(cp); camTarget.copy(ct);
+    document.getElementById('menu').classList.remove('hidden');
+    rebuildRamp(); rebuildLandingRamp();
+    el.innerHTML = `<label>AT ${G.rampAngleDeg}°</label><span class="tt ${cls}">${txt}</span>`;
+  }, 90);
+}
+
+// ---- world --------------------------------------------------------------
+function buildTrainArena() {
+  wrand = mulberry32(VENUES[G.venue].seed);
+  const rock = newBatch(), far = newBatch(), deco = newBatch(), wood = newBatch();
+  batchGeom(rock, new THREE.BoxGeometry(2800, 10, 1700), 0, -5, -550, 0, 0, 0, ENV.sandTop, 0);
+  batchGeom(deco, new THREE.BoxGeometry(CANYON_WIDTH + 170, 0.04, 9), (CANYON_WIDTH + 170) / 2 - 85, 0.02, LAUNCH_RAMP_OFFSET, 0, 0, 0, ENV.runway, 0);
+  // The trestle: deck, ties and rails, on timber bents
+  const D = TRAIN.DECK, X = TRAIN.X, Z0 = -330, Z1 = 150, L = Z1 - Z0, ZM = (Z0 + Z1) / 2;
+  batchGeom(wood, new THREE.BoxGeometry(3.6, 0.7, L), X, D - 0.65, ZM, 0, 0, 0, COL.woodDark, 0);
+  for (let z = Z0; z < Z1; z += 0.9) batchGeom(wood, new THREE.BoxGeometry(3.0, 0.2, 0.32), X, D - 0.2, z, 0, 0, 0, COL.wood, 0.12);
+  for (const s of [-0.72, 0.72]) batchGeom(deco, new THREE.BoxGeometry(0.14, 0.16, L), X + s, D - 0.02, ZM, 0, 0, 0, COL.chrome, 0);
+  for (const s of [-1.85, 1.85]) batchGeom(wood, new THREE.BoxGeometry(0.16, 0.55, L), X + s, D - 0.15, ZM, 0, 0, 0, COL.wood, 0);   // guard timbers
+  const H = D - 1.0;
+  for (let z = TRAIN.BENT0 - TRAIN.BENT * 54; z < Z1; z += TRAIN.BENT) {
+    if (z < Z0) continue;
+    const tilt = 0.09;
+    for (const s of [-1, 1]) {
+      batchGeom(wood, new THREE.BoxGeometry(0.42, H + 0.4, 0.42), X + s * 0.7, H / 2, z, 0, 0, 0, COL.wood, 0.1);
+      batchGeom(wood, new THREE.BoxGeometry(0.42, H + 0.6, 0.42), X + s * (1.35 + H * tilt / 2), H / 2, z, 0, 0, s * tilt, COL.wood, 0.1);
+    }
+    batchGeom(wood, new THREE.BoxGeometry(3.4, 0.45, 0.55), X, H - 0.1, z, 0, 0, 0, COL.woodDark, 0);       // cap
+    batchGeom(wood, new THREE.BoxGeometry(2.9 + H * tilt, 0.3, 0.5), X, H * 0.45, z, 0, 0, 0, COL.woodDark, 0);   // girt
+    const diag = Math.hypot(2.7, H * 0.55), ang = Math.atan2(H * 0.55, 2.7);
+    batchGeom(wood, new THREE.BoxGeometry(diag, 0.2, 0.2), X, H * 0.72, z + 0.3, 0, 0, ang, COL.wood, 0.1);    // sway braces
+    batchGeom(wood, new THREE.BoxGeometry(diag, 0.2, 0.2), X, H * 0.72, z - 0.3, 0, 0, -ang, COL.wood, 0.1);
+    batchGeom(wood, new THREE.BoxGeometry(diag, 0.2, 0.2), X, H * 0.22, z + 0.3, 0, 0, -ang, COL.wood, 0.1);
+    batchGeom(wood, new THREE.BoxGeometry(diag, 0.2, 0.2), X, H * 0.22, z - 0.3, 0, 0, ang, COL.wood, 0.1);
+    batchGeom(rock, new THREE.BoxGeometry(4.2, 0.5, 1.4), X, 0.2, z, 0, 0, 0, COL.lightGrey, 0.05);   // footing
+  }
+  // Crossing signal on the deck, beside the lane, facing the runway
+  const sz = LAUNCH_RAMP_OFFSET - 10;   // up-line of the lane, out of the camera's way
+  batchGeom(deco, new THREE.BoxGeometry(0.22, 5.2, 0.22), X - 1.95, D + 2.6, sz, 0, 0, 0, 0x2A2A2A, 0);
+  batchGeom(deco, new THREE.BoxGeometry(0.2, 0.32, 2.4), X - 2.05, D + 4.2, sz, 0, 0, 0, 0x2A2A2A, 0);
+  batchGeom(deco, new THREE.BoxGeometry(0.12, 0.4, 3.6), X - 2.1, D + 5.0, sz, Math.PI / 4, 0, 0, COL.cream, 0);    // crossbuck
+  batchGeom(deco, new THREE.BoxGeometry(0.12, 0.4, 3.6), X - 2.1, D + 5.0, sz, -Math.PI / 4, 0, 0, COL.cream, 0);
+  // Mesas, rocks and cacti like the bus lot (kept off the tracks)
+  const mesas = [[-75, -300, 110, 70, 52], [70, -335, 70, 50, 40], [250, -345, 90, 60, 40], [-195, -235, 80, 60, 30],
+                 [-20, -455, 120, 70, 35], [125, -485, 100, 60, 28], [345, -185, 80, 60, 36], [-345, -120, 70, 70, 30]];
+  for (const [x, z, w, d, t] of mesas) if (Math.abs(x - X) > w / 2 + 12) farMesa(far, x, z, w, d, t);
+  for (let i = 0; i < 40; i++) {
+    const x = wr(-220, CANYON_WIDTH + 220), z = wr(-190, -45);
+    if (Math.abs(x - X) < 8) continue;
+    const w = wr(2, 6), h = wr(0.6, 2.4);
+    rockBox(deco, w, h, w * wr(0.7, 1.2), x, h / 2 - 0.15, z, wr(0, 3), wpick([ENV.outcrop, ENV.cliffHi, ENV.sandRim]), 0.9, false);
+  }
+  for (let i = 0; i < 14; i++) { const x = wr(-200, CANYON_WIDTH + 200); if (Math.abs(x - X) > 6) saguaro(deco, x, wr(-180, -50), wr(2.8, 4.6), wrand() < 0.6 ? 2 : 1, wr(0, 3)); }
+  flushBatch(rock, true, true);
+  flushBatch(far, false, false);
+  flushBatch(deco, true, true);
+  flushBatch(wood, true, true);
+  // Lamps: their own meshes so they can flash
+  TRAIN.lamps = [-0.75, 0.75].map(dz => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.55, 0.55), new THREE.MeshBasicMaterial({ color: 0x3A1A12 }));
+    m.position.set(X - 2.2, D + 4.2, sz + dz); scene.add(m); return m;
+  });
+  buildTrain();
+  startTrain(); TRAIN.t = 0;
+}
+
+function buildTrain() {
+  const g = new THREE.Group(); g.name = 'train';
+  const BLK = 0x222222, DK = 0x3A2A20, D = TRAIN.DECK, W = TRAIN.HALF * 2;
+  const paints = [COL.burntOrange, COL.denim, null, COL.rockMid, COL.dustyTeal, COL.wood];
+  let bi = 0;
+  for (const s of TRAIN.SEGS) {
+    const b = newBatch(), zc = -(s.off + s.len / 2), L = s.len;
+    const box = (sx, sy, sz, px, py, pz, col, rx) => batchGeom(b, new THREE.BoxGeometry(sx, sy, sz), TRAIN.X + px, D + py, zc + pz, rx || 0, 0, 0, col, 0.03);
+    // Trucks and wheels
+    for (const tz of [-L / 2 + 2.3, L / 2 - 2.3]) {
+      box(2.0, 0.55, 2.8, 0, 0.72, tz, BLK);
+      for (const wz of [-0.8, 0.8]) for (const sx of [-1, 1])
+        batchGeom(b, new THREE.CylinderGeometry(0.42, 0.42, 0.18, 10), TRAIN.X + sx * 0.72, D + 0.42, zc + tz + wz, 0, 0, Math.PI / 2, 0x333333, 0);
+    }
+    box(W, 0.3, L, 0, 1.15, 0, DK);                                   // frame / floor
+    if (s.kind === 'loco') {
+      const Y = COL.mustard, R = COL.desertRed;
+      box(W, 3.3, L - 3.2, 0, 2.95, -1.6, Y);                          // long hood
+      box(W + 0.02, 0.5, L - 3.2, 0, 2.0, -1.6, R);                    // warpaint stripe
+      box(W, 2.5, 3.2, 0, 2.55, L / 2 - 1.6, Y);                       // nose
+      box(W - 0.2, 0.9, 1.4, 0, 4.25, L / 2 - 2.6, 0x2E3A44);          // windscreen
+      box(W - 0.6, 0.3, 0.3, 0, 2.6, L / 2 + 0.02, COL.cream);         // headlight bar
+      box(W + 0.02, 0.4, 3.2, 0, 1.6, L / 2 - 1.6, R);
+      box(W - 0.4, 0.16, L - 3.6, 0, 4.66, -1.8, 0xD9A93A);            // roof
+      for (const ez of [-3, -5]) box(0.5, 0.6, 0.5, 0, 4.9, ez, BLK);  // stacks
+    } else if (s.kind === 'caboose') {
+      const R = COL.desertRed;
+      box(W - 0.2, 3.4, L - 2.4, 0, 3.0, 0, R);
+      box(W, 0.2, L - 2.0, 0, 4.8, 0, COL.cream);
+      box(W - 0.6, 1.2, 2.8, 0, 5.5, 0, R);                            // cupola
+      box(W - 0.4, 0.15, 3.2, 0, 6.15, 0, COL.cream);
+      for (const wz of [-2, 2]) for (const sx of [-1, 1]) box(0.04, 0.8, 1.0, sx * (TRAIN.HALF - 0.08), 3.4, wz, 0x2E3A44);
+    } else {
+      const open = s.open, col = open ? COL.desertRed : paints[bi++ % paints.length];
+      const y0 = 1.3, H = TRAIN.ROOF - 0.18 - y0, yc = y0 + H / 2;
+      const rib = new THREE.Color(col).multiplyScalar(0.8).getHex();
+      for (const ez of [-L / 2 + 0.08, L / 2 - 0.08]) box(W, H, 0.16, 0, yc, ez, col);   // ends
+      box(W + 0.16, 0.18, L + 0.1, 0, TRAIN.ROOF - 0.09, 0, open ? COL.cream : 0x6B4A36);   // roof
+      for (const sx of [-1, 1]) {
+        const xw = sx * (TRAIN.HALF - 0.08);
+        if (!open) {
+          box(0.16, H, L, xw, yc, 0, col);
+          for (let k = -L / 2 + 1.2; k < L / 2 - 0.6; k += 1.4) box(0.06, H - 0.1, 0.12, xw + sx * 0.09, yc, k, rib);
+          box(0.06, H * 0.82, 3.4, xw + sx * 0.1, y0 + H * 0.43, 0, 0x3A3A3A);                 // shut door
+        } else {
+          const D2 = TRAIN.DOOR / 2, side = (L / 2 - D2), hi = TRAIN.DOOR_HI;
+          for (const zz of [-1, 1]) box(0.16, H, side, xw, yc, zz * (D2 + side / 2), col);    // wall either side of the doorway
+          box(0.16, TRAIN.ROOF - 0.18 - hi, TRAIN.DOOR, xw, (hi + TRAIN.ROOF - 0.18) / 2, 0, col); // lintel
+          for (const zz of [-1, 1]) box(0.08, hi - y0, 0.22, xw + sx * 0.1, (hi + y0) / 2, zz * (D2 + 0.11), COL.mustard);  // door frame
+          box(0.08, 0.22, TRAIN.DOOR + 0.44, xw + sx * 0.1, hi + 0.11, 0, COL.mustard);
+          for (const zz of [-1, 1]) box(0.06, 0.5, side - 0.4, xw + sx * 0.1, 2.0, zz * (D2 + side / 2), COL.mustard);   // stripes
+        }
+      }
+      if (open) box(W - 0.3, 0.06, L - 0.4, 0, y0 + 0.02, 0, 0x5A3E2A);    // floorboards you can see through the door
+    }
+    const m = flushBatch(b, true, true);
+    if (m) { scene.remove(m); g.add(m); }
+  }
+  scene.add(g);
+  TRAIN.group = g;
+}
+
+// ============================================================================
 // STUNT BILL — billed feats per venue, paid once each. Some are crash feats:
 // crashes are the point.
 // ============================================================================
@@ -3536,6 +3899,13 @@ const BILL = {
     { id: 'd2', text: 'Sled lands with the ramp 45 m out',    reward: 700, test: r => r.landed && r.veh === 'rocketsled' && r.rampOut >= 45 },
     { id: 'd3', text: 'Perfect landing on the sled',          reward: 600, test: r => r.perfect && r.veh === 'rocketsled' },
     { id: 'd4', text: 'Splat the sled on the canyon wall',    reward: 150, test: r => r.where === 'wall' && r.veh === 'rocketsled' },
+  ],
+  train: [
+    { id: 't1', text: 'Fly through the open boxcar',          reward: 150, test: r => r.train === 'door' },
+    { id: 't2', text: 'Through the boxcar and land it',       reward: 300, test: r => r.landed && r.train === 'door' },
+    { id: 't3', text: 'Jump clean over the train and land',   reward: 250, test: r => r.landed && r.train === 'over' },
+    { id: 't4', text: 'Fly under the trestle and land',       reward: 300, test: r => r.landed && r.train === 'under' },
+    { id: 't5', text: 'Get shipped: splat on a boxcar',       reward: 75,  test: r => r.where === 'trainside' },
   ],
   buses: [
     { id: 'b1', text: 'Clear 5 buses — opens the canyon',     reward: 150, test: r => r.landed && r.buses >= 5 },
@@ -3563,6 +3933,7 @@ function updateBill() {
   const done = feats.filter(f => G.bill.has(f.id)).length;
   el.innerHTML = `<div class="bill-head">★ TONIGHT AT ${V.name} ★ <span>${done}/${feats.length}</span></div>` +
     feats.map(f => `<div class="bill-row${G.bill.has(f.id) ? ' done' : ''}"><span>${G.bill.has(f.id) ? '✔' : '☐'} ${f.text}</span><b>£${f.reward}</b></div>`).join('');
+  updateTrainTip();
   const br = document.getElementById('busRow');
   if (br) {
     br.style.display = isBusVenue() ? '' : 'none';
@@ -3700,7 +4071,7 @@ async function devRunScenario(sc) {
 function devPopulate() {
   const vSel = document.getElementById('devVehicle'), wSel = document.getElementById('devVenue');
   vSel.innerHTML = VEHICLE_DEFS.map((d, i) => `<option value="${i}">${d.name}</option>`).join('');
-  wSel.innerHTML = VENUES.map((v, i) => `<option value="${i}">${v.name} (${v.width} m)</option>`).join('');
+  wSel.innerHTML = VENUES.map((v, i) => `<option value="${i}">${v.name} (${v.kind ? v.tag : v.width + ' m'})</option>`).join('');
   vSel.value = G.vehicleIdx; wSel.value = G.venue;
 }
 
@@ -3781,7 +4152,10 @@ function updateVehicleVisual(x, y, pitch) {
 // GAME PHASES
 // ============================================================================
 function startLaunch() {
-  if (!SIM) startGhost();
+  if (!SIM && isTrainVenue()) {
+    TRAIN.plan = trainPlan();      // silent full-throttle run: when to let go, which line this angle takes
+    GHOST.active = false; if (GHOST.mesh) scene.remove(GHOST.mesh); setTutorialHint('');
+  } else if (!SIM) startGhost();
   SFX.engineStart(VEHICLE_DEFS[G.vehicleIdx].id);
   // Reset all transient state
   G.phase = 'runup';
@@ -3817,6 +4191,11 @@ function startLaunch() {
   G.landPitch = 0;
 
   G.launchRampZ  = LAUNCH_RAMP_OFFSET;    // take-off is fixed
+  // Freight Line: held at the line until you rev and let go
+  G.hold = (isTrainVenue() && !SIM) ? 'wait' : null;
+  G.releaseT = undefined; G.revT = 0;
+  G.trainLine = 'none'; G.trainMiss = 99; G.splatOnTrain = false;
+  if (isTrainVenue() && !SIM) startTrain();
   // landingRampZ / landingRampDist come from the placement screen — left as set.
   clearDebris();
   clearFireworks();
@@ -3841,6 +4220,9 @@ function startLaunch() {
   document.getElementById('menu').classList.add('hidden');
   document.getElementById('hud').classList.remove('hidden');
   document.getElementById('scorecard').classList.remove('show');
+  document.getElementById('runupHint').innerHTML = G.hold
+    ? '▲ HOLD TO REV · LET GO TO LAUNCH<small>TIME IT FOR THE OPEN BOXCAR</small>'
+    : '▲ HOLD TO THROTTLE<small>◀ ▶ STEER</small>';
   document.getElementById('runupHint').classList.add('show');
   const def = VEHICLE_DEFS[G.vehicleIdx];
   document.getElementById('hudBoostBlock').style.display = def.boost > 0 ? 'block' : 'none';
@@ -3855,7 +4237,21 @@ function updateRunup(dt) {
   const brakeDecel  = def.maxSpeed * 2.5;
   const coastDecel  = def.maxSpeed * 0.5;
 
-  if (keys.up) {
+  if (G.hold === 'wait' || G.hold === 'rev') {
+    // HELD START — rev against the brake; the moment you let go, you're off.
+    if (keys.up) { G.hold = 'rev'; G.revT += dt; G.playerActed = true; }
+    else if (G.hold === 'rev') { G.hold = 'go'; G.releaseT = TRAIN.t; SFX.click(); }
+    if (G.hold !== 'go') {
+      const sx = -RAMP_LEN * Math.cos(G.rampAngleRad) - RUNWAY_LEN;
+      const shake = G.hold === 'rev' ? 1 : 0;
+      updateVehicleVisual(sx + shake * (Math.random() - 0.5) * 0.04, 0, shake * (0.02 + 0.015 * Math.sin(G.revT * 31)));
+      if (shake && Math.random() < 0.5) spawnDust(sx - 1, 0.1, G.zPos + (Math.random() - 0.5) * 1.2);
+      if (G.playerActed) document.getElementById('runupHint').classList.remove('show');
+      return;
+    }
+  }
+  const autoThrottle = G.hold === 'go' && !keys.down;   // once released it's flat out; ▼ still brakes
+  if (keys.up || autoThrottle) {
     G.runupSpeed = Math.min(G.runupSpeed + maxAccel * dt, def.maxSpeed);
     G.playerActed = true;
   } else if (keys.down) {
@@ -4045,7 +4441,19 @@ function updateAirborne(dt) {
     finishJump('busside');
     return;
   }
-  if (!isBusVenue() && prevX < CANYON_WIDTH && G.posX >= CANYON_WIDTH && G.posY < 0) {
+  if (trainLive()) {
+    const nx = trainNearX();
+    if (prevX < nx && G.posX >= nx) {
+      const hit = trainCross();
+      if (hit) { G.posX = nx; finishJump(hit); return; }
+    } else if (G.posX >= nx && G.posX < TRAIN.X + TRAIN.HALF + 0.3) {
+      // Inside the span: the line you took has to hold all the way across
+      const top = G.posY + vehTop(), bot = G.posY - 0.4, D = TRAIN.DECK;
+      if (G.trainLine === 'under' && top > D - 1.0) { finishJump('underdeck'); return; }
+      if (G.trainLine === 'door' && (bot < D + TRAIN.DOOR_LO - 0.5 || top > D + TRAIN.ROOF - 0.15)) { finishJump('boxcar'); return; }
+    }
+  }
+  if (!flatVenue() && prevX < CANYON_WIDTH && G.posX >= CANYON_WIDTH && G.posY < 0) {
     G.posX = CANYON_WIDTH;
     finishJump('wall');
     return;
@@ -4069,7 +4477,9 @@ function updateAirborne(dt) {
     } else {
       G.posY = groundY + 0.4;
       if (vehicleGroup) vehicleGroup.position.set(G.posX, G.posY, G.zPos);
-      finishJump(overBuses(G.posX, G.zPos) ? 'busroof' : G.posX > CANYON_WIDTH ? 'plateau2' : 'plateau1');
+      finishJump(overBuses(G.posX, G.zPos) ? 'busroof'
+        : overTrestle(G.posX) ? (groundY > TRAIN.DECK + 1 ? 'trainroof' : 'deck')
+        : G.posX > CANYON_WIDTH ? 'plateau2' : 'plateau1');
       return;
     }
   }
@@ -4083,8 +4493,9 @@ function updateAirborne(dt) {
 }
 
 function getGroundAt(x, z) {
-  if (isBusVenue()) {
+  if (flatVenue()) {
     if (overBuses(x, z)) return BUS.ROOF;
+    if (overTrestle(x)) return trainGroundAt(z);
     if (x >= CANYON_WIDTH) {
       const L = landingRampLocal(x);
       if (x < L.faceX + L.S.foot && Math.abs(z - G.landingRampZ) <= RAMP_HALF_W) return rampYAt(L.S, L.xl);
@@ -4130,6 +4541,18 @@ function finishJump(where) {
     outcome = 'crashed'; gradeText = 'BUS STOP'; landingText = 'Side of bus number one';
   } else if (where === 'busroof') {
     outcome = 'crashed'; gradeText = 'ROOF RACK'; landingText = `On top of bus ${busesCleared(G.posX) + 1}`;
+  } else if (where === 'trainside') {
+    outcome = 'crashed'; gradeText = 'RETURN TO SENDER'; landingText = 'Side of a boxcar';
+  } else if (where === 'boxcar') {
+    outcome = 'crashed'; gradeText = 'DOOR FRAMED'; landingText = 'Clipped the doorway';
+  } else if (where === 'trestle') {
+    outcome = 'crashed'; gradeText = 'BRIDGE OUT'; landingText = 'Into the trestle';
+  } else if (where === 'underdeck') {
+    outcome = 'crashed'; gradeText = 'LOW BRIDGE'; landingText = 'Underside of the trestle';
+  } else if (where === 'trainroof') {
+    outcome = 'crashed'; gradeText = 'ROOF RIDER'; landingText = 'On top of the freight';
+  } else if (where === 'deck') {
+    outcome = 'crashed'; gradeText = 'END OF THE LINE'; landingText = 'Onto the tracks';
   } else {
     // Plateau 2 — the ONLY scoring outcome is landing on the ramp slope, in its
     // lane, at a survivable pitch. Everything else on the plateau is bare rock,
@@ -4175,6 +4598,8 @@ function finishJump(where) {
   if (fullRotations > 0) cash += fullRotations * 50;
   const busesNow = isBusVenue() && outcome !== 'crashed' ? G.busCount : 0;
   if (busesNow) cash += busesNow * 30;
+  if (isTrainVenue()) cash += { door: 120, under: 100, over: 60, gap: 150 }[G.trainLine] || 0;
+  if (isTrainVenue() && outcome !== 'crashed' && TRAIN_LINE_TEXT[G.trainLine]) landingText = TRAIN_LINE_TEXT[G.trainLine];
   if (outcome === 'crashed') cash = Math.round(cash * 0.2);   // debris-field consolation, however you died
   cash = Math.max(0, cash);
 
@@ -4194,9 +4619,14 @@ function finishJump(where) {
     const wasOpen = VENUES.map((v, i) => venueOpen(i));   // before this run's feats are counted
     const bill = checkBill({
       landed: outcome !== 'crashed', perfect: outcome === 'perfect', veh: defNow.id, bike: !defNow.fourWheel,
-      flips: fullRotations, rampOut: G.landingRampDist, where, buses: busesNow,
+      flips: fullRotations, rampOut: G.landingRampDist, where, buses: busesNow, train: isTrainVenue() ? G.trainLine : null,
       boostLeft: defNow.boostFuel ? G.boostFuel / defNow.boostFuel : 1,
     });
+    if (isTrainVenue() && Math.abs(G.trainMiss) < 3 && ['side', 'gap', 'clear'].includes(G.trainLine)) {
+      const win = (TRAIN.DOOR / 2 - (defNow.fourWheel ? 1.0 : 0.45)) / TRAIN.V;
+      tip += Math.abs(G.trainMiss) <= win ? 'RIGHT ON TIME, WRONG HEIGHT — CHANGE THE RAMP ANGLE. '
+        : `THE OPEN CAR: ${G.trainMiss > 0 ? 'YOU WERE EARLY' : 'YOU WERE LATE'} BY ${Math.abs(G.trainMiss).toFixed(2)} S. `;
+    }
     if (bill.paid) { G.cash += bill.paid; cash += bill.paid; tip += `★ ON THE BILL: ${bill.names.join(' · ').toUpperCase()} +£${bill.paid}. `; }
     // Venue progression: what this run just opened
     if (outcome !== 'crashed') G.landedAt.add(VENUES[G.venue].id);
@@ -4213,6 +4643,10 @@ function finishJump(where) {
   let pool;
   if (where === 'canyon') pool = ANNOUNCER.canyon;
   else if (where === 'wall' || where === 'busside') pool = ANNOUNCER.wall;
+  else if (where === 'trainside' || where === 'boxcar') pool = ANNOUNCER.train;
+  else if (where === 'trestle' || where === 'underdeck' || where === 'deck') pool = ANNOUNCER.trestle;
+  else if (where === 'trainroof') pool = ANNOUNCER.trainroof;
+  else if (isTrainVenue() && outcome !== 'crashed' && G.trainLine === 'door') pool = ANNOUNCER.boxcar;
   else if (where === 'busroof') pool = ANNOUNCER.busroof;
   else if (where === 'rampface') pool = ANNOUNCER.rampface;
   else if (where === 'plateau1') pool = ANNOUNCER.short;
@@ -4239,7 +4673,8 @@ function finishJump(where) {
   }, scoreDelay);
 
   if (outcome === 'crashed') {
-    G.crashType = (where === 'canyon') ? 'canyon' : (where === 'wall' || where === 'busside') ? 'wall' : 'plateau';
+    G.crashType = (where === 'canyon') ? 'canyon' : (where === 'wall' || where === 'busside' || where === 'trainside' || where === 'trestle') ? 'wall' : 'plateau';
+    G.splatOnTrain = where === 'trainside';
     G.crashWhere = where;
     G.crashX = G.posX;
     G.crashY = G.posY;
@@ -4283,6 +4718,29 @@ function finishJump(where) {
 
 // ---------- ANNOUNCER -------------------------------------------------------
 const ANNOUNCER = {
+  train: [
+    "He's been shipped! Second class, no return!",
+    "Folks, that boxcar now has a new paint job!",
+    "Wrong door! Wrong time! Wrong everything!",
+    "He's riding the freight to Albuquerque now!",
+  ],
+  trestle: [
+    "The railroad would like a word about that bridge!",
+    "He found the one part of the trestle that holds!",
+    "Somebody call the line and tell 'em to slow it down!",
+    "That's what the timber's for, partner!",
+  ],
+  trainroof: [
+    "He's riding on top! Like the hobos of old!",
+    "Next stop: anywhere but here!",
+    "That's one way to catch a train!",
+  ],
+  boxcar: [
+    "THROUGH THE BOXCAR! THROUGH IT!",
+    "In one door and out the other! Folks, I have no words!",
+    "The timing! The nerve! The freight is untouched!",
+    "He threaded the Widowmaker and Pacific!",
+  ],
   busroof: [
     "He's riding the bus now, folks! Exact fare not required!",
     "That's one way to catch the school run!",
@@ -4711,6 +5169,7 @@ function updateWallSplat(dt) {
     vehicleGroup.rotation.z *= (1 - k);
   }
 
+  if (G.splatOnTrain) G.splatZ += TRAIN.V * dt;     // stuck to the boxcar: off he goes with the freight
   vehicleGroup.position.set(G.splatX, G.splatY, G.splatZ);
 }
 
@@ -4793,8 +5252,15 @@ function updateCamera(dt) {
   } else if (G.phase === 'runup' || G.phase === 'airborne') {
     const vx = vehicleGroup ? vehicleGroup.position.x : 0;
     const vy = vehicleGroup ? vehicleGroup.position.y : 0;
-    desiredPos.set(vx - 6, Math.max(7, vy + 5), 28);
-    desiredTarget.set(vx + 8, vy + 1, 0);
+    if (isTrainVenue() && (G.phase === 'airborne' || vx > -14)) {
+      // Freight Line: the side camera would look down the length of the train,
+      // so ride high behind the jump instead and watch the doorway come at you.
+      desiredPos.set(vx - 11, vy + 3.5, G.zPos + 7);
+      desiredTarget.set(vx + 9, vy - 0.5, G.zPos);
+    } else {
+      desiredPos.set(vx - 6, Math.max(7, vy + 5), 28);
+      desiredTarget.set(vx + 8, vy + 1, 0);
+    }
   } else if (G.phase === 'landed') {
     const vx = vehicleGroup ? vehicleGroup.position.x : G.posX;
     const vy = vehicleGroup ? vehicleGroup.position.y : G.posY;
@@ -4991,9 +5457,14 @@ function buildPlaceMap() {
   let s = '';
   // plateau (flat rock) from rim to right edge
   s += `<rect x="${rimPx}" y="0" width="${PLACE.w - rimPx}" height="${PLACE.h}" fill="#D67A55"/>`;
-  // canyon hazard band
+  if (isTrainVenue()) {     // flat lot with the trestle across it
+    s += `<rect x="${launchPx}" y="0" width="${rimPx - launchPx}" height="${PLACE.h}" fill="#D67A55"/>`;
+    const t0 = px_x(TRAIN.X - 2), t1 = px_x(TRAIN.X + 2);
+    s += `<rect x="${t0}" y="0" width="${t1 - t0}" height="${PLACE.h}" fill="#5D3C1A"/>`;
+    for (let yy = 4; yy < PLACE.h; yy += 7) s += `<line x1="${t0}" y1="${yy}" x2="${t1}" y2="${yy}" stroke="#8B5A2B" stroke-width="2"/>`;
+  } else
   s += `<rect x="${launchPx}" y="0" width="${rimPx - launchPx}" height="${PLACE.h}" fill="#3A1A12"/>`;
-  for (let xx = Math.ceil(PLACE.x0 / 6) * 6 + 4; xx < CANYON_WIDTH; xx += 6) {
+  for (let xx = Math.ceil(PLACE.x0 / 6) * 6 + 4; xx < CANYON_WIDTH && !isTrainVenue(); xx += 6) {
     const lx = px_x(xx);
     s += `<line x1="${lx}" y1="0" x2="${lx}" y2="${PLACE.h}" stroke="#6B2A1A" stroke-width="1"/>`;
   }
@@ -5012,7 +5483,8 @@ function buildPlaceMap() {
   }
   s += `<text x="${rimPx+2}" y="12" fill="#2a1a10" font-size="8" font-family="monospace">RIM</text>`;
   const cy = PLACE.h * 0.78, cxL = (launchPx + rimPx) / 2 - 3;
-  s += `<text x="${cxL}" y="${cy}" fill="#E8C9A0" font-size="9" font-family="monospace" transform="rotate(-90 ${cxL} ${cy})">CANYON ${CANYON_WIDTH}M</text>`;
+  if (isTrainVenue()) { const tx = px_x(TRAIN.X) + 3; s += `<text x="${tx}" y="${cy}" fill="#F2E0D5" font-size="9" font-family="monospace" transform="rotate(-90 ${tx} ${cy})">TRESTLE</text>`; }
+  else s += `<text x="${cxL}" y="${cy}" fill="#E8C9A0" font-size="9" font-family="monospace" transform="rotate(-90 ${cxL} ${cy})">CANYON ${CANYON_WIDTH}M</text>`;
   // draggable landing-ramp token
   s += `<g style="cursor:grab">`;
   s += `<rect id="rampToken" x="0" y="0" width="10" height="10" rx="1.5" fill="#8B5A2B" stroke="#2a1a10" stroke-width="2"/>`;
@@ -5069,7 +5541,7 @@ function setupUI() {
   rebuildVehicleGrid();
   const vr = document.getElementById('venueRow');
   vr.innerHTML = VENUES.map((v, i) =>
-    `<button class="venue-btn" data-i="${i}"><span class="vname">${v.name}</span><span class="vgap">${v.kind === 'buses' ? 'BUSES' : v.width + ' M'}</span><span class="vtag" data-tag="${v.kind === 'buses' ? v.tag : 'FOR ' + v.tag}">${v.tag}</span></button>`).join('');
+    `<button class="venue-btn" data-i="${i}"><span class="vname">${v.name}</span><span class="vgap">${v.kind === 'buses' ? 'BUSES' : v.kind === 'train' ? 'TRAIN' : v.width + ' M'}</span><span class="vtag" data-tag="${v.kind ? v.tag : 'FOR ' + v.tag}">${v.tag}</span></button>`).join('');
   document.getElementById('busMinus').addEventListener('click', () => { SFX.click(); setBusCount(G.busCount - 1); });
   document.getElementById('busPlus').addEventListener('click', () => { SFX.click(); setBusCount(G.busCount + 1); });
   vr.querySelectorAll('.venue-btn').forEach(b => b.addEventListener('click', () => {
@@ -5098,7 +5570,7 @@ function setupUI() {
       SFX.ensure(); SFX.click();
       G.landingRampDist = 0; G.landingRampZ = LAUNCH_RAMP_OFFSET; rebuildLandingRamp();
       document.getElementById('menu').classList.add('hidden'); startLaunch();
-    } else if (tutorialActive()) launchAuto(); else openPlacement();
+    } else if (tutorialActive() && !isTrainVenue()) launchAuto(); else openPlacement();
   });
   document.querySelectorAll('.place-nudge button').forEach(b => b.addEventListener('click', () => {
     const [dx, dz] = b.dataset.n.split(',').map(Number);
@@ -5150,6 +5622,7 @@ function backToMenu() {
   document.getElementById('scorecard').classList.remove('show');
   document.getElementById('runupHint').classList.remove('show');
   if (vehicleGroup) { scene.remove(vehicleGroup); vehicleGroup = null; }
+  if (isTrainVenue()) startTrain();      // park the next train back on the bridge for the menu shot
   rebuildVehicleGrid();
   updateVenueButtons();
 }
@@ -5248,6 +5721,7 @@ function animate() {
     }
   }
 
+  updateTrain(dt);
   updateParticles(dt);
   updateDebris(dt);
   updateGhost(dt);
