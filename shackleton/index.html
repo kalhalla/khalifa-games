@@ -554,7 +554,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.5.1';  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.6.0';  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -966,7 +966,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   function boxTopAt(x, z, y) {
     let top = -Infinity;
     for (const b of boxColliders) {
-      if (!b.enabled || !b.walkable) continue;
+      if (!b.enabled || !b.walkable || (b.level || 'crater') !== level.id) continue;
       if (b.y1 > y + BOX_STEP_UP || b.y1 <= top) continue;
       _boxLocal(b, x, z, _bl);
       if (Math.abs(_bl.x) <= b.hx && Math.abs(_bl.z) <= b.hz) top = b.y1;
@@ -975,7 +975,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   }
   // Terrain or box top, whichever is higher — the player's floor.
   function playerGroundY(x, z, y) {
-    const t = shackletonScene.getGroundY(x, z);
+    const t = level.id === 'wreck' ? WL_ORIGIN.y : shackletonScene.getGroundY(x, z);
     if (!boxColliders.length) return t;
     return Math.max(t, boxTopAt(x, z, y));
   }
@@ -984,7 +984,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // onto) are skipped — boxTopAt handles those.
   function boxResolvePlayer(pos, vel) {
     for (const b of boxColliders) {
-      if (!b.enabled) continue;
+      if (!b.enabled || (b.level || 'crater') !== level.id) continue;
       if (pos.y >= b.y1 - 0.02) continue;                        // on top / above
       if (pos.y + 1.7 < b.y0) continue;                          // passes under
       if (b.walkable && b.y1 <= pos.y + BOX_STEP_UP) continue;   // step-up
@@ -2635,6 +2635,9 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
 
     // Horizontal input (camera-relative)
     camera.getWorldDirection(_camDir);
+    if (level.id === 'wreck') {                // v0.6: latched set-camera basis
+      _camDir.set(Math.sin(wreckCam.basisYaw), 0, Math.cos(wreckCam.basisYaw));
+    }
     let camFx = _camDir.x, camFz = _camDir.z;
     const camLen = Math.hypot(camFx, camFz);
     if (camLen > 0.05) { camFx /= camLen; camFz /= camLen; } else { camFx = 0; camFz = 1; }
@@ -2661,7 +2664,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     const SLOPE_CUTOFF = Math.PI / 180 * 50;
     let tooSteep = false;
     let slideX = 0, slideZ = 0;
-    if (player.grounded) {
+    if (player.grounded && level.id !== 'wreck') {   // v0.6: no terrain slope indoors
       const eps = 0.6;
       const yE = shackletonScene.getGroundY(player.pos.x + eps, player.pos.z);
       const yW = shackletonScene.getGroundY(player.pos.x - eps, player.pos.z);
@@ -2974,8 +2977,8 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
         if (vR > 0) { player.vel.x -= vR * nx; player.vel.z -= vR * nz; }
       }
     }
-    // World boundary
-    if (dC > 140) {
+    // World boundary (crater only — the wreck level sits 3 km out)
+    if (dC > 140 && level.id !== 'wreck') {
       const sc = 140 / dC;
       player.pos.x *= sc; player.pos.z *= sc;
       player.vel.x *= -0.3; player.vel.z *= -0.3;
@@ -4862,7 +4865,9 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       // (updateO2Station). v0.4.x stayed connected at full, which
       // left players unsure whether it had finished.
     } else {
-      oxygen.percent = Math.max(0, oxygen.percent - OXYGEN_DRAIN_RATE * dt);
+      // v0.6 blockout: no drain inside the wreck level (sheltered) — the
+      // interior's own O₂ rules come with the stabiliser puzzle move.
+      if (level.id !== 'wreck') oxygen.percent = Math.max(0, oxygen.percent - OXYGEN_DRAIN_RATE * dt);
     }
 
     // Hit zero — rescue.
@@ -13414,13 +13419,16 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     // (v0.5.0 playtest: carrying the battery past the hatch, E closed
     // the hatch instead of setting the battery down.)
     if (interact.carry) return _carryCandidates(out);
+    // Inside the wreck level only the level's own verbs exist.
+    if (level.id === 'wreck') { wreckLevelCandidates(out); return out; }
+    wreckLevelCandidates(out);
     // Scene interactables (pin, brace, install, reflector crank …)
     for (const it of worldInteractables) {
       if (it.hidden && it.hidden()) continue;
       out.push({ key: it, x: it.x, z: it.z, r: it.r, label: it.label, fire: () => it.fire(), hold: it.hold });
     }
-    // Hatch touchpad
-    {
+    // Hatch touchpad (replaced by "enter the wreck" in the ?wreck2 blockout)
+    if (!WRECK_LEVEL_ENABLED) {
       out.push({ key: hatchInteract, x: hatchInteract.x, z: hatchInteract.z, r: hatchInteract.r,
         label: hatchInteract.label,
         fire: () => { if (!reach.active) reachStart(hatchAssembly.padWorld, { onContact: toggleHatch }); } });
@@ -13681,6 +13689,334 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   }
 
   // ============================================================
+  // WRECK INTERIOR — ITS OWN LEVEL (v0.6.0 blockout)
+  //
+  // The hatch no longer opens onto rooms built into the crater scene:
+  // it fades to black and loads the interior as a separate level with
+  // its own floor, walls, lights and SET CAMERAS. Plain shapes only —
+  // this build exists to walk the layout and judge the cameras before
+  // any detail goes in.
+  //
+  //   colour key   grey = structure · blue = device / puzzle station
+  //                orange = loose part to carry · purple = memory spot
+  //                red = blocked
+  //
+  // Lives 3 km from the crater (WL_ORIGIN) so nothing distance-based
+  // in the crater (interactables, robots, panels) can reach in; the
+  // crater's top-level objects and sun are hidden while inside.
+  //
+  // Enabled with ?wreck2 (hatch → this level). ?wreck2=in starts here.
+  // Without the flag the v0.5 hull and its puzzles are untouched, so
+  // the main progression keeps working while the blockout is judged.
+  //
+  // Layout along the hull (local +X, 0 → 42 m), floor y = 0 is the
+  // collapsed decking 1.2 m above the curved hull bottom; hull radius
+  // 4.5 m → walkable chord ±3.05 m, ~7.8 m to the hull top.
+  //   S0  0–7    breach — the side rip you came in through
+  //   S1  7–17   corridor between fallen deck plates
+  //   S2  17–25  life support — O₂ stabiliser (scene 3)
+  //   S3  25–36  cargo bay — structural brace (scene 4)
+  //   S4  36–41  crew quarters — memory spot
+  //   S5  41     tail bulkhead — sealed (engine bay)
+  // ============================================================
+  const WRECK_LEVEL_FLAG = (location.search.match(/[?&]wreck2(=(\w+))?/) || null);
+  const WRECK_LEVEL_ENABLED = !!WRECK_LEVEL_FLAG;
+  const WL_ORIGIN = new THREE.Vector3(3000, 0, 3000);
+  const WL_R = 4.5, WL_AXIS_Y = 3.3, WL_HALF_W = 3.05, WL_LEN = 42;
+  const level = { id: 'crater', fading: false };
+
+  const wreckLevel = (function () {
+    const root = new THREE.Group();
+    root.position.copy(WL_ORIGIN);
+    root.visible = false;
+    root.name = 'wreckLevel';
+    scene.add(root);
+
+    const M = (c) => new THREE.MeshPhongMaterial({ color: c, flatShading: true, shininess: 0 });
+    const matHull = M(0x5d6066), matWall = M(0x7b7f86), matFloor = M(0x4a4d52);
+    const matDev = M(0x3f78c8), matPart = M(0xe0832f), matMem = M(0x8a5cc8), matBlock = M(0xb3393a);
+    const boxes = [];   // local colliders → registered on enter
+
+    function box(w, h, d, x, y, z, mat, opts) {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+      m.position.set(x, y + h / 2, z);
+      if (opts && opts.ry) m.rotation.y = opts.ry;
+      m.castShadow = true; m.receiveShadow = true;
+      root.add(m);
+      if (!opts || opts.solid !== false) {
+        boxes.push({ x, z, hx: w / 2, hz: d / 2, yaw: (opts && opts.ry) || 0,
+                     y0: y, y1: y + h, walkable: !!(opts && opts.walk) });
+      }
+      return m;
+    }
+    // Floating label for the walkthrough.
+    function label(text, x, y, z, col) {
+      const c = document.createElement('canvas'); c.width = 512; c.height = 96;
+      const g = c.getContext('2d');
+      g.fillStyle = 'rgba(10,12,16,0.72)'; g.fillRect(0, 0, 512, 96);
+      g.fillStyle = col || '#f0c674'; g.font = '30px monospace'; g.textAlign = 'center';
+      g.fillText(text, 256, 60);
+      const tex = new THREE.CanvasTexture(c);
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
+      sp.scale.set(2.6, 0.49, 1); sp.position.set(x, y, z); sp.renderOrder = 997;
+      root.add(sp);
+      return sp;
+    }
+
+    // ── Hull: 14-sided tube seen from inside, lying along X ──
+    const hullGeo = new THREE.CylinderGeometry(WL_R, WL_R, WL_LEN, 14, 1, true);
+    hullGeo.rotateZ(Math.PI / 2);
+    const hull = new THREE.Mesh(hullGeo, new THREE.MeshPhongMaterial({
+      color: 0x5d6066, flatShading: true, shininess: 0, side: THREE.BackSide }));
+    hull.position.set(WL_LEN / 2, WL_AXIS_Y, 0);
+    hull.receiveShadow = true;
+    root.add(hull);
+    // Decking floor + side walls (the chord edges) + end caps.
+    box(WL_LEN, 0.2, WL_HALF_W * 2, WL_LEN / 2, -0.2, 0, matFloor, { solid: false });
+    box(WL_LEN, 8, 0.2, WL_LEN / 2, 0, WL_HALF_W + 0.1, matHull, { solid: true });
+    box(WL_LEN, 8, 0.2, WL_LEN / 2, 0, -WL_HALF_W - 0.1, matHull, { solid: true });
+    box(0.3, 8, WL_HALF_W * 2, -0.15, 0, 0, matHull);
+    // Ring frames every 3 m — the rhythm of the hull.
+    for (let x = 3; x < WL_LEN; x += 3) {
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(WL_R - 0.12, 0.12, 4, 14), matWall);
+      ring.rotation.y = Math.PI / 2;
+      ring.position.set(x, WL_AXIS_Y, 0);
+      root.add(ring);
+    }
+    // Bulkheads with a doorway (1.7 wide × 2.4 high) at each section break.
+    function bulkhead(x, doorZ) {
+      const dz = doorZ || 0, half = 0.85;
+      const leftW = (WL_HALF_W + dz) - half, rightW = (WL_HALF_W - dz) - half;
+      box(0.25, 7.6, leftW, x, 0, -WL_HALF_W + leftW / 2, matWall);
+      box(0.25, 7.6, rightW, x, 0, WL_HALF_W - rightW / 2, matWall);
+      box(0.25, 5.2, half * 2, x, 2.4, dz, matWall, { solid: false });   // lintel
+    }
+    bulkhead(7, -0.6); bulkhead(17, 0.4); bulkhead(25, 0); bulkhead(36, -0.8);
+    // S5 sealed tail
+    box(0.4, 8, WL_HALF_W * 2, 41.2, 0, 0, matBlock);
+    label('S5 · tail bulkhead — sealed (engine bay)', 40.6, 2.6, 0, '#ff8a80');
+
+    // ── S0 breach: the rip you came through, on the −Z wall ──
+    const breach = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 3.2),
+      new THREE.MeshBasicMaterial({ color: 0xe8ecf2 }));
+    breach.position.set(3.2, 1.6, -WL_HALF_W + 0.02);
+    root.add(breach);
+    box(1.2, 0.5, 0.9, 5.4, 0, 1.4, matWall, { walk: true });            // fallen locker
+    label('S0 · breach — way out', 3.2, 3.6, -2.2);
+
+    // ── S1 corridor: fallen deck plates narrow it to ~3 m ──
+    box(10, 6.5, 0.25, 12, 0, 1.55, matWall);                             // deck plate (was a floor)
+    box(4, 6.5, 0.25, 9, 0, -1.45, matWall);
+    box(3.5, 6.5, 0.25, 15.2, 0, -1.45, matWall);
+    box(1.6, 0.42, 1.2, 11.6, 0, 0.2, matWall, { walk: true });          // debris to step over
+    box(0.2, 0.2, 3.0, 13.9, 1.9, 0, matWall, { solid: false });          // ladder, now horizontal
+    label('S1 · corridor', 12, 3.4, 0);
+
+    // ── S2 life support (scene 3: O₂ stabiliser) ──
+    box(1.4, 1.6, 1.0, 21, 0, -2.4, matDev);                              // stabiliser
+    box(0.9, 0.5, 0.6, 23.2, 1.3, -2.6, matDev, { solid: false });        // battery rack (high)
+    box(0.5, 0.35, 0.4, 19.1, 0, 1.9, matPart);                           // loose battery
+    box(1.1, 0.12, 0.8, 20.6, 0, 0.6, matPart);                           // debris plate
+    box(0.9, 0.12, 0.7, 22.1, 0, -0.9, matPart);                          // debris plate
+    label('S2 · O₂ stabiliser (scene 3)', 21, 2.6, -2.2, '#9cc4ff');
+
+    // ── S3 cargo bay (scene 4: structural brace) ──
+    box(2.2, 1.6, 1.4, 27.4, 0, 2.0, matWall, { walk: false });           // cargo crates
+    box(1.4, 0.8, 1.4, 29.6, 0, 2.2, matWall, { walk: true });            // climbable step
+    box(3.4, 0.25, 1.0, 32.0, 0.35, -1.9, matPart, { solid: false });     // the brace
+    box(3.6, 0.3, 1.5, 32.0, 0.6, -1.9, matWall, { solid: false });       // plating pinning it
+    box(0.25, 0.9, 0.25, 30.1, 0, -1.2, matDev);                          // locking pin
+    label('S3 · cargo bay — structural brace (scene 4)', 31, 3.4, -1.5, '#9cc4ff');
+
+    // ── S4 crew quarters (memory) ──
+    box(2.0, 0.6, 0.8, 38.4, 2.4, 2.6, matWall, { solid: false });        // bunks, on the wall now
+    box(2.0, 0.6, 0.8, 38.4, 4.0, 2.6, matWall, { solid: false });
+    box(0.8, 1.9, 0.6, 39.6, 0, -2.6, matMem);                            // personal locker
+    label('S4 · crew quarters — memory', 38.6, 3.0, -1.6, '#d2b6ff');
+
+    // ── Lights: dark interior, emergency red/amber, daylight at the rip ──
+    const lights = [];
+    function pl(c, i, d, x, y, z) {
+      const l = new THREE.PointLight(c, i, d, 2);
+      l.position.set(x, y, z); root.add(l); lights.push(l); return l;
+    }
+    const amb = new THREE.AmbientLight(0x30343c, 0.55); root.add(amb);
+    pl(0xff3b2f, 1.6, 9, 9.5, 5.5, 0);
+    pl(0xffb347, 1.7, 9, 21, 4.8, -0.5);
+    pl(0xff3b2f, 1.4, 10, 30, 5.8, 0.5);
+    pl(0xffb347, 1.2, 7, 38.6, 4.6, 0);
+    const day = new THREE.SpotLight(0xf4f6ff, 2.2, 16, 0.55, 0.4, 1.5);
+    day.position.set(3.2, 2.4, -6); day.target.position.set(4.2, 0, 1.5);
+    day.castShadow = true; day.shadow.mapSize.set(512, 512);
+    root.add(day); root.add(day.target);
+    // Helmet lamp — follows the astronaut's head, casts the only moving shadows.
+    const lamp = new THREE.SpotLight(0xfff4dc, 1.6, 15, 0.52, 0.55, 1.6);
+    lamp.castShadow = true; lamp.shadow.mapSize.set(512, 512);
+    lamp.shadow.camera.near = 0.3;
+    lamp.visible = false;
+    scene.add(lamp); scene.add(lamp.target);
+
+    // ── Set cameras, one zone per section ──
+    // fixed: camera holds a position and turns to keep him framed.
+    // rail:  camera slides along X with him, from the side.
+    const zones = [
+      { name: 'S0', x0: -1, x1: 7,   mode: 'fixed', pos: [6.4, 3.9, 2.5] },
+      { name: 'S1', x0: 7,  x1: 17,  mode: 'rail',  y: 2.5, z: 0.1, back: 4.2, clamp: [6.2, 13.8] },
+      { name: 'S2', x0: 17, x1: 25,  mode: 'fixed', pos: [17.6, 5.3, 2.5] },
+      { name: 'S3', x0: 25, x1: 36,  mode: 'fixed', pos: [35.3, 5.8, 2.5] },
+      { name: 'S4', x0: 36, x1: 42,  mode: 'fixed', pos: [36.6, 4.2, 2.3] },
+    ];
+    const SPAWN = { x: 2.6, z: -1.6, heading: Math.PI / 2 };
+    const EXIT = { x: 3.2, z: -2.2 };
+    return { root, boxes, zones, lights, lamp, SPAWN, EXIT };
+  })();
+
+  // ── Level switch ──
+  const _hiddenForWreck = [];
+  let _wlSavedCrater = null;
+  function _wlFade(toBlack) {
+    let el = $('level-fade');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'level-fade';
+      el.style.cssText = 'position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;' +
+        'transition:opacity 0.35s ease;z-index:60';
+      document.body.appendChild(el);
+    }
+    el.style.opacity = toBlack ? '1' : '0';
+  }
+  function _wlRegisterBoxes() {
+    for (const b of wreckLevel.boxes) {
+      const c = addBoxCollider({ x: b.x + WL_ORIGIN.x, z: b.z + WL_ORIGIN.z, hx: b.hx, hz: b.hz,
+        yaw: b.yaw, y0: b.y0 + WL_ORIGIN.y, y1: b.y1 + WL_ORIGIN.y, walkable: b.walkable, tag: 'wreckLevel' });
+      c.level = 'wreck';
+    }
+  }
+  function enterWreckLevel() {
+    if (level.id === 'wreck' || level.fading) return;
+    level.fading = true;
+    _wlFade(true);
+    setTimeout(() => {
+      _wlSavedCrater = { x: player.pos.x, y: player.pos.y, z: player.pos.z, heading: player.heading };
+      // Unplug and stand: the station hose stays in the crater.
+      refill.connected = false; rescueSit.active = false; astroSeat.want = false;
+      if (o2Hose && o2Hose.mesh) { o2Hose.t = 0; o2Hose.mesh.visible = false; }
+      if (interact.carry) putDown(player.pos.x, player.pos.z);   // parts stay in the crater
+      // Hide every crater top-level object (terrain, wreck exterior, robots,
+      // sun, sky dome…) except the astronaut and the shared UI helpers.
+      _hiddenForWreck.length = 0;
+      const keep = new Set([astronautRoot, wreckLevel.root, interactMarker, wreckLevel.lamp, wreckLevel.lamp.target, camera]);
+      for (const o of scene.children) {
+        if (keep.has(o) || !o.visible) continue;
+        o.visible = false; _hiddenForWreck.push(o);
+      }
+      wreckLevel.root.visible = true;
+      wreckLevel.lamp.visible = true;
+      scene.background = new THREE.Color(0x000000);
+      if (!boxColliders.some(b => b.tag === 'wreckLevel')) _wlRegisterBoxes();
+      level.id = 'wreck';
+      const s = wreckLevel.SPAWN;
+      player.pos.set(WL_ORIGIN.x + s.x, WL_ORIGIN.y, WL_ORIGIN.z + s.z);
+      player.vel.set(0, 0, 0);
+      player.heading = s.heading;
+      wreckCam.zone = null;
+      updateWreckCamera(0, true);
+      level.fading = false;
+      _wlFade(false);
+    }, 380);
+  }
+  function exitWreckLevel() {
+    if (level.id !== 'wreck' || level.fading) return;
+    level.fading = true;
+    _wlFade(true);
+    setTimeout(() => {
+      for (const o of _hiddenForWreck) o.visible = true;
+      _hiddenForWreck.length = 0;
+      wreckLevel.root.visible = false;
+      wreckLevel.lamp.visible = false;
+      level.id = 'crater';
+      const zl = $('zone-label'); if (zl) zl.textContent = '';
+      const s = _wlSavedCrater || { x: hatchInteract.x, z: hatchInteract.z + 1.5, heading: 0 };
+      // Step back out of the doorway, facing away from the hull.
+      const hx = hatchInteract.x, hz = hatchInteract.z;
+      const ax = s.x - hx, az = s.z - hz, al = Math.hypot(ax, az) || 1;
+      const ox = hx + ax / al * 2.2, oz = hz + az / al * 2.2;
+      player.pos.set(ox, shackletonScene.getGroundY(ox, oz), oz);
+      player.vel.set(0, 0, 0);
+      player.heading = Math.atan2(ax, az);
+      camYaw = player.heading;
+      level.fading = false;
+      _wlFade(false);
+    }, 380);
+  }
+
+  // ── Set-camera director ──
+  // Movement is camera-relative; on a cut the stick direction would flip
+  // mid-step. So the movement basis (wreckCam.basisYaw) only re-reads
+  // the camera once the player lets go of the stick — classic fixed-
+  // camera control latching.
+  const wreckCam = { zone: null, basisYaw: 0, look: new THREE.Vector3(), pos: new THREE.Vector3() };
+  function updateWreckCamera(dt, snap) {
+    const lx = player.pos.x - WL_ORIGIN.x;
+    let z = wreckCam.zone;
+    if (!z || lx < z.x0 - 0.3 || lx > z.x1 + 0.3) {          // hysteresis at boundaries
+      z = wreckLevel.zones.find(q => lx >= q.x0 && lx < q.x1) || wreckLevel.zones[0];
+      if (z !== wreckCam.zone) { wreckCam.zone = z; snap = true; }
+    }
+    const O = WL_ORIGIN;
+    if (z.mode === 'fixed') {
+      wreckCam.pos.set(O.x + z.pos[0], O.y + z.pos[1], O.z + z.pos[2]);
+    } else {
+      const cx = Math.max(z.clamp[0], Math.min(z.clamp[1], lx - z.back));
+      const want = new THREE.Vector3(O.x + cx, O.y + z.y, O.z + z.z);
+      if (snap) wreckCam.pos.copy(want);
+      else wreckCam.pos.lerp(want, Math.min(1, dt * 4));
+    }
+    const lookT = new THREE.Vector3(player.pos.x, player.pos.y + 1.1, player.pos.z);
+    if (snap) wreckCam.look.copy(lookT); else wreckCam.look.lerp(lookT, Math.min(1, dt * 6));
+    camera.position.copy(wreckCam.pos);
+    camera.lookAt(wreckCam.look);
+    const moving = Math.abs(input.forward) > 0.05 || Math.abs(input.strafe) > 0.05;
+    if (!moving || snap && !wreckCam._latched) {
+      camera.getWorldDirection(_camDir);
+      wreckCam.basisYaw = Math.atan2(_camDir.x, _camDir.z);
+    }
+    wreckCam._latched = moving;
+    // Helmet lamp from the head, along the body heading, tilted down.
+    const L = wreckLevel.lamp, b = (astroSeat.bones || _seatBones());
+    if (b) b.Head.getWorldPosition(L.position); else L.position.set(player.pos.x, player.pos.y + 1.6, player.pos.z);
+    L.target.position.set(L.position.x + Math.sin(player.heading) * 4, L.position.y - 1.2,
+                          L.position.z + Math.cos(player.heading) * 4);
+    const zl = $('zone-label');
+    if (zl) zl.textContent = WRECK_LEVEL_ENABLED ? ('wreck blockout · camera ' + z.name + ' · ' + z.mode) : '';
+  }
+
+  // Interaction candidates for the level switch.
+  function wreckLevelCandidates(out) {
+    if (!WRECK_LEVEL_ENABLED) return;
+    if (level.id === 'crater') {
+      out.push({ key: 'enterWreck', x: hatchInteract.x, z: hatchInteract.z, r: hatchInteract.r + 0.6,
+        label: 'enter the wreck', fire: enterWreckLevel });
+    } else {
+      out.push({ key: 'exitWreck', x: WL_ORIGIN.x + wreckLevel.EXIT.x, z: WL_ORIGIN.z + wreckLevel.EXIT.z,
+        y: WL_ORIGIN.y + 1.6, r: 2.2, label: 'leave the wreck', fire: exitWreckLevel });
+    }
+  }
+  if (WRECK_LEVEL_FLAG && WRECK_LEVEL_FLAG[2] === 'in') {
+    // Skip straight in once the opening hands over.
+    const t = setInterval(() => {
+      // opening.phase 'done' — not merely "not active": the title screen
+      // is also not-active, and entering then let the opening re-seat
+      // him at the bottles afterwards.
+      if (typeof opening !== 'undefined' && opening.phase === 'done' && !opening.active && astronautRoot) {
+        clearInterval(t);
+        rescueSit.active = false; astroSeat.want = false; refill.connected = false;
+        enterWreckLevel();
+      }
+    }, 300);
+  }
+
+  // ============================================================
   // RENDER LOOP
   // ============================================================
   const clock = new THREE.Clock();
@@ -13766,7 +14102,8 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
         }
       }
       updateInteract(dt);                                   // v0.5.0 — after scene state, before camera
-      if (!shackletonMemory.isActive()) updateCamera(dt);   // camera holds during fragments (spec §8)
+      if (level.id === 'wreck') updateWreckCamera(dt);      // v0.6 set cameras indoors
+      else if (!shackletonMemory.isActive()) updateCamera(dt);   // camera holds during fragments (spec §8)
       // Shadow frustum follows the active subject — astronaut on
       // foot, Flyer in flight — texel-snapped inside updateSunFollow.
       if (controlMode === 'flying' && typeof flyerHeading !== 'undefined' && flyerHeading) {
@@ -13818,6 +14155,14 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       oh.classList.add('on');
     }
   });
+
+  if (WRECK_LEVEL_ENABLED) {
+    const zl = document.createElement('div');
+    zl.id = 'zone-label';
+    zl.style.cssText = 'position:fixed;left:50%;bottom:14px;transform:translateX(-50%);font:11px monospace;' +
+      'letter-spacing:2px;color:#f0c674;opacity:0.8;pointer-events:none;z-index:40';
+    document.body.appendChild(zl);
+  }
 
   // ── DEBUG HOOK (v0.5.0) ── only with ?debug in the URL. A direct
   // eval inside this closure, so the automated test harness (and the
