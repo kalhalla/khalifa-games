@@ -141,6 +141,18 @@
   #scorecard.show .score-card { animation: cardslam 0.26s cubic-bezier(.2, 1.5, .4, 1); }
   @keyframes cardslam { from { transform: scale(1.35) rotate(-2deg); opacity: 0; } to { transform: none; opacity: 1; } }
   #scShare:disabled { opacity: 0.55; cursor: default; }
+  /* Score callout */
+  #callout { display: none; position: fixed; left: 50%; top: 22%; transform: translateX(-50%); z-index: 40; pointer-events: none;
+    text-align: center; background: #F2E0D5; border: 3px solid #2a1a10; box-shadow: 5px 5px 0 #2a1a10; padding: 10px 26px 12px; min-width: 240px; }
+  #callout.show { display: block; }
+  #callout.slam { animation: cardslam 0.26s cubic-bezier(.2, 1.5, .4, 1); }
+  #callout .co-big { font-size: 46px; letter-spacing: 3px; line-height: 1; padding: 6px 12px 4px; color: #2a1a10; }
+  #callout.perfect .co-big { background: #F2C54B; }
+  #callout.wobble .co-big { background: #E2873A; color: #F2E0D5; }
+  #callout.crash .co-big { background: #E24A2E; color: #F2E0D5; }
+  #callout .co-line { font-size: 13px; letter-spacing: 2px; margin-top: 8px; color: #2a1a10; text-transform: uppercase; }
+  #callout .co-cash { font-size: 30px; margin-top: 4px; color: #2C568A; letter-spacing: 1px; }
+  @media (max-width: 520px) { #callout .co-big { font-size: 34px; } #callout { top: 18%; } }
   #trainBoard.air { opacity: 0.45; }
   #trainBoard .tb-head { font-size: 10px; letter-spacing: 2px; margin-bottom: 4px; }
   #trainBoard .tb-track { position: relative; height: 20px; background: #5D3C1A; border: 2px solid #2a1a10; overflow: hidden; }
@@ -351,7 +363,7 @@
 </head>
 <body>
 
-<div id="version">STUNTMANIA '76 — Build 0.26.0</div>
+<div id="version">STUNTMANIA '76 — Build 0.27.0</div>
 
 <canvas id="canvas"></canvas>
 
@@ -437,6 +449,7 @@
 
 <!-- RUNUP HINT -->
 <div id="tutHint"></div>
+<div id="callout"><div class="co-big" id="coBig"></div><div class="co-line" id="coLine"></div><div class="co-cash">£<span id="coCash">0</span></div></div>
 <div id="meter"><div class="m-head" id="meterTxt">TAP TO SET SPEED</div><div class="m-track"><div class="m-hot"></div><div class="m-ghost" id="meterGhost"></div><div class="m-needle" id="meterNeedle"></div></div><div class="m-scale"><span>SLOW</span><span>SPEED</span><span>FLAT OUT</span></div></div>
 <div id="trainBoard"><div class="tb-head">FREIGHT LINE · OPEN CAR</div><div class="tb-track"><div class="tb-go" id="tbGo">GO</div><div class="tb-car" id="tbCar"></div></div><div class="tb-line" id="tbLine"></div></div>
 <div id="runupHint">
@@ -516,7 +529,7 @@ rocketcar: "Z2xURgIAAAA8RwQA+BIAAEpTT057ImFzc2V0Ijp7ImdlbmVyYXRvciI6ImdsVEYtVHJh
 // Build 0.2.0  —  Active runup (throttle + steering), camera snap on launch.
 // ============================================================================
 
-const BUILD_VERSION = '0.26.0';
+const BUILD_VERSION = '0.27.0';
 
 // ---------- PALETTE ---------------------------------------------------------
 const COL = {
@@ -737,6 +750,7 @@ const G = {
 
   // Crash cinematics
   timeScale: 1.0,
+  apexT: -1, apexDone: false, apexPrevVy: 0, punch: 0, wobble: null,
   crashTimer: 0,
   crashX: 0, crashY: 0, crashZ: 0,
   crashType: 'canyon',
@@ -954,6 +968,19 @@ const SFX = (() => {
       noise(2.2, { type:'bandpass', freq:1500, q:0.4, gain:0.26, attack:0.35 });
       noise(2.2, { type:'bandpass', freq:900, q:0.5, gain:0.16, attack:0.5 });
     },
+    // Apex: the crowd draws breath and roars
+    roar() {
+      noise(1.5, { type:'bandpass', freq:650, q:0.7, gain:0.24, attack:0.45, sweepTo:1500 });
+      noise(1.2, { type:'bandpass', freq:1700, q:1.6, gain:0.07, attack:0.4 });
+      noise(1.5, { type:'lowpass', freq:160, gain:0.16, attack:0.3 });
+    },
+    // One wheel down: a crowd "ooh"
+    gasp() {
+      noise(0.9, { type:'bandpass', freq:700, q:2.2, gain:0.2, attack:0.08, sweepTo:380 });
+      noise(0.9, { type:'bandpass', freq:1150, q:3, gain:0.08, attack:0.08, sweepTo:650 });
+    },
+    tick() { tone(1900, 0.03, { type:'square', gain:0.035 }); },
+    ding() { tone(1320, 0.5, { type:'triangle', gain:0.16 }); tone(1980, 0.35, { type:'sine', gain:0.06, delay:0.03 }); },
     firework() {
       noise(0.18, { type:'highpass', freq:1600, gain:0.16 });
       tone(420, 0.1, { type:'square', gain:0.08 });
@@ -4038,7 +4065,7 @@ function setActLabel() {
 function broadcastFrame() {
   const x0 = -RAMP_LEN * Math.cos(G.rampAngleRad) - 2;
   const x1 = CANYON_WIDTH + G.landingRampDist + landingLen() * Math.cos(G.landingRampAngleRad) + 4;
-  const vfov = camera.fov * Math.PI / 180, th = Math.tan(vfov / 2), tw = th * camera.aspect;
+  const vfov = BASE_FOV * Math.PI / 180, th = Math.tan(vfov / 2), tw = th * camera.aspect;
   const need = ((x1 - x0) / 2) / tw * 1.04;
   const d = THREE.MathUtils.clamp(Math.max(need, 13 / th), 24, 80);
   return { x0, x1, d, halfW: tw * d * 0.8, th };
@@ -4135,6 +4162,41 @@ function setQuick(on) {
 }
 
 // ============================================================================
+// SCORE CALLOUT — straight after the landing: the verdict, the line, and the
+// cash ticking up from zero. The scorecard's numbers count up too.
+// ============================================================================
+const CALL = { raf: 0 };
+function countUp(el, to, dur, decimals, onTick, onDone) {
+  const t0 = performance.now(); let lastTick = 0;
+  const step = now => {
+    const k = Math.min(1, (now - t0) / (dur * 1000)), e = 1 - Math.pow(1 - k, 3);   // ease-out
+    el.textContent = (to * e).toFixed(decimals);
+    if (onTick && now - lastTick > 55 && k < 1) { lastTick = now; onTick(); }
+    if (k < 1) el._cu = requestAnimationFrame(step); else if (onDone) onDone();
+  };
+  cancelAnimationFrame(el._cu);
+  el._cu = requestAnimationFrame(step);
+}
+function showCallout(big, line, cash, kind) {
+  const el = document.getElementById('callout');
+  if (!el) return;
+  document.getElementById('coBig').textContent = big;
+  document.getElementById('coLine').textContent = line;
+  el.className = 'show ' + kind;
+  void el.offsetWidth;                 // restart the slam animation
+  el.classList.add('slam');
+  const cashEl = document.getElementById('coCash');
+  if (cash > 0) countUp(cashEl, cash, 1.1, 0, () => SFX.tick(), () => SFX.ding());
+  else cashEl.textContent = '0';
+}
+function hideCallout() {
+  const el = document.getElementById('callout');
+  if (el) el.className = '';
+  const c = document.getElementById('coCash');
+  if (c) cancelAnimationFrame(c._cu);
+}
+
+// ============================================================================
 // STUNT BILL — billed feats per venue, paid once each. Some are crash feats:
 // crashes are the point.
 // ============================================================================
@@ -4225,14 +4287,14 @@ const DEV = {
 };
 const DEV_SCENARIOS = [
   { id: 'perfect',  label: 'Perfect landing',   pilot: 'level', ok: r => r.grade === 'STUCK THE LANDING' },
-  { id: 'rough',    label: 'Rough landing',     pilot: 'none',  ok: r => r.phase === 'landed' && r.grade !== 'STUCK THE LANDING' },
+  { id: 'rough',    label: 'Wobble landing',    pilot: 'rough', ok: r => r.phase === 'landed' && r.grade === 'WOBBLE!' },
   { id: 'wall',     label: 'Wall splat',        pilot: 'none',  ok: r => r.type === 'wall' },
   { id: 'canyon',   label: 'Canyon floor',      pilot: 'none',  ok: r => r.type === 'canyon' },
   { id: 'rampface', label: 'Into the ramp',     pilot: 'level', ok: r => r.where === 'rampface' },
   { id: 'short',    label: 'Short on the flat', pilot: 'level', ok: r => r.grade === 'ATE THE DIRT' },
   { id: 'long',     label: 'Sailed past',       pilot: 'level', ok: r => r.grade === 'SAILED PAST' },
   { id: 'lane',     label: 'Wrong lane',        pilot: 'level', laneLand: 6, ok: r => r.grade === 'WRONG LANE' },
-  { id: 'flip',     label: 'Over-rotate',       pilot: 'flip',  ok: r => r.grade === 'MEDICAL PENDING' },
+  { id: 'flip',     label: 'Over-rotate',       pilot: 'flip',  ok: r => r.grade === 'NOSE FIRST' || r.grade === 'LOOPED OUT' },
   { id: 'yard',     label: 'Yard sale',         pilot: 'none',  laneRun: -4, ok: r => r.grade === 'YARD SALE' },
 ];
 
@@ -4248,6 +4310,10 @@ function devAutopilot() {
     if (P.mode === 'level') {
       const err = G.pitch + G.landingRampAngleRad;
       keys.up = err < -0.15; keys.down = err > 0.15;
+    } else if (P.mode === 'rough') {
+      // Hold the nose ~28° high of the slope: rear wheel first, a wobble
+      const err = G.pitch + G.landingRampAngleRad - 0.49;
+      keys.up = err < -0.1; keys.down = err > 0.1;
     } else if (P.mode === 'flip') { keys.up = true; keys.down = false; }
     else { keys.up = keys.down = false; }
   } else { keys.up = keys.down = false; DEV.pilot = null; }
@@ -4259,7 +4325,9 @@ function devApply(st) {
 }
 function devStart(st) {
   devApply(st);
+  const q = G.quick; G.quick = false;   // the autopilot drives the classic run-up
   startLaunch();
+  G.quick = q;
   G.zPos = LAUNCH_RAMP_OFFSET + (st.laneRun || 0);
   DEV.pilot = { mode: st.mode, throttle: st.throttle };
 }
@@ -4452,6 +4520,8 @@ function startLaunch() {
   G.launchRampZ  = LAUNCH_RAMP_OFFSET;    // take-off is fixed
   // Quick run-up (default): swing meter, short approach, skill in the air
   G.meter = null; G.meterSpeed = 0; G.camCut = false;
+  G.apexT = -1; G.apexDone = false; G.apexPrevVy = 0; G.punch = 0; G.wobble = null;
+  if (!SIM) hideCallout();
   G.quickRun = !SIM && G.quick && !isTrainVenue();
   if (G.quickRun) quickSetup();
   if (!SIM) { recAbort(); G.runId = (G.runId || 0) + 1; }
@@ -4685,6 +4755,11 @@ function updateAirborne(dt) {
     if (keys.up)   G.pitchVel += rot * dt * 2;
     if (keys.down) G.pitchVel -= rot * dt * 2;
   }
+  // Top of the jump: start the apex slow-mo once (real time runs it in animate)
+  if (!SIM && !G.apexDone && G.apexPrevVy > 0 && G.vy <= 0 && G.airborneT > 0.25) {
+    G.apexDone = true; G.apexT = 0; SFX.roar();
+  }
+  G.apexPrevVy = G.vy;
   if (!G.quickRun) G.pitchVel *= 0.985;
   G.pitch += G.pitchVel * dt;
   G.cumRotation += Math.abs(G.pitchVel * dt);
@@ -4850,13 +4925,17 @@ function finishJump(where) {
     const latErr  = Math.abs(G.zPos - G.landingRampZ);
     landedOnRamp  = xOnRamp && latErr <= RAMP_HALF_W;
     if (landedOnRamp) {
-      const errDeg = Math.abs((p - (-rampSlopeAt(LR.S, LR.xl))) * 180 / Math.PI);
-      // Quick run-up grades tighter: you flew it yourself, so it should matter
-      const GR = G.quickRun ? [15, 30, 45] : [20, 50, 95];
-      if (errDeg < GR[0])      { outcome = 'perfect';   gradeText = 'STUCK THE LANDING';  landingText = isBusVenue() ? `Cleared ${G.busCount} buses` : 'Dead on the ramp'; }
-      else if (errDeg < GR[1]) { outcome = 'survived';  gradeText = 'WALK IT OFF';        landingText = 'Rough on the ramp'; }
-      else if (errDeg < GR[2]) { outcome = 'technical'; gradeText = 'TECHNICALLY LANDED'; landingText = 'On the rear wheel'; }
-      else                  { outcome = 'crashed';   gradeText = 'MEDICAL PENDING';    landingText = 'New canyon feature'; }
+      // Signed error against the slope: + is nose high (rear wheel first),
+      // − is nose low (front wheel first). The front wheel is less forgiving.
+      const err = (p - (-rampSlopeAt(LR.S, LR.xl))) * 180 / Math.PI;
+      G.landErr = err;
+      const TOL = G.quickRun ? { both: 15, rear: 40, front: 25 } : { both: 20, rear: 60, front: 32 };
+      G.wobble = null;
+      if (Math.abs(err) < TOL.both) { outcome = 'perfect'; gradeText = 'STUCK THE LANDING'; landingText = isBusVenue() ? `Cleared ${G.busCount} buses` : 'Both wheels down'; }
+      else if (err > 0 && err < TOL.rear)   { outcome = 'survived'; G.wobble = 'rear';  gradeText = 'WOBBLE!'; landingText = 'One wheel · rear first'; }
+      else if (err < 0 && -err < TOL.front) { outcome = 'survived'; G.wobble = 'front'; gradeText = 'WOBBLE!'; landingText = 'One wheel · front first'; }
+      else if (err < 0) { outcome = 'crashed'; gradeText = 'NOSE FIRST'; landingText = 'Front wheel dug in'; }
+      else              { outcome = 'crashed'; gradeText = 'LOOPED OUT'; landingText = 'Landed on his back'; }
     } else {
       outcome = 'crashed';
       if (G.posX < faceX)            { gradeText = 'ATE THE DIRT'; landingText = 'Down short on the flat'; }
@@ -4953,13 +5032,18 @@ function finishJump(where) {
   document.getElementById('scStyle').textContent = styleText;
   document.getElementById('scHype').textContent = hype + '%';
   document.getElementById('scCash').textContent = cash;
+  if (!SIM) showCallout(outcome === 'perfect' ? 'PERFECT!' : G.wobble ? 'WOBBLE!' : gradeText, landingText, cash,
+    outcome === 'perfect' ? 'perfect' : outcome === 'crashed' ? 'crash' : 'wobble');
   const celebrating = (outcome !== 'crashed');
   const scoreDelay = G.quickRun ? (celebrating ? 2600 : 2300)
     : celebrating ? 4200 : (where === 'wall' ? 4800 : 3200);
   const runId = G.runId;
   setTimeout(() => {
     if ((G.phase === 'crashed' || G.phase === 'landed') && G.runId === runId) {
+      hideCallout();
       document.getElementById('scorecard').classList.add('show');
+      countUp(document.getElementById('scCash'), cash, 0.9, 0);
+      countUp(document.getElementById('scDist'), distance, 0.9, 1);
     }
   }, scoreDelay);
   recFinish(gradeText, scoreDelay + 700);
@@ -4989,7 +5073,9 @@ function finishJump(where) {
   } else {
     SFX.land();
     if (!celebrating) SFX.engineStop('die');
-    if (celebrating) { SFX.success(); SFX.cheer(); }
+    if (celebrating && !G.wobble) { SFX.success(); SFX.cheer(); }
+    else if (celebrating) { SFX.gasp(); const rid = G.runId; setTimeout(() => { if (G.runId === rid) SFX.cheer(); }, 650); }
+    G.timeScale = 1;                     // a landing ends the apex slow-mo
     G.celebrate = celebrating;
     G.celebrateTimer = 0;
     G.fireworkTimer = 0;
@@ -5631,7 +5717,16 @@ function updateCamera(dt) {
     camTarget.lerp(desiredTarget, Math.min(1, dt * lerpK));
   }
   applyUserCam();
+  // Apex punch-in: narrow the lens and swing the aim onto the rider
+  const fov = BASE_FOV - 14 * G.punch;
+  if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
+  if (G.punch > 0.001 && vehicleGroup) {
+    _punchV.copy(camTarget).lerp(vehicleGroup.position, G.punch);
+    camera.lookAt(_punchV);
+  }
 }
+const BASE_FOV = 42;
+const _punchV = new THREE.Vector3();
 
 // ---------- PLAYER CAMERA CONTROL ---------------------------------------------
 // The scripted camera still decides WHAT to look at; the player chooses the
@@ -5986,6 +6081,23 @@ function animate() {
     else if (G.crashTimer < 2.1) G.timeScale = 0.35 + (G.crashTimer - 1.3) / 0.8 * 0.65;
     else                         G.timeScale = 1.0;
   }
+  // Apex slow-mo: ease to 0.3 over 0.12 s, hold 0.6 s, ease back over 0.35 s
+  // (real time). Landing or crashing ends it at once.
+  if (G.apexT >= 0) {
+    if (G.phase !== 'airborne') { G.apexT = -1; if (G.phase !== 'crashed') G.timeScale = 1; }
+    else {
+      G.apexT += rawDt;
+      const t = G.apexT, ss = x => x * x * (3 - 2 * x);
+      if (t < 0.12)       G.timeScale = 1 - 0.7 * ss(t / 0.12);
+      else if (t < 0.72)  G.timeScale = 0.3;
+      else if (t < 1.07)  G.timeScale = 0.3 + 0.7 * ss((t - 0.72) / 0.35);
+      else              { G.timeScale = 1; G.apexT = -1; }
+    }
+  }
+  // Camera punch-in follows the slow-mo, smoothed so landing doesn't snap
+  const punchWant = G.apexT >= 0 ? (1 - G.timeScale) / 0.7 : 0;
+  G.punch += (punchWant - G.punch) * Math.min(1, rawDt * 7);
+  if (G.punch > 0.3 && G.phase === 'airborne') cheerCrowd();
   let dt = rawDt * G.timeScale;
   if (DEV.on) {
     dt *= DEV.speed;
@@ -6012,7 +6124,15 @@ function animate() {
       const fw = !!VEHICLE_DEFS[G.vehicleIdx].fourWheel;
       const wheelieTarget = fw ? 0.035 * Math.sin(G.celebrateTimer * 9) * Math.exp(-G.celebrateTimer * 2.2)
                                : 0.45 + 0.1 * Math.sin(G.celebrateTimer * 4);
-      const wheelie = G.landPitch + (wheelieTarget - G.landPitch) * ramp;
+      let wheelie = G.landPitch + (wheelieTarget - G.landPitch) * ramp;
+      let weave = 0;
+      if (G.wobble) {
+        // One wheel down: a decaying shake of the pitch and a weave, no wheelie
+        const t = G.celebrateTimer, decay = Math.exp(-2.4 * t);
+        const amp = G.wobble === 'rear' ? 0.22 : 0.16;
+        wheelie = G.landPitch * (1 - ramp) + amp * Math.sin(t * 13) * decay;
+        weave = 0.3 * Math.sin(t * 9.5) * decay * (fw ? 0.3 : 1);
+      }
       G.posX += 8 * dt;  // ride off along the far side
 
       // Track the landing-ramp surface so the bike doesn't clip through it.
@@ -6027,16 +6147,16 @@ function animate() {
       const surfaceY = getGroundAt(G.posX, G.zPos);
       G.posY = surfaceY + 0.4 + Math.max(0, Math.sin(wheelie)) * 0.35;
       vehicleGroup.position.set(G.posX, G.posY, G.zPos);
-      vehicleGroup.rotation.set(fw ? 0 : G.bankAngle, 0, slopeTilt + wheelie);
+      vehicleGroup.rotation.set((fw ? 0 : G.bankAngle) + weave, 0, slopeTilt + wheelie);
       // Wave the near arm — ease it off the bars, then oscillate. Coords come
       // from the vehicle's own userData.wave so every rig waves correctly.
-      if (vehicleGroup.userData.rig) {
+      if (vehicleGroup.userData.rig && !G.wobble) {
         vehicleGroup.userData.rig.waveAmt = ramp;
         vehicleGroup.userData.rig.waveT = G.celebrateTimer;
       }
       const arm = vehicleGroup.getObjectByName('waveArm');
       const W = vehicleGroup.userData && vehicleGroup.userData.wave;
-      if (arm && W) {
+      if (arm && W && !G.wobble) {
         const w = Math.sin(G.celebrateTimer * 9);
         const [sx, sy, sz] = W.shoulder, [gx, gy, gz] = W.grip, [hx, hy, hz] = W.hand;
         const wx = hx + w * W.ax, wy = hy, wz = hz + w * W.az;   // waving hand
@@ -6045,7 +6165,7 @@ function animate() {
       }
       // Fireworks at intervals
       G.fireworkTimer -= dt;
-      if (G.fireworkTimer <= 0) {
+      if (G.fireworkTimer <= 0 && !G.wobble) {
         spawnFirework(G.posX + 6 + Math.random() * 16, 8 + Math.random() * 7, G.zPos + (Math.random() - 0.5) * 22);
         G.fireworkTimer = 0.28 + Math.random() * 0.3;
       }
