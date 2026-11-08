@@ -554,7 +554,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.5.0';  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.5.1';  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -2592,7 +2592,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
                         Math.abs(input.strafe) > 0.05 || input.jump;
       if (wantsMove) {
         rescueSit.active = false;
-        if (animClips['Crouch_Loop']) animClips['Crouch_Loop'].paused = false;
+        astroSeat.want = false;          // pose blends out over ~0.5s — he rises
         setAnimation('Idle_Breath');
         // fall through — this frame runs the normal controller
       } else {
@@ -4790,26 +4790,9 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
         // he wakes SITTING against the tanks, hose clipped to helmet,
         // already refilling (v0.4.3 — was a standing wake mid-field).
         if (into < dt * 1.5) {
-          const sx = REFILL_PANEL_POS.x + 0.72;   // right against the tanks
-          const sz = REFILL_PANEL_POS.z - 0.55;
-          player.pos.set(sx, shackletonScene.getGroundY(sx, sz), sz);
-          player.vel.set(0, 0, 0);
-          // Face the tanks (they sit behind the pillar, local -z).
-          player.heading = Math.atan2(REFILL_PANEL_POS.x - sx,
-                                      (REFILL_PANEL_POS.z - 0.55) - sz);
-          if (astronautRoot) {
-            astronautRoot.position.copy(player.pos);
-            astronautRoot.rotation.y = player.heading;
-          }
-          // Seated pose — freeze Crouch_Loop mid-frame. Unlike the
-          // Flyer pilot (whose paused pose must NOT re-stamp so head
-          // tracking survives), here re-stamping every mixer.update
-          // is exactly what keeps him seated.
-          if (mixer && animClips['Crouch_Loop']) {
-            setAnimation('Crouch_Loop');
-            animClips['Crouch_Loop'].time = 0.35;
-            animClips['Crouch_Loop'].paused = true;
-          }
+          // v0.5.1: same seat as the opening — back to the bottle.
+          seatAtTanks();
+          camYaw = seatCamYaw();
           rescueSit.active = true;
           rescueSit.spoke = false;
           refill.connected = true;            // hose attached, refilling
@@ -8991,24 +8974,37 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       }
       return;
     }
-    // Helmet target: head height drops when seated; small forward
-    // offset so the hose meets the visor side, not the spine.
-    const helmetY = rescueSit.active ? 1.00 : 1.50;
-    _hoseEnd.set(
-      player.pos.x + Math.sin(player.heading) * 0.14,
-      player.pos.y + helmetY,
-      player.pos.z + Math.cos(player.heading) * 0.14
-    );
-    // Extension: the free end travels from the manifold toward the
-    // helmet as t rises; sag eases off as the line goes taut.
+    // Seated (v0.5.1): valve of the bottle he leans on → neck ring,
+    // over the shoulder. Standing: manifold → helmet side as before.
+    const seatEnd = (astroSeat.w > 0.5) ? seatHoseEnd() : null;
+    const anchor = seatEnd ? seatHoseAnchor() : hoseAnchor;
+    if (seatEnd) {
+      _hoseEnd.copy(seatEnd);
+    } else {
+      const helmetY = 1.50;
+      _hoseEnd.set(
+        player.pos.x + Math.sin(player.heading) * 0.14,
+        player.pos.y + helmetY,
+        player.pos.z + Math.cos(player.heading) * 0.14
+      );
+    }
+    // Extension: the free end travels from the anchor toward the
+    // suit as t rises; sag eases off as the line goes taut.
     const e = o2Hose.t * o2Hose.t * (3 - 2 * o2Hose.t);
-    _hoseEnd.lerpVectors(hoseAnchor, _hoseEnd, e);
-    _hoseMid.lerpVectors(hoseAnchor, _hoseEnd, 0.5);
-    _hoseMid.y -= 0.30 * e + 0.05;      // slack droop
+    _hoseEnd.lerpVectors(anchor, _hoseEnd, e);
+    _hoseMid.lerpVectors(anchor, _hoseEnd, 0.5);
+    if (seatEnd) {
+      // Arc up and out over the bottle's shoulder before dropping to
+      // the neck ring — a straight chord would cut through the dome.
+      _hoseMid.addScaledVector(_F, 0.10);
+      _hoseMid.y += 0.12;
+    } else {
+      _hoseMid.y -= 0.30 * e + 0.05;    // slack droop
+    }
     o2Hose.mesh.geometry.dispose();
     o2Hose.mesh.geometry = new THREE.TubeGeometry(
-      new THREE.QuadraticBezierCurve3(hoseAnchor.clone(), _hoseMid.clone(), _hoseEnd.clone()),
-      12, 0.03, 6, false
+      new THREE.QuadraticBezierCurve3(anchor.clone(), _hoseMid.clone(), _hoseEnd.clone()),
+      14, 0.038, 6, false
     );
     o2Hose.mesh.visible = true;
     // Nozzle collar rides the free end, aimed back along the last leg.
@@ -11451,6 +11447,171 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   //   OPEN_PRONE_PITCH — flip the sign if the model lies on its back
   //   OPEN_PRONE_LIFT  — raise if the body sinks into the regolith
   // ============================================================
+  // SEATED AT THE TANKS (v0.5.1) — opening + blackout wake.
+  //
+  // v0.4.x froze Crouch_Loop mid-frame 0.16m from the right-hand
+  // bottle, facing it: the helmet sat inside the tank and he read as
+  // merged with the station. Now he SITS on the regolith with his back
+  // against that bottle, facing away from the station — one leg out,
+  // the other knee up with an arm draped over it, head dropped a
+  // little — the way something dragged there and propped up would
+  // sit. The rig has no sit clip, so the pose is solved on the bones
+  // after the mixer stamps Idle_Breath (which keeps the chest
+  // breathing): each limb is aimed at a direction in the body frame,
+  // same minimal-rotation method as the reach system. Weight `w`
+  // blends it in/out so standing up is a rise, not a pop.
+  // ============================================================
+  const TANK_SEAT = {
+    // panel-local: east face of the right tank (tx +0.30, r 0.26)
+    // plus ~0.30m of backpack between the bottle and the pelvis.
+    x: 0.30 + 0.26 + 0.30, z: -0.55,
+    heading: Math.PI / 2,     // facing east, back to the bottles
+    camYaw: Math.PI,          // camera on his right, wreck behind him
+    // Hose leaves the right tank's valve neck, not the manifold —
+    // the manifold sits between the bottles, behind the tank he leans on.
+    hose: { x: 0.36, y: 1.64, z: -0.55 },
+  };
+  const astroSeat = { want: false, w: 0, t: 0, bones: null, hipsRest: null };
+
+  function seatAtTanks() {
+    const p = refillPanel.localToWorld(new THREE.Vector3(TANK_SEAT.x, 0, TANK_SEAT.z));
+    player.pos.set(p.x, shackletonScene.getGroundY(p.x, p.z), p.z);
+    player.vel.set(0, 0, 0);
+    player.heading = TANK_SEAT.heading + refillPanel.rotation.y;
+    if (astronautRoot) {
+      astronautRoot.rotation.order = 'XYZ';
+      astronautRoot.rotation.x = 0;
+      astronautRoot.rotation.y = player.heading;
+      astronautRoot.position.copy(player.pos);
+      astronautRoot.visible = true;
+    }
+    if (mixer && animClips['Crouch_Loop']) animClips['Crouch_Loop'].paused = false;
+    if (mixer && animClips['Idle_Breath']) setAnimation('Idle_Breath');
+    astroSeat.want = true;
+    astroSeat.w = 1;                       // already seated when the fade lifts
+  }
+  function seatCamYaw() { return TANK_SEAT.camYaw + refillPanel.rotation.y; }
+
+  function _seatBones() {
+    if (astroSeat.bones !== null) return astroSeat.bones;
+    astroSeat.bones = false;
+    if (!astronautRoot) return false;
+    const b = {};
+    const names = ['Hips', 'Spine', 'Spine1', 'Spine2', 'Neck', 'Head',
+      'LeftUpLeg', 'LeftLeg', 'LeftFoot', 'LeftToeBase',
+      'RightUpLeg', 'RightLeg', 'RightFoot', 'RightToeBase',
+      'LeftArm', 'LeftForeArm', 'LeftHand', 'RightArm', 'RightForeArm', 'RightHand'];
+    for (const n of names) {
+      let found = null;
+      astronautRoot.traverse(o => { if (!found && o.isBone && (o.name === n || o.name.endsWith(':' + n) || o.name.endsWith(n) && o.name.length - n.length <= 10)) found = o; });
+      if (!found) { console.warn('[seat] bone missing:', n); return false; }
+      b[n] = found;
+    }
+    astroSeat.bones = b;
+    astroSeat.hipsRest = b.Hips.position.clone();
+    return b;
+  }
+
+  const _sa = new THREE.Vector3(), _sb = new THREE.Vector3(), _sd = new THREE.Vector3();
+  const _sq = new THREE.Quaternion(), _sqw = new THREE.Quaternion(), _sqp = new THREE.Quaternion();
+  const _sq0 = new THREE.Quaternion();
+  // Rotate `bone` so (bone → child) points along world `dir`, blended
+  // by w against whatever the mixer left there.
+  function _aimBone(bone, child, dir, w) {
+    _sq0.copy(bone.quaternion);
+    bone.updateMatrixWorld(true);
+    bone.getWorldPosition(_sa); child.getWorldPosition(_sb);
+    _sd.subVectors(_sb, _sa);
+    if (_sd.lengthSq() < 1e-10) return;
+    _sd.normalize();
+    _sq.setFromUnitVectors(_sd, dir);
+    bone.getWorldQuaternion(_sqw);
+    _sqw.premultiply(_sq);
+    bone.parent.getWorldQuaternion(_sqp).invert();
+    bone.quaternion.copy(_sqp.multiply(_sqw));
+    if (w < 1) bone.quaternion.copy(_sq0.slerp(bone.quaternion, w));
+    bone.updateMatrixWorld(true);
+  }
+
+  const _F = new THREE.Vector3(), _U = new THREE.Vector3(0, 1, 0), _R = new THREE.Vector3();
+  const _dir = new THREE.Vector3();
+  // dir = f·F + u·U + r·R (body frame), normalised
+  function _bd(f, u, r) {
+    return _dir.set(0, 0, 0).addScaledVector(_F, f).addScaledVector(_U, u)
+      .addScaledVector(_R, r).normalize();
+  }
+  const SEAT_PELVIS_Y = 0.17;   // m above the regolith (suit seat on the ground)
+
+  function applySeatedPose(dt) {
+    const target = astroSeat.want ? 1 : 0;
+    astroSeat.w += (target - astroSeat.w) * Math.min(1, dt * (astroSeat.want ? 8 : 5));
+    if (!astroSeat.want && astroSeat.w < 0.01) {
+      astroSeat.w = 0;
+      const b0 = astroSeat.bones;
+      if (b0 && astroSeat.hipsRest) b0.Hips.position.copy(astroSeat.hipsRest);
+      return;
+    }
+    const b = _seatBones();
+    if (!b) return;
+    const w = astroSeat.w;
+    astroSeat.t += dt;
+    const breathe = Math.sin(astroSeat.t * 1.3);           // slow, tired
+    const drift = Math.sin(astroSeat.t * 0.37) * 0.5 + Math.sin(astroSeat.t * 0.23) * 0.5;
+
+    const h = player.heading;
+    _F.set(Math.sin(h), 0, Math.cos(h));
+    _R.set(-_F.z, 0, _F.x);                                // forward × up
+
+    // Pelvis down to the ground, a touch back against the bottle.
+    b.Hips.position.copy(astroSeat.hipsRest);
+    astronautRoot.updateMatrixWorld(true);
+    b.Hips.getWorldPosition(_sa);
+    const groundY = player.pos.y;
+    const drop = (_sa.y - (groundY + SEAT_PELVIS_Y)) * w;
+    _sb.copy(_sa).addScaledVector(_U, -drop).addScaledVector(_F, -0.06 * w);
+    b.Hips.parent.worldToLocal(_sb);
+    b.Hips.position.copy(_sb);
+    b.Hips.updateMatrixWorld(true);
+
+    // Back against the bottle: lean ~20° back, a little more up top.
+    _aimBone(b.Spine,  b.Spine1, _bd(-0.30, 1, 0.03), w);
+    _aimBone(b.Spine2, b.Neck,   _bd(-0.22 + breathe * 0.015, 1, 0.02), w);
+    // Head dropped forward and to the right — groggy, slowly settling.
+    _aimBone(b.Neck,   b.Head,   _bd(0.38 + drift * 0.06, 1, 0.16 + drift * 0.05), w);
+
+    // Left leg out straight, slightly splayed; toes up.
+    _aimBone(b.LeftUpLeg, b.LeftLeg,   _bd(1, 0.06, -0.20), w);
+    _aimBone(b.LeftLeg,   b.LeftFoot,  _bd(1, -0.10, -0.06), w);
+    _aimBone(b.LeftFoot,  b.LeftToeBase, _bd(0.35, 1, -0.15), w);
+    // Right knee up, foot planted.
+    _aimBone(b.RightUpLeg, b.RightLeg,  _bd(0.62, 0.66, 0.16), w);
+    _aimBone(b.RightLeg,   b.RightFoot, _bd(0.48, -0.88, 0.04), w);
+    _aimBone(b.RightFoot,  b.RightToeBase, _bd(1, -0.25, 0.08), w);
+
+    // Left arm limp on the ground beside the hip.
+    _aimBone(b.LeftArm,     b.LeftForeArm, _bd(0.18, -1, -0.42), w);
+    _aimBone(b.LeftForeArm, b.LeftHand,    _bd(0.75, -0.55, -0.25), w);
+    // Right forearm draped over the raised knee.
+    _aimBone(b.RightArm,     b.RightForeArm, _bd(0.55, -0.62, 0.38), w);
+    _aimBone(b.RightForeArm, b.RightHand,    _bd(0.80, -0.05, -0.22), w);
+  }
+
+  // World anchor for the seated hose (right tank valve).
+  const _seatHoseA = new THREE.Vector3();
+  function seatHoseAnchor() {
+    return refillPanel.localToWorld(_seatHoseA.set(TANK_SEAT.hose.x, TANK_SEAT.hose.y, TANK_SEAT.hose.z));
+  }
+  // Suit end of the seated hose: the neck ring, back-left of the helmet
+  // (the side facing the valve), so the line comes over the shoulder.
+  const _seatHoseE = new THREE.Vector3();
+  function seatHoseEnd() {
+    const b = astroSeat.bones;
+    if (!b) return null;
+    b.Neck.getWorldPosition(_seatHoseE);
+    return _seatHoseE.addScaledVector(_F, -0.12).addScaledVector(_R, -0.10).addScaledVector(_U, 0.02);
+  }
+
+  // ============================================================
   const OPEN_PRONE_PITCH = Math.PI / 2;   // face-down pitch on root
   const OPEN_PRONE_LIFT  = 0.06;          // was 0.18 — read as floating above the ground per feedback
   const OPEN_BLACK_DUR   = 3.8;           // seconds of black + HUD before reveal
@@ -11480,25 +11641,11 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     get x() { return REFILL_PANEL_POS.x + 0.72; },
     get z() { return REFILL_PANEL_POS.z - 0.55; },
   };
-  const OPEN_HEADING = -Math.PI / 2;   // facing the tanks (west)
+  const OPEN_HEADING = -Math.PI / 2;   // (v0.4.x, retired — see TANK_SEAT)
 
   function poseSeatedWake() {
     if (!astronautRoot) return;
-    player.heading = OPEN_HEADING;
-    player.pos.set(OPEN_SPAWN.x,
-                   shackletonScene.getGroundY(OPEN_SPAWN.x, OPEN_SPAWN.z),
-                   OPEN_SPAWN.z);
-    astronautRoot.rotation.order = 'XYZ';
-    astronautRoot.rotation.x = 0;
-    astronautRoot.rotation.y = player.heading;
-    astronautRoot.position.copy(player.pos);
-    astronautRoot.visible = true;
-    // Seated pose — same frozen crouch as the blackout wake.
-    if (mixer && animClips['Crouch_Loop']) {
-      setAnimation('Crouch_Loop');
-      animClips['Crouch_Loop'].time = 0.35;
-      animClips['Crouch_Loop'].paused = true;
-    }
+    seatAtTanks();          // v0.5.1 — sitting against the bottle, not crouched into it
     // Already on the umbilical: connected, hose out, objective solved.
     refill.connected = true;
     refill._everConnected = true;   // "find oxygen" never needs to fire
@@ -11549,23 +11696,26 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // exact chase-cam target for the handoff so gameplay's updateCamera
   // takes over with zero pop.
   function _openingCloseCam(outPos, outLook) {
-    // Seated framing: head ~1.0m up, slightly forward of the root.
+    // v0.5.1 seated framing: front-right three-quarter on the visor,
+    // the bottle he leans on and the hose behind his head.
     const dirX = Math.sin(player.heading), dirZ = Math.cos(player.heading);
-    const hx = player.pos.x + dirX * 0.25;
-    const hz = player.pos.z + dirZ * 0.25;
-    const hy = player.pos.y + 1.0;
-    // Camera off the right shoulder, at visor height, looking across
-    // at the helmet with the tanks behind.
-    const sx = Math.cos(player.heading), sz = -Math.sin(player.heading);
-    outPos.set(hx + sx * 1.7 + dirX * 0.7, hy + 0.15, hz + sz * 1.7 + dirZ * 0.7);
-    outLook.set(hx, hy, hz);
+    const rx = -dirZ, rz = dirX;                       // his right
+    const b = _seatBones();
+    let hx, hy, hz;
+    if (b) { b.Head.getWorldPosition(_sa); hx = _sa.x; hy = _sa.y; hz = _sa.z; }
+    else { hx = player.pos.x; hy = player.pos.y + 0.75; hz = player.pos.z; }
+    outPos.set(hx + rx * 1.35 + dirX * 1.25, hy + 0.20, hz + rz * 1.35 + dirZ * 1.25);
+    outLook.set(hx - dirX * 0.10, hy - 0.08, hz - dirZ * 0.10);
   }
   function _openingChaseCam(outPos, outLook) {
     // POSITIVE pitch lifts the camera above the player (vertOffset
     // adds to y). The previous −0.30 put the target 2.3m underground;
     // gameplay's per-frame terrain clamp hid the error, but the rise
     // lerp has no clamp and swung the camera below the floor.
-    const yaw = player.heading, pitch = 0.30;
+    // v0.5.1: seated framing is side-on (wreck behind him), and movement
+    // is camera-relative — so the first W walks him clear of the
+    // bottles, not into them.
+    const yaw = astroSeat.want ? seatCamYaw() : player.heading, pitch = 0.30;
     const horiz = camDist * Math.cos(pitch);
     const vert  = camDist * Math.sin(pitch);
     outPos.set(player.pos.x - Math.sin(yaw) * horiz,
@@ -11588,8 +11738,8 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     astronautRoot.position.copy(player.pos);
     // Snap the chase-cam state to match the camera we hand over, so
     // updateCamera's first frame continues seamlessly.
-    camYaw = player.heading;
-    camPitch = 0.30;   // matches _openingChaseCam — elevated behind, zero pop
+    camYaw = astroSeat.want ? seatCamYaw() : player.heading;
+    camPitch = 0.30;   // matches _openingChaseCam — elevated, zero pop
     const vg = $('opening-vignette'); if (vg) vg.style.opacity = '0';
     const pr = $('opening-prompt');   if (pr) pr.classList.remove('on');
     // He stays SEATED at the tanks until the player moves — same
@@ -13543,6 +13693,9 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   }
   function frame(dt) {
     if (opening.active) {
+      // Clears any prompt left over from behind the title screen
+      // (updateInteract hides itself while the opening runs).
+      updateInteract(dt);
       // Face-down wake cinematic — drives astronaut pose, camera,
       // HUD overlays, and keeps the robots simulating so the world
       // reads as alive behind the player.
@@ -13625,6 +13778,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       updateCinematic(dt);
     }
     if (mixer) mixer.update(dt);
+    if (astroSeat.want || astroSeat.w > 0) applySeatedPose(dt);   // bones AFTER the mixer stamp
     updateReach(dt);                 // arm override AFTER the mixer stamp
     updateEntities(dt);              // entity registry — additive pass
     updateHose(dt);                  // O₂ umbilical — no-op unless connected
