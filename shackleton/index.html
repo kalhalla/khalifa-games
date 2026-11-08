@@ -540,10 +540,39 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     </div>
   </div>
 </div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
-<script>
+<!-- three.js r187 (ES modules). r128 was the last release with the global
+     examples/js builds this file was written against; the bridge below
+     rebuilds that global THREE namespace so the game code is unchanged. -->
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.187.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+  import * as T from 'three';
+  import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+  import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
+  // ── r128 LOOK COMPATIBILITY ──
+  // Everything in this game was tuned on r128 with legacy lighting. r187
+  // differs in three ways; each is put back here, once, so no colour or
+  // light value in the game needs re-tuning:
+  //  1. Colour management: hex colours were used as-is (no sRGB→linear).
+  //  2. Lambert diffuse: legacy lights carried a ×π that cancelled the
+  //     1/π in BRDF_Lambert. r155 dropped it (lights ~3× dimmer).
+  //  3. Point/spot falloff: legacy pow(1 − d/cutoff, decay), not inverse-square.
+  T.ColorManagement.enabled = false;
+  T.ShaderChunk.common = T.ShaderChunk.common.replace(
+    'return RECIPROCAL_PI * diffuseColor;', 'return diffuseColor;   /* r128 legacy-light scale */');
+  T.ShaderChunk.lights_pars_begin = T.ShaderChunk.lights_pars_begin.replace(
+    /float getDistanceAttenuation\([\s\S]*?return distanceFalloff;\n}/,
+    `float getDistanceAttenuation( const in float lightDistance, const in float cutoffDistance, const in float decayExponent ) {
+      if ( cutoffDistance > 0.0 && decayExponent > 0.0 ) return pow( saturate( - lightDistance / cutoffDistance + 1.0 ), decayExponent );
+      return 1.0;   /* r128 legacy falloff */
+    }`);
+  window.THREE = Object.assign({}, T, { GLTFLoader, SkeletonUtils });
+</script>
+<script type="module">
 (function(){
   'use strict';
 
@@ -554,7 +583,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.6.2';  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.7.0';  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -610,6 +639,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // ~25% too dark on screen). ACES tone-maps the brightest highlights
   // smoothly so a strong sun + light pigment doesn't blow to flat white.
   if (THREE.sRGBEncoding !== undefined) renderer.outputEncoding = THREE.sRGBEncoding;
+  if (THREE.SRGBColorSpace !== undefined) renderer.outputColorSpace = THREE.SRGBColorSpace;   // r152+
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.0;
   stage.appendChild(renderer.domElement);
@@ -782,6 +812,11 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     new THREE.Vector4( -95, -20, 5.5, 2.9), new THREE.Vector4( 40, -95, 3.0, 4.1),
     new THREE.Vector4( -40,  95, 4.0, 5.3), new THREE.Vector4(120, -30, 6.0, 0.9),
   ];
+  // Shader-chunk names differ across three.js releases: the lighting
+  // functions took a GeometricContext struct (geometry.normal) up to
+  // ~r151 and flat vec3 params (geometryNormal) after.
+  const GEO_N = (+THREE.REVISION >= 152) ? 'geometryNormal'  : 'geometry.normal';
+  const GEO_V = (+THREE.REVISION >= 152) ? 'geometryViewDir' : 'geometry.viewDir';
   const REGOLITH_LUNAR_K = 0.5;   // 0 = plain Lambert, 1 = full (capped) Lommel–Seeliger
   const DUST_FACET = 0.70;        // how much low-poly facet survives on dust (0.45 lost the house look)
   regolith.onBeforeCompile = function(shader) {
@@ -891,13 +926,13 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
         '#include <lights_phong_pars_fragment>',
         THREE.ShaderChunk.lights_phong_pars_fragment.replace(
           'vec3 irradiance = dotNL * directLight.color;',
-          `float dotNV_l = saturate(dot(geometry.normal, geometry.viewDir));
+          `float dotNV_l = saturate(dot(${GEO_N}, ${GEO_V}));
            // Lommel–Seeliger: 2μ0/(μ0+μ), = Lambert at normal view, no limb darkening.
            // Capped at 1.7× Lambert: uncapped, a 17° sun seen from eye height
            // ran ~5× and tone mapping flattened the floor to white (v0.6.2 test).
            float ls = min(2.0 * dotNL / max(dotNL + dotNV_l, 1e-3), dotNL * 1.7);
            // Opposition surge: sun straight behind the viewer.
-           float phase = saturate(dot(geometry.viewDir, directLight.direction));
+           float phase = saturate(dot(${GEO_V}, directLight.direction));
            float surge = 1.0 + 0.30 * exp(-(1.0 - phase) * 22.0);
            vec3 irradiance = mix(dotNL, ls, LUNAR_K_U) * surge * directLight.color;`
         )
@@ -2463,6 +2498,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       palette.minFilter = THREE.NearestFilter;
       palette.flipY = false;  // GLTF convention
       if (THREE.sRGBEncoding !== undefined) palette.encoding = THREE.sRGBEncoding;
+      if (THREE.SRGBColorSpace !== undefined) palette.colorSpace = THREE.SRGBColorSpace;   // r152+
       if (THREE.SRGBColorSpace !== undefined) palette.colorSpace = THREE.SRGBColorSpace;
     } catch (err) {
       console.warn('Palette texture not loaded (' + ASSET_PATHS.palettePNG + ') — falling back to vertex colors.');
