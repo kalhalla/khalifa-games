@@ -392,7 +392,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
 /* ============================================================
    OBJECTIVE HUD — single-line lowercase objective, script style.
    ============================================================ */
-#objective-hud { position: fixed; left: 50%; top: 52px; transform: translateX(-50%);
+#objective-hud { position: fixed; left: 50%; top: 66px; transform: translateX(-50%);
   z-index: 5; font-family: 'Courier New', monospace; color: #f0c674; font-size: 14px;
   letter-spacing: 3px; opacity: 0; transition: opacity 1.2s ease; pointer-events: none; }
 #objective-hud.on { opacity: 0.85; }
@@ -404,6 +404,23 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   padding: 10px 18px; border-radius: 4px; opacity: 0; transition: opacity 0.25s ease;
   pointer-events: none; cursor: pointer; }
 #interact-prompt.on { opacity: 1; pointer-events: auto; }
+/* v0.5.0 — key cap, hold ring, info line */
+#interact-prompt { display: flex; align-items: center; gap: 10px; letter-spacing: 1.5px;
+  user-select: none; -webkit-user-select: none; touch-action: none; }
+#interact-prompt .ip-key { display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; border-radius: 50%; color: #0c0e12; background: #f0c674;
+  font-weight: bold; font-size: 14px; letter-spacing: 0; flex: none; }
+#interact-prompt .ip-key.ip-hold { color: #f0c674;
+  background: radial-gradient(circle, #0c0e12 58%, transparent 60%),
+              conic-gradient(#f0c674 var(--hold, 0%), rgba(240,198,116,0.22) 0); }
+#interact-prompt .ip-verb { opacity: 0.6; margin-right: -6px; }
+#interact-prompt .ip-info { opacity: 0.75; font-style: italic; }
+/* O₂ HUD: clear of the controls card; animated while gas flows */
+#oxygen-hud { top: 170px !important; }
+#oxygen-hud.filling #oxygen-bar-fill {
+  background: repeating-linear-gradient(0deg, #6ad28e 0 6px, #9ff0bc 6px 12px) !important;
+  background-size: 100% 24px !important; animation: o2flow 0.5s linear infinite; }
+@keyframes o2flow { from { background-position: 0 0; } to { background-position: 0 -24px; } }
 </style>
 </head>
 <body>
@@ -537,7 +554,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.4.7';  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.5.0';  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -897,6 +914,102 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   scene.add(root);
   const colliders = [];
   function addCollider(x, z, r, h) { colliders.push({ x, z, r, h }); }
+
+  // ============================================================
+  // BOX COLLIDERS (v0.5.0) — the collision half of the asset
+  // pipeline. What you SEE and what you BUMP INTO are now separate:
+  // a detailed GLB renders, a handful of oriented boxes collide.
+  // Boxes come from three places: COL_* nodes inside a GLB (authored
+  // proxies), an automatic footprint box for props, or hand calls.
+  //
+  //   addBoxCollider({ x, z, hx, hz, yaw, y0, y1, walkable, tag })
+  //     hx/hz  half-extents in the box's own frame
+  //     yaw    rotation about +Y (same sense as Object3D.rotation.y)
+  //     y0/y1  vertical span; a walkable box whose top is within
+  //            STEP_UP of the feet is stepped onto, not pushed off.
+  //
+  // Player is a vertical cylinder (BOX_PLAYER_R) — resolved by the
+  // closest-point-on-rectangle push in boxResolvePlayer(), and stood
+  // on via boxTopAt() inside updatePlayer's ground checks.
+  // ============================================================
+  const boxColliders = [];
+  const BOX_STEP_UP = 0.45;
+  const BOX_PLAYER_R = 0.35;
+  function addBoxCollider(o) {
+    const yaw = o.yaw || 0;
+    const b = {
+      x: o.x, z: o.z, hx: o.hx, hz: o.hz,
+      c: Math.cos(yaw), s: Math.sin(yaw),
+      y0: o.y0, y1: o.y1,
+      walkable: o.walkable !== false,
+      tag: o.tag || '', enabled: true,
+    };
+    boxColliders.push(b);
+    return b;
+  }
+  function removeBoxCollidersByTag(tag) {
+    for (let i = boxColliders.length - 1; i >= 0; i--) {
+      if (boxColliders[i].tag === tag) boxColliders.splice(i, 1);
+    }
+  }
+  // World (x,z) → box-local. Object3D yaw maps local→world as
+  //   wx = lx·c + lz·s,  wz = −lx·s + lz·c   — so the inverse is:
+  function _boxLocal(b, x, z, out) {
+    const dx = x - b.x, dz = z - b.z;
+    out.x = dx * b.c - dz * b.s;
+    out.z = dx * b.s + dz * b.c;
+    return out;
+  }
+  const _bl = { x: 0, z: 0 };
+  // Highest walkable box top under (x,z) that the feet at height y
+  // can reach (≤ y + STEP_UP). −Infinity when none.
+  function boxTopAt(x, z, y) {
+    let top = -Infinity;
+    for (const b of boxColliders) {
+      if (!b.enabled || !b.walkable) continue;
+      if (b.y1 > y + BOX_STEP_UP || b.y1 <= top) continue;
+      _boxLocal(b, x, z, _bl);
+      if (Math.abs(_bl.x) <= b.hx && Math.abs(_bl.z) <= b.hz) top = b.y1;
+    }
+    return top;
+  }
+  // Terrain or box top, whichever is higher — the player's floor.
+  function playerGroundY(x, z, y) {
+    const t = shackletonScene.getGroundY(x, z);
+    if (!boxColliders.length) return t;
+    return Math.max(t, boxTopAt(x, z, y));
+  }
+  // Push the player cylinder out of every box it overlaps at its
+  // current height. Boxes the player is standing on (or can step
+  // onto) are skipped — boxTopAt handles those.
+  function boxResolvePlayer(pos, vel) {
+    for (const b of boxColliders) {
+      if (!b.enabled) continue;
+      if (pos.y >= b.y1 - 0.02) continue;                        // on top / above
+      if (pos.y + 1.7 < b.y0) continue;                          // passes under
+      if (b.walkable && b.y1 <= pos.y + BOX_STEP_UP) continue;   // step-up
+      _boxLocal(b, pos.x, pos.z, _bl);
+      const cx = Math.max(-b.hx, Math.min(b.hx, _bl.x));
+      const cz = Math.max(-b.hz, Math.min(b.hz, _bl.z));
+      let nx = _bl.x - cx, nz = _bl.z - cz;
+      let d = Math.hypot(nx, nz);
+      let push;
+      if (d > 1e-5) {
+        if (d >= BOX_PLAYER_R) continue;
+        nx /= d; nz /= d; push = BOX_PLAYER_R - d;
+      } else {
+        // Centre inside the box — exit through the nearest face.
+        const ex = b.hx - Math.abs(_bl.x), ez = b.hz - Math.abs(_bl.z);
+        if (ex < ez) { nx = Math.sign(_bl.x) || 1; nz = 0; push = ex + BOX_PLAYER_R; }
+        else         { nx = 0; nz = Math.sign(_bl.z) || 1; push = ez + BOX_PLAYER_R; }
+      }
+      // Local push → world (same rotation as local→world above).
+      const wx = nx * b.c + nz * b.s, wz = -nx * b.s + nz * b.c;
+      pos.x += wx * push; pos.z += wz * push;
+      const vn = vel.x * wx + vel.z * wz;
+      if (vn < 0) { vel.x -= vn * wx; vel.z -= vn * wz; }
+    }
+  }
   // Camera occluders — list of meshes the chase camera raycasts
   // against to pull in when the player walks behind one. Declared
   // here so placeBoulder (and other early scene init) can push to
@@ -2494,8 +2607,8 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       }
     }
 
-    // Ground check
-    const groundY = shackletonScene.getGroundY(player.pos.x, player.pos.z);
+    // Ground check (v0.5.0: terrain OR a walkable box top)
+    const groundY = playerGroundY(player.pos.x, player.pos.z, player.pos.y);
     const onGround = player.pos.y <= groundY + 0.02;
     if (onGround && player.vel.y <= 0) {
       const wasAirborne = !player.grounded;
@@ -2681,7 +2794,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     player.pos.addScaledVector(player.vel, dt);
 
     // Re-check ground after integration
-    const newGroundY = shackletonScene.getGroundY(player.pos.x, player.pos.z);
+    const newGroundY = playerGroundY(player.pos.x, player.pos.z, player.pos.y);
     if (player.pos.y < newGroundY) {
       const wasAirborne = !player.grounded;
       player.pos.y = newGroundY;
@@ -2838,6 +2951,9 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
         }
       }
     }
+
+    // Box colliders (v0.5.0) — GLB proxies and authored blockers.
+    boxResolvePlayer(player.pos, player.vel);
 
     // Crater wall collision. Originally gated on `player.pos.y < -0.1`
     // — back when the only sub-zero terrain was the main crater. The
@@ -4574,16 +4690,10 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       else if (!shouldShow && isShown) boardBtn.style.display = 'none';
     }
 
-    // Re-fire showInteractPrompt every frame while in range so the
-    // prompt stays reliably visible even if some other code path
-    // happened to hide it. Cheap — just a textContent + display set.
-    // Wording covers desktop ([E] key) and mobile (BOARD button).
-    if (nearFlyer) {
-      showInteractPrompt(flyerRepair.installed
-        ? '[E] or tap BOARD to enter Flyer'
-        : (scene4.braceHeld ? '[E] install the structural brace'
-                            : 'frame buckled — structural brace required'));
-    } else if (wasNear) hideInteractPrompt();
+    // v0.5.0: prompt text moved into the interaction system — this
+    // function used to rewrite #interact-prompt every frame, fighting
+    // the wreck scan and the refill panel for the same element.
+    void wasNear;
   }
   function showInteractPrompt(text) {
     const el = $('interact-prompt');
@@ -4630,37 +4740,10 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       light.material.color.setHex(c);
     }
 
-    // On-screen button (mobile). Visible whenever the player is near
-    // the panel and not in the Flyer's proximity zone. Label and
-    // colour swap based on connection state.
-    const refillBtn = $('refill-btn');
-    if (refillBtn) {
-      const shouldShow = (controlMode === 'walking' && refill.nearPanel && !nearFlyer);
-      const isShown = refillBtn.style.display === 'flex';
-      if (shouldShow && !isShown) refillBtn.style.display = 'flex';
-      else if (!shouldShow && isShown) refillBtn.style.display = 'none';
-      // Label and connected-state styling
-      if (refill.connected) {
-        refillBtn.textContent = '× DISCONNECT';
-        refillBtn.classList.add('connected');
-      } else {
-        refillBtn.textContent = '↻ REFILL O₂';
-        refillBtn.classList.remove('connected');
-      }
-    }
-
-    // Text prompt — yield to Flyer if both are in range. Wording
-    // covers desktop ([E] key) and mobile (REFILL button).
-    if (refill.nearPanel && !nearFlyer) {
-      const txt = refill.connected
-        ? '[E] or tap DISCONNECT'
-        : '[E] or tap REFILL O₂';
-      showInteractPrompt(txt);
-    } else if (wasNear && !nearFlyer) {
-      // Only hide if we owned the prompt; otherwise Flyer's
-      // updateFlyerProximity manages it.
-      hideInteractPrompt();
-    }
+    // v0.5.0: the REFILL button and the text prompt moved into the
+    // unified interaction system (updateInteract). The tappable prompt
+    // is the mobile control; the separate button is retired.
+    void wasNear;
   }
 
   // ============================================================
@@ -4785,10 +4868,16 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
         // wreck. setObjective handles fade-out/fade-in.
         setObjective('enter the wreck');
       }
-      oxygen.percent = Math.min(oxygen.capacity, oxygen.percent + OXYGEN_REFILL_RATE * dt);
-      // If we hit the ceiling, stay connected — the player still has
-      // to press E or walk away to leave. Cleaner than auto-detach
-      // on full because it doesn't yank focus from the player.
+      // v0.5.0: a full tank takes O2_FILL_SECONDS whatever its size
+      // (the flat 4%/s meant a 30s stand at capacity 120). The ice
+      // pocket keeps the old gentle rate — it's ambient, not a station.
+      const rate = refill.connected
+        ? Math.max(OXYGEN_REFILL_RATE, oxygen.capacity / O2_FILL_SECONDS)
+        : OXYGEN_REFILL_RATE;
+      oxygen.percent = Math.min(oxygen.capacity, oxygen.percent + rate * dt);
+      // At the ceiling the station clicks and releases the hose
+      // (updateO2Station). v0.4.x stayed connected at full, which
+      // left players unsure whether it had finished.
     } else {
       oxygen.percent = Math.max(0, oxygen.percent - OXYGEN_DRAIN_RATE * dt);
     }
@@ -7462,21 +7551,9 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     // Flyer, it triggers the boarding sequence. In flying mode it's
     // tracked as a held key (yaw-right), so it falls through to the
     // generic handler below.
-    if (k === 'e' && controlMode === 'walking' && nearFlyer && flyerRepair.installed) {
-      beginBoarding();
-      activate(); e.preventDefault();
-      return;
-    }
-    // (While the Flyer is broken, E near it falls through to the
-    // generic scan — which owns the brace-install interactable.)
-    // Refill panel: same key, lower priority than Flyer boarding.
-    // Toggles connect/disconnect. Only valid while in range and
-    // not currently in the rescue cinematic.
-    if (k === 'e' && controlMode === 'walking' && refill.nearPanel && !oxygen.dead) {
-      requestRefillToggle();       // reach gesture → connect on contact
-      activate(); e.preventDefault();
-      return;
-    }
+    // v0.5.0: walking-mode E (board, refill, every scene action) is
+    // handled by the interaction system's own listener — one action
+    // per press. In flight E is still yaw-right via keys['e'] below.
     if (['w','a','s','d','q','e',' ','arrowup','arrowdown','arrowleft','arrowright'].includes(k)) {
       keys[k] = true; activate(); e.preventDefault();
     }
@@ -9649,6 +9726,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // pointerdown; stopPropagation keeps the camera still while a part
   // is picked. Touch works through the same pointer events.
   window.addEventListener('pointerdown', (e) => {
+    if (!POINTER_DRAG_ENABLED) return;
     if (e.target !== renderer.domElement) return;
     if (controlMode !== 'walking' || oxygen.dead || shackletonMemory.isActive()) return;
     const cands = (_stabCanInteract() ? _stabDraggables() : [])
@@ -9670,6 +9748,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   }, true);
 
   window.addEventListener('pointermove', (e) => {
+    if (!POINTER_DRAG_ENABLED) return;
     if (stabDrag.mesh) {
       if (!_dragGateOK(stabDrag.mesh)) { _stabDrop(); return; }
       _stabSetNDC(e);
@@ -9706,8 +9785,8 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     }
   }, true);
 
-  window.addEventListener('pointerup', () => { _stabDrop(); }, true);
-  window.addEventListener('pointercancel', () => { _stabDrop(); }, true);
+  window.addEventListener('pointerup', () => { if (POINTER_DRAG_ENABLED) _stabDrop(); }, true);
+  window.addEventListener('pointercancel', () => { if (POINTER_DRAG_ENABLED) _stabDrop(); }, true);
 
   function _wreckInteriorSolved() {
     wreckInterior.solved = true;
@@ -9766,43 +9845,9 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       if (!wreckInterior.solved) setObjective('restore the oxygen stabiliser');
     }
 
-    // Interaction proximity — nearest undone interactable in range.
-    // The hatch touchpad joins the scan permanently (it toggles, so it
-    // is never "done"); the stabiliser items only while unsolved.
-    const prompt = $('interact-prompt');
-    let best = null, bestD = 1e9;
-    if (!wreckInterior.solved) {
-      for (const it of wreckInterior.interactables) {
-        if (it.done || it.drag) continue;   // drag tasks live in stabDrag, not [E]
-        const d = Math.hypot(p.x - it.x, p.z - it.z);
-        if (d < it.r && d < bestD) { best = it; bestD = d; }
-      }
-    }
-    {
-      const d = Math.hypot(p.x - hatchInteract.x, p.z - hatchInteract.z);
-      if (d < hatchInteract.r && d < bestD) { best = hatchInteract; bestD = d; }
-    }
-    // Scene interactables (v0.4.5) — pins, pickups, installs, cranks.
-    for (const it of worldInteractables) {
-      if (it.hidden && it.hidden()) continue;
-      const d = Math.hypot(p.x - it.x, p.z - it.z);
-      if (d < it.r && d < bestD) { best = it; bestD = d; }
-    }
-    wreckInterior._active = best;
-    if (prompt) {
-      if (best) {
-        const lbl = (typeof best.label === 'function') ? best.label() : best.label;
-        prompt.textContent = '[E] / tap — ' + lbl;
-        prompt.classList.add('on');
-      } else if (!wreckInterior.solved && wreckInterior.entered &&
-                 Math.hypot(p.x - STAB_POS.x, p.z - STAB_POS.z) < 5.0) {
-        // Repair-puzzle hint — informational, not an [E] action.
-        prompt.textContent = 'repair — drag the loose parts into place';
-        prompt.classList.add('on');
-      } else {
-        prompt.classList.remove('on');
-      }
-    }
+    // v0.5.0: proximity scan, prompt and E handling moved to
+    // updateInteract (focus by facing, not nearest-in-radius).
+    void p;
 
     // Dragged part: hover bob + slow turn so it reads as "held".
     if (stabDrag.mesh) {
@@ -9813,12 +9858,6 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       // Walked away / state changed mid-drag → put the part down.
       if (!_dragGateOK(stabDrag.mesh)) _stabDrop();
     }
-    // E-key with latch so one press = one action.
-    if (best && keys['e'] && !wreckInterior._eLatch) {
-      wreckInterior._eLatch = true;
-      _fireInteract();
-    }
-    if (!keys['e']) wreckInterior._eLatch = false;
   }
 
   function _fireInteract() {
@@ -9838,14 +9877,8 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       setTimeout(_wreckInteriorSolved, 900);
     }
   }
-  // Mobile: the prompt itself is the button.
-  (function () {
-    const prompt = $('interact-prompt');
-    if (prompt) prompt.addEventListener('pointerdown', (ev) => {
-      ev.stopPropagation();
-      _fireInteract();
-    });
-  })();
+  // (v0.5.0: the prompt's tap handler lives in the interaction system.)
+  void _fireInteract;
 
   // ============================================================
   // SCENES 4-6 (v0.4.5) — Structural Brace → Install → First Ice.
@@ -12897,11 +12930,618 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // visual or audible begins until the user clicks/keys.
 
   // ============================================================
+  // ASSET LIBRARY (v0.5.0) — one manifest for every external GLB.
+  //
+  // Drop a GLB at the manifest path and it appears in the game; no
+  // code change. Missing files are not errors: load() resolves null
+  // and the caller keeps its procedural stand-in. Every URL carries
+  // ?v=BUILD_VERSION so a new deploy can never pair fresh code with
+  // a stale cached model (the v0.4.6 wreck desync, see WRECK_GLB_B64).
+  //
+  // Authoring conventions inside a GLB:
+  //   COL_*   mesh nodes → box colliders (hidden at load). Name a
+  //           node COL_wall_01 etc.; its bounding box becomes an
+  //           oriented box. Add "_nowalk" to stop the player standing
+  //           on it (e.g. COL_pipe_nowalk).
+  //   everything else renders. PBR materials are converted to the
+  //   house MeshPhongMaterial (shininess 0, flat shading) so Meshy /
+  //   Blender output sits in the same light as the procedural world.
+  // ============================================================
+  const ASSET_BASE = '/shackleton/assets/';
+  const ASSET_MANIFEST = {
+    // Robots — Meshy output. Fitted at runtime to the height of the
+    // procedural robot they replace, base on the ground, facing +Z.
+    robot_L07: { url: 'robots/L07.glb', flat: true },
+    robot_M08: { url: 'robots/M08.glb', flat: true },
+    robot_P03: { url: 'robots/P03.glb', flat: true },
+  };
+
+  const assetLib = (function () {
+    const loader = new THREE.GLTFLoader();
+    const cache = {};
+
+    function _housify(root, flat) {
+      root.traverse(o => {
+        if (!o.isMesh) return;
+        o.castShadow = true; o.receiveShadow = true;
+        const conv = (m) => {
+          if (!m || m.isMeshPhongMaterial || m.isMeshBasicMaterial) return m;
+          const p = new THREE.MeshPhongMaterial({
+            color: m.color ? m.color.clone() : new THREE.Color(0xffffff),
+            map: m.map || null,
+            vertexColors: !!m.vertexColors,
+            transparent: !!m.transparent, opacity: m.opacity == null ? 1 : m.opacity,
+            side: m.side, shininess: 0, flatShading: !!flat,
+          });
+          if (m.emissive && m.emissiveMap) { p.emissive = m.emissive.clone(); p.emissiveMap = m.emissiveMap; }
+          return p;
+        };
+        o.material = Array.isArray(o.material) ? o.material.map(conv) : conv(o.material);
+      });
+    }
+    function _hideColNodes(root) {
+      const cols = [];
+      root.traverse(o => { if (/^COL_/i.test(o.name)) cols.push(o); });
+      for (const c of cols) c.visible = false;
+      root.userData.colNodes = cols;
+    }
+    function load(key) {
+      if (cache[key]) return cache[key];
+      const m = ASSET_MANIFEST[key];
+      cache[key] = new Promise((resolve) => {
+        if (!m) { resolve(null); return; }
+        const url = ASSET_BASE + m.url + '?v=' + encodeURIComponent(BUILD_VERSION);
+        loader.load(url, (gltf) => {
+          const root = gltf.scene;
+          _housify(root, m.flat);
+          _hideColNodes(root);
+          console.log('[asset] loaded', key);
+          resolve(root);
+        }, undefined, () => {
+          console.info('[asset] ' + key + ' not present — keeping built-in (' + url + ')');
+          resolve(null);
+        });
+      });
+      return cache[key];
+    }
+    // A fresh copy each call (robots share a source but need their
+    // own transforms). Uses SkeletonUtils for skinned models.
+    function instance(key) {
+      return load(key).then(src => {
+        if (!src) return null;
+        let hasSkin = false;
+        src.traverse(o => { if (o.isSkinnedMesh) hasSkin = true; });
+        const copy = (hasSkin && THREE.SkeletonUtils) ? THREE.SkeletonUtils.clone(src) : src.clone(true);
+        copy.userData.colNodes = [];
+        copy.traverse(o => { if (/^COL_/i.test(o.name)) copy.userData.colNodes.push(o); });
+        return copy;
+      });
+    }
+    // Wrap `obj` so its visible bounds sit base-on-ground, centred,
+    // and `height` tall. Returns the wrapper (add THAT to the scene).
+    function fit(obj, height) {
+      const wrap = new THREE.Group();
+      wrap.add(obj);
+      obj.updateMatrixWorld(true);
+      const box = new THREE.Box3();
+      obj.traverse(o => {
+        if (o.isMesh && o.visible && !/^COL_/i.test(o.name)) box.expandByObject(o);
+      });
+      if (box.isEmpty()) return wrap;
+      const size = box.getSize(new THREE.Vector3());
+      const k = height ? height / Math.max(1e-6, size.y) : 1;
+      obj.scale.multiplyScalar(k);
+      const c = box.getCenter(new THREE.Vector3());
+      obj.position.set(-c.x * k, -box.min.y * k, -c.z * k);
+      return wrap;
+    }
+    // COL_* nodes → oriented box colliders in world space.
+    function addColliders(obj, tag) {
+      obj.updateMatrixWorld(true);
+      // Search the whole subtree — fit() wraps models, so the COL_
+      // nodes are never direct userData of the object passed in.
+      const nodes = [];
+      obj.traverse(o => { if (/^COL_/i.test(o.name) && o.geometry) nodes.push(o); });
+      const e = new THREE.Vector3(), cen = new THREE.Vector3();
+      for (const n of nodes) {
+        if (!n.geometry) continue;
+        n.geometry.computeBoundingBox();
+        const bb = n.geometry.boundingBox;
+        bb.getCenter(cen); cen.applyMatrix4(n.matrixWorld);
+        const me = n.matrixWorld.elements;
+        const sx = Math.hypot(me[0], me[1], me[2]);
+        const sy = Math.hypot(me[4], me[5], me[6]);
+        const sz = Math.hypot(me[8], me[9], me[10]);
+        bb.getSize(e);
+        addBoxCollider({
+          x: cen.x, z: cen.z,
+          hx: e.x * sx / 2, hz: e.z * sz / 2,
+          yaw: Math.atan2(-me[2], me[0]),
+          y0: cen.y - e.y * sy / 2, y1: cen.y + e.y * sy / 2,
+          walkable: !/_nowalk/i.test(n.name),
+          tag: tag || n.name,
+        });
+      }
+      return nodes.length;
+    }
+    return { load, instance, fit, addColliders, manifest: ASSET_MANIFEST };
+  })();
+
+  // ── Robot GLB swap ──
+  // When robots/<ID>.glb exists, it replaces the procedural body:
+  // fitted to the procedural robot's own height, parented to the
+  // bodyGroup so the walk bob still carries it. Procedural meshes are
+  // hidden, not removed — their pivots keep animating harmlessly, and
+  // deleting the GLB brings the old robot straight back.
+  //   Rigid for now: a single-mesh Meshy model has no arm joints. If
+  //   arms are exported as separate nodes named arm_L / arm_R they are
+  //   re-parented onto the procedural arm pivots and swing with them.
+  const ROBOT_ASSET_KEYS = { P: 'robot_P03', L: 'robot_L07', M: 'robot_M08' };
+  function upgradeRobotVisual(robot, letter) {
+    const key = ROBOT_ASSET_KEYS[letter];
+    if (!key) return;
+    assetLib.instance(key).then(model => {
+      if (!model) return;
+      const ud = robot.userData;
+      // Measure the procedural robot in its own frame before hiding it.
+      const savedRot = robot.rotation.y, savedPos = robot.position.clone();
+      robot.rotation.y = 0; robot.position.set(0, 0, 0);
+      robot.updateMatrixWorld(true);
+      const pb = new THREE.Box3().setFromObject(robot);
+      robot.rotation.y = savedRot; robot.position.copy(savedPos);
+      const wrapped = assetLib.fit(model, pb.max.y - pb.min.y);
+      robot.traverse(o => { if (o.isMesh) o.visible = false; });
+      // Base of the GLB at the procedural feet. bodyGroup rests at
+      // y 0.22 in the robot frame (buildRobot), so subtract that.
+      wrapped.position.y = pb.min.y - ud.bodyGroup.position.y;
+      ud.bodyGroup.add(wrapped);
+      // Optional articulated arms.
+      for (const side of ['L', 'R']) {
+        const arm = model.getObjectByName('arm_' + side);
+        const pivot = ud.armPivots && ud.armPivots[side === 'L' ? 0 : 1];
+        if (arm && pivot) pivot.attach(arm);
+      }
+      wrapped.traverse(o => { if (o.isMesh) o.visible = !/^COL_/i.test(o.name); });
+      ud.glb = wrapped;
+      console.log('[asset] robot ' + letter + ' upgraded to GLB');
+    });
+  }
+  for (let i = 0; i < robots.length; i++) upgradeRobotVisual(robots[i], robotConfigs[i].letter);
+
+  // ============================================================
+  // INTERACTION (v0.5.0) — one system owns "use the thing in front
+  // of you". Replaces three that fought over the same prompt every
+  // frame (Flyer, refill panel, wreck scan) and each listened for E,
+  // so one keypress could fire two actions. Also replaces pointer
+  // dragging (stabiliser, plating, battery pack, regolith chunk):
+  // parts are now CARRIED — E picks up, E puts down / seats.
+  //
+  // Selection: candidates within reach, scored by distance and by
+  // how squarely the camera faces them; the current focus is sticky
+  // (hysteresis) so it doesn't flicker between neighbours.
+  // Feedback: focused object glows, a marker hovers over it, the
+  // prompt shows the key and verb, hold actions fill a ring, and
+  // every action clicks.
+  //
+  // Candidate: { x, z, y?, r, label, fire(), hold?, mesh?, info? }
+  // ============================================================
+  const POINTER_DRAG_ENABLED = false;   // legacy drag puzzles (v0.4.3–0.4.7) — superseded by carry
+  const interact = {
+    focus: null, focusKey: null,
+    down: false, holdT: 0, firedThisPress: false,
+    carry: null,              // { mesh, kind:'stab'|'extra', name }
+    _glowMesh: null,
+  };
+
+  // Marker — small hovering chevron ring over the focused thing.
+  const interactMarker = (function () {
+    const g = new THREE.Group();
+    const mat = new THREE.MeshBasicMaterial({ color: 0xffa62b, transparent: true, opacity: 0.95,
+      depthTest: false, depthWrite: false });
+    mat.toneMapped = false;                    // ACES washed it to pale cream
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.032, 6, 28), mat);
+    ring.rotation.x = Math.PI / 2;
+    g.add(ring);
+    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.18, 4), mat);
+    tip.rotation.x = Math.PI; tip.position.y = -0.2;
+    g.add(tip);
+    g.renderOrder = 999; ring.renderOrder = 999; tip.renderOrder = 999;
+    g.visible = false;
+    scene.add(g);
+    return g;
+  })();
+
+  // Human names for carried parts.
+  (function nameCarryables() {
+    const p = wreckInterior.parts || {};
+    if (p.plateA) p.plateA.userData.carryName = 'debris plate';
+    if (p.plateB) p.plateB.userData.carryName = 'debris plate';
+    if (p.battery) p.battery.userData.carryName = 'battery';
+    if (p.plug) p.plug.userData.carryName = 'cable plug';
+    if (s4.panel) s4.panel.userData.carryName = 'loose plating';
+    if (s6.batt) s6.batt.userData.carryName = 'battery pack';
+    if (s6.chunk) s6.chunk.userData.carryName = 'regolith chunk';
+  })();
+
+  // ── UI sounds ──
+  function sndUi(kind) {
+    if (!audioCtx) return;
+    const t0 = audioCtx.currentTime;
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    const f = { tick: 1250, confirm: 660, done: 880, deny: 220 }[kind] || 900;
+    o.type = kind === 'deny' ? 'square' : 'sine';
+    o.frequency.setValueAtTime(f, t0);
+    if (kind === 'confirm') o.frequency.exponentialRampToValueAtTime(f * 1.5, t0 + 0.08);
+    if (kind === 'done') o.frequency.setValueAtTime(f * 1.26, t0 + 0.09);
+    const peak = kind === 'tick' ? 0.025 : 0.07, dur = kind === 'done' ? 0.22 : 0.10;
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(peak, t0 + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g); g.connect(masterGain);
+    o.start(t0); o.stop(t0 + dur + 0.02);
+  }
+
+  // ── Carry ──
+  function _carryKind(m) { return m.userData.dragKind === 'extra' ? 'extra' : 'stab'; }
+  function _carryGateOK() {
+    const c = interact.carry;
+    if (!c) return false;
+    if (controlMode !== 'walking' || oxygen.dead || shackletonMemory.isActive()) return false;
+    const ud = c.mesh.userData;
+    if (c.kind === 'stab') {
+      if (wreckInterior.solved) return false;
+      return Math.hypot(player.pos.x - STAB_POS.x, player.pos.z - STAB_POS.z) < 7;
+    }
+    if (ud.enabled && !ud.enabled()) return false;
+    return Math.hypot(player.pos.x - ud.homeX, player.pos.z - ud.homeZ) < 8;
+  }
+  function pickUp(mesh) {
+    if (interact.carry || reach.active) return;
+    reachStart(mesh.getWorldPosition(new THREE.Vector3()), {
+      onContact() {
+        scene.attach(mesh);                  // world-space from here on
+        interact.carry = { mesh, kind: _carryKind(mesh), name: mesh.userData.carryName || 'part' };
+        reachStart(mesh.position, { follow: mesh });
+        sndUi('confirm');
+      },
+    });
+  }
+  // Put the carried part at (x,z) and let the puzzle's own drop
+  // logic judge it (snap radii, "clear of the work area", etc.).
+  function putDown(x, z) {
+    const c = interact.carry;
+    if (!c) return;
+    interact.carry = null;
+    reachRelease();
+    c.mesh.position.x = x; c.mesh.position.z = z;
+    stabDrag.mesh = c.mesh;
+    _stabDrop();                              // stab parts and extras both route here
+    sndUi('confirm');
+  }
+  function updateCarry(dt) {
+    const c = interact.carry;
+    if (!c) return;
+    if (!_carryGateOK()) {
+      const f = _fwd();
+      putDown(player.pos.x + f.x * 0.8, player.pos.z + f.z * 0.8);
+      speak('SUIT', c.kind === 'stab' && c.mesh.userData.stabKey === 'plug'
+        ? 'cable at full stretch — plug dropped' : 'part set down', 2.0, { kind: 'system' });
+      return;
+    }
+    // Held in front at chest height, swaying with the walk.
+    const f = _fwd();
+    const tx = player.pos.x + Math.sin(player.heading) * 0.62;
+    const tz = player.pos.z + Math.cos(player.heading) * 0.62;
+    const ty = player.pos.y + 1.05 + Math.sin(performance.now() * 0.004) * 0.02;
+    const k = Math.min(1, dt * 12);
+    c.mesh.position.x += (tx - c.mesh.position.x) * k;
+    c.mesh.position.y += (ty - c.mesh.position.y) * k;
+    c.mesh.position.z += (tz - c.mesh.position.z) * k;
+    c.mesh.rotation.y += (player.heading - c.mesh.rotation.y) * k;
+    if (c.mesh.userData.stabKey === 'plug') {
+      _stabRebuildCable(c.mesh.position);
+      if (Math.hypot(c.mesh.position.x - STAB_SOCKET.x, c.mesh.position.z - STAB_SOCKET.z) > 3.6) {
+        putDown(c.mesh.position.x, c.mesh.position.z);
+        speak('SUIT', 'cable at full stretch', 1.8, { kind: 'system' });
+      }
+    }
+    void f;
+  }
+  // Camera-forward on the ground plane (what the player is "looking at").
+  const _fwdV = { x: 0, z: 1 };
+  function _fwd() {
+    camera.getWorldDirection(_camDir);
+    const l = Math.hypot(_camDir.x, _camDir.z) || 1;
+    _fwdV.x = _camDir.x / l; _fwdV.z = _camDir.z / l;
+    return _fwdV;
+  }
+
+  // ── Candidate gathering ──
+  function _gatherCandidates() {
+    const out = [];
+    const pushIt = (it) => { if (it) out.push(it); };
+    // Hands full → the only verbs are "seat it" and "put it down".
+    // (v0.5.0 playtest: carrying the battery past the hatch, E closed
+    // the hatch instead of setting the battery down.)
+    if (interact.carry) return _carryCandidates(out);
+    // Scene interactables (pin, brace, install, reflector crank …)
+    for (const it of worldInteractables) {
+      if (it.hidden && it.hidden()) continue;
+      out.push({ key: it, x: it.x, z: it.z, r: it.r, label: it.label, fire: () => it.fire(), hold: it.hold });
+    }
+    // Hatch touchpad
+    {
+      out.push({ key: hatchInteract, x: hatchInteract.x, z: hatchInteract.z, r: hatchInteract.r,
+        label: hatchInteract.label,
+        fire: () => { if (!reach.active) reachStart(hatchAssembly.padWorld, { onContact: toggleHatch }); } });
+    }
+    // O₂ station
+    if (refillPanel && !oxygen.dead) {
+      const p = refillPanel.position;
+      const full = oxygen.percent >= oxygen.capacity - 0.5;
+      out.push({ key: refillPanel, x: p.x, z: p.z, y: p.y + 1.1, r: REFILL_PANEL_RADIUS,
+        label: refill.connected ? 'disconnect the O₂ hose'
+             : (full ? 'O₂ full' : 'connect the O₂ hose'),
+        info: !refill.connected && full,
+        hold: refill.connected ? 0 : 0.35,
+        mesh: refillPanel.userData.statusLight,
+        fire: requestRefillToggle });
+    }
+    // Flyer
+    if (typeof flyerHeading !== 'undefined' && flyerHeading.visible) {
+      const fp = flyerHeading.position;
+      if (flyerRepair.installed) {
+        out.push({ key: flyer, x: fp.x, z: fp.z, y: fp.y + 1.6, r: 4.5, label: 'board the Flyer', fire: beginBoarding });
+      } else if (!scene4.braceHeld && !scene5.installing) {
+        out.push({ key: flyer, x: fp.x, z: fp.z, y: fp.y + 1.6, r: 4.5, info: true,
+          label: 'frame buckled — structural brace required' });
+      }
+    }
+    {
+      // Loose parts that can be picked up.
+      // Parts that have done their job stop offering "pick up".
+      const finished = (m) => (m === s4.panel && scene4.panelDone) ||
+                              (m === s6.batt && scene6.power) ||
+                              (m === s6.chunk && scene6.cleared);
+      const parts = (_stabCanInteract() ? _stabDraggables() : [])
+        .concat(extraDraggables.filter(m => m.visible && !finished(m) &&
+                                            (!m.userData.enabled || m.userData.enabled())));
+      for (const m of parts) {
+        const wp = m.getWorldPosition(new THREE.Vector3());
+        out.push({ key: m, x: wp.x, z: wp.z, y: wp.y + 0.35, r: 1.9, mesh: m,
+          label: 'pick up the ' + (m.userData.carryName || 'part'), fire: () => pickUp(m) });
+      }
+    }
+    void pushIt;
+    return out;
+  }
+  function _carryCandidates(out) {
+    {
+      // Sockets for what's in hand.
+      const m = interact.carry.mesh, fy = (wreckInterior.parts || {}).floorY;
+      if (m.userData.stabKey === 'battery')
+        out.push({ key: 'rack', x: STAB_RACK.x, z: STAB_RACK.z, y: fy + 1.73, r: 2.4, label: 'seat the battery',
+          fire: () => putDown(STAB_RACK.x, STAB_RACK.z) });
+      if (m.userData.stabKey === 'plug')
+        out.push({ key: 'socket', x: STAB_SOCKET.x, z: STAB_SOCKET.z, y: fy + 1.11, r: 2.4, label: 'plug in the cable',
+          fire: () => putDown(STAB_SOCKET.x, STAB_SOCKET.z) });
+      if (m === s6.batt && !scene6.power)
+        out.push({ key: 's6socket', x: s6.socket.position.x, z: s6.socket.position.z,
+          y: s6.socket.position.y + 0.3, r: 2.0, label: 'connect the battery pack', mesh: s6.socket,
+          fire: () => putDown(s6.socket.position.x, s6.socket.position.z) });
+    }
+    return out;
+  }
+
+  function _score(c, f) {
+    const dx = c.x - player.pos.x, dz = c.z - player.pos.z;
+    const d = Math.hypot(dx, dz);
+    if (d > c.r) return Infinity;
+    // Facing = the better of camera-forward and body-forward: orbiting
+    // the camera to look at something counts, and so does simply
+    // standing square to it while the chase cam is still swinging round.
+    const hx = Math.sin(player.heading), hz = Math.cos(player.heading);
+    const cos = d > 1e-3 ? Math.max(dx * f.x + dz * f.z, dx * hx + dz * hz) / d : 1;
+    if (cos < 0.15 && d > 1.0) return Infinity;            // behind you
+    return (d + 0.3) * (1 + (1 - cos) * 1.6) + (c.info ? 2 : 0);  // info items rank last
+  }
+
+  function _setGlow(mesh) {
+    if (interact._glowMesh === mesh) return;
+    const prev = interact._glowMesh;
+    if (prev && prev.material && prev.material.emissive && prev.userData._glowOrig != null) {
+      prev.material.emissive.setHex(prev.userData._glowOrig);
+    }
+    interact._glowMesh = mesh || null;
+    if (mesh && mesh.material && mesh.material.emissive) {
+      if (mesh.userData._glowOrig == null) mesh.userData._glowOrig = mesh.material.emissive.getHex();
+    }
+  }
+
+  function _renderPrompt(c, holdK) {
+    const el = $('interact-prompt');
+    if (!el) return;
+    if (!c && !interact.carry) { el.classList.remove('on'); return; }
+    let html;
+    if (c && c.info) {
+      html = '<span class="ip-info">' + c.label + '</span>';
+    } else if (c) {
+      const lbl = (typeof c.label === 'function') ? c.label() : c.label;
+      const ring = c.hold ? ' style="--hold:' + Math.round(holdK * 100) + '%"' : '';
+      html = '<span class="ip-key' + (c.hold ? ' ip-hold' : '') + '"' + ring + '>E</span>' +
+             (c.hold ? '<span class="ip-verb">hold · </span>' : '') + lbl;
+    } else {
+      html = '<span class="ip-key">E</span>put down the ' + interact.carry.name;
+    }
+    if (el._html !== html) { el.innerHTML = html; el._html = html; }
+    el.classList.add('on');
+  }
+
+  function _fire(c) {
+    if (c) {
+      if (c.info || !c.fire) { sndUi('deny'); return; }
+      sndUi('confirm');
+      c.fire();
+    } else if (interact.carry) {
+      const f = _fwd();
+      putDown(player.pos.x + Math.sin(player.heading) * 0.85, player.pos.z + Math.cos(player.heading) * 0.85);
+      void f;
+    }
+  }
+
+  function updateInteract(dt) {
+    const active = controlMode === 'walking' && !oxygen.dead && !shackletonMemory.isActive() &&
+                   !(typeof opening !== 'undefined' && opening.active);
+    if (!active) {
+      interactMarker.visible = false; _setGlow(null);
+      const el = $('interact-prompt'); if (el) el.classList.remove('on');
+      interact.focus = null; interact.down = false; interact.holdT = 0;
+      return;
+    }
+    updateCarry(dt);
+    const f = _fwd();
+    const cands = _gatherCandidates();
+    let best = null, bestS = Infinity, cur = null, curS = Infinity;
+    for (const c of cands) {
+      const s = _score(c, f);
+      if (s < bestS) { bestS = s; best = c; }
+      if (interact.focusKey && c.key === interact.focusKey) { cur = c; curS = s; }
+    }
+    if (cur && curS < Infinity && curS <= bestS * 1.25) best = cur;   // sticky focus
+    if ((best ? best.key : null) !== interact.focusKey) {
+      interact.focusKey = best ? best.key : null;
+      interact.holdT = 0; interact.firedThisPress = interact.down;   // no carry-over of a held key
+      if (best && !best.info) sndUi('tick');
+    }
+    interact.focus = best;
+
+    // Hold / press.
+    let holdK = 0;
+    if (interact.down && !interact.firedThisPress) {
+      if (best && best.hold) {
+        interact.holdT += dt;
+        holdK = Math.min(1, interact.holdT / best.hold);
+        if (holdK >= 1) { interact.firedThisPress = true; _fire(best); }
+      } else {
+        interact.firedThisPress = true; _fire(best);
+      }
+    }
+    if (!interact.down) interact.holdT = 0;
+
+    // Feedback: marker + glow + prompt.
+    if (best && !best.info) {
+      const y = best.y != null ? best.y : (playerGroundY(best.x, best.z, player.pos.y + 2) + 1.3);
+      interactMarker.visible = true;
+      interactMarker.position.set(best.x, y + 0.35 + Math.sin(performance.now() * 0.005) * 0.05, best.z);
+      interactMarker.rotation.y += dt * 2.0;
+      _setGlow(best.mesh || null);
+      if (interact._glowMesh && interact._glowMesh.material.emissive) {
+        const pulse = 0.5 + 0.5 * Math.sin(performance.now() * 0.008);
+        interact._glowMesh.material.emissive.setRGB(0.32 * pulse + 0.1, 0.22 * pulse + 0.06, 0.02);
+      }
+    } else {
+      interactMarker.visible = false; _setGlow(null);
+    }
+    _renderPrompt(best, holdK);
+  }
+
+  // Input: E (keyboard) and the prompt itself (touch / mouse).
+  window.addEventListener('keydown', (e) => {
+    if (e.key.toLowerCase() !== 'e' || controlMode !== 'walking') return;
+    if (!e.repeat) { interact.down = true; interact.firedThisPress = false; interact.holdT = 0; }
+  });
+  window.addEventListener('keyup', (e) => {
+    if (e.key.toLowerCase() === 'e') interact.down = false;
+  });
+  (function () {
+    const el = $('interact-prompt');
+    if (!el) return;
+    el.addEventListener('pointerdown', (ev) => {
+      ev.stopPropagation(); ev.preventDefault();
+      interact.down = true; interact.firedThisPress = false; interact.holdT = 0;
+    });
+    const up = () => { interact.down = false; };
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointerleave', up);
+    el.addEventListener('pointercancel', up);
+  })();
+
+  // ============================================================
+  // O₂ STATION FEEDBACK (v0.5.0)
+  //   - fill time is fixed (~O2_FILL_SECONDS for a full tank) instead
+  //     of a flat 4%/s, which meant a 30s wait at capacity 120
+  //   - hiss while gas flows; click + "O₂ full" + auto-release at the
+  //     ceiling (v0.4.x stayed connected at full — players couldn't
+  //     tell it had finished)
+  //   - a gauge on the panel face mirrors the suit level
+  //   - HUD bar animates while filling
+  // ============================================================
+  const O2_FILL_SECONDS = 4.0;
+  const o2Station = { hiss: null, hissGain: null, fullT: 0 };
+  const o2Gauge = (function () {
+    const g = new THREE.Group();
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.42, 0.02),
+      new THREE.MeshBasicMaterial({ color: 0x15171b }));
+    g.add(frame);
+    const fillMat = new THREE.MeshBasicMaterial({ color: 0x6ad28e });
+    const fill = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.38, 0.022), fillMat);
+    fill.geometry.translate(0, 0.19, 0);
+    fill.position.y = -0.19;
+    g.add(fill);
+    g.position.set(0, 0.72, 0.185);          // front face of the control pillar
+    refillPanel.add(g);
+    return { g, fill, fillMat };
+  })();
+  function _o2HissSet(on) {
+    if (!audioCtx) return;
+    if (!o2Station.hiss) {
+      const len = audioCtx.sampleRate * 2;
+      const buf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      const src = audioCtx.createBufferSource(); src.buffer = buf; src.loop = true;
+      const bp = audioCtx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 3200; bp.Q.value = 0.8;
+      const g = audioCtx.createGain(); g.gain.value = 0;
+      src.connect(bp); bp.connect(g); g.connect(masterGain); src.start();
+      o2Station.hiss = src; o2Station.hissGain = g;
+    }
+    o2Station.hissGain.gain.setTargetAtTime(on ? 0.05 : 0, audioCtx.currentTime, on ? 0.05 : 0.12);
+  }
+  function updateO2Station(dt) {
+    const flowing = refill.connected && oxygen.percent < oxygen.capacity - 0.01;
+    _o2HissSet(flowing && controlMode === 'walking');
+    // Gauge mirrors the suit while connected, the tank's readiness otherwise.
+    const k = refill.connected ? oxygen.percent / Math.max(1, oxygen.capacity) : 1;
+    o2Gauge.fill.scale.y = Math.max(0.02, k);
+    o2Gauge.fillMat.color.setHex(refill.connected ? (flowing ? 0x6ad28e : 0xbff5cf) : 0x3a5a44);
+    const hud = $('oxygen-hud');
+    if (hud) hud.classList.toggle('filling', flowing);
+    // Full → auto-release after a short beat so the player sees it land.
+    if (refill.connected && !flowing && !rescueSit.active) {
+      o2Station.fullT += dt;
+      if (o2Station.fullT > 0.6) {
+        o2Station.fullT = 0;
+        refill.connected = false;
+        sndUi('done');
+        speak('SUIT', 'O₂ full — hose released', 2.2, { kind: 'system' });
+      }
+    } else {
+      o2Station.fullT = 0;
+    }
+  }
+
+  // ============================================================
   // RENDER LOOP
   // ============================================================
   const clock = new THREE.Clock();
+  // frame(dt) is one simulation + render step; loop() drives it from
+  // requestAnimationFrame. Split (v0.5.0) so the headless test harness
+  // can step the game deterministically at a fixed dt.
   function loop() {
-    const dt = Math.min(0.05, clock.getDelta());
+    frame(Math.min(0.05, clock.getDelta()));
+    requestAnimationFrame(loop);
+  }
+  function frame(dt) {
     if (opening.active) {
       // Face-down wake cinematic — drives astronaut pose, camera,
       // HUD overlays, and keeps the robots simulating so the world
@@ -12923,6 +13563,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
           updateRefillProximity();
           updateWreckInterior(dt);
           updateScenes(dt);
+          updateO2Station(dt);
         }
         updateOxygen(dt);
       } else if (controlMode === 'boarding') {
@@ -12971,6 +13612,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
           mat.emissive.setHex(0xff8833);
         }
       }
+      updateInteract(dt);                                   // v0.5.0 — after scene state, before camera
       if (!shackletonMemory.isActive()) updateCamera(dt);   // camera holds during fragments (spec §8)
       // Shadow frustum follows the active subject — astronaut on
       // foot, Flyer in flight — texel-snapped inside updateSunFollow.
@@ -12992,7 +13634,6 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     processSpeech(dt);
     earth.rotation.y += dt * 0.03;
     renderer.render(scene, camera);
-    requestAnimationFrame(loop);
   }
 
   // Initial camera placement
@@ -13023,6 +13664,36 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       oh.classList.add('on');
     }
   });
+
+  // ── DEBUG HOOK (v0.5.0) ── only with ?debug in the URL. A direct
+  // eval inside this closure, so the automated test harness (and the
+  // console) can read and drive game state: __shk('player.pos').
+  if (/[?&]debug\b/.test(location.search)) {
+    window.__shk = (src) => eval(src);
+    // ?debug&colliders — wireframe every box collider (refreshed 2×/s
+    // so colliders added by late-loading GLBs show up).
+    if (/[?&]colliders\b/.test(location.search)) {
+      const grp = new THREE.Group(); scene.add(grp);
+      const mat = new THREE.LineBasicMaterial({ color: 0xff00ff, depthTest: false });
+      setInterval(() => {
+        while (grp.children.length) grp.remove(grp.children[0]);
+        for (const b of boxColliders) {
+          const e = new THREE.LineSegments(new THREE.EdgesGeometry(
+            new THREE.BoxGeometry(b.hx * 2, b.y1 - b.y0, b.hz * 2)), mat);
+          e.position.set(b.x, (b.y0 + b.y1) / 2, b.z);
+          e.rotation.y = Math.atan2(b.s, b.c);
+          e.renderOrder = 998;
+          grp.add(e);
+        }
+      }, 500);
+    }
+    // Fixed-step advance without rendering each step (fast in headless).
+    window.__step = (n, dt) => {
+      const r = renderer.render; renderer.render = () => {};
+      try { for (let i = 0; i < n; i++) frame(dt || 1 / 30); } finally { renderer.render = r; }
+    };
+    console.log('[debug] __shk hook enabled');
+  }
 })();
 </script>
 </body>
