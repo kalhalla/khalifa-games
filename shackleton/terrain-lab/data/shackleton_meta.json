@@ -1,0 +1,39 @@
+{
+  "source": "STAND-IN",
+  "standin": true,
+  "source_detail": "PDS3 SHACKLETON_STANDIN_20M (SHACKLETON_STANDIN_20M.IMG): 2400x2400 LSB_INTEGER16, 20 m/px, DN*0.5+1.7374e+06 METER",
+  "source_file": "SHACKLETON_STANDIN_20M.LBL",
+  "generated": "2026-11-08T18:20:59+00:00",
+  "grid_size": 513,
+  "layout": "row-major, row 0 = +y (projection), col 0 = -x; uint16 little-endian; height_m = height_min_m + v/65535*(height_max_m-height_min_m); heights relative to the median rim crest",
+  "extent_m": 29559.14431149198,
+  "pixel_m": 57.73270373338277,
+  "centre_lat": -89.6603,
+  "centre_lon": 129.8011,
+  "centre_xy_m": [
+    7913.0,
+    -6593.1
+  ],
+  "rim_radius_m": 10556.8,
+  "rim_crest_ref_m": 1737632.9,
+  "depth_m": 4229.9,
+  "true_wall_slope_deg": {
+    "mean": 31.6,
+    "p99": 41.0,
+    "max": 50.7
+  },
+  "game_scale": {
+    "rim_radius_m": 240.0,
+    "horizontal_scale": 0.02273408164047362,
+    "true_depth_at_game_scale_m": 96.16
+  },
+  "directions_deg_in_grid": {
+    "note": "angle in the (col, -row) plane, 0 = +col, 90 = towards row 0",
+    "to_south_pole": 140.2,
+    "to_de_gerlache": 170.5,
+    "to_slater": -17.0
+  },
+  "height_min_m": -4276.1984320352785,
+  "height_max_m": 777.9915128410794,
+  "height_step_m": 0.07712199503893123
+}

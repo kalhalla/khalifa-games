@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shackleton - terrain lab</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  body { font: 11px/1.35 'Courier New', monospace; color: #cfd3da; }
+  canvas { display: block; touch-action: none; }
+  #ui { position: fixed; top: 8px; left: 8px; width: 238px; padding: 7px 9px 8px;
+        background: rgba(6, 8, 12, 0.80); border: 1px solid #2c3038; z-index: 5; }
+  #ui h1 { font-size: 11px; letter-spacing: 2px; margin: 0 0 5px; color: #f0c674; font-weight: normal; }
+  #ui label { display: block; margin-top: 4px; }
+  #ui label span { float: right; color: #f0c674; }
+  #ui input[type=range] { width: 100%; height: 14px; margin: 1px 0 0; accent-color: #b8bcc4; }
+  #ui .row { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 3px; }
+  #ui button { font: 10px 'Courier New', monospace; background: #1a1d23; color: #cfd3da;
+               border: 1px solid #3a3f48; padding: 2px 5px; cursor: pointer; }
+  #ui button:hover { border-color: #f0c674; }
+  #ui .stat { margin-top: 5px; color: #9aa0aa; }
+  #ui .stat b { color: #f0c674; font-weight: normal; }
+  #ui details summary { cursor: pointer; margin-top: 6px; color: #9aa0aa; }
+  #ui .hide { position: absolute; top: 4px; right: 6px; cursor: pointer; color: #6a707a; }
+  #banner { position: fixed; top: 8px; left: 50%; transform: translateX(-50%); z-index: 5;
+            color: #ffb070; border: 1px solid rgba(255, 176, 112, 0.5); background: rgba(20, 10, 4, 0.75);
+            padding: 3px 10px; letter-spacing: 1px; display: none; white-space: nowrap; }
+  #info { position: fixed; left: 8px; bottom: 6px; color: #6a707a; z-index: 5; }
+  #busy { position: fixed; right: 10px; top: 8px; color: #f0c674; z-index: 5; display: none; }
+  body.noui #ui, body.noui #info { display: none; }
+  #show { position: fixed; top: 8px; left: 8px; z-index: 4; display: none; }
+</style>
+</head>
+<body>
+<div id="ui">
+  <span class="hide" id="hideui" title="hide panel">[-]</span>
+  <h1>SHACKLETON / TERRAIN LAB</h1>
+  <label>depth <span id="v-depth"></span><input id="depth" type="range" min="20" max="130" step="1"></label>
+  <div class="stat" id="slopestat"></div>
+  <label>walk limit <span id="v-walk"></span><input id="walk" type="range" min="15" max="45" step="1"></label>
+  <label><input id="tint" type="checkbox"> tint slopes over walk limit</label>
+  <label>triangle size <span id="v-res"></span><input id="res" type="range" min="1.5" max="12" step="0.5"></label>
+  <label>facet roughness <span id="v-rough"></span><input id="rough" type="range" min="0" max="1" step="0.05"></label>
+  <label>terracing <span id="v-terrace"></span><input id="terrace" type="range" min="0" max="8" step="0.5"></label>
+  <label>sun azimuth <span id="v-az"></span><input id="az" type="range" min="0" max="360" step="1"></label>
+  <label>sun elevation <span id="v-el"></span><input id="el" type="range" min="0.5" max="35" step="0.5"></label>
+  <label>exposure <span id="v-expo"></span><input id="expo" type="range" min="0.4" max="1.6" step="0.05"></label>
+  <label>fill (wall bounce) <span id="v-fill"></span><input id="fill" type="range" min="0" max="0.6" step="0.02"></label>
+  <label>small craters <span id="v-craters"></span><input id="craters" type="range" min="0" max="100" step="5"></label>
+  <label>boulders <span id="v-boulders"></span><input id="boulders" type="range" min="0" max="4000" step="100"></label>
+  <div class="row">
+    <button data-view="rim">rim overview</button>
+    <button data-view="wall">floor: up at wall</button>
+    <button data-view="far">floor: far rim</button>
+    <button data-view="top">top-down</button>
+  </div>
+  <div class="stat">drag: orbit &middot; right/shift-drag: pan &middot; wheel: zoom</div>
+</div>
+<button id="show">[+] panel</button>
+<div id="banner">STAND-IN TERRAIN: synthesised from published measurements, until LOLA data is loaded</div>
+<div id="info"></div>
+<div id="busy">building&hellip;</div>
+
+<script>
+// ------------------------------------------------------------------
+// Three.js r128 from the CDN in production; ?local loads lib/three.min.js
+// (testing only - the lib/ folder is gitignored).
+// ------------------------------------------------------------------
+(function () {
+  var q = new URLSearchParams(location.search);
+  var s = document.createElement('script');
+  s.src = q.has('local') ? 'lib/three.min.js'
+                         : 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
+  s.onload = function () { main().catch(function (e) { fail(e); }); };
+  s.onerror = function () { fail(new Error('could not load three.js from ' + s.src)); };
+  document.head.appendChild(s);
+})();
+
+function fail(e) {
+  console.error(e);
+  var d = document.getElementById('info');
+  d.style.color = '#ff7060';
+  d.textContent = 'error: ' + (e && e.message || e);
+  window.lab = { ready: true, error: String(e) };
+}
+
+async function main() {
+  const Q = new URLSearchParams(location.search);
+  const qn = (k, d) => (Q.has(k) && Q.get(k) !== '' && isFinite(+Q.get(k)) ? +Q.get(k) : d);
+  if (Q.get('ui') === '0') document.body.classList.add('noui');
+
+  // ---------------- data ----------------
+  const [meta, buf] = await Promise.all([
+    fetch('data/shackleton_meta.json').then(r => { if (!r.ok) throw new Error('meta ' + r.status); return r.json(); }),
+    fetch('data/shackleton_height.u16').then(r => { if (!r.ok) throw new Error('heights ' + r.status); return r.arrayBuffer(); })
+  ]);
+  const N = meta.grid_size;
+  const raw = new Uint16Array(buf);
+  const HM = new Float32Array(N * N);          // real metres, 0 = median rim crest
+  const hspan = meta.height_max_m - meta.height_min_m;
+  for (let i = 0; i < N * N; i++) HM[i] = meta.height_min_m + raw[i] / 65535 * hspan;
+
+  const GAME_RIM = 240;
+  const HS = GAME_RIM / meta.rim_radius_m;       // horizontal scale real -> game
+  const EXT = meta.extent_m * HS;                // game metres across the crop
+  const TRUE_DEPTH = meta.depth_m * HS;          // depth at true proportions
+  const DISC_R = EXT * 0.5 * 0.985;              // drawn terrain radius
+  const CELL = EXT / (N - 1);
+
+  if (meta.standin) document.getElementById('banner').style.display = 'block';
+  document.getElementById('info').textContent =
+    (meta.standin ? 'STAND-IN' : 'LOLA') + ' | ' + meta.source_file +
+    ' | real rim ' + (meta.rim_radius_m * 2 / 1000).toFixed(1) + ' km dia, ' +
+    (meta.depth_m / 1000).toFixed(2) + ' km deep | game rim r=' + GAME_RIM + ' m (1:' + Math.round(1 / HS) + ')';
+
+  // ---------------- params ----------------
+  const P = {
+    depth: qn('depth', 72), walk: qn('walk', 30), tint: Q.get('tint') === '1',
+    res: qn('res', 6), rough: qn('rough', 0.85), terrace: qn('terrace', 0),
+    az: qn('az', 205), el: qn('el', 9), expo: qn('expo', 0.75), fill: qn('fill', 0.04),
+    craters: qn('craters', 60), boulders: qn('boulders', 1600)
+  };
+
+  // ---------------- three setup ----------------
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFShadowMap;            // hard edges
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.0;
+  document.body.appendChild(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x000000);
+  const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.1, 4000);
+
+  // house lighting (same values as the game): harsh sun, near-zero fill
+  const ambient = new THREE.AmbientLight(0x404858, 0.04);
+  const hemi = new THREE.HemisphereLight(0xd0dce8, 0x18181c, P.fill);
+  const sun = new THREE.DirectionalLight(0xfff4e0, 2.1);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(4096, 4096);
+  const SR = DISC_R + 8;
+  Object.assign(sun.shadow.camera, { left: -SR, right: SR, top: SR, bottom: -SR, near: 1, far: 2200 });
+  sun.shadow.bias = -0.0004;
+  sun.shadow.normalBias = 0.12;   // grazing sun: kills acne stripes on faces edge-on to the light
+  scene.add(ambient, hemi, sun, sun.target);
+
+  // ---------------- deterministic randomness ----------------
+  function rng(seed) {
+    return function () {
+      seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+      let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+
+  // ---------------- small craters (game scale, added on top of the DEM) ----
+  // Power-law sizes, 1.2..26 m diameter. The DEM resolves ~1.3 m game cells
+  // only loosely, so the small stuff is stylisation, not data.
+  const CRATER_POOL = (function () {
+    const r = rng(1234), out = [];
+    for (let i = 0; i < 1400; i++) {
+      const u = r();
+      const D = 1.2 * Math.pow(1 - u * (1 - Math.pow(1.2 / 26, 2)), -0.5);
+      const rr = DISC_R * Math.sqrt(r()), a = r() * Math.PI * 2;
+      out.push({ x: rr * Math.cos(a), z: rr * Math.sin(a), D, fresh: 0.35 + 0.65 * r() });
+    }
+    return out;
+  })();
+  let craterGrid = null;          // spatial hash for the active subset
+  const CG = 16;
+  function buildCraterGrid() {
+    craterGrid = new Map();
+    const n = Math.round(CRATER_POOL.length * P.craters / 100);
+    for (let i = 0; i < n; i++) {
+      const c = CRATER_POOL[i], R = c.D * 1.6;
+      for (let gx = Math.floor((c.x - R) / CG); gx <= Math.floor((c.x + R) / CG); gx++)
+        for (let gz = Math.floor((c.z - R) / CG); gz <= Math.floor((c.z + R) / CG); gz++) {
+          const k = gx * 10007 + gz;
+          if (!craterGrid.has(k)) craterGrid.set(k, []);
+          craterGrid.get(k).push(c);
+        }
+    }
+  }
+  function craterDelta(x, z) {
+    const list = craterGrid.get(Math.floor(x / CG) * 10007 + Math.floor(z / CG));
+    if (!list) return 0;
+    let h = 0;
+    for (const c of list) {
+      const d = Math.hypot(x - c.x, z - c.z), rc = c.D / 2, q = d / rc;
+      if (q > 1.6) continue;
+      if (q < 1) h += c.fresh * c.D * (0.19 * (q * q - 1) + 0.04);
+      else { const f = (q - 1) / 0.6; h += c.fresh * 0.04 * c.D * (1 - f * f * (3 - 2 * f)); }
+    }
+    return h;
+  }
+
+  // ---------------- coherent value noise (for the low-poly breakup) --------
+  function hash2(ix, iz) {
+    let h = Math.imul(ix, 374761393) ^ Math.imul(iz, 668265263);
+    h = Math.imul(h ^ (h >>> 13), 1274126177);
+    return ((h ^ (h >>> 16)) >>> 0) / 4294967296 - 0.5;
+  }
+  function vnoise(x, z) {
+    const ix = Math.floor(x), iz = Math.floor(z), fx = x - ix, fz = z - iz;
+    const ux = fx * fx * (3 - 2 * fx), uz = fz * fz * (3 - 2 * fz);
+    const a = hash2(ix, iz), b = hash2(ix + 1, iz), c = hash2(ix, iz + 1), d = hash2(ix + 1, iz + 1);
+    return (a + (b - a) * ux) * (1 - uz) + (c + (d - c) * ux) * uz;
+  }
+
+  // ---------------- height function ----------------
+  function demReal(x, z) {          // bilinear, real metres; x -> +col, z -> +row
+    let fc = (x / EXT + 0.5) * (N - 1), fr = (z / EXT + 0.5) * (N - 1);
+    fc = Math.min(Math.max(fc, 0), N - 1.001); fr = Math.min(Math.max(fr, 0), N - 1.001);
+    const c0 = fc | 0, r0 = fr | 0, tx = fc - c0, tz = fr - r0, i = r0 * N + c0;
+    return (HM[i] * (1 - tx) + HM[i + 1] * tx) * (1 - tz) + (HM[i + N] * (1 - tx) + HM[i + N + 1] * tx) * tz;
+  }
+  let VEX = 1;                      // vertical scale relative to true proportions
+  function heightAt(x, z) {        // smooth surface: DEM + small craters (no stylisation)
+    return demReal(x, z) * HS * VEX + craterDelta(x, z);
+  }
+  // Low-poly crumple: coherent noise at 2-4 triangle widths, so neighbouring
+  // faces tilt together into chunky planes rather than glittering shards.
+  // Then optional terracing. Everything that stands on the ground (camera,
+  // astronaut, rocks) uses this, so nothing floats or sinks.
+  function meshHeight(x, z) {
+    const d = P.res;
+    const n = vnoise(x / (d * 3.7), z / (d * 3.7)) * 0.75
+            + vnoise(x / (d * 1.6) + 17.3, z / (d * 1.6) - 4.1) * 0.35;
+    let y = heightAt(x, z) + n * P.rough * d * 0.9;
+    if (P.terrace > 0) {
+      const s = P.terrace, k = Math.round(y / s) * s;
+      y = k + (y - k) * 0.12;       // keep a hint of slope on each tread
+    }
+    return y;
+  }
+
+  // ---------------- slope statistics from the DEM ----------------
+  function slopeStats() {
+    const R = GAME_RIM, vals = [];
+    let sum = 0, under = 0;
+    const d = 2;                    // 2-cell baseline (~2.6 m in game)
+    for (let r = d; r < N - d; r++) {
+      const z = (r / (N - 1) - 0.5) * EXT;
+      for (let c = d; c < N - d; c++) {
+        const x = (c / (N - 1) - 0.5) * EXT, rr = Math.hypot(x, z);
+        if (rr < 0.33 * R || rr > 0.98 * R) continue;
+        const gx = (HM[r * N + c + d] - HM[r * N + c - d]) * HS * VEX / (2 * d * CELL);
+        const gz = (HM[(r + d) * N + c] - HM[(r - d) * N + c]) * HS * VEX / (2 * d * CELL);
+        const s = Math.atan(Math.hypot(gx, gz)) * 180 / Math.PI;
+        vals.push(s); sum += s; if (s <= P.walk) under++;
+      }
+    }
+    vals.sort((a, b) => a - b);
+    return { mean: sum / vals.length, p99: vals[Math.floor(vals.length * 0.99)],
+             max: vals[vals.length - 1], walkable: under / vals.length };
+  }
+
+  // ---------------- terrain mesh ----------------
+  const terrainMat = new THREE.MeshPhongMaterial({ color: 0xffffff, vertexColors: true,
+                                                   flatShading: true, shininess: 0 });
+  // Note: thin lit streaks across shadowed ground are real, not leaks -
+  // sunlight at a few degrees slips through notches in the rim crest.
+  let terrain = null;
+  const BASE = new THREE.Color(0x9a9ea5);       // grey regolith (vertex colours multiply it)
+  function buildTerrain() {
+    if (terrain) { scene.remove(terrain); terrain.geometry.dispose(); }
+    const d = P.res, rowH = d * Math.sqrt(3) / 2, rnd = rng(99);
+    const nR = Math.ceil(2 * DISC_R / rowH) + 1, nC = Math.ceil(2 * DISC_R / d) + 2;
+    const vx = new Float32Array(nR * nC), vz = new Float32Array(nR * nC), vy = new Float32Array(nR * nC);
+    for (let i = 0; i < nR; i++)
+      for (let j = 0; j < nC; j++) {
+        const k = i * nC + j;
+        // jittered triangular lattice: organic low-poly facets, not a grid
+        vx[k] = -DISC_R - d + j * d + (i & 1) * d / 2 + (rnd() - 0.5) * d * 0.55;
+        vz[k] = -DISC_R + i * rowH + (rnd() - 0.5) * rowH * 0.55;
+        // low-poly crumple: each vertex nudged up/down by a fraction of the
+        // triangle size so faces catch the light differently
+        vy[k] = meshHeight(vx[k], vz[k]);
+      }
+    const pos = [], col = [];
+    const tint = P.tint, lim = Math.tan(P.walk * Math.PI / 180);
+    const crnd = rng(7);
+    function tri(a, b, c) {
+      const cx = (vx[a] + vx[b] + vx[c]) / 3, cz = (vz[a] + vz[b] + vz[c]) / 3;
+      if (cx * cx + cz * cz > DISC_R * DISC_R) return;
+      pos.push(vx[a], vy[a], vz[a], vx[b], vy[b], vz[b], vx[c], vy[c], vz[c]);
+      // per-face albedo: slight mottling, steep faces a touch brighter (fresh)
+      const ux = vx[b] - vx[a], uy = vy[b] - vy[a], uz = vz[b] - vz[a];
+      const wx = vx[c] - vx[a], wy = vy[c] - vy[a], wz = vz[c] - vz[a];
+      const nx = uy * wz - uz * wy, ny = uz * wx - ux * wz, nz = ux * wy - uy * wx;
+      const slope = Math.hypot(nx, nz) / Math.abs(ny || 1e-6);
+      let k = 0.94 + crnd() * 0.08 + Math.min(slope, 1.2) * 0.05;
+      let r = BASE.r * k, g = BASE.g * k, bl = BASE.b * k;
+      if (tint && slope > lim) { r *= 1.25; g *= 0.55; bl *= 0.45; }
+      col.push(r, g, bl, r, g, bl, r, g, bl);
+    }
+    for (let i = 0; i < nR - 1; i++)
+      for (let j = 0; j < nC - 1; j++) {
+        const a = i * nC + j, b = a + 1, c = a + nC, e = c + 1;
+        // odd rows sit half a cell to the right: near-equilateral triangles
+        if (i & 1) { tri(a, c, e); tri(a, e, b); }
+        else { tri(a, c, b); tri(b, c, e); }
+      }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    g.computeVertexNormals();
+    terrain = new THREE.Mesh(g, terrainMat);
+    terrain.receiveShadow = true;
+    terrain.castShadow = true;
+    scene.add(terrain);
+    return pos.length / 9;
+  }
+
+  // ---------------- boulders (instanced low-poly rocks) ----------------
+  const rockGeo = new THREE.IcosahedronGeometry(1, 0);
+  const rockMat = new THREE.MeshPhongMaterial({ color: 0xa4a8ae, flatShading: true, shininess: 0 });
+  let rocks = null;
+  function buildBoulders() {
+    if (rocks) { scene.remove(rocks); rocks.dispose && rocks.dispose(); rocks = null; }
+    const n = P.boulders | 0;
+    if (!n) return;
+    rocks = new THREE.InstancedMesh(rockGeo, rockMat, n);
+    rocks.castShadow = true; rocks.receiveShadow = true;
+    const r = rng(4242), m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
+    const sc = new THREE.Vector3(), p = new THREE.Vector3();
+    const big = CRATER_POOL.slice(0, Math.round(CRATER_POOL.length * P.craters / 100)).filter(c => c.D > 7);
+    let placed = 0, guard = 0;
+    while (placed < n && guard++ < n * 40) {
+      let x, z;
+      if (big.length && r() < 0.35) {             // ejecta around the bigger small craters
+        const c = big[(r() * big.length) | 0], a = r() * 6.283, rr = c.D * (0.45 + r() * 0.9);
+        x = c.x + Math.cos(a) * rr; z = c.z + Math.sin(a) * rr;
+      } else {
+        const a = r() * 6.283, rr = DISC_R * Math.sqrt(r());
+        x = Math.cos(a) * rr; z = Math.sin(a) * rr;
+        // more rocks where it is steep (wall rockfall) and at the wall foot
+        const h0 = heightAt(x, z), sx = heightAt(x + 2, z) - h0, sz = heightAt(x, z + 2) - h0;
+        const slope = Math.hypot(sx, sz) / 2;
+        const rad = Math.hypot(x, z) / GAME_RIM;
+        const foot = Math.exp(-Math.pow((rad - 0.36) / 0.08, 2));
+        if (r() > 0.12 + Math.min(slope, 0.8) * 0.9 + foot * 0.7) continue;
+      }
+      if (x * x + z * z > DISC_R * DISC_R) continue;
+      const u = r();
+      const s = 0.18 * Math.pow(1 - u * 0.985, -0.55);       // 0.18 m .. ~1.8 m, a few larger
+      sc.set(s * (0.8 + r() * 0.6), s * (0.45 + r() * 0.4), s * (0.8 + r() * 0.6));
+      e.set(r() * 6.28, r() * 6.28, r() * 6.28); q.setFromEuler(e);
+      p.set(x, meshHeight(x, z) + sc.y * 0.25, z);
+      m.compose(p, q, sc);
+      rocks.setMatrixAt(placed++, m);
+    }
+    rocks.count = placed;
+    rocks.instanceMatrix.needsUpdate = true;
+    scene.add(rocks);
+  }
+
+  // ---------------- 1.8 m astronaut capsule (no CapsuleGeometry in r128) ----
+  const astro = new THREE.Group();
+  {
+    const suit = new THREE.MeshPhongMaterial({ color: 0xf2f2ee, flatShading: true, shininess: 0 });
+    const visor = new THREE.MeshPhongMaterial({ color: 0xd9a441, flatShading: true, shininess: 30 });
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 1.2, 10), suit);
+    body.position.y = 0.9;
+    const top = new THREE.Mesh(new THREE.SphereGeometry(0.3, 10, 6), suit); top.position.y = 1.5;
+    const bot = new THREE.Mesh(new THREE.SphereGeometry(0.3, 10, 6), suit); bot.position.y = 0.3;
+    const v = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.16, 0.12), visor); v.position.set(0, 1.5, 0.25);
+    const pack = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.6, 0.22), suit); pack.position.set(0, 1.05, -0.36);
+    [body, top, bot, v, pack].forEach(o => { o.castShadow = true; o.receiveShadow = true; astro.add(o); });
+  }
+  scene.add(astro);
+
+  // ---------------- sun ----------------
+  function sunDir() {
+    const a = P.az * Math.PI / 180, e = P.el * Math.PI / 180;
+    return new THREE.Vector3(Math.cos(e) * Math.sin(a), Math.sin(e), -Math.cos(e) * Math.cos(a));
+  }
+  function placeSun() {
+    sun.position.copy(sunDir()).multiplyScalar(1000);
+    sun.target.position.set(0, 0, 0);
+    hemi.intensity = P.fill;
+    renderer.toneMappingExposure = P.expo;
+    sun.shadow.camera.updateProjectionMatrix();
+  }
+
+  // ---------------- camera + minimal orbit ----------------
+  const orbit = { target: new THREE.Vector3(), r: 500, th: 0, ph: 0.5 };
+  function applyOrbit() {
+    const cp = Math.cos(orbit.ph);
+    camera.position.set(orbit.target.x + orbit.r * cp * Math.sin(orbit.th),
+                        orbit.target.y + orbit.r * Math.sin(orbit.ph),
+                        orbit.target.z + orbit.r * cp * Math.cos(orbit.th));
+    camera.up.set(0, 1, 0);
+    camera.lookAt(orbit.target);
+    dirty = true;
+  }
+  function setView(pos, tgt, fov) {
+    camera.fov = fov || 50; camera.updateProjectionMatrix();
+    orbit.target.copy(tgt);
+    const d = pos.clone().sub(tgt);
+    orbit.r = d.length();
+    orbit.ph = Math.asin(Math.max(-0.999, Math.min(0.999, d.y / orbit.r)));
+    orbit.th = Math.atan2(d.x, d.z);
+    applyOrbit();
+  }
+  // Views are laid out relative to the sun so the lit wall is always in shot.
+  function horiz(angleFromSunDeg, r) {
+    const a = (P.az + angleFromSunDeg) * Math.PI / 180;
+    return new THREE.Vector3(Math.sin(a) * r, 0, -Math.cos(a) * r);
+  }
+  function onGround(v, up) { v.y = meshHeight(v.x, v.z) + (up || 0); return v; }
+  let view = Q.get('view') || 'rim';
+  function placeAstronaut() {
+    // on the floor, between the centre and the sunlit wall, facing that wall
+    const p = onGround(horiz(180, 30));
+    astro.position.copy(p);
+    astro.rotation.y = Math.atan2(-p.x, -p.z) + Math.PI;
+  }
+  function preset(name) {
+    view = name;
+    if (name === 'rim') {           // standing on the sun-side rim, looking across
+      const p = onGround(horiz(-95, 262), 26);   // sun from the side: shadow sweeps the bowl
+      setView(p, onGround(horiz(75, 70), -8), 60);
+    } else if (name === 'wall') {   // on the floor behind the astronaut, looking up at the lit wall
+      // low camera, astronaut a few metres ahead, silhouetted against the lit wall
+      const p = onGround(horiz(184, 25), 0.7);
+      const t = onGround(horiz(180, 165), 2);
+      setView(p, t, 55);
+    } else if (name === 'far') {    // from the floor across to the far rim, sun from the side
+      const p = onGround(horiz(-35, 60), 1.7);
+      const t = onGround(horiz(145, 235), 2);
+      setView(p, t, 60);
+    } else if (name === 'top') {
+      setView(new THREE.Vector3(0, 900, 0.01), new THREE.Vector3(0, 0, 0), 42);
+    }
+  }
+
+  // pointer orbit / pan / zoom
+  const el = renderer.domElement;
+  let drag = null;
+  el.addEventListener('contextmenu', e => e.preventDefault());
+  el.addEventListener('pointerdown', e => {
+    el.setPointerCapture(e.pointerId);
+    drag = { x: e.clientX, y: e.clientY, pan: e.button === 2 || e.shiftKey };
+  });
+  el.addEventListener('pointermove', e => {
+    if (!drag) return;
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    drag.x = e.clientX; drag.y = e.clientY;
+    if (drag.pan) {
+      const s = orbit.r * 0.0016;
+      const right = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 0);
+      const fwd = new THREE.Vector3(Math.sin(orbit.th), 0, Math.cos(orbit.th));
+      orbit.target.addScaledVector(right, -dx * s).addScaledVector(fwd, -dy * s);
+    } else {
+      orbit.th -= dx * 0.005;
+      orbit.ph = Math.max(-1.2, Math.min(1.55, orbit.ph + dy * 0.005));
+    }
+    applyOrbit();
+  });
+  el.addEventListener('pointerup', () => { drag = null; });
+  el.addEventListener('wheel', e => {
+    e.preventDefault();
+    orbit.r = Math.max(2, Math.min(2500, orbit.r * Math.exp(e.deltaY * 0.001)));
+    applyOrbit();
+  }, { passive: false });
+  addEventListener('resize', () => {
+    camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight); dirty = true;
+  });
+
+  // ---------------- UI wiring ----------------
+  const fmt = {
+    depth: v => v + ' m (x' + (v / TRUE_DEPTH).toFixed(2) + ')',
+    walk: v => v + '°', res: v => v + ' m', rough: v => v.toFixed(2), terrace: v => (v ? v + ' m' : 'off'),
+    az: v => v + '°', el: v => v + '°', expo: v => v.toFixed(2), fill: v => v.toFixed(2),
+    craters: v => v + '%', boulders: v => String(v)
+  };
+  const heavy = { depth: 1, res: 1, rough: 1, terrace: 1, craters: 1, walk: 1 };
+  let stats = null;
+  function updateStats() {
+    stats = slopeStats();
+    document.getElementById('slopestat').innerHTML =
+      'true proportions: ' + TRUE_DEPTH.toFixed(0) + ' m deep<br>' +
+      'wall slope: mean <b>' + stats.mean.toFixed(1) + '°</b>, max <b>' + stats.p99.toFixed(1) +
+      '°</b> (p99; peak ' + stats.max.toFixed(0) + '°)<br>' +
+      'wall within walk limit: <b>' + Math.round(stats.walkable * 100) + '%</b>';
+  }
+  function rebuild() {
+    VEX = P.depth / TRUE_DEPTH;
+    buildCraterGrid();
+    const tris = buildTerrain();
+    placeAstronaut();
+    buildBoulders();
+    updateStats();
+    window.lab.triangles = tris;
+    dirty = true;
+  }
+  let pending = null;
+  function schedule(fn) {
+    document.getElementById('busy').style.display = 'block';
+    clearTimeout(pending);
+    pending = setTimeout(() => { fn(); document.getElementById('busy').style.display = 'none'; }, 30);
+  }
+  Object.keys(fmt).forEach(k => {
+    const inp = document.getElementById(k);
+    inp.value = P[k];
+    document.getElementById('v-' + k).textContent = fmt[k](P[k]);
+    inp.addEventListener('input', () => {
+      P[k] = +inp.value;
+      document.getElementById('v-' + k).textContent = fmt[k](P[k]);
+      if (k === 'az' || k === 'el' || k === 'fill' || k === 'expo') { placeSun(); dirty = true; }
+    });
+    inp.addEventListener('change', () => {
+      if (heavy[k]) schedule(() => { rebuild(); });
+      else if (k === 'boulders') schedule(() => { buildBoulders(); dirty = true; });
+      else if (k === 'az') schedule(() => { placeAstronaut(); preset(view); });
+    });
+  });
+  const tintBox = document.getElementById('tint');
+  tintBox.checked = P.tint;
+  tintBox.addEventListener('change', () => { P.tint = tintBox.checked; schedule(rebuild); });
+  document.querySelectorAll('[data-view]').forEach(b =>
+    b.addEventListener('click', () => preset(b.dataset.view)));
+  document.getElementById('hideui').onclick = () => {
+    document.body.classList.add('noui'); document.getElementById('show').style.display = 'block';
+  };
+  document.getElementById('show').onclick = () => {
+    document.body.classList.remove('noui'); document.getElementById('show').style.display = 'none';
+  };
+
+  // ---------------- render on demand ----------------
+  let dirty = true, frames = 0;
+  function loop() {
+    requestAnimationFrame(loop);
+    if (!dirty) return;
+    dirty = false;
+    renderer.render(scene, camera);
+    frames++;
+  }
+
+  window.lab = {
+    ready: false, P, meta,
+    set(obj) { Object.assign(P, obj); placeSun(); rebuild(); placeAstronaut(); preset(view); },
+    view(name) { preset(name); },
+    look(p, t, fov) { setView(new THREE.Vector3(...p), new THREE.Vector3(...t), fov); },
+    astro: () => astro.position.toArray(),
+    h: (x, z) => heightAt(x, z), horiz: (a, r) => horiz(a, r).toArray(),
+    renderNow() { renderer.render(scene, camera); frames++; return frames; },
+    stats: () => stats,
+    _debug: { renderer, scene, sun, camera, terrainMat, get terrain() { return terrain; }, get rocks() { return rocks; } }
+  };
+  placeSun();
+  rebuild();
+  preset(view);
+  loop();
+  window.lab.ready = true;
+}
+</script>
+</body>
+</html>

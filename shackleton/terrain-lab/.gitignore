@@ -1,0 +1,5 @@
+# local three.js build for offline testing (?local) - production uses the CDN
+lib/
+# raw DEM inputs (LOLA .IMG/.LBL, GeoTIFFs, generated stand-in raster): large
+raw/
+__pycache__/
