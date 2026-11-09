@@ -14,7 +14,7 @@
 <meta name="twitter:card" content="summary_large_image"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <link rel="apple-touch-icon" href="/sunset-city/square.png"/>
-<meta name="build-version" content="v0.14"/>
+<meta name="build-version" content="v0.15"/>
 <style>
   html,body{margin:0;padding:0;overflow:hidden;background:#1a1420;height:100%;touch-action:none;}
   canvas{display:block;}
@@ -333,7 +333,7 @@ const RURAL_BELT = 1180;                    // how far farmland + power lines ex
 const SUBURBS=[{x:246,z:-510},{x:510,z:-170},{x:-170,z:-510},{x:246,z:510},{x:-170,z:510}];
 const inSuburb=(x,z,m)=>SUBURBS.some(s=>Math.hypot(x-s.x,z-s.z)<104+(m||0));
 const AIRPORT={cx:510,cz:170,rwLen:260,rwW:24};  // airport in the clear country cell x 340..680, z 0..340 (old site sat on the x=262/x=340 roads)
-const OVERPASS={cx:158,z0:-170,z1:165,y:11,W:22,RAMP:62}; // column i=6; buildings cleared
+const OVERPASS={cx:158,z0:-350,z1:350,y:6.76,W:24,RAMP:85}; // ROADS r3: the motorway's elevated stretch (deck top y+0.84); column i=6 has no buildings
 // reserved ground for roadside landmarks (keeps desert scatter clear)
 const LANDMARKS=[{x:-240,z:120,r:24},{x:6,z:224,r:14},{x:-180,z:-249,r:17},{x:43,z:198,r:13},
   {x:216,z:-150,r:20},{x:242,z:-152,r:52}];   // the fallen star's crater + the derelict drive-in
@@ -853,15 +853,17 @@ for(const e of removable){
     gaps.push(e);
   }
 }
-// rural network: 4 spokes + outer ring + 2 diagonal lanes
+// rural network: 5 square-on spokes + the outer ring boulevard (ROADS r3: the two diagonal country
+// lanes are gone; the NW corner gets a straight spoke instead, and the ring is split at x=0 in the
+// south so the country connector meets it head-on)
 const RN=addNode(L[4], RURAL), RE=addNode(RURAL, L[3]),
       RS=addNode(L[2],-RURAL), RWn=addNode(-RURAL, L[5]);
 const RNE=addNode(RURAL,RURAL), RSE=addNode(RURAL,-RURAL),
       RSW=addNode(-RURAL,-RURAL), RNW=addNode(-RURAL,RURAL);
-addEdge(gid(4,7),RN); addEdge(gid(7,3),RE); addEdge(gid(2,0),RS); addEdge(gid(0,5),RWn);
-addEdge(RNW,RN); addEdge(RN,RNE); addEdge(RNE,RE); addEdge(RE,RSE);
-addEdge(RSE,RS); addEdge(RS,RSW); addEdge(RSW,RWn); addEdge(RWn,RNW);
-addEdge(gid(7,0),RSE); addEdge(gid(0,6),RNW);   // diagonal country lanes (SE lane leaves from the corner so it never crosses the flyover ramp)
+const RW7=addNode(-RURAL,HALF), RS0=addNode(0,-RURAL);
+addEdge(gid(4,7),RN); addEdge(gid(7,3),RE); addEdge(gid(2,0),RS); addEdge(gid(0,5),RWn); addEdge(gid(0,7),RW7);
+for(const [a,b] of [[RNW,RN],[RN,RNE],[RNE,RE],[RE,RSE],[RSE,RS0],[RS0,RS],[RS,RSW],[RSW,RWn],[RWn,RW7],[RW7,RNW]]){
+  const e=addEdge(a,b); e.blvd=true; if(nodes[a].x===-RURAL&&nodes[b].x===-RURAL) e.coast=true; }
 
 // -- vast country road grid surrounding the city --
 // A sparse orthogonal grid of country roads out to ±WORLD. The centre cell is
@@ -886,8 +888,88 @@ for(let i=-CGRID;i<=CGRID;i++)for(let j=-CGRID;j<=CGRID;j++){
   if(i<CGRID && validCol(i+1) && !(i+1===0&&j===0)) ruralEdge(cnode(i,j),cnode(i+1,j)); // east
   if(j<CGRID && !(i===0&&j+1===0)) ruralEdge(cnode(i,j),cnode(i,j+1));                   // north
 }
-// connector lanes tying the country grid to the city's rural spokes (west is coast)
-ruralEdge(cnode(0,1),RN); ruralEdge(cnode(1,0),RE); ruralEdge(cnode(0,-1),RS);
+// connector lanes tying the country grid to the city's rural spokes (west is coast). ROADS r3: they
+// used to run diagonally into the ring (~18° off the grid); now each leaves its country junction
+// square-on and meets the ring square-on, with a short 45° dog-leg between where the lines don't align.
+function roadChain(pts,rural){        // pts: node ids or [x,z] bend points; returns the edges
+  const ids=pts.map(p=>Array.isArray(p)?addNode(p[0],p[1]):p), out=[];
+  for(let i=0;i<ids.length-1;i++){ const e=addEdge(ids[i],ids[i+1]); if(rural) e.rural=true; out.push(e); }
+  return out;
+}
+roadChain([cnode(0,1),[0,316],[L[4],290],RN],false);          // north: the motorway link (non-rural)
+roadChain([cnode(1,0),[318,0],[318-26,L[3]],RE],true);         // east
+roadChain([cnode(0,-1),RS0],false);                            // south: the motorway link (non-rural)
+// ---------------- motorway: elevated spine + two diamond interchanges (ROADS r3) ----------------
+// The M-way runs north-south on x=OVERPASS.cx. It is up on a deck across downtown, the ring boulevard
+// and the z=±340 country roads, comes down to grade beyond them and ends at a T on the z=±680 roads.
+// Each end has a diamond interchange on the z=±340 road: slip roads leave/join the mainline in a
+// 14° taper, ramp between deck and ground (smoothstep vertical curves), and meet the country road at
+// give-way junctions 20 m either side of the motorway (the country road passes under the deck).
+// Data: every motorway edge has e.mw, e.hw (carriageway half-width), node heights nodes[i].y.
+// Edges that are up at deck level along their whole length (e.sky) are linked into nodes[].adj for
+// traffic but NOT pushed to `edges`, so ground consumers (clearOfRoads, building lots, the audit's
+// ground-road model) never see them; MW.all lists every motorway edge, MW.sky the elevated ones.
+// Slips are one-way (e.oneway: a->b only) and two lanes wide (RW); traffic uses the nearside lane.
+const MW={X:OVERPASS.cx,Y:OVERPASS.y+0.84,HW:OVERPASS.W/2,SHW:RW/2,OX:20,all:[],sky:[],bb:null};
+function edgeY(e,t){ const ya=nodes[e.a].y||0, yb=nodes[e.b].y||0; if(ya===yb) return ya;
+  const s=clamp(t/e.len,0,1); return ya+(yb-ya)*s*s*(3-2*s); }
+function edgeSlope(e,t){ const ya=nodes[e.a].y||0, yb=nodes[e.b].y||0; if(ya===yb) return 0;
+  const s=clamp(t/e.len,0,1); return (yb-ya)*6*s*(1-s)/e.len; }
+function unlinkEdge(e){ const i=edges.indexOf(e); if(i>=0) edges.splice(i,1);
+  for(const n of [nodes[e.a],nodes[e.b]]){ const k=n.adj.indexOf(e); if(k>=0) n.adj.splice(k,1); } }
+// split edge e at (x,z) (a point on it): returns the new node; both halves keep e's flags
+function splitEdge(e,x,z){ unlinkEdge(e); const n=addNode(x,z);
+  for(const h of [addEdge(e.a,n),addEdge(n,e.b)]) for(const k of ['rural','sub','blvd','coast']) if(e[k]) h[k]=e[k];
+  return n; }
+function edgeThrough(x,z){ return edges.find(e=>e.len>1&&distToEdge(x,z,e).d<0.5&&
+  Math.hypot(e.ax-x,e.az-z)>1&&Math.hypot(e.bx-x,e.bz-z)>1); }
+(function buildMotorwayGraph(){
+  const X=MW.X, Y=MW.Y, OX=MW.OX;
+  const mn=(x,z,y)=>{ const n=addNode(x,z); nodes[n].y=y; nodes[n].mw=true; return n; };
+  function me(a,b,o){ const e=addEdge(a,b); Object.assign(e,{mw:true,hw:MW.SHW},o||{});
+    if((nodes[a].y||0)>4.5&&(nodes[b].y||0)>4.5){ edges.pop(); e.sky=true; MW.sky.push(e); }
+    MW.all.push(e); return e; }
+  const slip=(ids,o)=>{ const out=[]; for(let i=0;i<ids.length-1;i++) out.push(me(ids[i],ids[i+1],Object.assign({oneway:true,slip:true,vmax:15},o||{})));
+    out[out.length-1].yieldB=true;
+    if(!nodes[ids[ids.length-1]].mw) out[out.length-1].vmax=10;    // off-slips: easing off for the give-way at the bottom
+    return out; };
+  const main=(a,b,o)=>me(a,b,Object.assign({main:true,hw:MW.HW,vmax:22},o||{}));
+  const tip={}, gm={};
+  for(const s of [1,-1]){
+    const Z=z=>s*z;
+    const JW=splitEdge(edgeThrough(X-OX,Z(340)),X-OX,Z(340));
+    const JE=splitEdge(edgeThrough(X+OX,Z(340)),X+OX,Z(340));
+    const T=splitEdge(edgeThrough(X,Z(680)),X,Z(680));
+    nodes[JW].mwJ=nodes[JE].mwJ=true;
+    // the link between the two slip junctions runs under the deck; the row west of JW leads to town
+    const link=nodes[JW].adj.find(e=>e.a===JE||e.b===JE), west=nodes[JW].adj.find(e=>e!==link);
+    link.rural=false; west.rural=false; link.mwLink=true;
+    if(s>0){ if(link.a===JW) link.wa=0.05; else link.wb=0.05; }        // north: from town, take the on-slip, not the country
+    tip[s]=mn(X,Z(150),Y); const top=mn(X,Z(350),Y), toe=mn(X,Z(435),0); gm[s]=mn(X,Z(520),0);
+    // mainline, built south->north (a below b)
+    const seq=s>0?[tip[s],top,toe,gm[s],T]:[T,gm[s],toe,top,tip[s]];
+    for(let i=0;i<4;i++){ const e=main(seq[i],seq[i+1]);
+      if(e.a===gm[s]||e.b===gm[s]) if(e.a===T||e.b===T){ e.rural=true; e.vmax=22; } }
+    // leaving town along the mainline past the interchange is rare: most traffic takes the off-slip
+    const out=nodes[tip[s]].adj.find(e=>e.main); if(out){ if(out.a===tip[s]) out.wa=0.12; else out.wb=0.12; }
+    // elevated slips: 80 m taper on the deck, then one 110 m ramp edge straight down to the junction
+    // (smoothstep: 10% peak grade, level at both ends; 6 m up where it crosses the ring boulevard)
+    const eHi=[tip[s],mn(X+OX,Z(230),Y),JE], eLo=[JE,mn(X+OX,Z(440),0),gm[s]];
+    const wHi=[tip[s],mn(X-OX,Z(230),Y),JW], wLo=[JW,mn(X-OX,Z(440),0),gm[s]];
+    // east slips carry north-bound traffic (increasing z), west slips south-bound (left-hand traffic)
+    const nb=a=>s>0?a:a.slice().reverse(), sb=a=>s>0?a.slice().reverse():a;
+    const sl=[slip(nb(eHi)),slip(nb(eLo)),slip(sb(wHi)),slip(sb(wLo))];
+    for(const ch of sl) if(nodes[ch[0].a].mwJ&&ch[ch.length-1].b===gm[s]) ch[0].wa=0.05;   // on-slips out to the country
+  }
+  main(tip[-1],tip[1]);                  // the downtown deck
+  let x0=1e9,x1=-1e9,z0=1e9,z1=-1e9;
+  for(const e of MW.all){ x0=Math.min(x0,e.ax,e.bx); x1=Math.max(x1,e.ax,e.bx); z0=Math.min(z0,e.az,e.bz); z1=Math.max(z1,e.az,e.bz); }
+  MW.bb={x0:x0-14,x1:x1+14,z0:z0-14,z1:z1+14};
+  MW.elev=MW.all.filter(e=>(nodes[e.a].y||0)>0||(nodes[e.b].y||0)>0);
+  MW.elevN=[]; const seen=new Set();
+  for(const e of MW.elev) for(const ni of [e.a,e.b]){ const n=nodes[ni]; if(!(n.y>0)||seen.has(ni)) continue; seen.add(ni);
+    const r=Math.max(...n.adj.filter(o=>o.mw).map(o=>o.hw)); MW.elevN.push({x:n.x,z:n.z,y:n.y,r2:r*r,ni}); }
+})();
 
 // cull dead-ends: a rural road that runs to a node with nothing else there just stops in a field.
 // Remove those leaf edges (iterating, since removing one can expose another) — never touch city roads.
@@ -1505,20 +1587,30 @@ const glintSpots=[];   // water-surface sun glints (surf + pools)
 
   // roads: one instanced plane per edge + node squares
   const rGeo=new THREE.PlaneGeometry(1,1); rGeo.rotateX(-Math.PI/2);
-  const roadIM=new THREE.InstancedMesh(rGeo,MAT.asphalt,edges.length);
+  const flatE=edges.filter(e=>!e.mw);                 // motorway carriageways: mwBuildSurfaces (below)
+  const roadIM=new THREE.InstancedMesh(rGeo,MAT.asphalt,flatE.length);
   roadIM.receiveShadow=true;
-  edges.forEach((e,i)=>{
+  const isBend=n=>n.adj.length===2&&!n.adj.every(e=>Math.abs(e.dx)<0.03||Math.abs(e.dz)<0.03);
+  flatE.forEach((e,i)=>{
+    const s0=isBend(nodes[e.a])?0:RW/2, s1=isBend(nodes[e.b])?0:RW/2, l=Math.max(2,e.len-s0-s1), c=s0+(e.len-s0-s1)/2;   // ROADS: plain bends run right into the corner
     q4.setFromAxisAngle(YAXIS,Math.atan2(-e.dz,e.dx));
-    m4.compose(new THREE.Vector3((e.ax+e.bx)/2,0,(e.az+e.bz)/2),q4,
-      new THREE.Vector3(Math.max(2,e.len-RW),1,RW));
+    m4.compose(new THREE.Vector3(e.ax+e.dx*c,0,e.az+e.dz*c),q4,
+      new THREE.Vector3(l,1,RW));
     roadIM.setMatrixAt(i,m4);
   });
+  { const W=[];                                        // the outer wedge of each plain bend
+    for(const n of nodes){ if(!isBend(n)||n.mw) continue;
+      const pp=n.adj.map(e=>{ const o=e.a===nodes.indexOf(n)?1:-1; return [-e.dz*o*RW/2, e.dx*o*RW/2]; });
+      for(const sg of [1,-1]) W.push(n.x,0.004,n.z, n.x+pp[0][0]*sg,0.004,n.z+pp[0][1]*sg, n.x-pp[1][0]*sg,0.004,n.z-pp[1][1]*sg); }
+    if(W.length){ const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(W,3)); g.computeVertexNormals();
+      const m=new THREE.Mesh(g,new THREE.MeshLambertMaterial({color:MAT.asphalt.color,side:THREE.DoubleSide})); m.receiveShadow=true; scene.add(m); } }
   scene.add(roadIM);
-  const used=nodes.filter(n=>n.adj.length>0);
+  mwBuildSurfaces();
+  const used=nodes.filter(n=>n.adj.length>0&&!n.mw);
   // A node whose every road is cardinal is covered by an axis-aligned square; an angled road's end
   // corners sit ~RW*0.71 from the node, so those junctions need a disc that covers any approach angle.
   const cardinal=n=>n.adj.every(e=>Math.abs(e.dx)<0.03||Math.abs(e.dz)<0.03);
-  const sqNodes=used.filter(cardinal), discNodes=used.filter(n=>!cardinal(n));
+  const sqNodes=used.filter(cardinal), discNodes=used.filter(n=>!cardinal(n)&&!isBend(n));
   const sqIM=new THREE.InstancedMesh(rGeo,MAT.asphalt,Math.max(1,sqNodes.length));
   sqIM.receiveShadow=true;
   sqNodes.forEach((n,i)=>{
@@ -1545,6 +1637,7 @@ const glintSpots=[];   // water-surface sun glints (surf + pools)
   const CITYN0=(CFG.N+1)*(CFG.N+1);
   for(const e of edges){
     if(!e.rural&&e.a<CITYN0&&e.b<CITYN0) continue;   // downtown streets: see buildMarkings
+    if(e.mw||e.blvd) continue;                        // motorway + ring boulevard: mwBuildSurfaces paints them
     if(e.rural){
       const mx=(e.ax+e.bx)/2, mz=(e.az+e.bz)/2;
       if(Math.hypot(mx,mz)>RURAL_BELT) continue;       // distant country roads stay bare (fogged)
@@ -1580,33 +1673,44 @@ const glintSpots=[];   // water-surface sun glints (surf + pools)
   scene.add(paveIM);
 })();
 
-// THE single source of truth for the flyover. Pure function of position:
-// -1 outside the corridor; otherwise the elevated surface height there.
-// Ramps use a smoothstep profile so the grade eases in and out — no slam
-// at either end — and the MESH is generated by sampling this same function,
-// so physics and geometry cannot disagree.
-function overpassHeight(x,z){
-  const {cx:ocx,z0:oz0,z1:oz1,y:oy,W:oW,RAMP:oR}=OVERPASS;
-  if(Math.abs(x-ocx)>oW/2+0.5) return -1;
-  const top=oy+0.84;
-  if(z>=oz0&&z<=oz1) return top;                                  // deck
-  if(z>=oz0-oR&&z<oz0){ const t=(z-(oz0-oR))/oR; return 0.02+(top-0.02)*t*t*(3-2*t); }  // south ramp
-  if(z>oz1&&z<=oz1+oR){ const t=1-(z-oz1)/oR;    return 0.02+(top-0.02)*t*t*(3-2*t); }  // north ramp
-  return -1;
+// THE single source of truth for the motorway's elevated surfaces (ROADS r3). Every edge with a
+// raised end (deck, ramp, slip) owns a footprint |lateral| <= e.hw along it; its height is edgeY(e,t),
+// a smoothstep between the node heights, so grades ease in and out (zero slope at every node: the
+// profile is C1 along each slip/mainline chain). The meshes are generated by sampling edgeY, so
+// physics and geometry cannot disagree. mwSurf calls f(h) for every surface above (x,z).
+function mwSurf(x,z,f){
+  const B=MW.bb; if(!B||x<B.x0||x>B.x1||z<B.z0||z>B.z1) return;
+  let any=false;
+  for(const e of MW.elev){
+    const px=x-e.ax, pz=z-e.az, t=px*e.dx+pz*e.dz;
+    if(t<0||t>e.len) continue;
+    if(Math.abs(px*e.dz-pz*e.dx)<=e.hw){ f(edgeY(e,t)); any=true; }
+  }
+  if(!any) for(const n of MW.elevN) if((x-n.x)*(x-n.x)+(z-n.z)*(z-n.z)<=n.r2) f(n.y);   // the wedge at a bend in a deck
 }
+// -1 outside the elevated corridor; otherwise the highest elevated surface there (>= 0.02 on ramp toes)
+function overpassHeight(x,z){
+  let best=-1; mwSurf(x,z,h=>{ if(h>best) best=h; });
+  return best<0?-1:Math.max(0.02,best);
+}
+// The surface an entity at (x,z) stands on. Where a deck passes over a street two surfaces coexist:
+// take the highest one the entity can actually be on (at most 1 m above its current height), so a car
+// climbing a ramp follows it frame by frame and a car beneath a deck stays on the street.
 function groundHeight(x,z,refY){
   if(x<COAST.PROM) return coastGroundY(x,z);   // the beach slopes into the sea
   let base=0;
   for(const b of world.blocks)
     if(Math.abs(x-b.cx)<b.hx && Math.abs(z-b.cz)<b.hz){ base=0.34; break; }
-  const ov=overpassHeight(x,z);
-  if(ov<0) return base;
-  const {z0:oz0,z1:oz1}=OVERPASS;
-  // Under the DECK two surfaces coexist (the z=-26 road passes beneath it):
-  // attach to whichever is nearer the entity's current height. On the RAMPS
-  // there is no passage underneath, so the ramp is the only surface.
-  if(z>=oz0&&z<=oz1) return (Math.abs((refY||0)-ov)<Math.abs((refY||0)-base))?ov:base;
-  return ov;
+  const lim=(refY||0)+1.0; let best=base;
+  mwSurf(x,z,h=>{ h=Math.max(0.02,h); if(h<=lim&&h>best) best=h; });
+  return best;
+}
+// height of a traffic vehicle on its lane / junction curve (ROADS r3 hook for TRAFFIC)
+function trRoadY(v){
+  if(v.turn){ const T=v.turn, e0=v.e, y0=edgeY(e0,v.fwd?e0.len-T.pl.R1:T.pl.R1), y1=edgeY(T.e,T.fwd?T.t2:T.e.len-T.t2);
+    return y0+(y1-y0)*clamp(T.u,0,1); }
+  const e=v.e; if(!e||!e.mw) return 0;
+  return edgeY(e,v.fwd?v.t:e.len-v.t);
 }
 
 // buildings + banks
@@ -3908,179 +4012,342 @@ const GARAGE={x:236,z:44,r:8.5};
 })();
 
 // ---------------- motorway overpass ----------------
-// cx=158: in city column i=6 (buildings cleared). Player on z=-26 road
-// drives east and passes UNDER the elevated deck. Smooth ramps either side.
+// ROADS r3: everything here derives from the motorway graph (MW, edgeY): mwBuildSurfaces (called
+// from buildWorld, i.e. it IS road surface) lays the decks, ramps, slip roads, their skirts / retained
+// fill and the paint; buildOverpass adds structure and furniture: piers, parapets, lamp columns and
+// sign gantries. mwRails() is the shared parapet / wall model used by both the meshes and mwContain.
+// cross-section of edge e at centre (cx,cz), normal (nx,nz) that is NOT inside the mainline: a slip's
+// taper shares the mainline deck, so it is clipped where it runs within the mainline footprint
+function mwKeep(e,cx,cz,nx){
+  const hw=e.hw; if(e.main) return [-hw,hw];
+  const X=MW.X, H=MW.HW;
+  if(Math.abs(nx)<1e-6) return Math.abs(cx-X)<H?null:[-hw,hw];
+  let la=(X-H-cx)/nx, lb=(X+H-cx)/nx; if(la>lb){ const q=la; la=lb; lb=q; }
+  if(lb<=-hw||la>=hw) return [-hw,hw];
+  if(la<=-hw&&lb>=hw) return null;
+  if(la<=-hw) return [lb,hw];
+  if(lb>=hw) return [-hw,la];
+  return [-hw,hw];
+}
+// the motorway end a slip taper attaches to (a mainline node: tip on the deck, gm at grade) or -1
+function mwTaperEnd(e){ if(!e.slip) return -1;
+  for(const ni of [e.a,e.b]) if(nodes[ni].adj.some(o=>o.main)) return ni; return -1; }
+// does a retained-fill wall (solid ground under the ramp) belong at (x,z)? only on low ramp sections with no street beneath
+function mwFill(h,x,z){ return h<6&&clearOfStreetsNonMw(x,z,1.0); }
+// parapets / side walls: per mw edge side, samples {x,z,h,fill} where a parapet stands (gaps where two
+// carriageways join at the same level, at junction mouths, and at grade where another road meets).
+function mwRails(){
+  if(mwRails.c) return mwRails.c;
+  const segs=[];
+  for(const e of MW.all){
+    const nx=e.dz, nz=-e.dx, N=Math.max(2,Math.ceil(e.len/2));
+    for(const sd of [1,-1]){
+      let run=null;
+      for(let i=0;i<=N;i++){
+        const t=e.len*i/N, h=edgeY(e,t), l=sd*(e.hw+0.3), cx=e.ax+e.dx*t, cz=e.az+e.dz*t, x=cx+nx*l, z=cz+nz*l;
+        const K=mwKeep(e,cx,cz,nx);
+        let on=!!K&&(sd>0?K[1]>=e.hw-0.01:K[0]<=-e.hw+0.01);
+        if(on) for(const o of MW.all){ if(o===e) continue;
+          if((o.a===e.a||o.a===e.b||o.b===e.a||o.b===e.b)&&Math.abs(o.dx*e.dx+o.dz*e.dz)>0.999) continue;  // the same carriageway carrying on
+          const px=x-o.ax, pz=z-o.az, to=px*o.dx+pz*o.dz;
+          if(to<-0.5||to>o.len+0.5||Math.abs(px*o.dz-pz*o.dx)>o.hw+0.4) continue;
+          if(Math.abs(edgeY(o,clamp(to,0,o.len))-h)<0.4){ on=false; break; } }
+        if(on&&h<1.2&&!clearOfStreetsNonMw(x,z,0.6)) on=false;     // a junction mouth / road at grade
+        if(on&&h<1.2) for(const ni of [e.a,e.b]){ const n=nodes[ni]; if(!n.mw&&Math.hypot(x-n.x,z-n.z)<RW+2) on=false; }
+        if(on){ if(!run){ run=[]; segs.push(run); } run.push({x,z,h,fill:mwFill(h,cx,cz),e,sd}); }
+        else run=null;
+      }
+    }
+  }
+  for(let i=segs.length-1;i>=0;i--) if(segs[i].length<2) segs.splice(i,1);
+  // spatial hash of the segments for mwContain
+  const grid=new Map(), C=16;
+  segs.forEach((run,ri)=>{ for(let k=0;k<run.length-1;k++){ const a=run[k],b=run[k+1];
+    for(let ix=Math.floor((Math.min(a.x,b.x)-3)/C);ix<=Math.floor((Math.max(a.x,b.x)+3)/C);ix++)
+      for(let iz=Math.floor((Math.min(a.z,b.z)-3)/C);iz<=Math.floor((Math.max(a.z,b.z)+3)/C);iz++){
+        const key=ix*4096+iz; let L=grid.get(key); if(!L) grid.set(key,L=[]); L.push([a,b]); } } });
+  return (mwRails.c={segs,grid,C});
+}
+// keep an entity (player car: e.x,e.z,e.y,e.vx,e.vz) off the parapets and out of the ramp side walls.
+// A parapet holds anything riding at deck height; below a low (filled) ramp the side wall holds too.
+// Returns the impact speed (same contract as resolveStatic).
+function mwContain(ent,r){
+  const B=MW.bb; if(!B||ent.x<B.x0||ent.x>B.x1||ent.z<B.z0||ent.z>B.z1) return 0;
+  const R=mwRails(), L=R.grid.get(Math.floor(ent.x/R.C)*4096+Math.floor(ent.z/R.C)); if(!L) return 0;
+  let hit=0; const y=ent.y||0;
+  for(const [a,b] of L){
+    const sx=b.x-a.x, sz=b.z-a.z, l2=sx*sx+sz*sz||1, u=clamp(((ent.x-a.x)*sx+(ent.z-a.z)*sz)/l2,0,1);
+    const qx=a.x+sx*u, qz=a.z+sz*u, h=a.h+(b.h-a.h)*u;
+    const above=y>h-0.9&&y<h+1.6, below=y<=h-0.9&&(u<0.5?a.fill:b.fill);
+    if(!above&&!below) continue;
+    let dx=ent.x-qx, dz=ent.z-qz, d=Math.hypot(dx,dz);
+    if(d>=r) continue;
+    // stay on the side you are on: inside the carriageway (deck riders, traffic at grade) or outside it
+    // (a car beneath / beside a ramp wall). A rider can't cross in one frame (penetration < r).
+    const e=a.e, inx=-e.dz*a.sd, inz=e.dx*a.sd;                  // from the parapet into its carriageway
+    const side=dx*inx+dz*inz, want=Math.abs(side)>1e-3?Math.sign(side):(above?1:-1);
+    if(d<1e-4||Math.abs(side)<1e-3){ dx=inx*want; dz=inz*want; } else { dx/=d; dz/=d; }
+    ent.x=qx+dx*r; ent.z=qz+dz*r;
+    const vn=ent.vx*dx+ent.vz*dz;
+    if(vn<0){ hit=Math.max(hit,-vn); ent.vx-=dx*vn*1.25; ent.vz-=dz*vn*1.25; }
+  }
+  return hit;
+}
+// traffic on the motorway: height on the lane / junction curve and pitch with the grade (ROADS hook,
+// called from updateTraffic). Chasing cops drive free in 2-D: they follow whatever surface they're on.
+function mwPoseVeh(v,chase){
+  if(chase){ let h=0; const y0=v.y||0; mwSurf(v.x,v.z,hh=>{ if(hh<=y0+1&&hh>h) h=hh; }); v.y=h; }
+  else v.y=trRoadY(v);
+  let p=0;
+  if(!chase&&!v.turn&&v.e&&v.e.mw) p=-Math.atan(edgeSlope(v.e,v.fwd?v.t:v.e.len-v.t)*(v.fwd?1:-1));
+  if(p!==0||v._mwP){ const g=v.car.g; if(g.rotation.order!=='YXZ') g.rotation.order='YXZ'; g.rotation.x=p; v._mwP=p!==0; }
+}
+// put a few of the town's cars on the motorway at the start so it is never empty (they then circulate:
+// off at an interchange, along the country road under the deck, back on via the other slip)
+function mwSeedTraffic(n){
+  const core=MW.sky.find(e=>e.main&&e.len>200); if(!core) return;
+  const civ=traffic.filter(v=>v.kind==='civ'), spots=[];
+  for(const t of [40,150,260]) for(const f of [true,false]) spots.push([f,f?t:core.len-t+20]);
+  for(let k=0;k<Math.min(n,spots.length,civ.length);k++){ const v=civ[civ.length-1-k], [f,t]=spots[k];
+    v.e=core; v.fwd=f; v.t=t; v.turn=null; v.nx=null; v.sp=12; v.stopAt=null;
+    const lp=vehLogical(v); v.x=lp.x; v.z=lp.z; v.a=lp.a; v.y=MW.Y; }
+}
+// minimap / map editor: motorway carriageways drawn over the ordinary roads, at their true width
+function mwMapDraw(c,X,Z,s,cull){
+  c.lineCap='butt';
+  for(const pass of [0,1]) for(const e of MW.all){
+    const ax=X(e.ax),az=Z(e.az),bx=X(e.bx),bz=Z(e.bz);
+    if(cull&&((ax<-20&&bx<-20)||(ax>cull+20&&bx>cull+20)||(az<-20&&bz<-20)||(az>cull+20&&bz>cull+20))) continue;
+    c.strokeStyle=pass?(e.main?'#8fa4e8':'#6f80c0'):'#1d2236';
+    c.lineWidth=Math.max(pass?1.6:2.6,(e.hw*2+(pass?0:2))*s);
+    c.beginPath(); c.moveTo(ax,az); c.lineTo(bx,bz); c.stroke();
+  }
+  c.lineCap='round';
+}
+// give-way approaches at non-signalised ground junctions: the minor arms of every T / crossroads
+// outside downtown (the through pair = the two most opposite arms of the highest road class) and
+// the ends of the motorway slips. Sets e.yieldA / e.yieldB (yield when ARRIVING at a / b).
+function markGiveWay(){
+  const CITYN=(CFG.N+1)*(CFG.N+1);            // (the downtown node count; the shared const is declared later)
+  const cls=e=>e.main?4:e.blvd?3:e.mwLink?2.5:e.sub?0.5:e.rural?1:(e.slip?0:2);
+  for(let ni=CITYN;ni<nodes.length;ni++){ const n=nodes[ni]; if(n.mw||n.adj.length<3) continue;
+    let best=null,bs=-1e9;
+    for(let i=0;i<n.adj.length;i++) for(let j=i+1;j<n.adj.length;j++){ const a=n.adj[i], b=n.adj[j];
+      const da=a.a===ni?[a.dx,a.dz]:[-a.dx,-a.dz], db=b.a===ni?[b.dx,b.dz]:[-b.dx,-b.dz];
+      const sc=-(da[0]*db[0]+da[1]*db[1])*2+Math.min(cls(a),cls(b))*1.5+(a.slip||b.slip?-9:0);
+      if(sc>bs){ bs=sc; best=[a,b]; } }
+    for(const e of n.adj){ if(best.includes(e)) continue; if(e.oneway&&e.a===ni) continue;
+      if(e.b===ni) e.yieldB=true; else e.yieldA=true; }
+  }
+}
+function mwBuildSurfaces(){
+  markGiveWay();
+  const CITYN=(CFG.N+1)*(CFG.N+1);
+  const TOP=[], CON=[], WH=[], YE=[];
+  const tri=(L,a,b,c,up)=>{ if(up){ const ux=b[0]-a[0],uy=b[1]-a[1],uz=b[2]-a[2],vx=c[0]-a[0],vy=c[1]-a[1],vz=c[2]-a[2];
+      if(uz*vx-ux*vz<0){ const q=b; b=c; c=q; } }
+    L.push(a[0],a[1],a[2],b[0],b[1],b[2],c[0],c[1],c[2]); };
+  const quad=(L,a,b,c,d,up)=>{ tri(L,a,b,c,up); tri(L,a,c,d,up); };
+  const sy=h=>h>0.05?h:0.014;
+  // ---- carriageways: top surface, side skirts / retained fill, soffit
+  for(const e of MW.all){
+    const nx=e.dz, nz=-e.dx, step=(nodes[e.a].y||0)!==(nodes[e.b].y||0)||!e.main?3:8, N=Math.max(1,Math.ceil(e.len/step));
+    let prev=null;
+    for(let i=0;i<=N;i++){
+      const t=e.len*i/N, cx=e.ax+e.dx*t, cz=e.az+e.dz*t, h=edgeY(e,t), K=mwKeep(e,cx,cz,nx);
+      const cur=K?{h,K,P:l=>[cx+nx*l,sy(h),cz+nz*l],fill:mwFill(h,cx,cz),cx,cz}:null;
+      if(prev&&cur){
+        quad(TOP,prev.P(prev.K[0]),prev.P(prev.K[1]),cur.P(cur.K[1]),cur.P(cur.K[0]),true);
+        if(prev.h>0.05||cur.h>0.05) for(const sd of [0,1]){
+          const real=sd?(prev.K[1]>=e.hw-0.01&&cur.K[1]>=e.hw-0.01):(prev.K[0]<=-e.hw+0.01&&cur.K[0]<=-e.hw+0.01);
+          if(!real) continue;
+          const a=prev.P(prev.K[sd]), b=cur.P(cur.K[sd]);
+          const ab=prev.fill?0:Math.max(0,prev.h-1.1), bb=cur.fill?0:Math.max(0,cur.h-1.1);
+          quad(CON,a,b,[b[0],bb,b[2]],[a[0],ab,a[2]],false);
+        }
+        if(!(prev.fill&&cur.fill)&&(prev.h>1.2||cur.h>1.2)){             // underside of the slab
+          const lo=q=>{ const p=q.slice(); p[1]=Math.max(0,p[1]-1.1); return p; };
+          quad(CON,lo(prev.P(prev.K[0])),lo(prev.P(prev.K[1])),lo(cur.P(cur.K[1])),lo(cur.P(cur.K[0])),false);
+        }
+      }
+      prev=cur;
+    }
+  }
+  // joints: a disc of deck at every motorway node (covers the wedge where two carriageways meet at an angle)
+  for(const ni of new Set(MW.all.flatMap(e=>[e.a,e.b]))){ const n=nodes[ni]; if(!n.mw) continue;
+    const r=Math.max(...n.adj.filter(o=>o.mw).map(o=>o.hw))-0.05;
+    const Y=(x,z)=>{ if(!(n.y>0)) return 0.016; const h=overpassHeight(x,z); return (h<0?n.y:h)+0.002; };   // follows a ramp leaving the node
+    const V=a=>{ const x=n.x+Math.cos(a)*r, z=n.z+Math.sin(a)*r; return [x,Y(x,z),z]; }, c0=[n.x,Y(n.x,n.z),n.z];
+    for(let k=0;k<20;k++) tri(TOP,c0,V(k/20*Math.PI*2),V((k+1)/20*Math.PI*2),true); }
+  // ---- paint
+  const strip=(L,e,t0,t1,l,w,lift)=>{ const nx=e.dz, nz=-e.dx, P=(t,o)=>[e.ax+e.dx*t+nx*(l+o), sy(edgeY(e,t))+(lift||0.035), e.az+e.dz*t+nz*(l+o)];
+    quad(L,P(t0,-w/2),P(t0,w/2),P(t1,w/2),P(t1,-w/2),true); };
+  const nearJ=(x,z)=>{ for(const e of MW.all) for(const ni of [e.a,e.b]){ const n=nodes[ni]; if(!n.mw&&Math.hypot(x-n.x,z-n.z)<RW/2+3) return true; } return false; };
+  const inSlip=(x,z)=>MW.all.some(o=>{ if(!o.slip) return false; const px=x-o.ax, pz=z-o.az, t=px*o.dx+pz*o.dz;
+    return t>0&&t<o.len&&Math.abs(px*o.dz-pz*o.dx)<o.hw; });
+  function line(e,l,dash,L,w){
+    const st=1.5, N=Math.ceil(e.len/st); let s=0;
+    for(let i=0;i<N;i++){ const t0=e.len*i/N, t1=e.len*(i+1)/N, tm=(t0+t1)/2;
+      const cx=e.ax+e.dx*tm, cz=e.az+e.dz*tm, K=mwKeep(e,cx,cz,e.dz); s+=t1-t0;
+      if(!K||l<K[0]+0.25||l>K[1]-0.25) continue;
+      const x=cx+e.dz*l, z=cz-e.dx*l;
+      if(nearJ(x,z)) continue;
+      let d=dash; if(dash==='shoulder') d=inSlip(x,z)?1:0;
+      if(d&&(s%9)>3) continue;
+      strip(L,e,t0,t1,l,w||0.16);
+    }
+  }
+  for(const e of MW.all){
+    if(e.main){
+      for(const sd of [1,-1]){ line(e,sd*1.6,0,YE); line(e,sd*5.2,1,WH); line(e,sd*8.8,'shoulder',WH,0.2); }
+      for(let t=6;t<e.len-4;t+=5){ const x=e.ax+e.dx*t, z=e.az+e.dz*t; if(nearJ(x,z)) continue;    // hatched central reserve
+        const nx=e.dz, nz=-e.dx, P=(tt,o)=>[e.ax+e.dx*tt+nx*o, sy(edgeY(e,tt))+0.035, e.az+e.dz*tt+nz*o];
+        quad(WH,P(t-1.25,-1.3),P(t-0.9,-1.3),P(t+1.25,1.3),P(t+0.9,1.3),true); }
+    } else { line(e,-2.0,0,YE); line(e,1.6,1,WH); line(e,5.2,0,WH,0.2); }
+  }
+  // gore chevrons where a slip leaves / joins the mainline, and merge arrows on the on-slip lane
+  for(const e of MW.all){ const mn=mwTaperEnd(e); if(mn<0) continue;
+    const fromA=mn===e.a, X=MW.X;
+    for(let u=4;u<e.len-2;u+=4.5){
+      const t=fromA?u:e.len-u, cx=e.ax+e.dx*t, cz=e.az+e.dz*t, ox=cx-e.dz*2.0, oz=cz+e.dx*2.0;
+      const sg=Math.sign(ox-X), xm=X+sg*8.8, w=(ox-xm)*sg; if(w<1.0) continue;
+      if(Math.abs(ox-X)>MW.HW+0.1&&w>3.2) continue;             // past the nose
+      const y=sy(edgeY(e,t))+0.036, dirz=e.dz*(fromA?1:-1)*(e.oneway?1:1);
+      const zt=oz+Math.sign(dirz)*1.6*(fromA?-1:1);
+      quad(WH,[xm,y,zt-0.25],[xm,y,zt+0.25],[ox,y,oz+0.25],[ox,y,oz-0.25],true);
+    }
+    if(!fromA){ for(const u of [22,44]){ if(u>e.len-6) continue;          // on-slip: merge arrows on the lane
+      const t=e.len-u, dx=e.dx, dz=e.dz, nx=dz, nz=-dx, cx=e.ax+dx*t+nx*CFG.LANE, cz=e.az+dz*t+nz*CFG.LANE, y=sy(edgeY(e,t))+0.04;
+      const k=-0.42, ca=Math.cos(k), sa=Math.sin(k), W=(a,l)=>{ const a2=a*ca-l*sa, l2=a*sa+l*ca; return [cx+dx*a2+nx*l2,y,cz+dz*a2+nz*l2]; };
+      quad(WH,W(-2.4,-0.17),W(-2.4,0.17),W(0.5,0.17),W(0.5,-0.17),true); tri(WH,W(0.5,-0.7),W(0.5,0.7),W(2.1,0),true); } }
+  }
+  // ring boulevard: hatched flush central reserve + edge lines (the reserve is paint-flush so it stays
+  // drivable for the traffic lane model; the palms line the verges, see buildRoadDress)
+  for(const e of edges){ if(!e.blvd) continue;
+    const nx=e.dz, nz=-e.dx, P=(t,o,y)=>[e.ax+e.dx*t+nx*o,y,e.az+e.dz*t+nz*o];
+    const t0=RW*0.75, t1=e.len-RW*0.75; if(t1-t0<4) continue;
+    for(const o of [1.05,-1.05]) quad(YE,P(t0,o-0.07,0.05),P(t0,o+0.07,0.05),P(t1,o+0.07,0.05),P(t1,o-0.07,0.05),true);
+    for(const o of [7.2,-7.2]) quad(WH,P(t0,o-0.08,0.05),P(t0,o+0.08,0.05),P(t1,o+0.08,0.05),P(t1,o-0.08,0.05),true);
+    for(let t=t0+2;t<t1-2;t+=4) quad(WH,P(t-0.9,-0.95,0.048),P(t-0.6,-0.95,0.048),P(t+0.9,0.95,0.048),P(t+0.6,0.95,0.048),true);
+  }
+  // give-way markings (double broken line + triangle) on every yield approach outside downtown
+  for(const e of edges){ for(const atB of [true,false]){ if(!(atB?e.yieldB:e.yieldA)) continue;
+    const ni=atB?e.b:e.a, n=nodes[ni]; if(ni<CITYN||n.mw||Math.hypot(n.x,n.z)>RURAL_BELT) continue;
+    const dx=atB?e.dx:-e.dx, dz=atB?e.dz:-e.dz, nx=dz, nz=-dx;      // travel into the node; nearside normal
+    const card=n.adj.every(o=>Math.abs(o.dx)<0.03||Math.abs(o.dz)<0.03), s0=card?(RW+1.6)/2+0.6:RW*0.74+0.6;
+    if(e.len<s0+8) continue;
+    const W=(a,l)=>[n.x-dx*a+nx*l,0.05,n.z-dz*a+nz*l], lo=e.oneway?-RW/2+0.4:0.3;
+    for(const a of [s0,s0+0.45]) for(let l=lo;l<RW/2-0.4;l+=1.0) quad(WH,W(a,l),W(a,l+0.6),W(a+0.22,l+0.6),W(a+0.22,l),true);
+    tri(WH,W(s0+3.0,CFG.LANE-0.8),W(s0+3.0,CFG.LANE+0.8),W(s0+6.0,CFG.LANE),true);
+  } }
+  const mk=(L,mat,shadow)=>{ if(!L.length) return; const g=new THREE.BufferGeometry();
+    g.setAttribute('position',new THREE.Float32BufferAttribute(L,3)); g.computeVertexNormals();
+    const m=new THREE.Mesh(g,mat); m.receiveShadow=true; if(shadow) m.castShadow=true; m.userData.roads=1; scene.add(m); return m; };
+  mk(TOP,MAT.asphalt);
+  mk(CON,new THREE.MeshLambertMaterial({color:0x8a8a98,side:THREE.DoubleSide}),true);
+  mk(WH,new THREE.MeshLambertMaterial({color:0xece8d8}));
+  mk(YE,new THREE.MeshLambertMaterial({color:0xf2c020}));
+}
+// structure + furniture: piers (twin columns + cap, clear of every street beneath), parapets,
+// lamp columns along the mainline, and two overhead sign gantries over the downtown deck
 (function buildOverpass(){
-  const {cx,z0,z1,y,W,RAMP}=OVERPASS;
-  const concrete=lambert(0x8a8a98), dark=lambert(0x5a5a68);
-  const yell=lambert(0xf2c020), white=lambert(0xece8d8);
-  const halfY=y/2;
-
-  function deckSect(za,zb){
-    const len=zb-za, midZ=(za+zb)/2;
-    const top=new THREE.Mesh(new THREE.BoxGeometry(W,0.82,len),concrete);
-    top.position.set(cx,y+0.41,midZ); top.castShadow=top.receiveShadow=true; scene.add(top);
-    const sof=new THREE.Mesh(new THREE.BoxGeometry(W-0.2,0.18,len),dark);
-    sof.position.set(cx,y,midZ); scene.add(sof);
-    for(const sx of [-(W/2+0.1),(W/2+0.1)]){
-      const r=new THREE.Mesh(new THREE.BoxGeometry(0.28,0.52,len),concrete);
-      r.position.set(cx+sx,y+1.0,midZ); r.castShadow=true; scene.add(r);
-    }
-    for(let mz=za+7;mz<zb-5;mz+=9){
-      const d=new THREE.Mesh(new THREE.BoxGeometry(0.34,0.1,5.5),white);
-      d.position.set(cx,y+0.83,mz); scene.add(d);
-    }
-    const cl=new THREE.Mesh(new THREE.BoxGeometry(0.22,0.1,len-8),yell);
-    cl.position.set(cx,y+0.83,midZ); scene.add(cl);
-    for(let pz0=za+18;pz0<zb-12;pz0+=36){
-      const pz=pierZ(pz0,za+3,zb-3); if(pz===null) continue;     // piers never stand in the crossing streets
-      for(const sx of [-(W/2-1.2),(W/2-1.2)]){
-        const p=new THREE.Mesh(new THREE.BoxGeometry(1.9,y+0.82,1.9),concrete);
-        p.position.set(cx+sx,(y+0.82)/2,pz); p.castShadow=true; scene.add(p);
-        world.boxes.push({x0:cx+sx-1.3,x1:cx+sx+1.3,z0:pz-1.3,z1:pz+1.3});
-      }
-      const cap=new THREE.Mesh(new THREE.BoxGeometry(2.4,0.72,W+0.8),dark);
-      cap.position.set(cx,y-0.36,pz); scene.add(cap);
-    }
-  }
-
-  // nearest z to z0 (within [lo,hi]) where a pier pair stands clear of every road it straddles
-  function pierZ(z0,lo,hi){
-    for(let d=0;d<=24;d+=0.5) for(const z of [z0+d,z0-d]){
-      if(z<lo||z>hi) continue;
-      if(clearOfStreets(cx-(W/2-1.2),z,1.6)&&clearOfStreets(cx+(W/2-1.2),z,1.6)) return z;
-    }
-    return null;
-  }
-  // Smooth ramp: zHigh meets deck at y, zLow meets ground at y=0
-  // Ramp built by SAMPLING overpassHeight — the mesh IS the physics surface.
-  // Sixteen segments follow the smoothstep grade; skirts close the sides,
-  // rails and markings ride the curve, piers reach up to meet the underside.
-  function buildRamp(zA,zB){
-    const N=16, hw=W/2;
-    const zs=[],hs=[];
-    for(let i=0;i<=N;i++){ const z=zA+(zB-zA)*(i/N); zs.push(z); hs.push(Math.max(0.02,overpassHeight(cx,z))); }
-    const pos=[];
-    const q=(a,b,c2,d)=>{ pos.push(a[0],a[1],a[2], b[0],b[1],b[2], c2[0],c2[1],c2[2],
-                                   a[0],a[1],a[2], c2[0],c2[1],c2[2], d[0],d[1],d[2]); };
-    for(let i=0;i<N;i++){
-      const za=zs[i],zb=zs[i+1], ha=hs[i]-0.02, hb=hs[i+1]-0.02;
-      const fa=Math.max(0.0,ha-1.1), fb=Math.max(0.0,hb-1.1);        // fascia bottoms
-      q([cx-hw,ha,za],[cx+hw,ha,za],[cx+hw,hb,zb],[cx-hw,hb,zb]);    // top surface
-      q([cx-hw,fa,za],[cx-hw,ha,za],[cx-hw,hb,zb],[cx-hw,fb,zb]);    // west skirt
-      q([cx+hw,ha,za],[cx+hw,fa,za],[cx+hw,fb,zb],[cx+hw,hb,zb]);    // east skirt
-      q([cx-hw,fb,zb],[cx-hw,fa,za],[cx+hw,fa,za],[cx+hw,fb,zb]);    // underside
-    }
-    const g=new THREE.BufferGeometry();
-    g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
-    g.computeVertexNormals();
-    // DoubleSide: the two ramps mirror each other's windings, and the skirts
-    // face opposite ways — render every face rather than fight the winding.
-    const rm=new THREE.Mesh(g,new THREE.MeshLambertMaterial({color:0x8a8a98,side:THREE.DoubleSide}));
-    rm.castShadow=rm.receiveShadow=true; scene.add(rm);
-    // markings + rails, per segment, pitched to the local slope
-    for(let i=0;i<N;i++){
-      const za=zs[i],zb=zs[i+1], ha=hs[i],hb=hs[i+1];
-      const mz=(za+zb)/2, mh=(ha+hb)/2, dz2=zb-za, dh=hb-ha;
-      const segLen=Math.hypot(dz2,dh)+0.06, pitch=-Math.atan2(dh,Math.abs(dz2))*Math.sign(dz2);
-      const cl2=new THREE.Mesh(new THREE.BoxGeometry(0.22,0.1,segLen),yell);
-      cl2.position.set(cx,mh+0.04,mz); cl2.rotation.x=pitch; scene.add(cl2);
-      for(const sx of [-(hw-0.8),(hw-0.8)]){
-        const el=new THREE.Mesh(new THREE.BoxGeometry(0.28,0.1,segLen),white);
-        el.position.set(cx+sx,mh+0.04,mz); el.rotation.x=pitch; scene.add(el);
-      }
-      for(const sx of [-(hw+0.1),(hw+0.1)]){
-        const r=new THREE.Mesh(new THREE.BoxGeometry(0.28,0.5,segLen),concrete);
-        r.position.set(cx+sx,mh+0.42,mz); r.rotation.x=pitch; r.castShadow=true; scene.add(r);
-      }
-    }
-    // piers meet the sampled underside
-    for(const frac of [0.35,0.72]){
-      const pz=pierZ(zA+(zB-zA)*frac,Math.min(zA,zB)+2,Math.max(zA,zB)-2); if(pz===null) continue;
-      const ph=Math.max(0.5,overpassHeight(cx,pz)-1.05);
-      for(const sx of [-(hw-1.2),(hw-1.2)]){
-        const p=new THREE.Mesh(new THREE.BoxGeometry(1.7,ph,1.7),concrete);
-        p.position.set(cx+sx,ph/2,pz); p.castShadow=true; scene.add(p);
+  const X=MW.X, Y=MW.Y;
+  const C=[], D=[], LP=[];                                // concrete, dark steel, lamp heads (merged)
+  const box=(L,cx,cy,cz,w,h,d,ry)=>{ const g=new THREE.BoxGeometry(w,h,d); if(ry) g.rotateY(ry); g.translate(cx,cy,cz);
+    const p=g.toNonIndexed().attributes.position.array; for(let i=0;i<p.length;i++) L.push(p[i]); };
+  // ---- piers: under every deck section 6 m+ up (lower ramp sections sit on retained fill)
+  const pierOK=(x,z)=>clearOfStreetsNonMw(x,z,1.6)&&!MW.all.some(o=>{ if((nodes[o.a].y||0)>0.5||(nodes[o.b].y||0)>0.5) return false;
+    const px=x-o.ax, pz=z-o.az, t=clamp(px*o.dx+pz*o.dz,0,o.len); return Math.hypot(px-o.dx*t,pz-o.dz*t)<o.hw+1.5; });
+  for(const e of MW.elev){
+    const nx=e.dz, nz=-e.dx, sp=e.main?34:26;
+    for(let t0=sp*0.5;t0<e.len-4;t0+=sp){
+      let done=false;
+      for(let d=0;d<=14&&!done;d+=1) for(const t of [t0+d,t0-d]){ if(t<3||t>e.len-3) continue;
+        const h=edgeY(e,t); if(h<6) continue;
+        const cx=e.ax+e.dx*t, cz=e.az+e.dz*t, K=mwKeep(e,cx,cz,nx); if(!K) continue;
+        const lat=e.main?[-(MW.HW-1.6),MW.HW-1.6]:[K[0]<=-e.hw+0.01?-(e.hw+0.95):null,K[1]>=e.hw-0.01?e.hw+0.95:null].filter(v=>v!==null);
+        if(!lat.length) continue;
+        const pts=lat.map(l=>[cx+nx*l,cz+nz*l]);
+        if(!pts.every(p=>pierOK(p[0],p[1]))) continue;
+        const ph=h-1.1-0.7, ry=Math.atan2(e.dx,e.dz);
+        for(const [px,pz] of pts){ box(C,px,ph/2,pz,1.7,ph,1.7,ry);
+          world.boxes.push({x0:px-1.2,x1:px+1.2,z0:pz-1.2,z1:pz+1.2,yTop:h-1.6}); }
+        const l0=Math.min(...lat,K[0])-0.4, l1=Math.max(...lat,K[1])+0.4, lm=(l0+l1)/2;   // pier cap under the slab
+        box(C,cx+nx*lm,h-1.1-0.35,cz+nz*lm,l1-l0,0.7,2.2,ry);
+        done=true; break;
       }
     }
   }
-
-  deckSect(z0,z1);
-  buildRamp(z0-RAMP, z0);   // south ramp: ground up to the deck
-  buildRamp(z1+RAMP, z1);   // north ramp: deck down to ground
-
-  // Ground-level highway extending FAR into the desert from each ramp base
-  // 360 units each way — visible past fog, disappears at horizon
-  const sBase=z0-RAMP, nBase=z1+RAMP;
-  const sEnd=sBase-360, nEnd=nBase+360;
-  for(const [z_from,z_to] of [[sEnd,sBase],[nBase,nEnd]]){
-    const len=z_to-z_from, midZ=(z_from+z_to)/2;
-    const rd=new THREE.Mesh(new THREE.PlaneGeometry(W,len),MAT.asphalt);
-    rd.rotation.x=-Math.PI/2; rd.position.set(cx,0.015,midZ);
-    rd.receiveShadow=true; scene.add(rd);
-    // Everything below is segmented and BREAKS at real road crossings —
-    // no more centrelines painted across junctions or barriers walling
-    // off the roads that cross the highway.
-    const crossing=z=>!clearOfRoads(cx,z,1.5);
-    // white dash centreline
-    for(let dz=z_from+7;dz<z_to-5;dz+=9){
-      if(crossing(dz)) continue;
-      const d=new THREE.Mesh(new THREE.BoxGeometry(0.32,0.1,5.2),white);
-      d.position.set(cx,0.06,dz); scene.add(d);
-    }
-    // yellow centreline + edge lines + guard barriers, in 16-unit pieces
-    for(let dz=z_from+8;dz<z_to-8;dz+=16){
-      if(crossing(dz)||crossing(dz-7)||crossing(dz+7)) continue;
-      const ycl=new THREE.Mesh(new THREE.BoxGeometry(0.2,0.08,15),yell);
-      ycl.position.set(cx,0.06,dz); scene.add(ycl);
-      for(const sx of [-W/2+0.5,W/2-0.5]){
-        const el=new THREE.Mesh(new THREE.BoxGeometry(0.28,0.08,15),white);
-        el.position.set(cx+sx,0.06,dz); scene.add(el);
-      }
-      for(const sx of [-W/2-0.2,W/2+0.2]){
-        const gb=new THREE.Mesh(new THREE.BoxGeometry(0.35,0.55,15),concrete);
-        gb.position.set(cx+sx,0.28,dz); scene.add(gb);
-      }
-    }
-    // lamp posts every 60 units, stepped clear of junctions
-    for(let dz=z_from+30;dz<z_to-10;dz+=60){
-      if(crossing(dz)) dz+=8;
-      if(crossing(dz)) continue;
-      for(const sx of [-W/2-1.2,W/2+1.2]){
-        const pl=new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.13,5.5,6),dark);
-        pl.position.set(cx+sx,2.75,dz); pl.castShadow=true; scene.add(pl);
-        const ph=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.22,0.5),MAT.lampOn);
-        ph.position.set(cx+sx,5.7,dz); scene.add(ph);
-        world.circles.push({x:cx+sx,z:dz,r:0.4});
-      }
-    }
+  // ---- parapets (concrete, 0.9 m) along every rail run, pitched with the grade
+  const R=mwRails();
+  for(const run of R.segs) for(let k=0;k<run.length-1;k++){ const a=run[k], b=run[k+1];
+    const p=[], q=(x,y,z)=>p.push([x,y,z]);
+    const nx=b.z-a.z, nz=-(b.x-a.x), l=Math.hypot(nx,nz)||1, ox=nx/l*0.15, oz=nz/l*0.15;
+    const ya=Math.max(a.h,0.0), yb=Math.max(b.h,0.0);
+    const A0=[a.x-ox,ya,a.z-oz],A1=[a.x+ox,ya,a.z+oz],B0=[b.x-ox,yb,b.z-oz],B1=[b.x+ox,yb,b.z+oz];
+    const up=v=>[v[0],v[1]+0.9,v[2]];
+    for(const [u,v] of [[A0,B0],[B1,A1]]){ C.push(...u,...v,...up(v), ...u,...up(v),...up(u)); }
+    C.push(...up(A0),...up(B0),...up(B1), ...up(A0),...up(B1),...up(A1));
   }
-
-  // Green sign facing west (driver approaching from the city)
-  const sm=signMat(textTexture('AIRPORT  EXIT  →','#1a3a28','#7ee8a8',768,176,68),0.62);
-  const sgGr=lambert(0x1a3a28);
-  const sgn=new THREE.Mesh(new THREE.BoxGeometry(0.28,2.4,14),[sgGr,sgGr,sgGr,sgGr,sm,sm]);
-  sgn.position.set(cx-0.18,y-1.45,(z0+z1)/2); scene.add(sgn);
-
-  // Power pylons flanking deck — each nudged along z until it is off every carriageway and out of
-  // the city blocks (the nominal z0-18 / z1+18 spots sat on the ring roads).
-  const inBlockP=(x,z)=>world.blocks.some(b=>Math.abs(x-b.cx)<b.hx+1&&Math.abs(z-b.cz)<b.hz+1);
-  const pylZ=(px,z)=>{ for(let d=0;d<=60;d+=1) for(const zz of [z+d,z-d])
-    if(clearOfCarriageways(px,zz,2.5)&&!inBlockP(px,zz)) return zz; return z; };
-  const pyl={};
-  for(const px of [cx-38,cx+38]) pyl[px]=[pylZ(px,z0-18),pylZ(px,z1+18)];
-  for(const [pz,px] of [[pyl[cx-38][0],cx-38],[pyl[cx-38][1],cx-38],[pyl[cx+38][0],cx+38],[pyl[cx+38][1],cx+38]]){
-    const tp=new THREE.Mesh(new THREE.CylinderGeometry(0.26,0.4,12.5,6),lambert(0x5e5e68));
-    tp.position.set(px,6.25,pz); tp.castShadow=true; scene.add(tp);
-    const cr=new THREE.Mesh(new THREE.BoxGeometry(0.22,0.22,9),lambert(0x5e5e68));
-    cr.position.set(px,11.8,pz); scene.add(cr);
-    world.circles.push({x:px,z:pz,r:0.7});
+  // ---- lamp columns: along the mainline, alternating sides, standing on the parapet line
+  for(const e of MW.all){ if(!e.main) continue;
+    const nx=e.dz, nz=-e.dx;
+    for(let t=20,k=0;t<e.len-10;t+=46,k++){ const sd=k%2?1:-1, l=sd*(MW.HW+0.3), x=e.ax+e.dx*t+nx*l, z=e.az+e.dz*t+nz*l, h=edgeY(e,t);
+      if(h<1.2&&!clearOfStreetsNonMw(x,z,1.5)) continue;
+      if(MW.all.some(o=>!o.main&&(()=>{ const px=x-o.ax, pz=z-o.az, tt=clamp(px*o.dx+pz*o.dz,0,o.len); return Math.hypot(px-o.dx*tt,pz-o.dz*tt)<o.hw+1.2; })())) continue;
+      const base=h<0.05?0:h;
+      box(D,x,base+0.9+4.6,z,0.28,9.2,0.28);
+      box(D,x-nx*sd*1.3,base+10.05,z-nz*sd*1.3,(Math.abs(nx)>0.5?2.6:0.18),0.16,(Math.abs(nx)>0.5?0.18:2.6));
+      box(LP,x-nx*sd*2.5,base+9.9,z-nz*sd*2.5,(Math.abs(nx)>0.5?0.9:0.4),0.18,(Math.abs(nx)>0.5?0.4:0.9));
+      if(base===0) world.circles.push({x,z,r:0.35});
+    } }
+  // ---- overhead sign gantries over the downtown deck (legs down to the pavement of column 6)
+  const signs=[[-58,1,'EXIT 1  RING  ↗','#1f3f8a'],[-58,-1,'SOUTH   AIRPORT','#1f3f8a'],[58,-1,'EXIT 2  RING  ↙','#1f3f8a'],[58,1,'NORTH   COAST RD','#1f3f8a']];
+  const done=new Set();
+  for(const [gz,lane] of signs){
+    if(!done.has(gz)){ done.add(gz);
+      for(const sd of [-1,1]) box(D,X+sd*(MW.HW+1.0),(Y+7.3)/2,gz,0.5,Y+7.3,0.5);
+      box(D,X,Y+7.0,gz,2*(MW.HW+1.3),0.5,0.5);
+      for(const sd of [-1,1]) world.boxes.push({x0:X+sd*(MW.HW+1.0)-0.4,x1:X+sd*(MW.HW+1.0)+0.4,z0:gz-0.4,z1:gz+0.4,yTop:Y-1.2}); }
   }
-  for(const ox of [-3.2,3.2]){
-    const px=cx+(ox>0?38:-38), [za,zb]=pyl[px];
-    const w=new THREE.Mesh(new THREE.BoxGeometry(0.06,0.06,Math.abs(zb-za)),lambert(0x40404a));
-    w.position.set(px,11.9,(za+zb)/2); scene.add(w);
+  for(const [gz,lane,txt,bg] of signs){
+    const face=gz<0?-1:1;                                     // NB traffic (lane +x) reads the south face
+    const sm=signMat(textTexture(txt,bg,'#ffffff',768,192,62),0.55), bm=lambert(0x1a2a50);
+    const fz=lane>0?-1:1;
+    const s=new THREE.Mesh(new THREE.BoxGeometry(9.4,2.4,0.22),fz<0?[bm,bm,bm,bm,bm,sm]:[bm,bm,bm,bm,sm,bm]);
+    s.position.set(X+lane*5.6,Y+5.75,gz+fz*0.4); s.userData.roads=1; scene.add(s);
+    void face;
   }
+  const mk=(L,mat,cast)=>{ if(!L.length) return; const g=new THREE.BufferGeometry();
+    g.setAttribute('position',new THREE.Float32BufferAttribute(L,3)); g.computeVertexNormals();
+    const m=new THREE.Mesh(g,mat); m.castShadow=!!cast; m.receiveShadow=true; m.userData.roads=1; scene.add(m); };
+  mk(C,new THREE.MeshLambertMaterial({color:0x8a8a98,side:THREE.DoubleSide}),true);
+  mk(D,lambert(0x4a4a58),true);
+  mk(LP,MAT.lampOn);
+})();
+// ring boulevard + coast road dressing: palms in pairs along both verges (sea side skipped where the
+// beach is), kept off every carriageway, junction, building and landmark through the shared helpers
+(function buildRoadDress(){
+  const P=[];
+  const boxesSnap=world.boxes.slice();
+  const nearB=(x,z,m)=>boxesSnap.some(b=>x>b.x0-m&&x<b.x1+m&&z>b.z0-m&&z<b.z1+m);
+  for(const e of edges){ if(!e.blvd) continue;
+    const nx=e.dz, nz=-e.dx;
+    for(let t=RW+4;t<e.len-RW-4;t+=19) for(const sd of [1,-1]){
+      const l=sd*(RW/2+2.6), x=e.ax+e.dx*t+nx*l+rand(-0.4,0.4), z=e.az+e.dz*t+nz*l;
+      if(x<shoreX(z)+5) continue;
+      if(!clearOfCarriageways(x,z,1.4)||overpassHeight(x,z)>=0||nearB(x,z,2)||Math.abs(x)<HALF+RW&&Math.abs(z)<HALF+RW) continue;
+      if(LANDMARKS.some(Lm=>Math.hypot(x-Lm.x,z-Lm.z)<Lm.r+2)) continue;
+      if(STATIONS.some(s=>Math.hypot(x-s.x,z-s.z)<s.r+4)) continue;
+      P.push([x,z]);
+    } }
+  if(!P.length||!palmIMref.im) return;
+  const im=new THREE.InstancedMesh(palmIMref.im.geometry,MAT.vc,P.length); im.castShadow=true;   // the city's coconut palm
+  const BRKP={k:'palm',leaf:['#3f7a4f','#5a9a5e'],frond:'#4f8f5a',lo:0.8};
+  P.forEach((p,i)=>{ const s=rand(0.95,1.25); q4.setFromAxisAngle(YAXIS,rand(0,6.28));
+    m4.compose(v3.set(p[0],0,p[1]),q4,new THREE.Vector3(s,s,s)); im.setMatrixAt(i,m4);
+    world.circles.push(brkTag({x:p[0],z:p[1],r:0.5},'palm',im,i,BRKP)); });
+  im.userData.roads=1; scene.add(im);
 })();
 // ---------------- airport ----------------
 (function buildAirport(){
@@ -4261,9 +4528,26 @@ function clearOfJunctions(x,z,m){
   }
   return true;
 }
+// the motorway's whole footprint (every deck, ramp, slip and at-grade carriageway incl. hard shoulders
+// and parapets) + m. ROADS r3: was a fixed rectangle around the old flyover + ground highway.
 function clearOfMotorway(x,z,m){
-  const O=OVERPASS; m=m||0;
-  return Math.abs(x-O.cx)>O.W/2+m || z<O.z0-O.RAMP-360-m || z>O.z1+O.RAMP+360+m;
+  m=(m||0)+0.4; const B=MW.bb; if(!B||x<B.x0-m||x>B.x1+m||z<B.z0-m||z>B.z1+m) return true;
+  for(const e of MW.all){ const px=x-e.ax, pz=z-e.az, t=clamp(px*e.dx+pz*e.dz,0,e.len);
+    if(Math.hypot(px-e.dx*t,pz-e.dz*t)<e.hw+m) return false; }
+  return true;
+}
+// ground streets only (no motorway edges / motorway-internal nodes): for placing things beside or under the motorway
+function clearOfStreetsNonMw(x,z,m){
+  m=m||0;
+  for(const e of edges){ if(e.mw) continue; if(distToEdge(x,z,e).d<RW/2+m) return false; }
+  for(const n of nodes){
+    if(!n.adj.length||n.mw) continue;
+    const dx=Math.abs(x-n.x), dz=Math.abs(z-n.z);
+    if(dx>RW+m||dz>RW+m) continue;
+    const card=n.adj.every(e=>Math.abs(e.dx)<0.03||Math.abs(e.dz)<0.03);
+    if(card ? Math.max(dx,dz)<(RW+1.6)/2+m : Math.hypot(dx,dz)<RW*0.74+m) return false;
+  }
+  return true;
 }
 function clearOfStreets(x,z,m){ return clearOfRoads(x,z,m)&&clearOfJunctions(x,z,m); }
 function clearOfCarriageways(x,z,m){ return clearOfStreets(x,z,m)&&clearOfMotorway(x,z,m); }
@@ -4277,14 +4561,18 @@ const SUBURB_ROADS=[];
     const a=addNode(s.x-W,s.z-D),b=addNode(s.x+W,s.z-D),c=addNode(s.x+W,s.z+D),d=addNode(s.x-W,s.z+D);
     const loop=[[a,b],[b,c],[c,d],[d,a]], loopE=[];
     for(const [u,v] of loop){ const e=addEdge(u,v); e.rural=true; e.sub=true; loopE.push(e); }
-    let best=-1,bd=1e9;
-    for(let ni=0;ni<nodes.length;ni++){ if(ni>=a&&ni<=d) continue;
-      const dd=Math.hypot(nodes[ni].x-s.x,nodes[ni].z-s.z); if(dd<bd){bd=dd;best=ni;} }
-    let conn=null;
-    if(best>=0){ let cb=a,cbd=1e9; for(const ci of [a,b,c,d]){ const dd=Math.hypot(nodes[ci].x-nodes[best].x,nodes[ci].z-nodes[best].z); if(dd<cbd){cbd=dd;cb=ci;} }
-      conn=addEdge(best,cb); conn.rural=true; conn.sub=true; }
+    // ROADS r3: the connector leaves the loop corner nearest town and runs straight (east/west) to the
+    // nearest country road, meeting it square-on at a give-way T (it used to cut diagonally to whatever
+    // node happened to be closest). Same data shape: conn is still one edge, corner -> country road.
+    let conn=null, bx=null, cb=-1, cbd=1e9;
+    for(const ci of [a,b,c,d]){ const n=nodes[ci], xc=Math.round(n.x/CSTEP)*CSTEP;
+      if(!validCol(Math.round(xc/CSTEP))||Math.sign(xc-s.x)!==Math.sign(n.x-s.x)) continue;
+      const dd=Math.abs(xc-n.x)+Math.abs(n.z)*0.01+Math.abs(n.x)*0.001; if(dd<cbd){ cbd=dd; cb=ci; bx=xc; } }
+    const host=cb>=0?edgeThrough(bx,nodes[cb].z):null;
+    if(host){ const t=splitEdge(host,bx,nodes[cb].z); conn=addEdge(cb,t); conn.rural=true; conn.sub=true; conn.yieldB=true; }
     SUBURB_ROADS.push({s,W,D,loop,loopE,conn});
   }
+  markGiveWay();                         // ROADS: the new T junctions on the country roads
 })();
 const ruralAnim=[];   // animated rural props (turning windmills, wheeling crows)
 (function buildRural(){
@@ -4458,7 +4746,7 @@ const ruralAnim=[];   // animated rural props (turning windmills, wheeling crows
     if(Math.abs(x-OVERPASS.cx)<OVERPASS.W/2+2&&z>OVZ0&&z<OVZ1) return true; } return false; };
   for(const e of edges){
     if(polePos.length>=POLE_MAX) break;
-    if(e.sub) continue;                                         // suburb streets have their own lamps
+    if(e.sub||e.mw) continue;                                   // suburb streets have their own lamps; the motorway its lamp columns
     const mx=(e.ax+e.bx)/2, mz=(e.az+e.bz)/2;
     if(Math.max(Math.abs(mx),Math.abs(mz))<CITY+6) continue;   // skip the city
     if(Math.hypot(mx,mz)>BELT) continue;                       // power lines stay within the belt
@@ -8660,9 +8948,9 @@ function chooseNext(v,node){
   const n=nodes[node];
   const cdx=v.fwd?v.e.dx:-v.e.dx, cdz=v.fwd?v.e.dz:-v.e.dz;
   // no U-turns or hairpins (> ~143°, e.g. back down a shallow diagonal lane) unless it's a dead end
-  const opts=n.adj.filter(e=>{ if(e===v.e) return false; const f=e.a===node;
+  const opts=n.adj.filter(e=>{ if(e===v.e||(e.oneway&&e.a!==node)) return false; const f=e.a===node;   // ROADS: one-way slips
     return (f?e.dx:-e.dx)*cdx+(f?e.dz:-e.dz)*cdz>-0.8; });
-  const list=opts.length?opts:(n.adj.length>1?n.adj.filter(e=>e!==v.e):[v.e]);
+  const list=opts.length?opts:(n.adj.length>1?n.adj.filter(e=>e!==v.e&&!(e.oneway&&e.a!==node)):[v.e]);
   let tot=0; const ws=list.map(e=>{
     const fwd=e.a===node;
     const dx=fwd?e.dx:-e.dx, dz=fwd?e.dz:-e.dz;
@@ -8670,6 +8958,7 @@ function chooseNext(v,node){
     let w=dot>0.5?1.8:(dot<-0.5?0.35:1);
     if(e.rural) w*=0.03;                 // keep town traffic out of the deep country
     else if(!isCityEdge(e)&&node<CITYN) w*=0.3;   // ...and mostly downtown, where the signals are
+    { const ww=fwd?e.wa:e.wb; if(ww!==undefined) w*=ww; }   // ROADS: route hints (motorway interchanges)
     tot+=w; return w;
   });
   let r=Math.random()*tot;
@@ -8706,7 +8995,7 @@ function trAttachLights(v){
 function spawnVeh(kind,bodyHex){
   let e,tries=0,fwd=true,t0=10;
   const busy=(e,fwd,t0)=>traffic.some(o=>o.e===e&&o.fwd===fwd&&Math.abs(o.t-t0)<12);
-  do{ e=pick(edges); fwd=Math.random()<0.5; t0=rand(14,Math.max(15,e.len-16)); tries++; }
+  do{ e=pick(edges); fwd=e.oneway||Math.random()<0.5; t0=rand(14,Math.max(15,e.len-16)); tries++; }
   while(tries<80 && (e.rural || (tries<50&&!isCityEdge(e)&&Math.random()<0.75) || busy(e,fwd,t0) ||
     (kind==='cop' && Math.hypot((e.ax+e.bx)/2-player.x,(e.az+e.bz)/2-player.z)<55)));
   const isCoupe  =kind==='civ'&&!bodyHex&&Math.random()<0.34;          // Coupe — still common
@@ -8765,6 +9054,7 @@ function spawnBus(startIdx,rev){
   return v;
 }
 spawnBus(2,false); spawnBus(16,true);
+mwSeedTraffic(6);                       // ROADS: a few cars start out on the motorway
 // bus stop flags on the kerb beside each stop (instanced: 2 draw calls)
 (function busStops(){
   const spots=[];
@@ -9475,8 +9765,8 @@ function rbWalls(b,r,off){
   let hit=0,dvx=0,dvz=0;
   for(let s=off?-1:0;s<=(off?1:0);s+=2){
     const ox=b.fx*off*s, oz=b.fz*off*s;
-    _dWall.x=b.p.x+ox; _dWall.z=b.p.z+oz; _dWall.vx=b.v.x; _dWall.vz=b.v.z;
-    const hh=resolveStatic(_dWall,r,true);
+    _dWall.x=b.p.x+ox; _dWall.z=b.p.z+oz; _dWall.vx=b.v.x; _dWall.vz=b.v.z; _dWall.y=b.p.y-0.5;
+    const hh=Math.max(resolveStatic(_dWall,r,true),mwContain(_dWall,r));     // ROADS: decks / parapets
     if(_dWall.x!==b.p.x+ox||_dWall.z!==b.p.z+oz){
       b.p.x=_dWall.x-ox; b.p.z=_dWall.z-oz; dvx+=_dWall.vx-b.v.x; dvz+=_dWall.vz-b.v.z;
       b.v.x=_dWall.vx; b.v.z=_dWall.vz; if(hh>hit) hit=hh; rbWake(b); }
@@ -11171,10 +11461,8 @@ function meDraw(){
     c.lineWidth=Math.max(1,RW*meV.s);
     c.beginPath(); c.moveTo(ax,az); c.lineTo(bx,bz); c.stroke();
   }
-  // flyover corridor
-  c.strokeStyle='#a08a3a'; c.lineWidth=1.5;
-  c.strokeRect(meSX(OVERPASS.cx-OVERPASS.W/2),meSZ(OVERPASS.z1+OVERPASS.RAMP),
-    OVERPASS.W*meV.s,(OVERPASS.z1-OVERPASS.z0+2*OVERPASS.RAMP)*meV.s);
+  // motorway + slip roads (ROADS r3; was the flyover corridor rectangle)
+  mwMapDraw(c,meSX,meSZ,meV.s,Math.max(W,H));
   // banks
   c.fillStyle='#5fae72';
   for(const b of banks) c.fillRect(meSX(b.x)-3,meSZ(b.z)-3,6,6);
@@ -11411,7 +11699,9 @@ function resolveStatic(e,r,allowWater){
   const ck=colKey(Math.floor(e.x/COLG.cell),Math.floor(e.z/COLG.cell));
   const cellBoxes=COLG.boxes.get(ck)||_noCol;
   const allBoxes=dynBoxes.length?cellBoxes.concat(dynBoxes):cellBoxes;
+  const hiY=(e.y||0)>2.5;                               // ROADS: up on a motorway deck / ramp: nothing at street level
   for(const b of allBoxes){
+    if(b.yTop!==undefined?(e.y||0)>b.yTop:hiY) continue;  // (piers carry yTop; the parapets are mwContain's)
     const cx=clamp(e.x,b.x0,b.x1),cz=clamp(e.z,b.z0,b.z1);
     let dx=e.x-cx,dz=e.z-cz,d2=dx*dx+dz*dz;
     if(d2<r*r){
@@ -11422,7 +11712,7 @@ function resolveStatic(e,r,allowWater){
       if(vn<0){hit=Math.max(hit,-vn);e.vx-=nx*vn*1.25;e.vz-=nz*vn*1.25;}
     }
   }
-  for(const c of (COLG.circ.get(ck)||_noCol)){
+  if(!hiY) for(const c of (COLG.circ.get(ck)||_noCol)){
     if(c.dead) continue;                                  // knocked-down prop (BRK)
     let dx=e.x-c.x,dz=e.z-c.z;
     const rr=r*0.7+c.r,d2=dx*dx+dz*dz;
@@ -11516,6 +11806,7 @@ function drawMinimap(t){
     mx.strokeStyle=e.rural?'#5c5572':'#6b6480';
     mx.beginPath(); mx.moveTo(ax,az); mx.lineTo(bx,bz); mx.stroke();
   }
+  mwMapDraw(mx,sx,sz,MMSCALE,MMW);        // ROADS: motorway + slips
   // station + banks
   mx.fillStyle='#ffb060';
   for(const s of STATIONS) mx.fillRect(sx(s.x)-2.5,sz(s.z)-2.5,5,5);
@@ -11664,7 +11955,7 @@ function updatePlayer(dt,t){
   player.x+=player.vx*dt; player.z+=player.vz*dt;
 
   const pvx=player.vx, pvz=player.vz;
-  const impact=resolveStatic(player,2.35,true);   // the player may take to the sea
+  const impact=Math.max(resolveStatic(player,2.35,true),mwContain(player,2.35));   // the player may take to the sea; ROADS: motorway parapets / ramp walls
   dmgPlayerStatic(impact,pvx,pvz,vf,vl,dt,t);     // DAMAGE: crumple, parts, explode, roll, handling
   let gy=groundHeight(player.x,player.z,player.y);
   if(inWater){
@@ -11825,7 +12116,7 @@ function makePlan(ni,ein,eout){
   let kmax=0, ph=null;
   for(let i=0;i<=24;i++){ bezAt(P,i/24,_bz); const hdg=Math.atan2(_bz.dx,_bz.dz);
     if(ph!==null){ let dh=hdg-ph; dh=Math.abs(((dh+Math.PI*3)%(Math.PI*2))-Math.PI); kmax=Math.max(kmax,dh/Math.max(0.05,len/24)); } ph=hdg; }
-  return {P,S,len,type,rank:type==='S'?2:type==='L'?1:type==='R'?0:-1,
+  return {P,S,len,type,rank:(type==='S'?2:type==='L'?1:type==='R'?0:-1)-((inF?ein.yieldB:ein.yieldA)?4:0),   // ROADS: give-way arms
     vt:clamp(Math.min(Math.sqrt(TR.ALAT/Math.max(kmax,1e-3)),1.15/Math.max(kmax,1e-3)),1.6,TR.RURAL),t2,R1,e:eout,fwd:outF,node:ni,
     axis:Math.abs(d1x)>0.5?'x':'z', ex:p2[0]+d2x*4, ez:p2[1]+d2z*4,
     // the zebra across the exit arm (contract: centred RW/2+2.5 out, ±6.5 wide)
@@ -11919,6 +12210,7 @@ function trPermit(v,t){
   for(let i=-1;i<traffic.length;i++){ const o=i<0?null:traffic[i]; if(o===v) continue;
     const ox=o?o.x:player.x, oz=o?o.z:player.z;
     if(Math.abs(ox-nd.x)>32||Math.abs(oz-nd.z)>32) continue;
+    if(Math.abs((o?(o.y||0):(player.y||0))-(nd.y||0))>2.5) continue;       // ROADS: on a deck above / street below
     if(o){ if(o.turn||(wanted&&o.kind==='cop')) continue;          // in-junction cars: rule 3; chase cops: cone
       if(o.e===v.e&&o.fwd===v.fwd) continue;                        // my own lane: car-following
       if(o.e===pl.e&&o.fwd===pl.fwd) continue; }                    // my exit lane: rule 2
@@ -11979,6 +12271,7 @@ function driveVeh(v,dt,t){
   const toExit=T?(T.len-T.s):(nx?dTurn+nx.pl.len:1e9);           // my distance to the exit lane start
   for(const o of traffic){ if(o===v) continue;
     const dx=o.x-v.x, dz=o.z-v.z; if(dx>70||dx<-70||dz>70||dz<-70) continue;
+    if(Math.abs((o.y||0)-(v.y||0))>2.5) continue;                     // ROADS: other level (deck / street beneath)
     const hl=v.hl+o.hl; let gap=null;
     if(!(wanted&&o.kind==='cop')){
       if(!T){
@@ -12015,13 +12308,13 @@ function driveVeh(v,dt,t){
   }
   _trSrc=3000;
   // the player's car (or the player on foot) is an obstacle too
-  { const ox=player.x, oz=player.z, dx=ox-v.x, dz=oz-v.z, f=dx*fx+dz*fz, lat=Math.abs(dx*fz-dz*fx);
+  if(Math.abs((player.y||0)-(v.y||0))<2.5){ const ox=player.x, oz=player.z, dx=ox-v.x, dz=oz-v.z, f=dx*fx+dz*fz, lat=Math.abs(dx*fz-dz*fx);
     if(f>0.5&&f<28&&lat<v.hw+1.5) trObs(f-v.hl-2.3,Math.max(0,player.vx*fx+player.vz*fz)); }
   if(typeof onFoot!=='undefined'&&onFoot){ const dx=foot.x-v.x, dz=foot.z-v.z, f=dx*fx+dz*fz, lat=Math.abs(dx*fz-dz*fx);
     if(f>0&&f<25&&lat<v.hw+1.0) trObs(f-v.hl-1.2,0); }
   // ---- junction gate ----
   _trSrc=4000;
-  if(!T&&nx&&gated(nx.node)){
+  if(!T&&nx&&gated(nx.node)&&!(v.e.main&&nodes[nx.node].mw)){   // ROADS: mainline traffic has priority at the taper nodes (slips give way)
     const dS=v.e.len-stopDist(nx.node,v.e)-v.t-v.hl;
     if(nx.commit){
       const sig=SIGNALS[nx.node];             // delayed after committing and it's gone red: stop if we still easily can
@@ -12123,7 +12416,7 @@ function trLod(v){
   if(far!==v.lod){ v.lod=far; v.car.g.visible=!far; }
   if(far&&trProxy.count<TR_PROXY_MAX){ const i=trProxy.count++;
     _trPq.setFromAxisAngle(YAXIS,v.a); _trPs.set(v.hw*2,(v.hh||1.5)/1.11,v.hl*2);
-    m4.compose(_trPp.set(v.x,0,v.z),_trPq,_trPs); trProxy.setMatrixAt(i,m4);
+    m4.compose(_trPp.set(v.x,v.y||0,v.z),_trPq,_trPs); trProxy.setMatrixAt(i,m4);
     trProxy.setColorAt(i,_trPc.setHex(v.col||0x888888)); }
 }
 // brake lights when decelerating or held stationary; indicators blink from ~30 m
@@ -12174,7 +12467,7 @@ function updateTraffic(dt,t){
     }
 
     // contact with the player
-    for(const c of vehCircles(v)){
+    if(Math.abs(v.y-(onFoot?(foot.y||0):player.y))<2.5) for(const c of vehCircles(v)){
       const dx=player.x-c.x,dz=player.z-c.z,d2=dx*dx+dz*dz,minD=c.r+2.3;
       if(d2<minD*minD&&d2>1e-6){
         if(dmgVehContact(v,t)) break;   // DAMAGE: real crash (momentum transfer + damage)
@@ -12201,7 +12494,8 @@ function updateTraffic(dt,t){
       }
     }
 
-    v.car.g.position.set(v.x,0,v.z);
+    mwPoseVeh(v,chase);                       // ROADS: v.y / pitch on motorway decks and ramps
+    v.car.g.position.set(v.x,v.y,v.z);
     v.car.g.rotation.y=v.a;
     for(const w of v.car.wheels) w.rotation.x+=v.sp*dt/0.42;
     if(v.kind==='cop'&&v.car.lights){
@@ -12218,7 +12512,7 @@ function updateTraffic(dt,t){
   if(wanted){
     let nd=1e9;
     const _tg=onFoot?foot:player;
-    for(const v of traffic) if(v.kind==='cop'&&!v.dyn) nd=Math.min(nd,Math.hypot(v.x-_tg.x,v.z-_tg.z));
+    for(const v of traffic) if(v.kind==='cop'&&!v.dyn&&Math.abs((v.y||0)-(_tg.y||0))<2.5) nd=Math.min(nd,Math.hypot(v.x-_tg.x,v.z-_tg.z));
     heat-=dt*(nd>60?1:0.12);
     const psp=Math.hypot(_tg.vx,_tg.vz);
     if(nd<5.5&&psp<3.5&&!freeCam){ pin+=dt; } else pin=Math.max(0,pin-dt*1.5);
@@ -13393,6 +13687,6 @@ addEventListener('resize',()=>{
   if(meOn){ mecv.width=innerWidth; mecv.height=innerHeight; }
 });
 </script>
-<div id="buildver" style="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(2px + env(safe-area-inset-bottom));font:600 10px/1.2 ui-monospace,Menlo,monospace;color:#fff;opacity:.6;letter-spacing:.06em;pointer-events:none;z-index:2147483000;text-shadow:0 1px 2px #000">v0.14 · 9 Nov 21:36</div>
+<div id="buildver" style="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(2px + env(safe-area-inset-bottom));font:600 10px/1.2 ui-monospace,Menlo,monospace;color:#fff;opacity:.6;letter-spacing:.06em;pointer-events:none;z-index:2147483000;text-shadow:0 1px 2px #000">v0.15 · 9 Nov 21:42</div>
 </body>
 </html>
