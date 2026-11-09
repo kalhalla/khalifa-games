@@ -9,6 +9,7 @@
     { "source": "/WildSoccer.html",       "destination": "/fitba-crazy/",          "permanent": true },
     { "source": "/glider-title.png",      "destination": "/glider/title.png",      "permanent": true },
     { "source": "/mascon",                "destination": "/mascon/",               "permanent": true },
-    { "source": "/mu-s1k",                "destination": "/mu-s1k/",               "permanent": true }
+    { "source": "/mu-s1k",                "destination": "/mu-s1k/",               "permanent": true },
+    { "source": "/sunset-city",           "destination": "/sunset-city/",          "permanent": true }
   ]
 }
