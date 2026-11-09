@@ -14,7 +14,7 @@
 <meta name="twitter:card" content="summary_large_image"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <link rel="apple-touch-icon" href="/sunset-city/square.png"/>
-<meta name="build-version" content="v0.12"/>
+<meta name="build-version" content="v0.13"/>
 <style>
   html,body{margin:0;padding:0;overflow:hidden;background:#1a1420;height:100%;touch-action:none;}
   canvas{display:block;}
@@ -11939,12 +11939,12 @@ const SOL={state:'off',venues:[],act:-1,last:-1,rig:null,seat:null,drv:null,seat
   t:0,waitT:0,stopT:0,honk:false,near:false,paused:false,nerve:100,dest:null,dests:[],trip0:0,
   lineT:0,calmT:0,prevV:0,prevHP:100,prevX:0,prevZ:0,say:'',sayT:0,greetT:0,exitT:0,ph:0,dance:0,
   path:null,ui:null,uiT:0,trips:0,paid:0,fails:0,lastGreet:-1,lastCom:-1,mats:[]};
-const SOL_C={skin:'#c48a63',skinD:'#a86f4e',hair:'#1a110d',hairH:'#2e1d14',lip:'#c8102e',eye:'#1d1411',
-  brow:'#1f130d',gold:'#e2b24a',shade:'#0d0c10'};
+const SOL_C={skin:'#b8784c',skinD:'#9c6038',hair:'#140d0a',hairH:'#26170f',lip:'#c8102e',eye:'#1d1411',
+  brow:'#1a100b',gold:'#e2b24a',shade:'#0d0c10'};
 const SOL_FITS={
-  pool:{name:'pool',top:'#ff6f5e',abd:'skin',chest:'skin',hips:'skin',seat:'#ff6f5e',wrap:null,hair:'down',shades:true},
-  bar: {name:'bar', top:'#b3121f',abd:'#b3121f',chest:'#b3121f',hips:'#b3121f',seat:'#a8101c',wrap:'#ad1220',hair:'up'},
-  club:{name:'club',top:'#d9dde8',abd:'skin',chest:'skin',hips:'#d2d6e2',seat:'#c9cdd9',wrap:null,hair:'down'}};
+  pool:{name:'pool',abd:'skin',chest:'skin',bust:'skin',hips:'skin',band:'#ff6f5e',brief:'#ff6f5e',skirt:null,hair:'down',shades:true},
+  bar: {name:'bar', abd:'#b3121f',chest:'#b3121f',bust:'#b3121f',hips:'#b3121f',band:null,brief:null,skirt:'#ad1220',hair:'up'},
+  club:{name:'club',abd:'skin',chest:'skin',bust:'skin',hips:'skin',band:'#d9dde8',brief:'#d2d6e2',skirt:null,hair:'down'}};
 const SOL_LINES={
   greet:["Took your time. Drive, I'll tell you where.",
     "Nice car. Try not to ruin it before we get there.",
@@ -11987,87 +11987,98 @@ const solSmooth=x=>x*x*(3-2*x);
 // her left is +x. Returns the rig; solDispose() frees its geometry.
 function solBuild(outfit){
   const F=SOL_FITS[outfit]||SOL_FITS.bar, C=SOL_C, sk=c=>c==='skin'?C.skin:c;
-  const cyl=(rt,rb,h,n)=>new THREE.CylinderGeometry(rt,rb,h,n||8);
+  const cyl=(rt,rb,h,n)=>new THREE.CylinderGeometry(rt,rb,h,n||10);
   const box=(w,h,d)=>new THREE.BoxGeometry(w,h,d);
-  const ico=r=>new THREE.IcosahedronGeometry(r,0);
-  const sph=(r,ws,hs,tl)=>new THREE.SphereGeometry(r,ws,hs,0,Math.PI*2,0,tl||Math.PI);
+  const sph=(r,ws,hs)=>new THREE.SphereGeometry(r,ws||8,hs||6);
   const geos=[]; let tris=0;
+  const SK=new THREE.Color(C.skin);
+  // merge, then bake a soft top-lit gradient into the skin so the limbs' lower and
+  // under faces read a shade darker (vertex colour only, no extra material)
   const M=(parts)=>{ const geo=mergeParts(parts); for(const p of parts) p.g.dispose();
+    const c=geo.attributes.color.array, n=geo.attributes.normal.array;
+    for(let i=0;i<c.length;i+=3){ if(Math.abs(c[i]-SK.r)+Math.abs(c[i+1]-SK.g)+Math.abs(c[i+2]-SK.b)>0.03) continue;
+      const k=0.8+0.2*(n[i+1]*0.5+0.5); c[i]*=k; c[i+1]*=k*0.98; c[i+2]*=k*0.96; }
     geos.push(geo); tris+=geo.attributes.position.count/3;
     const m=new THREE.Mesh(geo,MAT.vc); m.castShadow=true; return m; };
   const g=new THREE.Group(); g.rotation.order='YXZ';
   const root=new THREE.Group(); root.position.y=0.92; g.add(root);           // hip joint
-  // ---- pelvis ----
-  const pel=[{g:cyl(0.122,0.146,0.14),c:sk(F.hips),y:0.045,sz:0.72},
-    {g:cyl(0.146,0.095,0.11),c:sk(F.seat),y:-0.06,sz:0.72}];
-  if(outfit==='pool') for(const s of [1,-1]) pel.push({g:box(0.03,0.05,0.02),c:F.top,x:0.148*s,y:-0.02,z:0.02});  // side ties
-  if(outfit==='club') pel.push({g:cyl(0.124,0.124,0.022),c:C.gold,y:0.105,sz:0.74});                           // chain belt
+  // ---- pelvis: waist-to-hip curve, skin seat, a high-cut brief following the hip line ----
+  const pel=[{g:cyl(0.112,0.152,0.13),c:sk(F.hips),y:0.05,sz:0.7},           // waist flares into the hips
+    {g:cyl(0.152,0.118,0.1),c:sk(F.hips),y:-0.05,sz:0.7}];                       // hips taper to the thighs
+  if(F.brief) pel.push({g:cyl(0.156,0.13,outfit==='club'?0.075:0.06,10),c:F.brief,y:outfit==='club'?-0.042:-0.048,sz:0.71});   // low, narrow, follows the hip line
+  if(outfit==='club') pel.push({g:cyl(0.118,0.118,0.014),c:C.gold,y:0.03,sz:0.72});   // chain belt
   root.add(M(pel));
+  // ---- slip dress skirt: ONE piece on the pelvis, to just above the knee ----
+  let skirt=null;
+  if(F.skirt){ skirt=new THREE.Group(); skirt.position.y=0.04; root.add(skirt);
+    skirt.add(M([{g:cyl(0.152,0.145,0.18),c:F.skirt,y:-0.07,sx:1.12,sz:0.74},{g:cyl(0.145,0.122,0.25),c:F.skirt,y:-0.285,sx:1.12,sz:0.72},
+      {g:cyl(0.123,0.121,0.012),c:'#7e0c16',y:-0.414,sx:1.12,sz:0.72}])); }
   // ---- torso, head, hair (waist pivot) ----
   const torso=new THREE.Group(); torso.position.y=0.08; root.add(torso);
   const T=[
-    {g:cyl(0.112,0.122,0.17),c:sk(F.abd),y:0.06,sz:0.74},                      // narrow waist
-    {g:cyl(0.15,0.112,0.17),c:sk(F.chest),y:0.225,sz:0.7},                     // ribcage, V taper
-    {g:cyl(0.166,0.15,0.1),c:C.skin,y:0.36,sz:0.66},                           // upper chest
-    {g:cyl(0.105,0.166,0.06),c:C.skin,y:0.44,sz:0.62},                         // shoulder line
-    {g:ico(0.058),c:C.skin,x:0.176,y:0.405,sy:1.1},{g:ico(0.058),c:C.skin,x:-0.176,y:0.405,sy:1.1},   // deltoids
-    {g:ico(0.056),c:F.top,x:0.056,y:0.29,z:0.068,sy:0.85,sz:0.78},{g:ico(0.056),c:F.top,x:-0.056,y:0.29,z:0.068,sy:0.85,sz:0.78},
-    {g:cyl(0.041,0.047,0.1,6),c:C.skinD,y:0.5},                                // neck
-    {g:sph(0.092,8,6),c:C.skin,y:0.615,sx:0.9,sy:1.1},                         // head
-    {g:cyl(0.066,0.036,0.075,7),c:C.skin,y:0.548,z:0.012,sz:0.95},             // jaw + chin
-    {g:box(0.021,0.044,0.03),c:C.skinD,y:0.61,z:0.084},                        // nose
-    {g:box(0.03,0.014,0.01),c:C.eye,x:0.033,y:0.638,z:0.082},{g:box(0.03,0.014,0.01),c:C.eye,x:-0.033,y:0.638,z:0.082},
-    {g:box(0.036,0.009,0.01),c:C.brow,x:0.034,y:0.66,z:0.08,rz:-0.14},{g:box(0.036,0.009,0.01),c:C.brow,x:-0.034,y:0.66,z:0.08,rz:0.14},
-    {g:box(0.046,0.012,0.014),c:C.lip,y:0.579,z:0.079},{g:box(0.038,0.014,0.014),c:C.lip,y:0.566,z:0.076},   // red lips
-    {g:box(0.018,0.04,0.03),c:C.skinD,x:0.081,y:0.612},{g:box(0.018,0.04,0.03),c:C.skinD,x:-0.081,y:0.612},
-    {g:new THREE.TorusGeometry(0.02,0.0045,3,10),c:C.gold,x:0.088,y:0.562,ry:0.8},       // gold hoops
-    {g:new THREE.TorusGeometry(0.02,0.0045,3,10),c:C.gold,x:-0.088,y:0.562,ry:-0.8},
-    {g:sph(0.1,8,4,Math.PI*0.5),c:C.hair,y:0.625,z:-0.006,sx:0.95,sy:1.06,rx:-0.45},     // hair cap, tilted back off the brow
-    {g:box(0.12,0.028,0.04),c:C.hair,x:0.015,y:0.688,z:0.066,rz:0.16},                       // side-swept fringe
+    {g:cyl(0.106,0.113,0.17),c:sk(F.abd),y:0.05,sz:0.72},                      // slim waist
+    {g:cyl(0.142,0.106,0.17),c:sk(F.chest),y:0.22,sz:0.68},                    // ribcage, V taper
+    {g:cyl(0.152,0.142,0.1),c:C.skin,y:0.355,sz:0.64},                    // upper chest
+    {g:cyl(0.1,0.152,0.07,10),c:C.skin,y:0.44,sz:0.6},                         // trapezius slope, no shoulder blocks
+    {g:cyl(0.118,0.108,0.11,10),c:sk(F.bust),y:0.29,z:0.032,sz:0.62,sx:0.92},  // one smooth shallow chest form
+    {g:cyl(0.039,0.045,0.11,8),c:C.skinD,y:0.5},                                // neck
+    {g:sph(0.084,10,8),c:C.skin,y:0.618,sx:0.88,sy:1.1},                       // head (about 1/7.5 of her height)
+    {g:cyl(0.064,0.03,0.07,8),c:C.skin,y:0.553,z:0.012,sz:0.95},               // jaw tapering to the chin
+    {g:box(0.032,0.018,0.02),c:C.skin,y:0.522,z:0.05},                         // chin
+    {g:box(0.019,0.04,0.026),c:C.skinD,y:0.612,z:0.078},                       // nose
+    {g:box(0.042,0.012,0.012),c:C.lip,y:0.578,z:0.071},{g:box(0.034,0.012,0.012),c:C.lip,y:0.568,z:0.069},   // red lips
+    {g:box(0.016,0.036,0.026),c:C.skinD,x:0.075,y:0.612},{g:box(0.016,0.036,0.026),c:C.skinD,x:-0.075,y:0.612},
+    {g:new THREE.TorusGeometry(0.019,0.0042,3,10),c:C.gold,x:0.08,y:0.565,ry:0.8},       // gold hoops
+    {g:new THREE.TorusGeometry(0.019,0.0042,3,10),c:C.gold,x:-0.08,y:0.565,ry:-0.8},
   ];
-  if(outfit==='pool'){ T.push({g:cyl(0.153,0.148,0.04),c:F.top,y:0.272,sz:0.7});            // bikini band
-    for(const s of [1,-1]) T.push({g:box(0.012,0.15,0.012),c:F.top,x:0.042*s,y:0.39,z:0.068,rz:0.35*s}); }   // halter
-  if(outfit==='bar') for(const s of [1,-1]) T.push({g:box(0.011,0.13,0.011),c:F.top,x:0.08*s,y:0.385,z:0.045,rx:-0.2});  // slip straps
-  if(outfit==='club'){ T.push({g:cyl(0.157,0.146,0.1),c:F.top,y:0.258,sz:0.7});                // sequinned crop top
-    for(const s of [1,-1]) T.push({g:box(0.012,0.14,0.012),c:F.top,x:0.07*s,y:0.385,z:0.05,rx:-0.2});
-    for(let i=0;i<7;i++){ const a=-1.1+i*0.37; T.push({g:box(0.014,0.014,0.006),c:'#ffffff',x:Math.sin(a)*0.15,y:0.235+(i%3)*0.022,z:Math.cos(a)*0.107,ry:a}); } }
-  if(F.shades) T.push({g:box(0.058,0.042,0.012),c:C.shade,x:0.035,y:0.64,z:0.09},{g:box(0.058,0.042,0.012),c:C.shade,x:-0.035,y:0.64,z:0.09},
-    {g:box(0.14,0.011,0.013),c:C.gold,y:0.662,z:0.09},{g:box(0.006,0.009,0.09),c:C.shade,x:0.078,y:0.648,z:0.045},{g:box(0.006,0.009,0.09),c:C.shade,x:-0.078,y:0.648,z:0.045});
-  if(F.hair==='up') T.push({g:ico(0.064),c:C.hair,y:0.69,z:-0.085,sx:1.1},{g:ico(0.05),c:C.hairH,y:0.655,z:-0.105},
-    {g:cyl(0.012,0.005,0.16,4),c:C.hair,x:0.077,y:0.55,z:0.03,rz:0.1});              // chignon + one loose tendril
-  else {                                                                               // long dark waves: tapered chunks
-    for(const [x,len,rz] of [[-0.07,0.3,0.16],[-0.024,0.37,-0.09],[0.024,0.35,0.1],[0.07,0.31,-0.15]]){
-      T.push({g:cyl(0.05,0.035,0.2,5),c:C.hair,x,y:0.53,z:-0.084,rx:0.12,rz});
-      T.push({g:cyl(0.037,0.01,len-0.1,5),c:x>0?C.hairH:C.hair,x:x+rz*0.06,y:0.43-(len-0.1)/2,z:-0.1,rx:0.16,rz:-rz*1.2}); }
-    for(const s of [1,-1]) T.push({g:cyl(0.032,0.01,0.27,5),c:C.hair,x:0.083*s,y:0.5,z:0.012,rx:-0.08,rz:0.1*s});
+  if(F.band) T.push({g:cyl(0.121,0.111,0.058,10),c:F.band,y:0.29,z:0.032,sz:0.64,sx:0.94},   // fabric strip over the chest form
+    {g:cyl(0.144,0.14,0.04,10),c:F.band,y:0.29,sz:0.69});                                  // round the back
+  if(outfit==='pool') for(const s of [1,-1]) T.push({g:box(0.01,0.13,0.01),c:F.band,x:0.04*s,y:0.385,z:0.07,rz:0.32*s});   // halter
+  if(outfit!=='pool') for(const s of [1,-1]) T.push({g:box(0.01,0.12,0.01),c:F.skirt||F.band,x:0.075*s,y:0.39,z:0.05,rx:-0.25});   // straps
+  if(outfit==='club') for(let i=0;i<7;i++){ const a=-0.9+i*0.3; T.push({g:box(0.012,0.012,0.004),c:'#ffffff',x:Math.sin(a)*0.112,y:0.28+(i%2)*0.02,z:0.032+Math.cos(a)*0.071,ry:a}); }
+  if(F.shades) T.push({g:box(0.05,0.036,0.01),c:C.shade,x:0.031,y:0.635,z:0.08},{g:box(0.05,0.036,0.01),c:C.shade,x:-0.031,y:0.635,z:0.08},
+    {g:box(0.12,0.009,0.011),c:C.gold,y:0.655,z:0.08},{g:box(0.005,0.008,0.08),c:C.shade,x:0.07,y:0.642,z:0.04},{g:box(0.005,0.008,0.08),c:C.shade,x:-0.07,y:0.642,z:0.04});
+  else for(const s of [1,-1]) T.push(
+    {g:box(0.028,0.012,0.006),c:'#efe4d8',x:0.03*s,y:0.635,z:0.074},              // eye whites
+    {g:box(0.012,0.012,0.008),c:C.eye,x:0.03*s,y:0.635,z:0.076},                    // iris
+    {g:box(0.032,0.006,0.008),c:'#120c0a',x:0.03*s,y:0.643,z:0.075,rz:-0.12*s},     // lash line
+    {g:box(0.032,0.007,0.008),c:C.brow,x:0.031*s,y:0.658,z:0.073,rz:-0.18*s});       // arched brows
+  // hair: a cap swept back off the face with a side part, long dark waves at the back and sides
+  T.push({g:new THREE.SphereGeometry(0.091,10,5,0,Math.PI*2,0,Math.PI*0.5),c:C.hair,y:0.626,z:-0.008,sx:0.95,sy:1.05,rx:-0.42},
+    {g:new THREE.SphereGeometry(0.088,8,4,Math.PI*0.5,Math.PI*0.9,0,Math.PI*0.42),c:C.hairH,x:0.006,y:0.632,z:0.0,sx:0.97,rx:-0.2,rz:0.12},  // side part sweep
+    {g:cyl(0.026,0.012,0.13,6),c:C.hair,x:-0.06,y:0.6,z:0.06,rz:-0.15,rx:-0.1});   // a lock framing the face
+  if(F.hair==='up') T.push({g:sph(0.058,8,6),c:C.hair,y:0.66,z:-0.088,sx:1.15,sy:0.95},{g:cyl(0.01,0.004,0.15,4),c:C.hair,x:0.07,y:0.55,z:0.03,rz:0.08});
+  else {
+    for(const [x,len,rz,col] of [[-0.06,0.36,0.1,C.hair],[-0.02,0.42,-0.05,C.hairH],[0.02,0.4,0.06,C.hair],[0.06,0.35,-0.1,C.hairH]]){
+      T.push({g:cyl(0.042,0.03,0.16,6),c:col,x,y:0.56,z:-0.075,rx:0.1,rz:rz*0.5});                         // upper wave
+      T.push({g:cyl(0.032,0.008,len-0.12,6),c:col,x:x+rz*0.05,y:0.48-(len-0.12)/2,z:-0.088,rx:0.14,rz:-rz}); }  // tapering ends past the shoulders
+    for(const s of [1,-1]){ T.push({g:cyl(0.03,0.02,0.15,6),c:C.hair,x:0.072*s,y:0.555,z:-0.005,rz:0.06*s},
+      {g:cyl(0.022,0.006,0.2,6),c:C.hairH,x:0.08*s,y:0.4,z:0.012,rz:-0.12*s,rx:-0.12}); }
   }
   torso.add(M(T));
-  // ---- arms: shoulder pivot -> upper arm -> elbow pivot -> forearm + hand ----
+  // ---- arms: rounded shoulder cap -> upper arm -> elbow -> forearm + hand ----
   function arm(sx){
-    const sh=new THREE.Group(); sh.position.set(0.19*sx,0.405,0); torso.add(sh);
-    sh.add(M([{g:cyl(0.046,0.037,0.27,7),c:C.skin,y:-0.135}]));
+    const sh=new THREE.Group(); sh.position.set(0.172*sx,0.405,0); torso.add(sh);
+    sh.add(M([{g:sph(0.046,8,6),c:C.skin,x:-0.006*sx,y:-0.03,sx:0.92,sy:1.3},{g:cyl(0.045,0.035,0.27,8),c:C.skin,y:-0.135}]));
     const elb=new THREE.Group(); elb.position.y=-0.27; sh.add(elb);
-    const fa=[{g:cyl(0.037,0.028,0.24,7),c:C.skin,y:-0.12},{g:box(0.04,0.085,0.058),c:C.skin,y:-0.285,z:0.004},
-      {g:box(0.016,0.042,0.02),c:C.skin,x:-0.024*sx,y:-0.27,z:0.03}];
-    if(outfit!=='pool') fa.push({g:cyl(0.033,0.033,0.016,7),c:outfit==='club'?'#e6e9f2':C.gold,y:-0.22});
+    const fa=[{g:cyl(0.036,0.026,0.24,8),c:C.skin,y:-0.12},{g:box(0.036,0.08,0.055),c:C.skin,y:-0.28,z:0.004},
+      {g:box(0.014,0.04,0.018),c:C.skin,x:-0.022*sx,y:-0.265,z:0.028}];
+    if(outfit!=='pool') fa.push({g:cyl(0.031,0.031,0.014,8),c:outfit==='club'?'#e6e9f2':C.gold,y:-0.22});
     elb.add(M(fa)); return {sh,elb};
   }
   const AL=arm(1), AR=arm(-1);
-  // ---- legs: hip pivot -> thigh -> knee pivot -> shin + foot ----
+  // ---- legs: fuller thighs tapering to the knee, shaped calves ----
   function leg(sx){
-    const hip=new THREE.Group(); hip.position.set(0.085*sx,0,0); root.add(hip);
-    const th=[{g:cyl(0.08,0.056,0.44),c:C.skin,y:-0.22}];
-    if(F.wrap) th.push({g:cyl(0.091,0.075,0.36),c:F.wrap,y:-0.16});            // slip dress to mid-thigh
-    if(outfit==='club') th.push({g:cyl(0.086,0.081,0.06),c:F.hips,y:-0.03});   // shorts hem
-    hip.add(M(th));
+    const hip=new THREE.Group(); hip.position.set(0.082*sx,0,0); root.add(hip);
+    hip.add(M([{g:cyl(0.088,0.074,0.2),c:C.skin,y:-0.1},{g:cyl(0.074,0.052,0.25),c:C.skin,y:-0.32}]));
     const knee=new THREE.Group(); knee.position.y=-0.44; hip.add(knee);
     const boot=outfit==='club', sc=boot?'#15121a':C.skin;
-    const sh=[{g:cyl(boot?0.062:0.056,boot?0.048:0.043,0.2,7),c:sc,y:-0.1},{g:cyl(boot?0.048:0.043,boot?0.036:0.03,0.21,7),c:sc,y:-0.3}];
-    if(boot) sh.push({g:cyl(0.066,0.064,0.035,7),c:'#cfd3df',y:-0.005});        // knee-high boot cuff
-    if(outfit==='pool') sh.push({g:box(0.058,0.045,0.16),c:C.skin,y:-0.455,z:0.045});
+    const sh=[{g:cyl(0.05,0.056,0.12),c:sc,y:-0.06},{g:cyl(0.056,0.034,0.22),c:sc,y:-0.23},{g:cyl(0.034,0.03,0.07),c:sc,y:-0.375}];
+    if(boot) sh.push({g:cyl(0.061,0.059,0.03,8),c:'#cfd3df',y:-0.005});         // knee-high boot cuff
+    if(outfit==='pool') sh.push({g:box(0.054,0.042,0.155),c:C.skin,y:-0.457,z:0.045});
     else { const sc2=boot?'#15121a':'#141014';
-      sh.push({g:box(0.056,0.042,0.15),c:sc2,y:-0.438,z:0.05,rx:0.33},{g:box(0.014,0.07,0.016),c:sc2,y:-0.445,z:-0.03});
-      if(!boot) sh.push({g:box(0.06,0.012,0.012),c:sc2,y:-0.41,z:0.0}); }     // ankle strap
+      sh.push({g:box(0.052,0.04,0.15),c:sc2,y:-0.438,z:0.05,rx:0.33},{g:box(0.012,0.07,0.014),c:sc2,y:-0.445,z:-0.03});
+      if(!boot) sh.push({g:box(0.056,0.01,0.01),c:sc2,y:-0.405,z:0.0}); }
     knee.add(M(sh)); return {hip,knee};
   }
   const LL=leg(1), LR=leg(-1);
@@ -12075,12 +12086,12 @@ function solBuild(outfit){
   let glass=null;
   if(outfit==='bar'){
     glass=M([{g:new THREE.ConeGeometry(0.046,0.055,8),c:'#dfe8ee',y:0.085,rx:Math.PI},{g:cyl(0.004,0.004,0.07,4),c:'#dfe8ee',y:0.035},
-      {g:cyl(0.024,0.024,0.005,8),c:'#dfe8ee',y:0.0},{g:ico(0.009),c:'#6f8a2a',y:0.098}]);
-    glass.rotation.x=Math.PI/2; glass.position.set(0,-0.3,0.035); AR.elb.add(glass);      // upright when the forearm is level
-    AL.elb.add(M([{g:box(0.15,0.085,0.03),c:'#d9a63c',y:-0.31,z:0.045},{g:box(0.15,0.03,0.032),c:'#1a1214',y:-0.282,z:0.046}]));   // clutch
+      {g:cyl(0.024,0.024,0.005,8),c:'#dfe8ee',y:0.0},{g:new THREE.IcosahedronGeometry(0.009,0),c:'#6f8a2a',y:0.098}]);
+    glass.rotation.x=Math.PI/2; glass.position.set(0,-0.3,0.035); AR.elb.add(glass);
+    AL.elb.add(M([{g:box(0.15,0.085,0.03),c:'#d9a63c',y:-0.31,z:0.045},{g:box(0.15,0.03,0.032),c:'#1a1214',y:-0.282,z:0.046}]));
   }
   g.visible=false; scene.add(g);
-  return {g,root,torso,legL:LL.hip,legR:LR.hip,kneeL:LL.knee,kneeR:LR.knee,armL:AL.sh,armR:AR.sh,elbL:AL.elb,elbR:AR.elb,
+  return {g,root,torso,skirt,legL:LL.hip,legR:LR.hip,kneeL:LL.knee,kneeR:LR.knee,armL:AL.sh,armR:AR.sh,elbL:AL.elb,elbR:AR.elb,
     glass,geos,tris,outfit,cur:{}};
 }
 function solDispose(R){ if(!R) return; if(R.g.parent) R.g.parent.remove(R.g); for(const g of R.geos) g.dispose(); R.geos.length=0; }
@@ -12130,6 +12141,7 @@ function solApply(R,P,k){
   R.root.position.set(c.rootX,c.rootY,c.rootZ); R.root.rotation.set(c.rRX,0,c.rRZ); R.torso.rotation.set(c.tRX,c.tRY,c.tRZ);
   R.legL.rotation.set(c.lHX,0,c.lHZ); R.legR.rotation.set(c.rHX,0,c.rHZ); R.kneeL.rotation.x=c.lK; R.kneeR.rotation.x=c.rK;
   R.armL.rotation.set(c.lSX,0,c.lSZ); R.armR.rotation.set(c.rSX,0,c.rSZ); R.elbL.rotation.x=c.lE; R.elbR.rotation.x=c.rE;
+  if(R.skirt) R.skirt.rotation.set(Math.min(0,(c.lHX+c.rHX)/2),0,(c.lHX-c.rHX)*0.05);
 }
 
 // ------------------------------------------------------------------ venues
@@ -12181,13 +12193,21 @@ function solVenues(){
   const subs=(typeof SUBURB_ROADS!=='undefined'&&SUBURB_ROADS.length?SUBURB_ROADS.map(r=>({x:r.s.x,z:r.s.z,W:r.W||58,D:r.D||42}))
     :SUBURBS.map(s=>({x:s.x,z:s.z,W:58,D:42}))).sort((a,b)=>Math.hypot(b.x,b.z)-Math.hypot(a.x,a.z));
   const HU=6.7,HV=4.9;
+  // lamp poles: world.lamps holds only the city heads; suburb lamps live in their own
+  // instanced meshes (SUB.lamps once the suburbs patch lands), so read the poles from the scene
+  const poles=[]; if(world.lamps) for(const L of world.lamps) poles.push(L);
+  if(typeof SUB!=='undefined'&&SUB&&SUB.lamps) for(const L of SUB.lamps) poles.push(L);
+  const _m=new THREE.Matrix4(), _p=new THREE.Vector3();
+  for(const o of scene.children){ const pa=o.isInstancedMesh&&o.geometry&&o.geometry.parameters;
+    if(!pa||o.geometry.type!=='CylinderGeometry'||!(pa.height>=3.5&&pa.height<=7)||pa.radiusBottom>0.2) continue;
+    for(let i=0;i<o.count;i++){ o.getMatrixAt(i,_m); _p.setFromMatrixPosition(_m); if(inSuburb(_p.x,_p.z,30)) poles.push([_p.x,_p.z]); } }
   function poolFits(cx,cz,ry,m){
     const F=solFrame(cx,0,cz,ry);
     for(let u=-HU;u<=HU+0.01;u+=HU/4) for(let v=-HV;v<=HV+0.01;v+=HV/3){ const [x,z]=F.w(u,v);
       if(!clearOfCarriageways(x,z,m)||overpassHeight(x,z)>=0||solInBox(x,z,0.5)) return false; }
     for(const s of glintSpots) if(Math.hypot(s.x-cx,s.z-cz)<8.5) return false;          // an existing back-yard pool
     if(typeof streetTrees!=='undefined') for(const t of streetTrees) if(Math.hypot(t[0]-cx,t[1]-cz)<8) return false;
-    if(world.lamps) for(const L of world.lamps) if(Math.hypot(L[0]-cx,L[1]-cz)<9) return false;   // suburb street lamps
+    for(const L of poles) if(Math.hypot(L[0]-cx,L[1]-cz)<9) return false;                       // street lamps
     return true;
   }
   let best=null;
@@ -12311,7 +12331,7 @@ function solBuildClub(fx,fz,ry){
   const oy=groundHeight(fx+Math.sin(ry)*1,fz+Math.cos(ry)*1)||0.34, F=solFrame(fx,oy,fz,ry);
   const box=(w,h,d)=>new THREE.BoxGeometry(w,h,d), cyl=(a,b,h,n)=>new THREE.CylinderGeometry(a,b,h,n||8);
   const P=[], sy=PODIUM_H-0.38, PU=-1.25, PV=1.35;
-  P.push({g:box(5.2,0.82,0.12),c:'#120a18',y:sy,z:0.06});
+  P.push({g:box(5.6,2.5,0.14),c:'#1a0f22',y:4.85,z:0.07});                           // club panel over the old fascia and sign
   P.push({g:box(5.0,0.28,2.35),c:'#1c1026',y:3.3,z:1.18},{g:box(5.0,0.5,0.08),c:'#241230',y:3.3,z:2.36});    // canopy + front fascia
   for(const u of [-2.4,2.4]) P.push({g:cyl(0.04,0.04,3.1,6),c:'#d8d6e2',x:u,y:1.55,z:2.28});
   P.push({g:box(1.4,2.5,0.08),c:'#2a0f2e',x:1.3,y:1.25,z:0.04},{g:box(1.6,0.12,0.12),c:'#d8d6e2',x:1.3,y:2.55,z:0.06});   // door
@@ -12326,6 +12346,8 @@ function solBuildClub(fx,fz,ry){
   solMesh(F,P,MAT.vc,true);
   const N=[];
   for(const v of [0.02,2.34]) N.push({g:box(5.0,0.04,0.04),c:'#ff3fa4',y:3.15,z:v});
+  for(const y of [3.62,6.08]) N.push({g:box(5.6,0.05,0.05),c:'#b45cff',y,z:0.16});            // panel neon border
+  for(const u of [-2.78,2.78]) N.push({g:box(0.05,2.5,0.05),c:'#b45cff',x:u,y:4.85,z:0.16});
   for(const u of [-2.5,2.5]) N.push({g:box(0.04,0.04,2.35),c:'#b45cff',x:u,y:3.15,z:1.18});
   N.push({g:new THREE.TorusGeometry(0.9,0.035,4,20),c:'#ff3fa4',x:PU,y:0.45,z:PV,rx:Math.PI/2});
   solMesh(F,N,new THREE.MeshBasicMaterial({vertexColors:true}));
@@ -12334,7 +12356,6 @@ function solBuildClub(fx,fz,ry){
   for(const [u,v] of [[-2.4,0.6],[-0.1,0.6],[-2.4,2.2],[-0.1,2.2],[0.4,2.3],[1.3,2.3],[2.2,2.3],[-1.25,2.5]]) fl[(i++)%2].push({g:box(0.5,0.02,0.5),c:'#ffffff',x:u,y:0.015,z:v});
   const flM=[new THREE.MeshBasicMaterial({color:0xff3fa4}),new THREE.MeshBasicMaterial({color:0x9a4cff})];
   solMesh(F,fl[0],flM[0]); solMesh(F,fl[1],flM[1]);
-  solSign(F,'VELVET ROOM','#c86cff',false,0,0.13,sy,4.8,1.2);
   solSign(F,'VELVET ROOM','#ff4fb0',false,0,2.41,3.3,4.4,0.55);
   solGlow(F,PU,PV,0.03,5,4,0xff4fb0,0.6); const back=solGlow(F,PU,0.08,1.8,3.2,3.6,0xb45cff,0.45); back.rotation.set(0,ry,0);
   world.circles.push((()=>{ const [x,z]=F.w(PU,PV); return {x,z,r:0.95}; })());
@@ -12543,7 +12564,7 @@ function solStep(dt,t){
   for(const V of SOL.venues) if(V.flM){ const ph=Math.floor(t*2.2)%4;
     V.flM[0].color.setHex(ph===0?0x3a0e28:(ph%2?0xff3fa4:0xb02a78)); V.flM[1].color.setHex(ph===2?0x260e3a:(ph%2?0x5a2a9a:0x9a4cff)); }
   // the figure only animates when it could be seen
-  const far=R?Math.hypot(camera.position.x-R.g.position.x,camera.position.z-R.g.position.z)>220:true;
+  const far=R?Math.min(Math.hypot(camera.position.x-R.g.position.x,camera.position.z-R.g.position.z),Math.hypot(player.x-R.g.position.x,player.z-R.g.position.z))>220:true;
   if(SOL.state==='idle'){
     SOL.t-=dt; if(SOL.t<=0&&!SOL.paused){ const i=solNextVenue(); if(i>=0) solActivate(i); }
   }
@@ -13069,6 +13090,6 @@ addEventListener('resize',()=>{
   if(meOn){ mecv.width=innerWidth; mecv.height=innerHeight; }
 });
 </script>
-<div id="buildver" style="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(2px + env(safe-area-inset-bottom));font:600 10px/1.2 ui-monospace,Menlo,monospace;color:#fff;opacity:.6;letter-spacing:.06em;pointer-events:none;z-index:2147483000;text-shadow:0 1px 2px #000">v0.12 · 9 Nov 20:33</div>
+<div id="buildver" style="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(2px + env(safe-area-inset-bottom));font:600 10px/1.2 ui-monospace,Menlo,monospace;color:#fff;opacity:.6;letter-spacing:.06em;pointer-events:none;z-index:2147483000;text-shadow:0 1px 2px #000">v0.13 · 9 Nov 20:44</div>
 </body>
 </html>
