@@ -567,10 +567,10 @@ async function boot() {
   }
   const BLOCK_FLOOR = -2.35;
   // layers: [[thickness, colour], ...] from the surface down; ground: false leaves the top bare
-  function blockBase(layers, ground = true) {
+  function blockBase(layers, ground = true, topY = 0.7) {
     const g = new THREE.Group();
     const shape = roundedSquare(S, 0.3);
-    let y = 0.7;
+    let y = topY;
     layers.forEach(([hgt, c]) => {
       const geo = new THREE.ExtrudeGeometry(shape, { depth: hgt, bevelEnabled: false, curveSegments: 3 });
       geo.rotateX(Math.PI / 2);                    // extrude downwards
@@ -591,6 +591,58 @@ async function boot() {
       g.add(m);
     }
     return g;
+  }
+
+  const hash2 = (ix, iz) => fract(Math.sin(ix * 127.1 + iz * 311.7) * 43758.5453);
+  function noise2(x, z) {
+    const ix = Math.floor(x), iz = Math.floor(z), fx = x - ix, fz = z - iz;
+    const sx = fx * fx * (3 - 2 * fx), sz = fz * fz * (3 - 2 * fz);
+    const a = hash2(ix, iz), b = hash2(ix + 1, iz), c = hash2(ix, iz + 1), d = hash2(ix + 1, iz + 1);
+    return a + (b - a) * sx + (c - a) * sz + (a - b - c + d) * sx * sz;
+  }
+  // ground that stays level where the scene stands and rolls as it nears the block's edge (d = distance measure to the edge)
+  const rise = (x, z, inner, amp, seed, d = Math.max(Math.abs(x), Math.abs(z))) => {
+    const u = (d - inner) / (S - inner);
+    return u <= 0 ? 0 : amp * (u * u * (3 - 2 * Math.min(1, u))) * (0.25 + 1.2 * noise2(x * 0.75 + seed * 3.1, z * 0.75 + seed * 1.7));
+  };
+  // A terrain top: a heightfield over a rectangle, with the block's cut faces following its profile.
+  // edges = [front, right, back, left]; colour is a hex or (height, x, z) => hex
+  function landTop(g, { x0 = -S + 0.02, x1 = S - 0.02, z0 = -S + 0.02, z1 = S - 0.02, nx = 28, nz = 28, y = 0.705, base = 0.7, h, colour, wall, edges = [1, 1, 1, 1] }) {
+    const P = (i, j) => { const x = x0 + (x1 - x0) * i / nx, z = z0 + (z1 - z0) * j / nz; return [x, y + h(x, z), z]; };
+    const tri = [];
+    for (let i = 0; i < nx; i++) for (let j = 0; j < nz; j++) {
+      const a = P(i, j), b = P(i + 1, j), c = P(i, j + 1), d = P(i + 1, j + 1);
+      if ((i + j) % 2) tri.push(...a, ...c, ...b, ...b, ...c, ...d); else tri.push(...a, ...c, ...d, ...a, ...d, ...b);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(tri, 3));
+    const cols = new Float32Array(tri.length), col = new THREE.Color();
+    for (let i = 0; i < tri.length; i += 9) {
+      const cx = (tri[i] + tri[i + 3] + tri[i + 6]) / 3, cy = (tri[i + 1] + tri[i + 4] + tri[i + 7]) / 3, cz = (tri[i + 2] + tri[i + 5] + tri[i + 8]) / 3;
+      col.set(typeof colour === "function" ? colour(cy - y, cx, cz) : colour);
+      const s = 0.93 + hash2(i, 13) * 0.12;
+      for (let j = 0; j < 9; j += 3) { cols[i + j] = col.r * s; cols[i + j + 1] = col.g * s; cols[i + j + 2] = col.b * s; }
+    }
+    geo.setAttribute("color", new THREE.BufferAttribute(cols, 3));
+    const top = new THREE.Mesh(geo, facetMat);
+    top.userData.flat = true;
+    g.add(top);
+    const w = [];
+    const run = (n, at) => {
+      for (let k = 0; k < n; k++) {
+        const [xa, za] = at(k / n), [xb, zb] = at((k + 1) / n);
+        w.push(xa, base, za, xb, base, zb, xb, y + h(xb, zb), zb, xa, base, za, xb, y + h(xb, zb), zb, xa, y + h(xa, za), za);
+      }
+    };
+    if (edges[0]) run(nx, u => [x0 + (x1 - x0) * u, z1]);
+    if (edges[1]) run(nz, u => [x1, z1 + (z0 - z1) * u]);
+    if (edges[2]) run(nx, u => [x1 + (x0 - x1) * u, z0]);
+    if (edges[3]) run(nz, u => [x0, z0 + (z1 - z0) * u]);
+    const wg = new THREE.BufferGeometry();
+    wg.setAttribute("position", new THREE.Float32BufferAttribute(w, 3));
+    const side = fMesh(wg, wall, 0.06);
+    side.userData.flat = true;
+    g.add(side);
   }
 
   // ---------- diorama kit ----------
@@ -1043,13 +1095,9 @@ async function boot() {
       g.add(flat(box(S - w, y1 - y0, 2 * S, c, s * (S + w) / 2, (y1 + y0) / 2, 0, 0)));
     }
     g.add(flat(box(2 * S, 0.6, 2 * S, 0x8a4a30, 0, BED - 0.3, 0, 0)), flat(box(2 * S, BED - 0.6 - BLOCK_FLOOR, 2 * S, 0x6f3c2a, 0, (BED - 0.6 + BLOCK_FLOOR) / 2, 0, 0)));
-    for (const s of [-1, 1]) {
-      const top = new THREE.PlaneGeometry(S - 1.4, 2 * S - 0.1, 6, 16);
-      top.rotateX(-Math.PI / 2);
-      const pl = flat(fMesh(top, 0xdda05c, 0.1));
-      pl.position.set(s * (S + 1.35) / 2, M + 0.006, 0);
-      g.add(pl);
-    }
+    const mesaH = (x, z) => rise(x, z, 5.6, 0.6, 2);
+    landTop(g, { x0: -S + 0.02, x1: -1.3, nx: 12, y: M + 0.006, base: M - 0.02, h: mesaH, colour: 0xdda05c, wall: 0xd6924f, edges: [1, 0, 1, 1] });
+    landTop(g, { x0: 1.3, x1: S - 0.02, nx: 12, y: M + 0.006, base: M - 0.02, h: mesaH, colour: 0xdda05c, wall: 0xd6924f, edges: [1, 1, 1, 0] });
     // the river that cut it, rocks and scrub on the ledges
     g.add(lit(new THREE.BoxGeometry(0.66, 0.08, 2 * S - 0.02), new THREE.MeshStandardMaterial({ color: 0x3fb0c8, roughness: 0.1, metalness: 0.15, flatShading: true, transparent: true, opacity: 0.7 }), 0.05, BED + 0.04, 0));
     for (let k = 0; k < 22; k++) {
@@ -1061,7 +1109,7 @@ async function boot() {
     }
     for (const [px, pz, pr] of [[-0.3, -5.6, 0.2], [0.34, -1.6, 0.16], [-0.36, 1.2, 0.22], [0.3, 4.9, 0.18], [-0.32, 6.1, 0.14]]) g.add(blob(pr, 0x8a4a30, px, BED + pr * 0.4, pz));
 
-    const onTop = (x, z) => { const r = Math.hypot(x, z); return Math.abs(x) > 1.5 && (r < 3.0 || r > 4.0) ? M + 0.01 : null; };
+    const onTop = (x, z) => { const r = Math.hypot(x, z); return Math.abs(x) > 1.5 && (r < 3.0 || r > 4.0) ? M + 0.01 + mesaH(x, z) : null; };
     scatter(g, 120, 3, onTop, r => pebble(r > 0.5 ? 0xb4552f : 0xc98a55, r));
     scatter(g, 90, 4, onTop, r => tuft(r > 0.5 ? 0xc9b25a : 0x9a9a4a, 0.7 + r * 0.5));
 
@@ -1264,8 +1312,10 @@ async function boot() {
 
   // FITBA CRAZY — a full 7-a-side match under the lights
   function buildFitba() {
-    const g = blockBase([[0.45, 0x2e7a44], [0.9, 0x6a4a34], [0.7, 0x5a5a52], [1.0, 0x45463f]]);
-    scatter(g, 200, 6, (x, z) => (z > 4.6 || (Math.abs(x) > 4.4 && Math.abs(z) > 3.7) || (Math.abs(x) > 5.4 && Math.abs(z) > 2.5)) ? 0.71 : null,
+    const g = blockBase([[0.45, 0x6a4a34], [0.9, 0x6a4a34], [0.7, 0x5a5a52], [1.0, 0x45463f]], false);
+    const turfH = (x, z) => rise(x, z, 5.95, 0.45, 5);
+    landTop(g, { h: turfH, colour: 0x2e7a44, wall: 0x6a4a34 });
+    scatter(g, 200, 6, (x, z) => (z > 4.6 || (Math.abs(x) > 4.4 && Math.abs(z) > 3.7) || (Math.abs(x) > 5.4 && Math.abs(z) > 2.5)) ? 0.71 + turfH(x, z) : null,
       r => tuft(r > 0.5 ? 0x4fb866 : 0x3f9a52, 0.7 + r * 0.5));
     const TOP = 1.1;
     const WHT = 0xf4f7f2;
@@ -1457,10 +1507,20 @@ async function boot() {
 
   // GRUNT SQUAD — a wet night raid: tracer over the wire, a grenade through the pillbox slit, the prisoners waiting
   function buildGrunt() {
-    const g = blockBase([[0.45, 0x4f6f30], [0.8, 0x5a4530], [0.8, 0x4a4438], [1.0, 0x38342c]]);
+    const g = blockBase([[0.65, 0x5a4530], [0.8, 0x4a4438], [1.0, 0x38342c]], false, 0.1);
+    // the ground: level where the camp stands, rolling at the edges, and cut by the stream
+    const camp = (x, z) => {
+      let hh = rise(x, z, 5.7, 0.6, 7);
+      const along = x * 0.8 + z * 0.6, across = Math.abs(x * 0.6 - z * 0.8);
+      if (along > 1.5 && across < 0.95) hh -= (0.52 + hh) * smooth(1 - across / 0.95) * smooth((along - 1.5) / 0.7);    // the channel
+      const pd = Math.hypot(x - 1.84, z - 1.38);
+      if (pd < 1.0) hh = Math.min(hh, -0.5 * smooth(1 - pd / 1.0));                                                    // the pond at its head
+      return hh;
+    };
+    landTop(g, { nx: 40, nz: 40, base: 0.1, h: camp, colour: hh => hh < -0.3 ? 0x6a5a40 : hh < -0.08 ? 0x5f6a38 : 0x4f6f30, wall: 0x5a4530 });
     const lea = (x, z) => {
-      const r = Math.hypot(x, z), across = Math.abs(x * 0.6 - z * 0.8);
-      return (r > 3.0 && r < 4.2) || (across < 0.45 && x * 0.8 + z * 0.6 > 1.6) ? null : 0.71;
+      const r = Math.hypot(x, z), hh = camp(x, z);
+      return (r > 3.0 && r < 4.2) || hh < -0.04 ? null : 0.71 + hh;
     };
     scatter(g, 330, 7, lea, r => tuft(r > 0.6 ? 0x6f9a45 : r > 0.25 ? 0x557d2e : 0x86a85a, 0.8 + r * 0.7));
     scatter(g, 40, 8, lea, r => pebble(0x7a7a70, r));
@@ -1473,13 +1533,12 @@ async function boot() {
     g.add(track);
 
     // stream out of the pond, under the bridge and off the edge
-    const water = new THREE.MeshStandardMaterial({ color: 0x2f6a9a, roughness: 0.2, metalness: 0.25, flatShading: true });
+    const water = new THREE.MeshStandardMaterial({ color: 0x3f86b8, roughness: 0.12, metalness: 0.2, flatShading: true, transparent: true, opacity: 0.72 });
     const SD = [0.8, 0.6], SROT = -Math.atan2(0.6, 0.8);
-    const stream = lit(new THREE.BoxGeometry(6.4, 0.05, 0.5), water, SD[0] * 5.35, 0.83, SD[1] * 5.35);
-    stream.rotation.y = SROT;
-    const pond = lit(new THREE.CylinderGeometry(0.55, 0.55, 0.05, 9), water, SD[0] * 2.3, 0.83, SD[1] * 2.3);
-    const fall = lit(new THREE.BoxGeometry(0.07, 0.86 - BLOCK_FLOOR, 0.62), water, S + 0.03, (0.86 + BLOCK_FLOOR) / 2, SD[1] * 8.5);
-    g.add(stream, pond, fall);
+    const WL = 0.5;                                   // water level, well below the banks
+    g.add(lit(new THREE.BoxGeometry(S - 0.5, WL - 0.12, 5.6), water, (S + 0.5) / 2 - 0.012, (WL + 0.12) / 2, 3.3));   // one slab; the ground hides it except where the stream has cut down
+    const fall = lit(new THREE.BoxGeometry(0.06, WL - BLOCK_FLOOR, 0.7), water, S + 0.02, (WL + BLOCK_FLOOR) / 2, SD[1] * 8.5);
+    g.add(fall);
     const bridge = grp(SD[0] * 3.6, 0.88, SD[1] * 3.6, -2.214);
     bridge.add(box(1.25, 0.07, 0.95, WOOD, 0, 0, 0), box(1.25, 0.05, 0.05, WOOD, 0, 0.32, 0.45), box(1.25, 0.05, 0.05, WOOD, 0, 0.32, -0.45));
     for (const bx of [-0.58, 0, 0.58]) for (const bz of [-0.45, 0.45]) bridge.add(box(0.06, 0.36, 0.06, WOOD, bx, 0.16, bz));
@@ -2011,8 +2070,10 @@ async function boot() {
 
   // MASCON — the seed factory at work: lunar lander, supply runs, digger and assembly bots, modules, the mass driver firing
   function buildMascon() {
-    const g = blockBase([[0.4, 0x8a8781], [0.5, 0x74716c], [0.9, 0x5c5a58], [1.25, 0x424247]]);
-    scatter(g, 130, 10, () => 0.72, r => pebble(r > 0.5 ? 0x77746e : 0x9b978f, r));
+    const g = blockBase([[0.4, 0x74716c], [0.5, 0x74716c], [0.9, 0x5c5a58], [1.25, 0x424247]], false);
+    const regH = (x, z) => rise(x, z, 6.1, 0.6, 10);
+    landTop(g, { h: regH, colour: 0x8a8781, wall: 0x74716c });
+    scatter(g, 130, 10, (x, z) => 0.72 + regH(x, z), r => pebble(r > 0.5 ? 0x77746e : 0x9b978f, r));
     const TOP = 0.72;
     const WHITE = 0xeceae4, GOLD = 0xd9a441, DARK = 0x2a2a2e, PANEL = 0x1f2f6a, STEEL = 0x8f8c86;
 
@@ -2244,7 +2305,9 @@ async function boot() {
     g.add(asm);
 
     // the mass driver: a rail of drive rings along the back, running off the edge of the world
-    const MA = new THREE.Vector3(-5.5, TOP + 1.5, -4.3), MB = new THREE.Vector3(7.6, TOP + 3.3, -4.9);
+    const MA = new THREE.Vector3(-4.8, TOP + 0.9, -4.6), MB = new THREE.Vector3(3.2, TOP + 5.0, -4.9);
+    const EARTH = new THREE.Vector3().lerpVectors(MA, MB, 1.5);      // the rail points straight at it
+    const aim = new THREE.Vector3().subVectors(MB, MA).normalize(), zAxis = new THREE.Vector3(0, 0, 1);
     const mLen = MA.distanceTo(MB);
     const rail = box(mLen, 0.07, 0.12, STEEL, (MA.x + MB.x) / 2, (MA.y + MB.y) / 2, (MA.z + MB.z) / 2, 0.06);
     rail.rotation.y = -Math.atan2(MB.z - MA.z, MB.x - MA.x);
@@ -2256,7 +2319,7 @@ async function boot() {
       mp.lerpVectors(MA, MB, (k + 0.5) / 22);
       const ring = lit(new THREE.TorusGeometry(0.36, 0.04, 5, 14), new THREE.MeshBasicMaterial({ color: 0x2a8fb0 }), mp.x, mp.y, mp.z);
       driveRings.push(ring);
-      ring.rotation.y = Math.PI / 2 + rail.rotation.y;
+      ring.quaternion.setFromUnitVectors(zAxis, aim);
       g.add(ring);
       if (k % 3 === 0 && Math.abs(mp.x) < 6.6) g.add(cyl(0.04, 0.06, mp.y - TOP, 5, 0x55534f, mp.x, (mp.y + TOP) / 2, mp.z));
     }
@@ -2268,7 +2331,7 @@ async function boot() {
     const cDim = new THREE.Color(0x1f6f8c), cHot = new THREE.Color(0xeaffff);
 
     // Earth, and the command link down to the dish — 2.56 seconds each way
-    const earth = dyn(grp(-4.1, 8.6, -2.4));
+    const earth = dyn(grp(EARTH.x, EARTH.y, EARTH.z));
     const ocean = fMesh(new THREE.IcosahedronGeometry(0.62, 2), 0x2f6fd0, 0.1);
     earth.add(ocean);
     for (const [lat, lon, s, c] of [[0.5, 0.3, 0.27, 0x4f8f4a], [-0.3, 1.9, 0.24, 0x6f8f47], [0.2, 3.6, 0.19, 0x5a8a4a], [1.2, 2.4, 0.19, 0xf2f4f8], [-1.2, 0.8, 0.18, 0xf2f4f8]]) {
@@ -2281,8 +2344,6 @@ async function boot() {
     const bowl = cyl(0.5, 0.08, 0.2, 10, WHITE, DISH.x, DISH.y + 0.1, DISH.z, 0.06);
     bowl.rotation.set(-0.1, 0, 0.12);
     g.add(cyl(0.04, 0.07, 1.0, 5, STEEL, DISH.x, TOP + 0.5, DISH.z), bowl);
-    const ping = lit(new THREE.SphereGeometry(0.1, 6, 5), new THREE.MeshBasicMaterial({ color: 0xffd27e }));
-    g.add(ping);
 
     const LAG = 2.56;
     return {
@@ -2301,7 +2362,6 @@ async function boot() {
         furnaceLight.intensity = 9 * flicker;
         earth.rotation.y = t * 0.12;
         const u = (t % LAG) / LAG;                   // a command in flight, then the ring answers
-        ping.position.lerpVectors(earth.position, DISH, u);
         ringMat.emissiveIntensity = 1.0 + 3.5 * Math.exp(-u * 5);
         head.position.x = Math.sin(t * 1.7) * 0.34;
         bedMat.emissiveIntensity = 0.9 + Math.sin(t * 5) * 0.3;
@@ -2311,9 +2371,9 @@ async function boot() {
         spark.material.emissiveIntensity = Math.sin(t * 0.9) < -0.8 ? 2 + Math.sin(t * 40) * 2 : 0;
         // mass driver: the rings charge from the breech, the payload goes, the muzzle flashes
         const sh = (t % 3.4) / 3.4, firing = sh > 0.45 && sh < 0.7;
-        const fp = firing ? Math.pow((sh - 0.45) / 0.25, 2) * 1.9 : -1;
+        const fp = firing ? Math.pow((sh - 0.45) / 0.25, 2) * 1.5 : -1;   // 1 = muzzle, 1.5 = Earth
         slug.visible = firing;
-        if (firing) slug.position.lerpVectors(MA, MB, fp);
+        if (firing) { slug.position.lerpVectors(MA, MB, fp); slug.scale.setScalar(fp > 1 ? 1 - (fp - 1) * 1.5 : 1); }
         driveRings.forEach((ring, k) => {
           const ru = (k + 0.5) / driveRings.length;
           const charge = sh < 0.45 ? smooth(sh / 0.45 * 1.6 - ru) * (0.55 + 0.45 * Math.sin(t * 22 - k)) : 0;
@@ -2321,7 +2381,7 @@ async function boot() {
           ring.material.color.lerpColors(cDim, cHot, Math.min(1, charge * 0.7 + pass * 1.2));
           ring.scale.setScalar(1 + pass * 0.35);
         });
-        const mz = (sh - 0.62) / 0.16;
+        const mz = (sh - 0.654) / 0.16;
         muzzleMat.opacity = mz > 0 && mz < 1 ? (1 - mz) * 0.9 : 0;
         muzzle.scale.setScalar(0.3 + Math.max(0, mz) * 1.4);
 
@@ -2543,6 +2603,7 @@ async function boot() {
     root.add(g);
     const ROAD = 0.92, BLK = 1.1, MID = 3.72, OUT = 4.22, INN = 3.22;
     const SHORE = 4.3, LAND = SHORE + S;
+    const duneH = (x, z) => rise(x, z, 6.0, 0.6, 11, Math.max(Math.abs(x), -z));   // dunes at the back and sides; the shore stays level
 
     // the block: banded land behind, and in front the sea in section over a shelving bed
     {
@@ -2553,12 +2614,7 @@ async function boot() {
         root.add(slab);
         y -= hgt;
       }
-      const top = new THREE.PlaneGeometry(2 * S - 0.1, LAND - 0.1, 16, 13);
-      top.rotateX(-Math.PI / 2);
-      const sand = fMesh(top, 0xdcae82, 0.1);
-      sand.position.set(0, 0.806, (SHORE - S) / 2);
-      sand.userData.flat = true;
-      root.add(sand);
+      landTop(root, { z1: SHORE, nz: 22, y: 0.806, base: 0.78, h: duneH, colour: 0xdcae82, wall: 0xdcae82, edges: [0, 1, 1, 1] });
       const bedShape = new THREE.Shape();
       bedShape.moveTo(SHORE, BLOCK_FLOOR); bedShape.lineTo(S, BLOCK_FLOOR); bedShape.lineTo(S, -1.25);
       bedShape.lineTo(SHORE + 1.5, 0.1); bedShape.lineTo(SHORE + 0.7, 0.72); bedShape.lineTo(SHORE, 0.72);
@@ -2575,7 +2631,7 @@ async function boot() {
     const seaMat = new THREE.MeshStandardMaterial({ color: 0x35c0d8, roughness: 0.08, metalness: 0.1, flatShading: true, transparent: true, opacity: 0.5 });
     const SEA = 0.84;
     root.add(lit(new THREE.BoxGeometry(2 * S - 0.03, SEA + 1.3, S - SHORE - 0.012), seaMat, 0, (SEA - 1.3) / 2, (SHORE + S) / 2 - 0.008));
-    scatter(root, 70, 11, (x, z) => Math.hypot(x, z + 0.8) > 5.75 && z < SHORE - 0.3 ? 0.81 : null, r => r > 0.45 ? tuft(0x7ab87a, 0.6 + r * 0.5) : pebble(0xf4e6cf, r));
+    scatter(root, 70, 11, (x, z) => Math.hypot(x, z + 0.8) > 5.75 && z < SHORE - 0.3 ? 0.81 + duneH(x, z) : null, r => r > 0.45 ? tuft(0x7ab87a, 0.6 + r * 0.5) : pebble(0xf4e6cf, r));
 
     g.add(cyl(5.6, 5.6, 0.1, 24, 0xe8c79a, 0, 0.82, 0, 0.08), cyl(4.75, 4.75, 0.1, 28, 0x34344e, 0, 0.87, 0, 0.06), cyl(2.7, 2.7, 0.34, 10, 0x6a7290, 0, 0.93, 0, 0.08),
       cyl(4.9, 4.9, 0.02, 28, 0x9a94a8, 0, 0.865, 0, 0.04));
