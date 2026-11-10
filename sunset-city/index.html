@@ -14,7 +14,7 @@
 <meta name="twitter:card" content="summary_large_image"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <link rel="apple-touch-icon" href="/sunset-city/square.png"/>
-<meta name="build-version" content="v0.21"/>
+<meta name="build-version" content="v0.22"/>
 <style>
   html,body{margin:0;padding:0;overflow:hidden;background:#1a1420;height:100%;touch-action:none;}
   canvas{display:block;}
@@ -9691,23 +9691,23 @@ function footHint(on){
 // ---- car model registry: build fn + physics + garage price ----
 const MODELS={
   midnight:{name:'THE MIDNIGHT', color:0x121317, build:h=>buildMidnight(h),            hs:[0,0.62,2.7], price:0,    garage:true,
-            cfg:{maxSpeed:82,accel:35,brake:46,revMax:14,gripRoad:5.3,gripHand:1.7,steerRate:2.3,torque:true,roll:1.5,squat:1.6,colR:2.55,pitchL:1.6}},
+            cfg:{maxSpeed:52,accel:13,brake:46,revMax:14,gripRoad:5.3,gripHand:1.7,steerRate:2.3,torque:true,roll:1.5,squat:1.6,colR:2.55,pitchL:1.6}},
   coupe:   {name:'THE COUPE',   color:0xc9ccd1, build:h=>buildCoupe(h),               hs:[0,0.86,2.4], price:0,    garage:true,
-            cfg:{maxSpeed:76,accel:44,brake:52,revMax:16,gripRoad:6.5,gripHand:2.0,steerRate:2.8,torque:true}},
+            cfg:{maxSpeed:50,accel:14.5,brake:52,revMax:16,gripRoad:6.5,gripHand:2.0,steerRate:2.8,torque:true}},
   riviera: {name:'RIVIERA',      color:0x3e221c, build:h=>buildRiviera(h),              hs:[0,1.1,2.3],  price:4500, garage:true,
-            cfg:{maxSpeed:54,accel:31,brake:48,revMax:13,gripRoad:6.1,gripHand:1.9,steerRate:2.5}},
+            cfg:{maxSpeed:45,accel:11.8,brake:48,revMax:13,gripRoad:6.1,gripHand:1.9,steerRate:2.5}},
   sedan:   {name:'SEDAN',        color:0x3f7fd9, build:h=>buildCar({body:h,type:'civ'}),hs:[0,1.0,2.4],  price:2200, garage:true,
-            cfg:{maxSpeed:46,accel:26,brake:46,revMax:12,gripRoad:5.8,gripHand:1.8,steerRate:2.4}},
+            cfg:{maxSpeed:39,accel:9.9,brake:46,revMax:12,gripRoad:5.8,gripHand:1.8,steerRate:2.4}},
   pickup:  {name:'STEPSIDE',     color:0x8a3a2a, build:h=>buildPickup(h),               hs:[0,1.05,2.3], price:1800, garage:true,
-            cfg:{maxSpeed:42,accel:24,brake:44,revMax:12,gripRoad:5.2,gripHand:1.6,steerRate:2.1}},
+            cfg:{maxSpeed:36,accel:9.1,brake:44,revMax:12,gripRoad:5.2,gripHand:1.6,steerRate:2.1}},
   wagon:   {name:'ESTATE WAGON', color:0x2e5a46, build:h=>buildWagon(h),                hs:[0,1.0,2.5],  price:2600, garage:true,
-            cfg:{maxSpeed:48,accel:27,brake:46,revMax:12,gripRoad:6.0,gripHand:1.8,steerRate:2.3}},
+            cfg:{maxSpeed:40,accel:10.3,brake:46,revMax:12,gripRoad:6.0,gripHand:1.8,steerRate:2.3}},
   interceptor:{name:'INTERCEPTOR',color:0xeef0f2,build:h=>buildCar({body:0xeef0f2,type:'cop'}),hs:[0,1.0,2.4],price:9000,garage:true,
-            cfg:{maxSpeed:62,accel:35,brake:52,revMax:14,gripRoad:6.4,gripHand:2.0,steerRate:2.7}},
+            cfg:{maxSpeed:48,accel:13.3,brake:52,revMax:14,gripRoad:6.4,gripHand:2.0,steerRate:2.7}},
   taxi:    {name:'CAB',          color:0xf2b134, build:h=>buildCar({body:0xf2b134,type:'taxi'}),hs:[0,1.0,2.4],price:0,garage:false,
-            cfg:{maxSpeed:46,accel:26,brake:46,revMax:12,gripRoad:5.8,gripHand:1.8,steerRate:2.4}},
+            cfg:{maxSpeed:39,accel:9.9,brake:46,revMax:12,gripRoad:5.8,gripHand:1.8,steerRate:2.4}},
   bus:     {name:'CITY BUS',     color:0x5fb8a5, build:h=>buildBus(),                   hs:[0,1.6,4.9],  price:0,    garage:false,
-            cfg:{maxSpeed:30,accel:16,brake:40,revMax:8, gripRoad:4.6,gripHand:1.4,steerRate:1.7}},
+            cfg:{maxSpeed:36,accel:8.5,brake:40,revMax:8, gripRoad:4.6,gripHand:1.4,steerRate:1.7}},
 };
 let pCar=null, headSpot=null, selectedModel='midnight';
 let owned=new Set(['midnight','coupe']);
@@ -12775,8 +12775,8 @@ function updatePlayer(dt,t){
   // Rolling resistance + v-squared aerodynamic drag replace the old flat coast damping.
   // The car coasts a long way on tarmac, scrubs speed hard at the top end,
   // and bogs down properly in the dirt. Top speeds are unchanged.
-  const rres=inWater?2.2:(onHard?0.12:0.7);
-  vf-=(rres*vf+0.0016*vf*Math.abs(vf))*dt;
+  const rres=inWater?2.2:(onHard?0.05:0.55);
+  vf-=(rres*vf+0.0011*vf*Math.abs(vf))*dt;
   if(hb) vf*=Math.max(0,1-1.4*dt);
   vf=clamp(vf,-CFG.revMax,CFG.maxSpeed);
   // longitudinal acceleration -> weight transfer (positive = load on the rear axle)
@@ -14873,6 +14873,6 @@ addEventListener('resize',()=>{
   if(meOn){ mecv.width=innerWidth; mecv.height=innerHeight; }
 });
 </script>
-<div id="buildver" style="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(2px + env(safe-area-inset-bottom));font:600 10px/1.2 ui-monospace,Menlo,monospace;color:#fff;opacity:.6;letter-spacing:.06em;pointer-events:none;z-index:2147483000;text-shadow:0 1px 2px #000">v0.21 · 10 Nov 07:47</div>
+<div id="buildver" style="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(2px + env(safe-area-inset-bottom));font:600 10px/1.2 ui-monospace,Menlo,monospace;color:#fff;opacity:.6;letter-spacing:.06em;pointer-events:none;z-index:2147483000;text-shadow:0 1px 2px #000">v0.22 · 10 Nov 07:58</div>
 </body>
 </html>
