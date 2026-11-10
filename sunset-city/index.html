@@ -14,7 +14,7 @@
 <meta name="twitter:card" content="summary_large_image"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <link rel="apple-touch-icon" href="/sunset-city/square.png"/>
-<meta name="build-version" content="v0.18"/>
+<meta name="build-version" content="v0.19"/>
 <style>
   html,body{margin:0;padding:0;overflow:hidden;background:#1a1420;height:100%;touch-action:none;}
   canvas{display:block;}
@@ -8655,12 +8655,12 @@ function footGunBuild(){
   const g=new THREE.Group();
   const frame=new THREE.Mesh(mergeParts([
     {g:box(0.036,0.03,0.205),c:C.gm,y:0.043,z:0.05},               // frame / dust cover under the slide
-    {g:box(0.046,0.128,0.062),c:C.grip,y:-0.03,z:-0.04,rx:0.3},     // chunky wood grip
-    {g:box(0.036,0.135,0.07),c:C.dk,y:-0.03,z:-0.042,rx:0.3},       // grip frame (front/back straps)
-    {g:box(0.04,0.018,0.066),c:C.dk,y:-0.097,z:-0.06,rx:0.3},       // magazine base
+    {g:box(0.034,0.128,0.058),c:C.grip,y:-0.03,z:-0.04,rx:0.3},     // wood grip panels (slim enough for his fingers to close round)
+    {g:box(0.026,0.135,0.066),c:C.dk,y:-0.03,z:-0.042,rx:0.3},      // grip frame (front/back straps)
+    {g:box(0.03,0.018,0.064),c:C.dk,y:-0.097,z:-0.06,rx:0.3},       // magazine base
     {g:box(0.012,0.054,0.012),c:C.gm,y:0.003,z:0.082},              // big trigger guard: front post
     {g:box(0.012,0.012,0.09),c:C.gm,y:-0.026,z:0.04},               //   bottom bar
-    {g:box(0.008,0.032,0.01),c:C.dk,y:0.012,z:0.03,rx:0.35},        // trigger
+    {g:box(0.008,0.032,0.01),c:C.dk,y:0.012,z:0.018,rx:0.35},       // trigger
     {g:box(0.018,0.022,0.022),c:C.dk,y:0.07,z:-0.108,rx:-0.3},      // hammer
   ]),MAT.vc); frame.castShadow=true; g.add(frame);
   const slide=new THREE.Mesh(mergeParts([
@@ -8683,19 +8683,64 @@ function footGunBuild(){
   flame.position.set(0,0.075,0.2); flame.visible=false; flame.renderOrder=6; g.add(flame);
   return {g,slide,muz,flame,slideZ:slide.position.z};
 }
+// ---- D's hands: every finger has three joints that curl about an axis fixed in the bone's own bind frame (tip towards
+// the palm) plus a sideways spread at the knuckle; the thumb swings in towards the fingers / across the palm and flexes.
+// A hand pose is 21 numbers: Index, Middle, Ring, Pinky x [knuckle, middle joint, tip joint, spread], then the thumb
+// [in towards the fingers, across the palm, flex 1, flex 2, flex 3]. Poses blend by plain interpolation.
+const FR_HAND={
+  open: [0.06,0.10,0.06,0.10, 0.08,0.12,0.08,0.02, 0.12,0.14,0.08,-0.05, 0.16,0.16,0.10,-0.12, 0.00,0.10,0.00,0.10,0.05],
+  relax:[0.24,0.42,0.26,0.05, 0.36,0.52,0.32,0.00, 0.46,0.58,0.34,-0.03, 0.56,0.62,0.36,-0.08, 0.22,0.30,0.08,0.26,0.22],
+  fist: [0.95,1.25,0.80,0.00, 1.08,1.32,0.85,0.00, 1.14,1.34,0.85,0.00, 1.20,1.34,0.85,-0.03, 0.42,0.78,0.15,0.50,0.60],
+  grip: [0.10,0.14,0.10,0.06, 1.40,0.50,0.75,0.00, 1.43,0.52,0.75,0.00, 1.47,0.55,0.75,0.02, -0.15,0.00,0.00,0.15,0.10],
+  trig: [0.30,0.30,0.50,0.00, 1.40,0.50,0.75,0.00, 1.43,0.52,0.75,0.00, 1.47,0.55,0.75,0.02, -0.15,0.00,0.00,0.15,0.10],
+  wrap: [1.18,1.10,0.50,0.02, 1.24,1.14,0.52,0.00, 1.30,1.16,0.52,0.00, 1.36,1.20,0.55,0.00, 0.35,0.85,0.10,0.18,0.15],
+  wheel:[1.00,1.15,0.60,0.00, 1.06,1.18,0.62,0.00, 1.10,1.20,0.62,0.00, 1.14,1.20,0.62,0.00, 0.30,0.70,0.10,0.30,0.30]};
+const _fhP=new Float32Array(21), _fhQ=new Float32Array(21);
+function frMix(o,a,b,k){ for(let i=0;i<21;i++) o[i]=a[i]+(b[i]-a[i])*k; return o; }
+function frEase(p){ return p*p*(3-2*p); }
+function footHandMake(B,bindW,bindL,side){
+  const P=new THREE.Vector3(), Sc=new THREE.Vector3(), X=THREE.Vector3;
+  const wp=n=>new X().setFromMatrixPosition(bindW[B[side+n].name]);
+  const iq=b=>{ const q=new THREE.Quaternion(); bindW[b.name].decompose(P,q,Sc); return q.invert(); };
+  const w=wp('Hand'), a=wp('HandMiddle1').sub(w), len=a.length(); a.normalize();
+  const u=wp('HandIndex1').sub(wp('HandPinky1')); u.addScaledVector(a,-u.dot(a)).normalize();      // little finger -> index side
+  const n=new X().crossVectors(u,a); if(side==='Left') n.negate();                                  // out of the palm
+  const sp=new X().crossVectors(a,u), J=[];
+  for(const f of ['Index','Middle','Ring','Pinky']){
+    const d=wp('Hand'+f+'2').sub(wp('Hand'+f+'1')).normalize(), c=new X().crossVectors(d,n).normalize();
+    for(let j=1;j<=3;j++){ const b=B[side+'Hand'+f+j], q=iq(b);
+      J.push({b,q0:bindL[b.name],ax:c.clone().applyQuaternion(q),sp:j===1?sp.clone().applyQuaternion(q):null}); } }
+  const td=wp('HandThumb2').sub(wp('HandThumb1')).normalize();
+  const add=new X().crossVectors(td,a).normalize(), opp=new X().crossVectors(u,n).normalize(), fl=new X().crossVectors(td,n).normalize();
+  for(let j=1;j<=3;j++){ const b=B[side+'HandThumb'+j], q=iq(b);
+    J.push({b,q0:bindL[b.name],ax:fl.clone().applyQuaternion(q),add:add.clone().applyQuaternion(q),opp:opp.clone().applyQuaternion(q)}); }
+  const hi=iq(B[side+'Hand']);
+  return {J,len,a:a.applyQuaternion(hi),u:u.applyQuaternion(hi),n:n.applyQuaternion(hi),q0:bindL[B[side+'Hand'].name]};
+}
+function footHandSet(H,p){
+  const J=H.J, Q=_frQ; let k=0;
+  for(let f=0;f<4;f++){ const o=f*4;
+    for(let j=0;j<3;j++){ const s=J[k++], q=s.b.quaternion; q.copy(s.q0);
+      if(j===0&&p[o+3]) q.multiply(Q.setFromAxisAngle(s.sp,p[o+3]));
+      q.multiply(Q.setFromAxisAngle(s.ax,p[o+j])); } }
+  let s=J[12], q=s.b.quaternion;
+  q.copy(s.q0).multiply(Q.setFromAxisAngle(s.opp,p[17])).multiply(Q.setFromAxisAngle(s.add,p[16])).multiply(Q.setFromAxisAngle(s.ax,p[18]));
+  s=J[13]; s.b.quaternion.copy(s.q0).multiply(Q.setFromAxisAngle(s.ax,p[19]));
+  s=J[14]; s.b.quaternion.copy(s.q0).multiply(Q.setFromAxisAngle(s.ax,p[20]));
+}
 function footRigMake(){
   try{
     const gl=FR.gltf, root=gl.scene, g=new THREE.Group(); g.rotation.order='YXZ';
     root.scale.setScalar(FR_SCALE); g.add(root);
     const SP=footSkinPrep(root), mesh=SP.mesh, B=SP.B;
     // bind pose (from the inverse bind matrices): the gun / finger frames, the seated pose, and a fallback idle
-    const sk=mesh.skeleton, bindW={}, tracks=[], bindQ=[];
+    const sk=mesh.skeleton, bindW={}, bindL={}, tracks=[], bindQ=[];
     sk.bones.forEach((b,i)=>{ bindW[b.name]=new THREE.Matrix4().copy(sk.boneInverses[i]).invert(); });
     const bp=new THREE.Vector3(), bq=new THREE.Quaternion(), bs=new THREE.Vector3();
     for(const b of sk.bones){
       const P=b.parent&&bindW[b.parent.name];
       const L=P?new THREE.Matrix4().copy(P).invert().multiply(bindW[b.name]):bindW[b.name].clone();
-      L.decompose(bp,bq,bs); bindQ.push(bq.clone());
+      L.decompose(bp,bq,bs); bindQ.push(bq.clone()); bindL[b.name]=bq.clone();
       tracks.push(new THREE.QuaternionKeyframeTrack(b.name+'.quaternion',[0,1],[bq.x,bq.y,bq.z,bq.w,bq.x,bq.y,bq.z,bq.w]));
       if(b===B.Hips) tracks.push(new THREE.VectorKeyframeTrack(b.name+'.position',[0,1],[bp.x,bp.y,bp.z,bp.x,bp.y,bp.z]));
     }
@@ -8713,46 +8758,40 @@ function footRigMake(){
     let armDrop=0;
     if(!idle){ const s=new THREE.Vector3().setFromMatrixPosition(bindW[B.RightArm.name]), h=new THREE.Vector3().setFromMatrixPosition(bindW[B.RightHand.name]);
       armDrop=Math.max(0,Math.atan2(Math.abs(h.x-s.x),s.y-h.y)-0.14); }
-    // the gun in the right hand: hand frame from the bind pose (fingers = +y, pinky->index = gun up, palm = gun +x)
-    const gun=footGunBuild();
-    const hInv=new THREE.Matrix4().copy(bindW[B.RightHand.name]).invert();
-    const loc=n=>new THREE.Vector3().setFromMatrixPosition(bindW[B[n].name]).applyMatrix4(hInv);
-    const mid=loc('RightHandMiddle1'), along=mid.clone().normalize();
-    const up2=loc('RightHandIndex1').sub(loc('RightHandPinky1')); up2.addScaledVector(along,-up2.dot(along)).normalize();
-    const zg=along.clone().addScaledVector(up2,0.1).normalize();
-    const yg=up2.clone().addScaledVector(zg,-up2.dot(zg)).normalize(), xg=new THREE.Vector3().crossVectors(yg,zg);
+    // the gun in the right hand: the hand line (wrist -> middle knuckle) runs along the right grip panel, knuckles at the
+    // front strap, palm against the panel; the barrel sits FR_GRIP[3] above the hand line so the fingers wrap the raked grip squarely
+    const HR=footHandMake(B,bindW,bindL,'Right'), HL=footHandMake(B,bindW,bindL,'Left');
+    const gun=footGunBuild(), G=FR_GRIP, cg=Math.cos(G[3]), sg=Math.sin(G[3]);
+    const zg=HR.a.clone().multiplyScalar(cg).addScaledVector(HR.u,sg), yg=HR.u.clone().multiplyScalar(cg).addScaledVector(HR.a,-sg),
+      xg=new THREE.Vector3().crossVectors(yg,zg);
     gun.g.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(xg,yg,zg));
-    gun.g.position.copy(along).multiplyScalar(mid.length()*FR_GRIP[0]).addScaledVector(xg,FR_GRIP[1]).addScaledVector(yg,FR_GRIP[2]);
+    gun.g.position.copy(HR.a).multiplyScalar(HR.len*G[0]).addScaledVector(xg,G[1]).addScaledVector(yg,G[2]);
     gun.g.scale.setScalar(1/FR_SCALE);
     B.RightHand.add(gun.g);
-    // finger curl round the grip: an axis fixed in each finger bone's own (bind) frame
-    const hq=new THREE.Quaternion(); bindW[B.RightHand.name].decompose(bp,hq,bs);
-    const curlW=new THREE.Vector3().crossVectors(along,xg).normalize().applyQuaternion(hq);   // rotates fingers towards the palm
-    const curl=[];
-    for(const f of ['Index','Middle','Ring','Pinky']) for(let j=1;j<=3;j++){ const b=B['RightHand'+f+j]; if(!b) continue;
-      bindW[b.name].decompose(bp,bq,bs); const ax=curlW.clone().applyQuaternion(bq.clone().invert()).normalize();
-      curl.push({b,ax,ang:(f==='Index'?FR_CURL_I:FR_CURL)[j-1]}); }
-    const lhInv=new THREE.Matrix4().copy(bindW[B.LeftHand.name]).invert();
-    const lloc=n=>new THREE.Vector3().setFromMatrixPosition(bindW[B[n].name]).applyMatrix4(lhInv);
-    const lalong=lloc('LeftHandMiddle1').normalize(), lup=lloc('LeftHandIndex1').sub(lloc('LeftHandPinky1'));
-    lup.addScaledVector(lalong,-lup.dot(lalong)).normalize();
-    const lq=new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3().crossVectors(lup,lalong),lup,lalong));
-    // left fingers curl too (only while the left hand supports the grip): mirrored palm
-    const lhq=new THREE.Quaternion(); bindW[B.LeftHand.name].decompose(bp,lhq,bs);
-    const lpalm=new THREE.Vector3().crossVectors(lalong,lup).multiplyScalar(FR_LSIGN);
-    const lcurlW=new THREE.Vector3().crossVectors(lalong,lpalm).normalize().applyQuaternion(lhq), lcurl=[];
-    for(const f of ['Index','Middle','Ring','Pinky']) for(let j=1;j<=3;j++){ const b=B['LeftHand'+f+j]; if(!b) continue;
-      bindW[b.name].decompose(bp,bq,bs); lcurl.push({b,ax:lcurlW.clone().applyQuaternion(bq.clone().invert()).normalize(),ang:[0.9,1.0,0.7][j-1]}); }
+    // left hand frame (back of the hand, index side, along the fingers) for laying it on the gun
+    const lq=new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3().crossVectors(HL.u,HL.a),HL.u,HL.a));
+    const hdq=new THREE.Quaternion(); bindW[B.Head.name].decompose(bp,hdq,bs);
+    const headF=new THREE.Vector3(0,0,1).applyQuaternion(hdq.invert());             // 'straight ahead' in the head bone's frame
     g.visible=false; scene.add(g);
     const bones=sk.bones.slice();
-    return {g,muz:gun.muz,rig:true,root,mesh,B,mixer,aI,aW,aR,aK,armDrop,bindQ,seated:false,gun,curl,lcurl,bones,snap:bones.map(b=>b.quaternion.clone()),gunQ:gun.g.quaternion.clone(),lhQ:lq,
+    footRigReset();
+    return {g,muz:gun.muz,rig:true,root,mesh,B,mixer,aI,aW,aR,aK,armDrop,bindQ,seated:false,gun,HR,HL,headF,bones,snap:bones.map(b=>b.quaternion.clone()),
+      gunQ:gun.g.quaternion.clone(),lhQ:lq,seatQ:null,wheelC:new THREE.Vector3(),
+      arm:[B.RightArm,B.RightForeArm,B.RightHand,B.LeftArm,B.LeftForeArm,B.LeftHand],
       save:[new THREE.Quaternion(),new THREE.Quaternion(),new THREE.Quaternion(),new THREE.Quaternion(),new THREE.Quaternion(),new THREE.Quaternion()]};
   }catch(e){ console.warn('driver rig:',e); FR.failed=true; return null; }
 }
-// grip tuning for the Gentleman's hand: [distance along the palm (x wrist->knuckle), towards the palm, up]; finger curl per joint
-const FR_GRIP=[0.95,0.022,0.018], FR_CURL=[1.15,1.25,0.8], FR_CURL_I=[0.55,0.6,0.4];
-// the driver seated at the wheel (shown through the see-through glass while Sol rides): posed once from the bind
-// pose (thighs forward, knees bent, hands on the wheel), then parented to the cab group at the driving seat
+// grip tuning for D's hand: [grip centre along the hand line (x wrist->knuckle), out of the palm, up, barrel pitch above the hand line]
+const FR_GRIP=[1.18,0.030,0.026,0.26];
+// support hand on the gun: wrist position in the gun's frame, then how far the hand line dips below the barrel and rolls under the grip
+const FR_SUP=[0.052,-0.002,-0.066,0.55,0.25];
+function footRigReset(){
+  FR.rec=0; FR.rx=0; FR.rv=0; FR.aimW=0; FR.wI=1; FR.wW=0; FR.wR=0; FR.wK=0; FR.kOn=false; FR.kFace=0; FR.seq=null; FR.hipTw=0; FR.back=false;
+  FR.yawS=0; FR.acc=0; FR.pvF=0; FR.pa=null; FR.hy=0; FR.hp=0; FR.stepW=0; FR.lx=0; FR.lz=0; FR.flashF=0;
+}
+// the driver seated at the wheel (shown through the see-through glass while Sol rides): posed from the bind pose
+// (thighs forward, knees bent), parented to the cab group at the driving seat; footSeatTick then keeps his hands on
+// the turning wheel and his head looking into the corner
 function footRigSeat(cab,x,hipY,z){
   if(onFoot) return false;
   if(!avatar&&FR.ready){ try{ ensureAvatar(); }catch(e){} }
@@ -8766,15 +8805,34 @@ function footRigSeat(cab,x,hipY,z){
     for(const s of [1,-1]){ const n=s>0?'Left':'Right';
       frRotW(B[n+'UpLeg'],X,-1.4); frRotW(B[n+'UpLeg'],Y,0.13*s); frRotW(B[n+'Leg'],X,0.95); frRotW(B[n+'Foot'],X,-0.35); }
     const H=B.Hips.getWorldPosition(new THREE.Vector3());
-    for(const s of [1,-1]){ const n=s>0?'Left':'Right';
-      frIK2(B[n+'Arm'],B[n+'ForeArm'],B[n+'Hand'],new THREE.Vector3(H.x+0.17*s,H.y+0.33,H.z+0.44),new THREE.Vector3(0.7*s,-1,-0.2)); }
-    for(const c of A.curl) c.b.quaternion.multiply(_frQ.setFromAxisAngle(c.ax,c.ang*0.7));
-    for(const c of A.lcurl) c.b.quaternion.multiply(_frQ.setFromAxisAngle(c.ax,c.ang*0.9));
-    A.gun.g.visible=false;
-    cab.add(g); g.position.set(x-H.x,hipY-H.y,z-H.z); g.visible=true; A.seated=true; return true;
+    A.wheelC.set(H.x,H.y+0.34,H.z+0.45);
+    if(!A.seatQ) A.seatQ=BL.map(b=>b.quaternion.clone()); else for(let i=0;i<BL.length;i++) A.seatQ[i].copy(BL[i].quaternion);
+    footHandSet(A.HR,FR_HAND.wheel); footHandSet(A.HL,FR_HAND.wheel);
+    A.gun.g.visible=false; FR.seq=null; FR.sw=0;
+    cab.add(g); g.position.set(x-H.x,hipY-H.y,z-H.z); g.visible=true; A.seated=true;
+    footSeatTick(0);
+    return true;
   }catch(e){ console.warn('driver seat:',e); A.seated=true; footRigUnseat(); return false; }
 }
-function footRigUnseat(){ const A=avatar; if(!A||!A.seated) return; A.seated=false; scene.add(A.g); A.g.visible=onFoot; if(A.gun) A.gun.g.visible=true; }
+function footRigUnseat(){ const A=avatar; if(!A||!A.seated) return; A.seated=false; scene.add(A.g); A.g.visible=onFoot; if(A.gun) A.gun.g.visible=true;
+  if(A.rig){ const BL=A.bones; for(let i=0;i<BL.length;i++) BL[i].quaternion.copy(A.snap[i]); footRigReset(); } }
+// seated: hands ride the wheel rim as it turns (player.steerVis), shoulders and head lean into the corner
+function footSeatTick(dt){
+  const A=avatar; if(!A||!A.seated||!A.rig||!A.seatQ) return;
+  const B=A.B, g=A.g, BL=A.bones, SQ=A.seatQ;
+  const st=clamp((typeof player!=='undefined'&&player.steerVis)||0,-0.6,0.6);
+  FR.sw+=(st-FR.sw)*Math.min(1,dt>0?dt*9:1);
+  for(let i=0;i<BL.length;i++){ const b=BL[i]; if(b===B.Spine1||b===B.Spine2||b===B.Neck||b===B.Head||b.name.indexOf('Arm')>=0||b===B.LeftHand||b===B.RightHand||b.name.indexOf('Shoulder')>=0) b.quaternion.copy(SQ[i]); }
+  g.updateWorldMatrix(true,true);
+  g.getWorldQuaternion(_fq[0]);
+  const X=_fv[0].set(1,0,0).applyQuaternion(_fq[0]), Y=_fv[1].set(0,1,0).applyQuaternion(_fq[0]), Z=_fv[2].set(0,0,1).applyQuaternion(_fq[0]);
+  const sw=FR.sw, phi=sw*2.6;
+  frRotW(B.Spine2,Z,-sw*0.16); frRotW(B.Neck,Y,sw*0.45); frRotW(B.Head,Y,sw*0.55); frRotW(B.Head,Z,-sw*0.12);
+  const C=g.localToWorld(_fv[3].copy(A.wheelC)), WU=_fv[4].copy(Y).multiplyScalar(0.9).addScaledVector(Z,0.44).normalize(), R=0.17*FR_SCALE;
+  for(const s of [1,-1]){ const n=s>0?'Left':'Right', al=(s>0?0.28:Math.PI-0.28)-phi;
+    const T=_fv[5].copy(C).addScaledVector(X,Math.cos(al)*R).addScaledVector(WU,Math.sin(al)*R);
+    frIK2(B[n+'Arm'],B[n+'ForeArm'],B[n+'Hand'],T,_fv[6].copy(Y).multiplyScalar(-1).addScaledVector(X,0.7*s).addScaledVector(Z,-0.2)); }
+}
 // rotate a bone by a WORLD-space rotation about its own pivot
 function frRotW(b,axis,ang){
   if(Math.abs(ang)<1e-5) return;
@@ -8802,25 +8860,66 @@ function frIK2(up,mid,end,T,pole){
 }
 // set a bone's WORLD orientation
 function frSetW(b,qw){ b.parent.getWorldQuaternion(_frQ2); b.quaternion.copy(_frQ2.invert().multiply(qw)); b.updateMatrixWorld(true); }
+// set a hand's WORLD orientation, letting the forearm take a share of the roll so the wrist isn't wrung like a towel
+function frSetHandW(fore,hand,qw,q0,k){
+  fore.getWorldQuaternion(_frQ4).multiply(q0);                                 // where the hand sits if it just follows the forearm
+  const d=_fq[3].copy(qw).multiply(_frQ4.invert());
+  const ax=_frG.subVectors(hand.getWorldPosition(_frC),fore.getWorldPosition(_frB)).normalize();
+  let ang=2*Math.atan2(d.x*ax.x+d.y*ax.y+d.z*ax.z,d.w); if(ang>Math.PI) ang-=Math.PI*2; else if(ang<-Math.PI) ang+=Math.PI*2;
+  frRotW(fore,ax,clamp(ang*k,-1.1,1.1));
+  frSetW(hand,qw);
+}
+const _fv=[],_fq=[]; for(let i=0;i<14;i++) _fv.push(new THREE.Vector3()); for(let i=0;i<4;i++) _fq.push(new THREE.Quaternion());
+const FR_RW=26, FR_RZ=0.5, FR_RV=48;          // recoil spring: rate, damping ratio, kick per shot (peaks at ~1, small overshoot on the way back)
 function footRigUpdate(dt,t,spd,dir,aiming){
-  const A=avatar, B=A.B, g=A.g;
-  // ---- locomotion weights: idle (bind pose) / walk / run, crossfaded by ground speed ----
-  const knock=FT.knockT>0, back=dir<0;
-  // knocked down: he lands on his hands and knees and gets back up (GetUp clip scrubbed by the knock timer);
-  // the same clip's last half-second straightens him up as he climbs out of the car
-  let wk=0;
+  const A=avatar, B=A.B, g=A.g, knock=FT.knockT>0, seq=knock?null:FR.seq;
+  // ---- how he is moving relative to where he faces ----
+  const fa=foot.a, sF=Math.sin(fa), cF=Math.cos(fa), vF=foot.vx*sF+foot.vz*cF, vL=foot.vx*cF-foot.vz*sF, idt=1/Math.max(dt,1e-3);
+  if(FR.pa===null||FR.pa===undefined){ FR.pa=fa; FR.pvF=vF; }
+  FR.yawS+=(clamp(lerpAngle(0,fa-FR.pa,1)*idt,-9,9)-FR.yawS)*Math.min(1,dt*7); FR.pa=fa;
+  FR.acc+=(clamp((vF-FR.pvF)*idt,-30,30)-FR.acc)*Math.min(1,dt*6); FR.pvF=vF;
+  // strafing: the legs walk the way he is going (hips turned up to ~65 deg, backwards past ~105), the chest stays on the aim
+  let twT=0;
+  if(spd>0.5&&!knock){ const ma=Math.atan2(vL,vF), am=Math.abs(ma);
+    if(FR.back?am<1.35:am>1.85) FR.back=!FR.back;
+    twT=clamp(FR.back?ma-(ma<0?-1:1)*Math.PI:ma,-1.15,1.15); }
+  else if(spd<0.3||knock) FR.back=false;
+  FR.hipTw+=(twT-FR.hipTw)*Math.min(1,dt*9);
+  const back=FR.back;
+  // ---- knocked down: he topples the way the hit sent him (on his face, back or side), slides / log-rolls onto his front
+  // (a full tumble after a hard hit), then pushes up through the GetUp clip. Getting out of / into a car plays the clip's
+  // crouch -> stand part forwards / backwards.
+  let wk=0, th=0, yaw=fa, yOff=0, rag=0, el=0;
   if(A.aK){ const D=A.aK.getClip().duration;
-    if(knock){ if(!FR.kOn){ FR.kOn=true; FR.k0=Math.max(0.3,FT.knockT+dt); } const p=clamp(1-FT.knockT/FR.k0,0,1);
-      A.aK.time=Math.min(D-0.02,p<0.4?0.3*p/0.4:0.3+(p-0.4)/0.6*1.3); wk=1; FR.exitT=0; }
-    else { FR.kOn=false; if(FR.exitT>0){ FR.exitT-=dt; A.aK.time=Math.min(D-0.02,0.95+(1-Math.max(0,FR.exitT)/0.45)*0.6); wk=1; } } }
-  FR.wK+=(wk-FR.wK)*Math.min(1,dt*(wk?14:6));
-  const m=knock?0:clamp((spd-0.15)/0.55,0,1), r=back?0:clamp((spd-2.0)/1.3,0,1);
-  const kk=Math.min(1,dt*10);
+    if(knock){
+      if(!FR.kOn){ FR.kOn=true; FR.kFace=0; FR.seq=null; FR.k0=Math.max(0.5,FT.knockT+dt); const kv=Math.hypot(FT.kvx,FT.kvz);
+        FR.kPsi=kv>0.4?Math.atan2(FT.kvx,FT.kvz):fa; FR.kD=lerpAngle(0,fa-FR.kPsi,1);
+        FR.kHard=!!FR.kHardReq||kv>9; FR.kHardReq=false; FR.kSpin=FR.kHard?(FR.kD>=0?-1:1)*Math.PI*2:0; FR.kSeed=Math.random()*6.28; }
+      const K=FR.k0, tUp=Math.min(0.95,K*0.62), tG=K-tUp, tF=Math.min(FR.kHard?0.4:0.3,tG*0.6);
+      el=clamp(K-FT.knockT,0,K);
+      const pu=clamp((el-tG)/tUp,0,1), pb=frEase(clamp(pu/0.3,0,1)), pf=clamp(el/tF,0,1);
+      th=Math.PI/2*pf*pf*(1-pb);
+      const q=frEase(clamp((el-tF*0.4)/Math.max(0.05,tG-tF*0.4),0,1));
+      yaw=FR.kPsi+(FR.kD+FR.kSpin)*(1-q);
+      yOff=0.15*Math.sin(th)+(FR.kHard?0.5:0.1)*Math.sin(Math.PI*clamp(el/(tF*1.5),0,1))*(1-pb);
+      A.aK.time=Math.min(D-0.02,0.12+pu*1.45); wk=pb; rag=(1-pb)*clamp(el/0.07,0,1); FR.wK=wk;
+      if(pu>0&&!FR.kFace){ FR.kFace=1; foot.a=FR.kPsi; FR.pa=foot.a; }          // he gets up facing the way he was thrown
+    } else { FR.kOn=false;
+      if(seq){ const p=clamp(seq.t/seq.d,0,1);
+        if(seq.k==='out'){ A.aK.time=0.78+frEase(clamp(p/0.85,0,1))*0.78; wk=p<0.7?1:1-(p-0.7)/0.3; if(p<0.3) FR.wK=1; }
+        else { const c=clamp((p-0.4)/0.6,0,1); A.aK.time=1.5-frEase(c)*0.72; wk=clamp(c*4,0,1); } } }
+  }
+  if(!knock) FR.wK+=(wk-FR.wK)*Math.min(1,dt*(wk>FR.wK?16:7));
+  // ---- locomotion weights: idle / walk / run crossfaded by ground speed; turning on the spot takes small steps ----
+  const stT=(!knock&&!seq&&spd<0.6)?clamp((Math.abs(FR.yawS)-0.6)/2.4,0,0.6):0;
+  FR.stepW+=(stT-FR.stepW)*Math.min(1,dt*(stT>FR.stepW?12:5));
+  const m=knock?0:Math.max(clamp((spd-0.15)/0.55,0,1),FR.stepW), r=back||knock?0:clamp((spd-2.0)/1.3,0,1);
+  const kk=Math.min(1,dt*7);
   FR.wI+=((1-m)-FR.wI)*kk; FR.wW+=(m*(1-r)-FR.wW)*kk; FR.wR+=(m*r-FR.wR)*kk;
-  const sum=(FR.wI+FR.wW+FR.wR||1)/(1-FR.wK);
+  const sum=(FR.wI+FR.wW+FR.wR||1)/Math.max(1e-4,1-FR.wK);
   A.aI.setEffectiveWeight(FR.wI/sum); A.aW.setEffectiveWeight(FR.wW/sum); A.aR.setEffectiveWeight(FR.wR/sum);
   if(A.aK) A.aK.setEffectiveWeight(FR.wK);
-  A.aW.timeScale=(back?-1:1)*clamp(spd/FR_WALK_V,0.55,back?2.8:2.4);   // feet keep pace with the ground
+  A.aW.timeScale=(back?-1:1)*clamp(Math.max(spd,FR.stepW*2)/FR_WALK_V,0.55,back?2.8:2.4);   // feet keep pace with the ground
   A.aR.timeScale=clamp(spd/FR_RUN_V,0.8,1.75);
   // the mixer only writes a bone when its blended value changed, so put back last frame's mixer output first
   // (otherwise the procedural layers below would pile up frame after frame on a static pose)
@@ -8828,55 +8927,97 @@ function footRigUpdate(dt,t,spd,dir,aiming){
   for(let i=0;i<BL.length;i++) BL[i].quaternion.copy(SN[i]);
   A.mixer.update(dt);
   for(let i=0;i<BL.length;i++) SN[i].copy(BL[i].quaternion);
+  // ---- root: lean into acceleration and turns (pivot at the feet); toppled over when knocked down ----
+  const quiet=knock||!!seq;
+  FR.lx+=((quiet?0:clamp(FR.acc*0.011,-0.08,0.12)*(1-FR.aimW*0.6))-FR.lx)*Math.min(1,dt*8);
+  FR.lz+=((quiet?0:clamp(-FR.yawS*Math.min(spd,6)*0.013,-0.15,0.15))-FR.lz)*Math.min(1,dt*8);
+  g.rotation.set(FR.lx,yaw,FR.lz);
+  if(th>0.001){ g.quaternion.premultiply(_frQ.setFromAxisAngle(_frK.set(Math.cos(FR.kPsi),0,-Math.sin(FR.kPsi)),th)); }
+  g.position.y+=yOff;
   g.updateMatrixWorld(true);
-  FR.aimW+=((aiming&&!knock&&FR.wK<0.5?1:0)-FR.aimW)*Math.min(1,dt*(aiming?18:7));
-  FR.rec=Math.max(0,FR.rec-dt*4);
-  const aw=FR.aimW, kick=FR.rec*FR.rec;
+  FR.aimW+=((aiming&&!knock&&!seq&&FR.wK<0.5?1:0)-FR.aimW)*Math.min(1,dt*(aiming?18:7));
+  // recoil: a kicked, under-damped spring (snaps up, comes back past rest, settles); FR.rec only drives the slide
+  FR.rec=Math.max(0,FR.rec-dt*7);
+  { const n=Math.max(1,Math.ceil(dt/0.008)), h=dt/n; for(let i=0;i<n;i++){ FR.rv+=(-FR_RW*FR_RW*FR.rx-2*FR_RZ*FR_RW*FR.rv)*h; FR.rx+=FR.rv*h; } }
+  const aw=FR.aimW, kick=clamp(FR.rx,-0.4,1.3), calm=(1-FR.wK)*(1-rag);
   const fwd=_frJ.set(0,0,1).applyQuaternion(g.quaternion), lat=_frK.set(1,0,0).applyQuaternion(g.quaternion);   // lat = his left
+  if(Math.abs(FR.hipTw)>0.01){ const h=FR.hipTw*(1-FR.wK);
+    frRotW(B.Hips,_frUp,h); frRotW(B.Spine,_frUp,-h*0.45); frRotW(B.Spine1,_frUp,-h*0.3); frRotW(B.Spine2,_frUp,-h*0.25); }
   // ---- procedural idle: arms down out of the A-pose, breathing on the chest ----
   const wArm=FR.wI*(1-aw);
   if(A.armDrop){ frRotW(B.RightArm,fwd,A.armDrop*wArm); frRotW(B.LeftArm,fwd,-A.armDrop*wArm); }
-  frRotW(B.Spine2,lat,Math.sin(t*1.7)*0.03*FR.wI*(1-FR.wK)); frRotW(B.Spine1,lat,Math.sin(t*1.7-0.6)*0.012*FR.wI*(1-FR.wK));
-  // ---- aim layer: chest twists to the target, right arm points the gun, left hand supports ----
-  if(aw>0.01||kick>0.001){
-    const T=_frA.set(FT.tgtX,FT.tgtY,FT.tgtZ);
+  frRotW(B.Spine2,lat,Math.sin(t*1.7)*0.03*FR.wI*calm); frRotW(B.Spine1,lat,Math.sin(t*1.7-0.6)*0.012*FR.wI*calm);
+  // ---- limp limbs while he falls and slides ----
+  if(rag>0.01){ const fl=Math.sin(el*13+FR.kSeed)*Math.exp(-el*2.2), s1=Math.sin(FR.kSeed), s2=Math.cos(FR.kSeed*1.7);
+    frRotW(B.Spine1,lat,-0.16*rag); frRotW(B.Neck,lat,(-0.25+0.2*fl)*rag);
+    frRotW(B.RightArm,fwd,-(0.75+0.3*s1+0.4*fl)*rag); frRotW(B.LeftArm,fwd,(0.85+0.3*s2-0.4*fl)*rag);
+    frRotW(B.RightArm,lat,-(0.55+0.35*s2)*rag); frRotW(B.LeftArm,lat,-(0.7-0.3*s1)*rag);
+    frRotW(B.RightForeArm,lat,-(0.5+0.3*fl)*rag); frRotW(B.LeftForeArm,lat,-(0.6-0.3*fl)*rag);
+    frRotW(B.LeftUpLeg,lat,(-0.38-0.25*s1+0.3*fl)*rag); frRotW(B.LeftLeg,lat,(0.75+0.3*s1)*rag);
+    frRotW(B.RightUpLeg,lat,(0.12-0.3*fl)*rag); frRotW(B.RightLeg,lat,(0.3+0.25*s2)*rag); frRotW(B.RightUpLeg,fwd,-0.16*rag); }
+  // ---- gun carried at his side: arm a little out so it clears the thigh, wrist cocked so the muzzle points down and ahead ----
+  { const wC=(1-aw)*calm*(1-0.45*FR.wR); if(wC>0.01){ frRotW(B.RightArm,fwd,-FR_CARRY[0]*wC); frRotW(B.RightForeArm,lat,-FR_CARRY[1]*wC); frRotW(B.RightHand,lat,-FR_CARRY[2]*wC); frRotW(B.RightHand,fwd,-FR_CARRY[3]*wC); } }
+  // ---- aim layer: chest turns and pitches to the target, shoulders come up, both arms carry the gun to the eye line ----
+  if(aw>0.01||Math.abs(kick)>0.002){
+    const T=_fv[0].set(FT.tgtX,FT.tgtY,FT.tgtZ);
     if(!FT.tgt) T.set(foot.x+fwd.x*12,foot.y+1.35,foot.z+fwd.z*12);
-    const tw=clamp(lerpAngle(0,Math.atan2(T.x-foot.x,T.z-foot.z)-foot.a,1),-1,1)*aw;
-    frRotW(B.Spine,_frUp,tw*0.35); frRotW(B.Spine1,_frUp,tw*0.3); frRotW(B.Spine2,_frUp,tw*0.35);
-    frRotW(B.Spine1,lat,-0.07*kick); frRotW(B.Spine2,lat,-0.17*kick);                  // recoil rocks the chest back
-    const tgt=_frE.copy(T);                                                             // (frIK2 reuses _frA)
-    const bones=[B.RightArm,B.RightForeArm,B.RightHand,B.LeftArm,B.LeftForeArm,B.LeftHand];
-    for(let i=0;i<6;i++) A.save[i].copy(bones[i].quaternion);
-    const S=B.RightArm.getWorldPosition(_frB).clone();
-    const reach=S.distanceTo(B.RightForeArm.getWorldPosition(_frC))+B.RightForeArm.getWorldPosition(_frC).distanceTo(B.RightHand.getWorldPosition(_frD));
-    const u=_frF.subVectors(tgt,S).normalize();
-    const HT=new THREE.Vector3().copy(S).addScaledVector(u,reach*0.92).addScaledVector(lat,0.1);
-    HT.addScaledVector(_frUp,0.11*kick).addScaledVector(u,-0.07*kick);                   // hand snaps up and back
-    const gd=new THREE.Vector3().subVectors(tgt,HT).normalize();
-    frIK2(B.RightArm,B.RightForeArm,B.RightHand,HT,new THREE.Vector3().copy(_frUp).multiplyScalar(-1).addScaledVector(lat,-0.8));
-    // gun basis: barrel at the target, then kicked up ~30 deg
-    const yv=new THREE.Vector3().copy(_frUp).addScaledVector(gd,-gd.y).normalize(), ka=0.55*kick;
-    const zk=new THREE.Vector3().copy(gd).multiplyScalar(Math.cos(ka)).addScaledVector(yv,Math.sin(ka));
-    const yk=new THREE.Vector3().copy(yv).multiplyScalar(Math.cos(ka)).addScaledVector(gd,-Math.sin(ka));
-    const xk=new THREE.Vector3().crossVectors(yk,zk);
-    _frQ4.setFromRotationMatrix(_frM.makeBasis(xk,yk,zk));                              // wanted gun world rotation
-    const qGun=_frQ4.clone();
-    frSetW(B.RightHand,_frQ4.multiply(_frQ3.copy(A.gunQ).invert()));
-    // left hand: cups the grip from his left side, fingers wrapped down and forward
+    const ch=B.Spine2.getWorldPosition(_fv[1]), dH=Math.hypot(T.x-ch.x,T.z-ch.z);
+    const tw=clamp(lerpAngle(0,Math.atan2(T.x-foot.x,T.z-foot.z)-yaw,1),-1.2,1.2)*aw, pit=clamp(Math.atan2(T.y-(ch.y+0.1),Math.max(0.5,dH)),-0.8,0.8)*aw;
+    frRotW(B.Spine,_frUp,tw*0.3); frRotW(B.Spine1,_frUp,tw*0.3); frRotW(B.Spine2,_frUp,tw*0.4);
+    const sl=_fv[2].set(Math.cos(yaw+tw),0,-Math.sin(yaw+tw));                              // his left once the chest has turned
+    frRotW(B.Spine,sl,-pit*0.12-0.03*aw); frRotW(B.Spine1,sl,-pit*0.14-0.06*kick); frRotW(B.Spine2,sl,-pit*0.14-0.13*kick);     // recoil rocks the chest back
+    const sf=_fv[3].set(Math.sin(yaw+tw),0,Math.cos(yaw+tw));
+    frRotW(B.RightShoulder,sf,-(0.13*aw+0.11*kick)); frRotW(B.LeftShoulder,sf,0.11*aw+0.07*kick);                              // shoulders hunch, and jump with the shot
+    const AR=A.arm; for(let i=0;i<6;i++) A.save[i].copy(AR[i].quaternion);
+    const S=B.RightArm.getWorldPosition(_fv[4]), E0=B.RightForeArm.getWorldPosition(_fv[5]);
+    const reach=S.distanceTo(E0)+E0.distanceTo(B.RightHand.getWorldPosition(_fv[6]));
+    const u=_fv[6].subVectors(T,S).normalize();
+    const HT=_fv[7].copy(S).addScaledVector(u,reach*(0.84-0.10*kick)).addScaledVector(sl,0.15).addScaledVector(_frUp,0.07+0.05*kick);   // elbows soak up the kick
+    const gd=_fv[8].subVectors(T,HT).normalize();
+    frIK2(B.RightArm,B.RightForeArm,B.RightHand,HT,_fv[9].copy(_frUp).multiplyScalar(-1).addScaledVector(sl,-0.4).addScaledVector(sf,-0.15));
+    // gun basis: barrel at the target, then the wrists break upwards with the kick
+    const yv=_fv[9].copy(_frUp).addScaledVector(gd,-gd.y).normalize(), ka=0.5*kick, ck=Math.cos(ka), sk=Math.sin(ka);
+    const zk=_fv[10].copy(gd).multiplyScalar(ck).addScaledVector(yv,sk), yk=_fv[11].copy(yv).multiplyScalar(ck).addScaledVector(gd,-sk);
+    const xk=_fv[12].crossVectors(yk,zk);
+    const qGun=_fq[0].setFromRotationMatrix(_frM.makeBasis(xk,yk,zk));                    // wanted gun world rotation
+    frSetHandW(B.RightForeArm,B.RightHand,_fq[1].copy(qGun).multiply(_fq[2].copy(A.gunQ).invert()),A.HR.q0,0.55);
+    // left hand: heel on the left grip panel, hand line dipping forward and down, fingers wrapped over the right hand's
     A.gun.g.updateMatrixWorld(true);
-    const LT=A.gun.g.localToWorld(new THREE.Vector3(0.048,-0.035,-0.02));
-    frIK2(B.LeftArm,B.LeftForeArm,B.LeftHand,LT,new THREE.Vector3().copy(_frUp).multiplyScalar(-1).addScaledVector(lat,0.8));
-    _frQ.setFromAxisAngle(_frD.set(1,0,0),0.75);
-    frSetW(B.LeftHand,qGun.multiply(_frQ).multiply(_frQ3.copy(A.lhQ).invert()));
-    if(aw<0.999) for(let i=0;i<6;i++){ _frQ.copy(bones[i].quaternion); bones[i].quaternion.copy(A.save[i]).slerp(_frQ,aw); }   // anim pose -> IK pose
+    const LT=A.gun.g.localToWorld(_fv[13].set(FR_SUP[0],FR_SUP[1],FR_SUP[2]));
+    frIK2(B.LeftArm,B.LeftForeArm,B.LeftHand,LT,_fv[9].copy(_frUp).multiplyScalar(-1).addScaledVector(sl,0.45).addScaledVector(sf,-0.15));
+    _fq[1].copy(qGun).multiply(_frQ.setFromAxisAngle(_fv[9].set(1,0,0),FR_SUP[3])).multiply(_frQ.setFromAxisAngle(_fv[9].set(0,0,1),FR_SUP[4])).multiply(_fq[2].copy(A.lhQ).invert());
+    frSetHandW(B.LeftForeArm,B.LeftHand,_fq[1],A.HL.q0,0.55);
+    if(aw<0.999) for(let i=0;i<6;i++){ _frQ.copy(AR[i].quaternion); AR[i].quaternion.copy(A.save[i]).slerp(_frQ,aw); }   // anim pose -> IK pose
+    frRotW(B.Neck,sl,0.07*aw); frRotW(B.Head,sf,-0.13*aw); frRotW(B.Head,sl,0.05*aw-0.05*kick);                         // cheek down to sight along the barrel
   }
-  for(const c of A.curl) c.b.quaternion.multiply(_frQ.setFromAxisAngle(c.ax,c.ang));
-  if(FR.aimW>0.01) for(const c of A.lcurl) c.b.quaternion.multiply(_frQ.setFromAxisAngle(c.ax,c.ang*FR.aimW));
+  // ---- head: looks at the aim target, else at the car he could get into ----
+  { let hy=0, hp=0, lx=0, ly=0, lz=0, on=false;
+    if(FT.tgt){ lx=FT.tgtX; ly=FT.tgtY; lz=FT.tgtZ; on=true; }
+    else if(FT.near&&FT.near.v&&aw<0.3){ const v=FT.near.v; lx=v.x; lz=v.z; ly=foot.y+1.0; on=true; }
+    if(on&&!knock&&!seq){ g.updateMatrixWorld(true);
+      const hw=B.Head.getWorldPosition(_fv[0]), dx=lx-hw.x, dy=ly-hw.y, dz=lz-hw.z, dh=Math.hypot(dx,dz);
+      if(dh>0.5){ const hf=_fv[1].copy(A.headF).applyQuaternion(B.Head.getWorldQuaternion(_fq[0]));
+        const e=lerpAngle(0,Math.atan2(dx,dz)-Math.atan2(hf.x,hf.z),1);
+        if(Math.abs(e)<2){ hy=clamp(e,-1.05,1.05); hp=clamp(Math.atan2(dy,dh)-Math.atan2(hf.y,Math.hypot(hf.x,hf.z)),-0.45,0.45); } } }
+    FR.hy+=(hy-FR.hy)*Math.min(1,dt*7); FR.hp+=(hp-FR.hp)*Math.min(1,dt*7);
+    if(Math.abs(FR.hy)>0.004||Math.abs(FR.hp)>0.004){ frRotW(B.Neck,_frUp,FR.hy*0.4); frRotW(B.Head,_frUp,FR.hy*0.6);
+      frRotW(B.Head,_fv[2].set(Math.cos(yaw+FR.hy),0,-Math.sin(yaw+FR.hy)),-FR.hp*0.8); } }
+  // ---- fingers: right hand on the grip (index along the frame, into the guard as the gun comes up, squeezing with each
+  // shot); left hand relaxed, a loose fist when running, wrapped over the right hand's fingers in the aim ----
+  { const H=FR_HAND, tg=clamp(aw*1.6-0.5,0,1);
+    frMix(_fhP,H.grip,H.trig,tg); if(FR.rec>0.01) _fhP[1]+=0.25*FR.rec;
+    footHandSet(A.HR,_fhP);
+    frMix(_fhQ,H.relax,H.fist,clamp(FR.wR*0.8,0,1));
+    if(rag>0.01) frMix(_fhQ,_fhQ,H.open,rag*0.8);
+    else { const br=0.05*FR.wI; for(let f=0;f<4;f++){ const w=Math.sin(t*0.9+f*1.3)*br; _fhQ[f*4]+=w; _fhQ[f*4+1]+=w; } }
+    if(aw>0.01) frMix(_fhQ,_fhQ,H.wrap,aw);
+    footHandSet(A.HL,_fhQ); }
   // slide snaps back on each shot; flash lasts a few frames
-  A.gun.slide.position.z=A.gun.slideZ-0.055*Math.pow(FR.rec,3);
+  A.gun.slide.position.z=A.gun.slideZ-0.06*Math.pow(FR.rec,2);
   if(FR.flashF>0){ FR.flashF--; A.gun.muz.visible=A.gun.flame.visible=true; }
   else A.gun.muz.visible=A.gun.flame.visible=false;
 }
+const FR_CARRY=[0.10,0.10,0.16,0.0];        // gun at his side: arm out, elbow bend, wrist cock (muzzle forward), wrist roll
 // ---- shot FX: pooled brass casings + impact shockwave rings; flash/smoke/light/tracer per shot ----
 function footFxInit(){
   if(FR.cas) return;
@@ -8890,7 +9031,7 @@ function footFxInit(){
 }
 function footFxShot(mp,ux,uz){
   footFxInit();
-  FR.flashF=2; FR.rec=1;
+  FR.flashF=2; FR.rec=1; FR.rv+=FR_RV;
   if(avatar&&avatar.rig){ const G=avatar.gun; const s=rand(0.65,0.95);
     G.muz.scale.set(s,s,1); G.muz.material.rotation=rand(0,6.28);
     G.flame.scale.set(rand(0.8,1.2),rand(0.8,1.2),rand(0.85,1.3)); G.flame.rotation.z=rand(0,6.28);
@@ -8940,32 +9081,78 @@ function toggleFoot(){
     if(inWater){ floatText('NOT IN THE WATER'); return; }
     if(player.dyn||player.wreck){ floatText('NOT NOW'); return; }
     if(Math.hypot(player.vx,player.vz)>7){ floatText('SLOW DOWN TO GET OUT'); return; }
-    ensureAvatar(); footRigUnseat(); if(avatar.aK){ FR.exitT=0.45; FR.wK=1; }
+    ensureAvatar(); footRigUnseat();
     const fx=Math.sin(player.a),fz=Math.cos(player.a), d=carDims(pCar), side=d.hx+0.75;
     // driver's door first (car's left = +x local), then the other side, then behind
     const tries=[[fz,-fx,side],[-fz,fx,side],[-fx,-fz,d.hz+0.9],[fx,fz,d.hz+0.9]];
-    let ok=false;
+    let ok=false, eux=fz, euz=-fx;
     for(const [ux,uz,s] of tries){
       foot.x=player.x+ux*s+fx*d.cz*0.3; foot.z=player.z+uz*s+fz*d.cz*0.3;
       const e={x:foot.x,z:foot.z,vx:0,vz:0}; resolveStatic(e,0.38,false);
-      if(Math.hypot(e.x-foot.x,e.z-foot.z)<0.3&&!footSolidAt(e.x,e.z)){ foot.x=e.x; foot.z=e.z; ok=true; break; }
+      if(Math.hypot(e.x-foot.x,e.z-foot.z)<0.3&&!footSolidAt(e.x,e.z)){ foot.x=e.x; foot.z=e.z; eux=ux; euz=uz; ok=true; break; }
     }
     if(!ok){ foot.x=player.x+fz*side; foot.z=player.z-fx*side; }
     foot.a=player.a; foot.y=groundHeight(foot.x,foot.z,player.y); foot.vx=foot.vz=0;
     onFoot=true; avatar.g.visible=true;
     player.vx=0; player.vz=0; player.pvf=0;
     FT.knockT=0; FT.hurtT=0; FT.tgt=null; FT.camYaw=player.a; FT.camInit=false; FT.sprint=false;
+    foot.a=Math.atan2(eux,euz);                                    // he steps out with his back to the car
+    if(avatar.rig&&avatar.aK){ const x1=foot.x, z1=foot.z; footRigReset(); foot.x=x1-eux*0.95; foot.z=z1-euz*0.95;
+      FR.seq={k:'out',t:0,d:footThreat()?0.25:0.5,x0:foot.x,z0:foot.z,x1,z1,a1:foot.a}; FR.wK=1; }
     if(skidGain) skidGain.gain.value=0;
     blip('square',220,140,0.06,0.05);
     bigText(FT.lastTouch?'ON FOOT · STICK TO WALK · FIRE TO SHOOT':'ON FOOT · WASD WALK · SHIFT RUN · SPACE/CLICK FIRE · G CAR','#ffd76a');
     footHint(true);
   } else {
+    if(FR.seq){ const k=FR.seq.k; footSeqEnd(); if(k==='in') return; }      // pressed twice: straight in, no ceremony
     const n=footNearestCar();
     if(!n){ floatText(pCar&&!player.wreck?'WALK TO A CAR':'NOTHING TO GET INTO'); return; }
+    if(avatar&&avatar.rig&&avatar.aK&&FT.knockT<=0){ const d=footDoor(footCarBox(n.own?player:n.v),foot.x,foot.z);
+      FR.seq={k:'in',t:0,d:footThreat()?0.2:clamp(0.42+Math.hypot(d.x-foot.x,d.z-foot.z)*0.14,0.45,0.7),x0:foot.x,z0:foot.z,own:n.own,v:n.own?null:n.v}; return; }
     if(n.own){ footEnterOwn(); return; }
     jackCar(n.v);
   }
 }
+// ---- getting in / out without popping: a short scripted move (FR.seq) over the GetUp clip's crouch <-> stand part.
+// out: from the door sill to the spot beside the car; in: a step to the door, turn his back to it, duck in, then drive.
+function footDoor(B,x,z){        // door-side point of a car box nearest (x,z): stand at x,z; sill at sx,sz; a = facing away from the car
+  const fx=Math.sin(B.a),fz=Math.cos(B.a), dx=x-B.x, dz=z-B.z, f=clamp(dx*fx+dz*fz,-B.hl*0.25,B.hl*0.3), s=(dx*fz-dz*fx)>=0?1:-1;
+  const lx=fz*s, lz=-fx*s, cx=B.x+fx*f, cz=B.z+fz*f;
+  return {x:cx+lx*(B.hw+0.5),z:cz+lz*(B.hw+0.5),sx:cx+lx*(B.hw-0.2),sz:cz+lz*(B.hw-0.2),a:Math.atan2(lx,lz)};
+}
+function footThreat(){           // something is on him: no time for niceties
+  if(FT.hurtT>0) return true;
+  if(zombieMode){ for(const z of zombies) if(!z.dead&&Math.abs(z.x-foot.x)<4.5&&Math.abs(z.z-foot.z)<4.5) return true; }
+  else if(wanted) for(const v of traffic) if(v.kind==='cop'&&Math.abs(v.x-foot.x)<9&&Math.abs(v.z-foot.z)<9) return true;
+  return false;
+}
+function footSeqEnd(){           // finish the move right now
+  const s=FR.seq; if(!s) return; FR.seq=null;
+  if(s.k==='out'){ foot.x=s.x1; foot.z=s.z1; foot.a=s.a1; foot.vx=foot.vz=0; return; }
+  if(!onFoot) return;
+  if(s.own){ if(pCar&&!player.wreck&&!player.dyn) footEnterOwn(); }
+  else if(s.v&&traffic.indexOf(s.v)>=0&&footCarOK(s.v)) jackCar(s.v);
+}
+function footSeqTick(dt){        // true while the move is driving him
+  const s=FR.seq; if(!s) return false;
+  if(FT.knockT>0){ FR.seq=null; return false; }
+  if(!avatar||!avatar.rig){ footSeqEnd(); return false; }
+  s.t+=dt; const p=clamp(s.t/s.d,0,1), px=foot.x, pz=foot.z;
+  if(s.k==='out'){ const e=frEase(clamp(p/0.8,0,1)); foot.x=s.x0+(s.x1-s.x0)*e; foot.z=s.z0+(s.z1-s.z0)*e; foot.a=s.a1; }
+  else {
+    const B=footCarBox(s.own?player:s.v);
+    if(s.own?(!pCar||player.wreck||player.dyn):(traffic.indexOf(s.v)<0||!footCarOK(s.v)||footBoxDist(B,foot.x,foot.z)>3.2)){ FR.seq=null; return false; }   // it drove off / blew up
+    const d=footDoor(B,s.x0,s.z0);
+    if(p<0.5){ const e=frEase(p/0.5), mv=Math.hypot(d.x-s.x0,d.z-s.z0); foot.x=s.x0+(d.x-s.x0)*e; foot.z=s.z0+(d.z-s.z0)*e;
+      foot.a=lerpAngle(foot.a,mv>0.3&&p<0.28?Math.atan2(d.x-s.x0,d.z-s.z0):d.a,Math.min(1,dt*14)); }
+    else { const e=frEase((p-0.5)/0.5); foot.x=d.x+(d.sx-d.x)*e; foot.z=d.z+(d.sz-d.z)*e; foot.a=lerpAngle(foot.a,d.a,Math.min(1,dt*16)); }
+  }
+  const idt=1/Math.max(dt,1e-3); foot.vx=clamp((foot.x-px)*idt,-8,8); foot.vz=clamp((foot.z-pz)*idt,-8,8);
+  if(p>=1){ footSeqEnd(); return false; }
+  return true;
+}
+// knocked off his feet: thrown along (vx,vz); a hard hit tumbles him
+function footKnock(vx,vz,hard){ FT.knockT=avatar&&avatar.rig?(hard?2.1:1.6):1.3; FT.kvx=vx; FT.kvz=vz; FR.kHardReq=!!hard; FR.kOn=false; FR.seq=null; }
 function footEnterOwn(){
   onFoot=false; if(avatar) avatar.g.visible=false; footHideFX();
   player.vx=player.vz=0; player.pvf=0;
@@ -9034,8 +9221,8 @@ function footPickTarget(){
     bs=s; best=ref; bk=kind; bx=tx; bz=tz; by=ty;
   };
   for(const p of peds){ if(p.gibbed||p.rag>=0||p.down>0) continue; consider(p.x,p.z,(p.y||0)+1.1,'ped',p); }
-  for(const v of traffic){ if(!footCarOK(v)||v.parked) continue; consider(v.x,v.z,0.9,v.kind==='cop'?'cop':'car',v); }
-  if(zombieMode) for(const z of zombies) if(!z.dead) consider(z.x,z.z,1.1,'zomb',z);
+  for(const v of traffic){ if(!footCarOK(v)||v.parked) continue; consider(v.x,v.z,(v.y||0)+0.9,v.kind==='cop'?'cop':'car',v); }
+  if(zombieMode) for(const z of zombies) if(!z.dead) consider(z.x,z.z,(z.y||0)+1.1,'zomb',z);
   FT.tgt=best; FT.tgtK=bk; FT.tgtX=bx; FT.tgtZ=bz; FT.tgtY=by;
 }
 function footShoot(t){
@@ -9092,7 +9279,7 @@ function footShoot(t){
     const D=v.car.dmg;
     if(D&&D.exploded&&!was){
       const d=Math.hypot(v.x-foot.x,v.z-foot.z);
-      if(d<8){ footHurt((8-d)*5,'WASTED'); FT.knockT=1.4; FT.kvx=(foot.x-v.x)/(d||1)*7; FT.kvz=(foot.z-v.z)/(d||1)*7; }
+      if(d<8){ footHurt((8-d)*5,'WASTED'); if(onFoot) footKnock((foot.x-v.x)/(d||1)*7,(foot.z-v.z)/(d||1)*7,d<4.5); }
       FT.shake=Math.max(FT.shake,clamp(1.2-d/30,0,1));
       if(!zombieMode&&v.kind!=='cop') offence(t,'CAR BOMBED!');
       FT.tgt=null;
@@ -9105,15 +9292,16 @@ function footShoot(t){
 // ---- per-frame walker ----
 function updateFoot(dt,t){
   if(!avatar) ensureAvatar();
+  const seqOn=footSeqTick(dt); if(!onFoot) return;          // getting in / out drives him for a moment
   // input: camera-relative stick (keyboard or touch joystick)
   let ix=0,iz=0;
   if(keys['w']||keys['arrowup']) iz+=1; if(keys['s']||keys['arrowdown']) iz-=1;
   if(keys['d']||keys['arrowright']) ix+=1; if(keys['a']||keys['arrowleft']) ix-=1;
   ix+=FT.joyX; iz+=FT.joyY;
   let mag=Math.min(1,Math.hypot(ix,iz));
-  if(mag<0.12) mag=0;
+  if(mag<0.12||seqOn) mag=0;
   const sprint=(keys['shift']||FT.sprint)&&mag>0.3;
-  const firing=keys[' ']||keys['x']||mouseDown||FT.fire;
+  const firing=!seqOn&&(keys[' ']||keys['x']||mouseDown||FT.fire);
   const cx=Math.sin(FT.camYaw), cz=Math.cos(FT.camYaw);
   let mx=0,mz=0;
   if(mag>0){ const l=Math.hypot(ix,iz); mx=(cx*iz-cz*ix)/l; mz=(cz*iz+cx*ix)/l; }
@@ -9121,35 +9309,39 @@ function updateFoot(dt,t){
   footPickTarget();
   const aiming=firing||FT.aimK>0.05;
   FT.aimK=firing?1:Math.max(0,FT.aimK-dt*1.6);
-  if(FT.knockT<=0){
-    if(FT.tgt&&aiming) foot.a=lerpAngle(foot.a,Math.atan2(FT.tgtX-foot.x,FT.tgtZ-foot.z),Math.min(1,dt*16));
+  if(FT.knockT<=0&&!seqOn){
+    if(FT.tgt&&aiming){ const ta=Math.atan2(FT.tgtX-foot.x,FT.tgtZ-foot.z), da=Math.abs(lerpAngle(0,ta-foot.a,1));
+      // standing still, the model's chest and arms do the aiming and his feet stay planted until the target is well off to one side
+      if(!avatar.rig||mag>0||da>(FT.turning?0.1:0.75)){ FT.turning=mag===0; foot.a=lerpAngle(foot.a,ta,Math.min(1,dt*(mag>0||!avatar.rig?16:6))); } else FT.turning=false; }
     else if(mag>0&&!firing) foot.a=lerpAngle(foot.a,Math.atan2(mx,mz),Math.min(1,dt*11));
   }
   // velocity (strafes while firing)
   const top=(sprint&&!firing?7.6:4.2)*mag;
   let wvx=mx*top, wvz=mz*top;
   if(FT.knockT>0){ FT.knockT-=dt; wvx=FT.kvx; wvz=FT.kvz; FT.kvx*=Math.max(0,1-dt*4); FT.kvz*=Math.max(0,1-dt*4); }
-  const k=Math.min(1,dt*(mag>0?10:14));
+  const k=Math.min(1,dt*(mag>0?8.5:12));
+  if(!seqOn){
   foot.vx+=(wvx-foot.vx)*k; foot.vz+=(wvz-foot.vz)*k;
   foot.x+=foot.vx*dt; foot.z+=foot.vz*dt;
   // collisions: buildings + props, the parked car, traffic, abandoned wrecks
   const e={x:foot.x,z:foot.z,vx:foot.vx,vz:foot.vz};
   resolveStatic(e,0.38,false); foot.x=e.x; foot.z=e.z; foot.vx=e.vx; foot.vz=e.vz;
   if(pCar&&!player.wreck) footPushOut(footCarBox(player),0.32);
+  }
   FT.hurtT-=dt;
   for(const v of traffic){
-    if(Math.abs(v.x-foot.x)>8||Math.abs(v.z-foot.z)>8) continue;
+    if(Math.abs(v.x-foot.x)>8||Math.abs(v.z-foot.z)>8||Math.abs((v.y||0)-(foot.y||0))>2.5) continue;      // (not the deck above / street below)
     const B=footCarBox(v);
     const sp=v.dyn?Math.hypot(v.dyn.v.x,v.dyn.v.z):(v.sp||0);
     if(footBoxDist(B,foot.x,foot.z)<0.35&&sp>3.5&&FT.hurtT<=0&&FT.knockT<=0){   // run over
       const vx=v.dyn?v.dyn.v.x:Math.sin(v.a)*sp, vz=v.dyn?v.dyn.v.z:Math.cos(v.a)*sp;
-      footHurt(clamp(sp*2.2,6,60),'WASTED'); FT.hurtT=1; FT.knockT=1.3; FT.kvx=vx*0.8; FT.kvz=vz*0.8;
+      footHurt(clamp(sp*2.2,6,60),'WASTED'); FT.hurtT=1; footKnock(vx*0.8,vz*0.8,sp>10);
       thud(clamp(sp/20,0.1,0.3)); if(!v.dyn) v.stun=Math.max(v.stun||0,1.2);
       if(!onFoot) return;
     }
-    footPushOut(B,0.32);
+    if(!seqOn) footPushOut(B,0.32);
   }
-  for(const b of PROX_CAR){ if(!b.on||b.veh||b.isPlayer||!b.car) continue;
+  for(const b of PROX_CAR){ if(seqOn||!b.on||b.veh||b.isPlayer||!b.car) continue;
     if(Math.abs(b.p.x-foot.x)>8||Math.abs(b.p.z-foot.z)>8) continue;
     const E=entRB(EC,b); footPushOut({x:E.cx,z:E.cz,a:Math.atan2(E.fx,E.fz),hw:E.hx,hl:E.hz},0.3); }
   if(Math.abs(foot.x)>BOUND) foot.x=Math.sign(foot.x)*BOUND; if(Math.abs(foot.z)>BOUND) foot.z=Math.sign(foot.z)*BOUND;
@@ -9196,7 +9388,7 @@ function updateFoot(dt,t){
   let lean=run*0.22+(moving?0.04:0), bob=moving?Math.abs(Math.sin(ph))*(0.05+0.05*run):0, yOff=0;
   if(avatar.rig){ lean=0; bob=0; }      // the clips carry their own bob and lean
   if(FT.knockT>0){ const s=FT.knockT, f=s>1.0?(1.3-s)/0.3:(s>0.45?1:s/0.45); lean=-1.45*clamp(f,0,1); yOff=0.18*clamp(f,0,1); bob=0;
-    if(avatar.rig&&avatar.aK){ lean=0.32*Math.sin(Math.PI*clamp((FR.k0-s)/0.35,0,1)); yOff=0; } }   // the model pitches forward onto his hands instead
+    if(avatar.rig){ lean=0; yOff=0; } }   // the model topples and gets up in footRigUpdate
   avatar.g.position.set(foot.x,foot.y+bob+yOff,foot.z);
   avatar.g.rotation.set(lean,foot.a,moving&&!avatar.rig?Math.sin(ph)*0.04:0);
   if(avatar.rig) footRigUpdate(dt,t,spd,dir,firing||FT.aimK>0.05);
@@ -14284,7 +14476,7 @@ function loop(){
       updateFoot(dt,elapsed);
       if(engGain){engGain.gain.value=0.018;engOsc.frequency.value=44;}
       if(skidGain) skidGain.gain.value=0;
-    } else vf=updatePlayer(dt,elapsed);
+    } else { vf=updatePlayer(dt,elapsed); if(avatar&&avatar.seated) footSeatTick(dt); }
     updateSmoke(dt);
     updateGibs(dt);
     updateSignals(elapsed);
@@ -14351,6 +14543,6 @@ addEventListener('resize',()=>{
   if(meOn){ mecv.width=innerWidth; mecv.height=innerHeight; }
 });
 </script>
-<div id="buildver" style="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(2px + env(safe-area-inset-bottom));font:600 10px/1.2 ui-monospace,Menlo,monospace;color:#fff;opacity:.6;letter-spacing:.06em;pointer-events:none;z-index:2147483000;text-shadow:0 1px 2px #000">v0.18 · 10 Nov 06:08</div>
+<div id="buildver" style="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(2px + env(safe-area-inset-bottom));font:600 10px/1.2 ui-monospace,Menlo,monospace;color:#fff;opacity:.6;letter-spacing:.06em;pointer-events:none;z-index:2147483000;text-shadow:0 1px 2px #000">v0.19 · 10 Nov 06:52</div>
 </body>
 </html>
