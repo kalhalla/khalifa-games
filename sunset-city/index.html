@@ -14,7 +14,7 @@
 <meta name="twitter:card" content="summary_large_image"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <link rel="apple-touch-icon" href="/sunset-city/square.png"/>
-<meta name="build-version" content="v0.25"/>
+<meta name="build-version" content="v0.26"/>
 <style>
   html,body{margin:0;padding:0;overflow:hidden;background:#1a1420;height:100%;touch-action:none;}
   canvas{display:block;}
@@ -439,6 +439,7 @@ const sunHalo=new THREE.Mesh(new THREE.CircleGeometry(260,32),
   new THREE.MeshBasicMaterial({color:0xff8a82,fog:false,transparent:true,opacity:0.3,
     blending:THREE.AdditiveBlending,depthWrite:false}));
 sunDisc.renderOrder=-1; sunHalo.renderOrder=-1;
+sunDisc.frustumCulled=false; sunHalo.frustumCulled=false;
 sunDisc.position.copy(SUN_DIRN).multiplyScalar(470);
 sunHalo.position.copy(SUN_DIRN).multiplyScalar(474);
 scene.add(sunDisc); scene.add(sunHalo);
@@ -15100,11 +15101,15 @@ function updateDusk(dt){
     if(pCar.lights.tick) pCar.lights.tick(k);       // the Midnight: brake lights
   }
   coastTick(dt);   // rolling surf, swash, spray, gulls
-  const sunDist=800;
+  // The sun rides well INSIDE the camera's far plane and is centred on the camera, so the far plane can
+  // never slice the top off the disc or its halo (it used to sit at exactly the far distance).
+  const sunDist=camera.far*0.6, sunK=sunDist/800;
   const rawSY=SUN_DIRN.y*(1-1.55*k);
-  const sy=Math.max(3/sunDist, rawSY);          // never clip through terrain
-  sunDisc.position.set(fx+SUN_DIRN.x*sunDist, sy*sunDist, fz+SUN_DIRN.z*sunDist);
-  sunHalo.position.set(fx+SUN_DIRN.x*(sunDist+8), sy*sunDist, fz+SUN_DIRN.z*(sunDist+8));
+  const sy=Math.max(3/800, rawSY);          // never clip through terrain
+  const scx=camera.position.x, scz=camera.position.z;
+  sunDisc.position.set(scx+SUN_DIRN.x*sunDist, sy*sunDist, scz+SUN_DIRN.z*sunDist);
+  sunHalo.position.set(scx+SUN_DIRN.x*(sunDist+4), sy*sunDist, scz+SUN_DIRN.z*(sunDist+4));
+  sunDisc.scale.setScalar(sunK); sunHalo.scale.setScalar(sunK);
   const sunVis=clamp((rawSY+0.02)*16,0,1);
   sunDisc.material.opacity=0.95*sunVis;
   sunHalo.material.opacity=0.3*sunVis;
@@ -15962,6 +15967,6 @@ addEventListener('resize',()=>{
   if(meOn){ mecv.width=innerWidth; mecv.height=innerHeight; }
 });
 </script>
-<div id="buildver" style="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(2px + env(safe-area-inset-bottom));font:600 10px/1.2 ui-monospace,Menlo,monospace;color:#fff;opacity:.6;letter-spacing:.06em;pointer-events:none;z-index:2147483000;text-shadow:0 1px 2px #000">v0.25 · 10 Nov 10:24</div>
+<div id="buildver" style="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(2px + env(safe-area-inset-bottom));font:600 10px/1.2 ui-monospace,Menlo,monospace;color:#fff;opacity:.6;letter-spacing:.06em;pointer-events:none;z-index:2147483000;text-shadow:0 1px 2px #000">v0.26 · 10 Nov 11:55</div>
 </body>
 </html>
