@@ -363,7 +363,7 @@
 </head>
 <body>
 
-<div id="version">STUNTMANIA '76 — Build 0.28.0</div>
+<div id="version">STUNTMANIA '76 — Build 0.29.0</div>
 
 <canvas id="canvas"></canvas>
 
@@ -529,7 +529,7 @@ rocketcar: "Z2xURgIAAAA8RwQA+BIAAEpTT057ImFzc2V0Ijp7ImdlbmVyYXRvciI6ImdsVEYtVHJh
 // Build 0.2.0  —  Active runup (throttle + steering), camera snap on launch.
 // ============================================================================
 
-const BUILD_VERSION = '0.28.0';
+const BUILD_VERSION = '0.29.0';
 
 // ---------- PALETTE ---------------------------------------------------------
 const COL = {
@@ -766,7 +766,7 @@ const G = {
   celebrateTimer: 0,
   fireworkTimer: 0,
   landPitch: 0,
-  bounceV: 0, bounceY: 0,   // landing bounce: upward speed and height off the surface
+  bounceV: 0, bounceY: 0, bounceDoom: null,   // landing bounce: upward speed and height off the surface
 };
 
 // Launch point reference (computed each launch)
@@ -4517,7 +4517,7 @@ function startLaunch() {
   G.celebrateTimer = 0;
   G.fireworkTimer = 0;
   G.landPitch = 0;
-  G.bounceV = 0; G.bounceY = 0;
+  G.bounceV = 0; G.bounceY = 0; G.bounceDoom = null;
 
   G.launchRampZ  = LAUNCH_RAMP_OFFSET;    // take-off is fixed
   // Quick run-up (default): swing meter, short approach, skill in the air
@@ -4946,7 +4946,29 @@ function finishJump(where) {
     }
   }
 
-  G.phase = (outcome === 'crashed') ? 'crashed' : 'landed';
+  // Every landing bounces. The kick comes from how hard the wheels hit the
+  // surface (speed along its normal), so the curved run-out at the bottom of
+  // the ramp, where the deck flattens under a falling bike, throws it highest.
+  // A bounce off the lower ramp costs cash, and the lowest quarter can throw
+  // the rider off altogether when the bike comes back down.
+  let bounceLow = 0, late = false;
+  G.bounceV = 0; G.bounceY = 0; G.bounceDoom = null;
+  if (outcome !== 'crashed') {
+    const LRb = landingRampLocal(G.posX);
+    const th = rampSlopeAt(LRb.S, LRb.xl);
+    const vn = Math.max(0, -(G.vx * Math.sin(th) + G.vy * Math.cos(th)));
+    const f = THREE.MathUtils.clamp((G.posX - LRb.faceX) / LRb.S.foot, 0, 1);   // 0 top of ramp, 1 bottom
+    bounceLow = THREE.MathUtils.smoothstep(f, 0.5, 1);
+    G.bounceV = THREE.MathUtils.clamp(0.3 * vn, 3, 5) * (1 + 1.6 * bounceLow);
+    const roll = DEV.bounceCrash != null ? (DEV.bounceCrash ? 0 : 1) : Math.random();
+    if (!SIM && bounceLow > 0.5 && roll < (bounceLow - 0.5) * 1.2) {
+      late = true;                       // scored as a crash; the wreck happens on the second touch
+      G.wobble = null;
+      outcome = 'crashed'; gradeText = 'BOUNCED OFF'; landingText = 'Thrown on the second touch';
+    }
+  }
+
+  G.phase = (outcome === 'crashed' && !late) ? 'crashed' : 'landed';
 
   let styleText = '—';
   if (fullRotations >= 2)            styleText = `Multi-flip ×${fullRotations}`;
@@ -4971,6 +4993,10 @@ function finishJump(where) {
   if (isTrainVenue()) cash += { door: 120, under: 100, over: 60, gap: 150 }[G.trainLine] || 0;
   if (isTrainVenue() && outcome !== 'crashed' && TRAIN_LINE_TEXT[G.trainLine]) landingText = TRAIN_LINE_TEXT[G.trainLine];
   if (outcome === 'crashed') cash = Math.round(cash * 0.2);   // debris-field consolation, however you died
+  else if (bounceLow > 0.15) {           // bounced off the lower ramp: up to half the purse
+    const cut = Math.round(cash * 0.5 * bounceLow);
+    if (cut > 0) { cash -= cut; landingText += ` · bounce −£${cut}`; }
+  }
   cash = Math.max(0, cash);
 
   G.cash += cash;
@@ -5034,11 +5060,14 @@ function finishJump(where) {
   document.getElementById('scStyle').textContent = styleText;
   document.getElementById('scHype').textContent = hype + '%';
   document.getElementById('scCash').textContent = cash;
-  if (!SIM) showCallout(outcome === 'perfect' ? 'PERFECT!' : G.wobble ? 'WOBBLE!' : gradeText, landingText, cash,
+  if (!SIM && late) showCallout('BIG BOUNCE!', 'Hang on…', 0, 'wobble');
+  else if (!SIM) showCallout(outcome === 'perfect' ? 'PERFECT!' : G.wobble ? 'WOBBLE!' : gradeText, landingText, cash,
     outcome === 'perfect' ? 'perfect' : outcome === 'crashed' ? 'crash' : 'wobble');
   const celebrating = (outcome !== 'crashed');
-  const scoreDelay = G.quickRun ? (celebrating ? 2600 : 2300)
-    : celebrating ? 4200 : (where === 'wall' ? 4800 : 3200);
+  const hopMs = late ? 2 * G.bounceV / GRAVITY * 1000 : 0;   // the doomed hop plays out before the wreck
+  if (late) G.bounceDoom = { line: landingText, cash };
+  const scoreDelay = hopMs + (G.quickRun ? (celebrating ? 2600 : 2300)
+    : celebrating ? 4200 : (where === 'wall' ? 4800 : 3200));
   const runId = G.runId;
   setTimeout(() => {
     if ((G.phase === 'crashed' || G.phase === 'landed') && G.runId === runId) {
@@ -5051,9 +5080,9 @@ function finishJump(where) {
   recFinish(gradeText, scoreDelay + 700);
   if (G.quickRun) { G.leanTips = (G.leanTips || 0) + 1; setTutorialHint(''); }
   G.bframe = null;
-  if (G.quickRun && outcome === 'crashed') G.camCut = true;
+  if (G.quickRun && outcome === 'crashed' && !late) G.camCut = true;
 
-  if (outcome === 'crashed') {
+  if (outcome === 'crashed' && !late) {
     G.crashType = (where === 'canyon') ? 'canyon' : (where === 'wall' || where === 'busside' || where === 'trainside' || where === 'trestle') ? 'wall' : 'plateau';
     G.splatOnTrain = where === 'trainside';
     G.crashWhere = where;
@@ -5074,11 +5103,12 @@ function finishJump(where) {
     }
   } else {
     SFX.land();
-    if (!celebrating) SFX.engineStop('die');
+    if (late) SFX.gasp();
+    else if (!celebrating) SFX.engineStop('die');
     if (celebrating && !G.wobble) { SFX.success(); SFX.cheer(); }
     else if (celebrating) { SFX.gasp(); const rid = G.runId; setTimeout(() => { if (G.runId === rid) SFX.cheer(); }, 650); }
     G.timeScale = 1;                     // a landing ends the apex slow-mo
-    G.celebrate = celebrating;
+    G.celebrate = celebrating || late;   // a doomed bounce still rides out its first hop
     G.celebrateTimer = 0;
     G.fireworkTimer = 0;
     // Normalize landing pitch into [-π, π] for a clean blend into the wheelie
@@ -5086,21 +5116,9 @@ function finishJump(where) {
     if (lp > Math.PI) lp -= Math.PI * 2;
     if (lp < -Math.PI) lp += Math.PI * 2;
     G.landPitch = lp;
-    // Every landing bounces. The kick comes from how hard the wheels hit the
-    // surface (speed along its normal), so the curved run-out at the bottom of
-    // the ramp, where the deck flattens under a falling bike, throws it highest.
-    {
-      const LRb = landingRampLocal(G.posX);
-      const th = rampSlopeAt(LRb.S, LRb.xl);
-      const vn = Math.max(0, -(G.vx * Math.sin(th) + G.vy * Math.cos(th)));
-      const f = THREE.MathUtils.clamp((G.posX - LRb.faceX) / LRb.S.foot, 0, 1);   // 0 top of ramp, 1 bottom
-      const low = THREE.MathUtils.smoothstep(f, 0.5, 1);
-      G.bounceV = THREE.MathUtils.clamp(0.3 * vn, 3, 5) * (1 + 1.6 * low);
-      G.bounceY = 0;
-    }
     // Snap the camera into the celebration framing so it doesn't lag down
     // through the landing-ramp descent and lose the rider out of frame.
-    if (celebrating && vehicleGroup) {
+    if ((celebrating || late) && vehicleGroup) {
       const v = vehicleGroup.position;
       const rampPeak = landingLen() * Math.sin(G.landingRampAngleRad);
       camPos.set(v.x - 8, Math.max(rampPeak + 6, v.y + 6), G.zPos + 18);
@@ -6163,6 +6181,22 @@ function animate() {
       if (G.bounceV !== 0 || G.bounceY > 0) {
         G.bounceY += G.bounceV * dt;
         G.bounceV -= GRAVITY * dt;
+        if (G.bounceY <= 0 && G.bounceDoom) {
+          // Second touch of a doomed bounce: the bike bursts and the rider goes flying
+          const doom = G.bounceDoom;
+          G.bounceDoom = null; G.bounceY = 0; G.bounceV = 0;
+          G.posY = surfaceY + 0.4;
+          vehicleGroup.position.set(G.posX, G.posY, G.zPos);
+          G.phase = 'crashed'; G.celebrate = false;
+          G.crashType = 'plateau'; G.splatOnTrain = false; G.crashWhere = 'bounce';
+          G.crashX = G.posX; G.crashY = G.posY; G.crashZ = G.zPos; G.crashTimer = 0;
+          G.vx = 8; G.vy = 0;
+          if (G.quickRun) G.camCut = true;
+          disassemble(vehicleGroup, 'explode');
+          SFX.engineStop('cut'); SFX.crash();
+          if (!document.getElementById('scorecard').classList.contains('show')) showCallout('BOUNCED OFF', doom.line, doom.cash, 'crash');
+          return;
+        }
         if (G.bounceY <= 0) {
           const back = -G.bounceV * 0.45;
           G.bounceY = 0;
@@ -6177,13 +6211,13 @@ function animate() {
       vehicleGroup.rotation.set((fw ? 0 : G.bankAngle) + weave, 0, slopeTilt + wheelie);
       // Wave the near arm — ease it off the bars, then oscillate. Coords come
       // from the vehicle's own userData.wave so every rig waves correctly.
-      if (vehicleGroup.userData.rig && !G.wobble) {
+      if (vehicleGroup.userData.rig && !G.wobble && !G.bounceDoom) {
         vehicleGroup.userData.rig.waveAmt = ramp;
         vehicleGroup.userData.rig.waveT = G.celebrateTimer;
       }
       const arm = vehicleGroup.getObjectByName('waveArm');
       const W = vehicleGroup.userData && vehicleGroup.userData.wave;
-      if (arm && W && !G.wobble) {
+      if (arm && W && !G.wobble && !G.bounceDoom) {
         const w = Math.sin(G.celebrateTimer * 9);
         const [sx, sy, sz] = W.shoulder, [gx, gy, gz] = W.grip, [hx, hy, hz] = W.hand;
         const wx = hx + w * W.ax, wy = hy, wz = hz + w * W.az;   // waving hand
@@ -6192,11 +6226,11 @@ function animate() {
       }
       // Fireworks at intervals
       G.fireworkTimer -= dt;
-      if (G.fireworkTimer <= 0 && !G.wobble) {
+      if (G.fireworkTimer <= 0 && !G.wobble && !G.bounceDoom) {
         spawnFirework(G.posX + 6 + Math.random() * 16, 8 + Math.random() * 7, G.zPos + (Math.random() - 0.5) * 22);
         G.fireworkTimer = 0.28 + Math.random() * 0.3;
       }
-      cheerCrowd();
+      if (!G.bounceDoom) cheerCrowd();
     } else if (vehicleGroup) {
       G.pitchVel *= 0.92;
       vehicleGroup.rotation.z += G.pitchVel * dt;
