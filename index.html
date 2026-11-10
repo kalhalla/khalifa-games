@@ -428,11 +428,11 @@ const GAMES = [
     desc: "A seed factory on the Moon, run from Earth 2.56 seconds late. Dig regolith, fire the furnace, build robots from moon rock."
   },
   {
-    slug: "mus1k", name: "MU-S1K", url: "/mu-s1k/", accent: "#ff4f9e",
+    slug: "mus1k", name: "MU-S1K", url: "/mu-s1k/", accent: "#ff4f9e", faceOut: true,
     desc: "A pocket groovebox with seven beginner lessons. Build a beat, a bassline, chords and a vocal hook, let it arrange the drop, and export a WAV."
   },
   {
-    slug: "sunset", name: "SUNSET CITY", url: "/sunset-city/", accent: "#b48cff",
+    slug: "sunset", name: "SUNSET CITY", url: "/sunset-city/", accent: "#b48cff", faceOut: true,
     desc: "Sunset City: Getaway. Hold the car outside the bank, lose the law across city, suburbs and coast, and watch the sky after dark."
   }
 ];
@@ -458,7 +458,7 @@ async function boot() {
   }
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFShadowMap;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.15;
 
@@ -468,8 +468,8 @@ async function boot() {
   const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 600);
 
   // ---------- lights ----------
-  scene.add(new THREE.HemisphereLight(0xcfdcff, 0x3a2f5a, 1.45));
-  const sun = new THREE.DirectionalLight(0xffe2b4, 1.75);
+  scene.add(new THREE.HemisphereLight(0xbfd4ff, 0x201538, 1.1));
+  const sun = new THREE.DirectionalLight(0xffd9a0, 2.0);
   sun.position.set(38, 48, 16);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
@@ -478,7 +478,6 @@ async function boot() {
   sun.shadow.camera.near = 5; sun.shadow.camera.far = 160;
   sun.shadow.bias = -0.0004;
   sun.shadow.normalBias = 0.03;
-  sun.shadow.radius = 3;
   scene.add(sun);
   const fill = new THREE.DirectionalLight(0x6a7fff, 0.5); // cool moonlight fill
   fill.position.set(-30, 20, -25);
@@ -553,289 +552,55 @@ async function boot() {
   const mat = (color, opts = {}) =>
     new THREE.MeshStandardMaterial({ color, flatShading: true, roughness: 0.9, metalness: 0, ...opts });
 
-  // Every diorama stands on a square block cut out of its world: the surface on top,
-  // the strata showing on the cut faces.
-  const S = 6.8;                                   // half-width of a block
-  function roundedSquare(s, r) {
-    const sh = new THREE.Shape();
-    sh.moveTo(-s + r, -s);
-    sh.lineTo(s - r, -s); sh.absarc(s - r, -s + r, r, -Math.PI / 2, 0, false);
-    sh.lineTo(s, s - r);  sh.absarc(s - r, s - r, r, 0, Math.PI / 2, false);
-    sh.lineTo(-s + r, s); sh.absarc(-s + r, s - r, r, Math.PI / 2, Math.PI, false);
-    sh.lineTo(-s, -s + r); sh.absarc(-s + r, -s + r, r, Math.PI, Math.PI * 1.5, false);
-    return sh;
-  }
-  const BLOCK_FLOOR = -2.35;
-  // layers: [[thickness, colour], ...] from the surface down; ground: false leaves the top bare
-  function blockBase(layers, ground = true, topY = 0.7) {
+  function islandBase(radius, topColor, rockColor) {
     const g = new THREE.Group();
-    const shape = roundedSquare(S, 0.3);
-    let y = topY;
-    layers.forEach(([hgt, c]) => {
-      const geo = new THREE.ExtrudeGeometry(shape, { depth: hgt, bevelEnabled: false, curveSegments: 3 });
-      geo.rotateX(Math.PI / 2);                    // extrude downwards
-      const m = fMesh(geo, c, 0);
-      m.position.y = y;
-      m.userData.flat = true;
-      g.add(m);
-      y -= hgt;
-    });
-    if (ground) {
-      const top = new THREE.PlaneGeometry(2 * (S - 0.12), 2 * (S - 0.12), 16, 16);
-      top.rotateX(-Math.PI / 2);
-      const p = top.attributes.position;
-      for (let i = 0; i < p.count; i++) p.setY(i, fract(Math.sin(p.getX(i) * 91.7 + p.getZ(i) * 47.3) * 43758.5453) * 0.025);
-      const m = fMesh(top, layers[0][1], 0.1);
-      m.position.y = 0.705;
-      m.userData.flat = true;
-      g.add(m);
-    }
+    const rock = fMesh(jitter(new THREE.ConeGeometry(radius * 0.97, radius * 1.9, 9, 3), 0.5), rockColor, 0.24);
+    rock.rotation.x = Math.PI;
+    rock.position.y = -radius * 0.95 - 0.4;
+    g.add(rock);
+    const top = fMesh(jitter(new THREE.CylinderGeometry(radius, radius * 1.06, 1.4, 9, 1), 0.5, 0.15), topColor, 0.14);
+    g.add(top);
     return g;
   }
 
-  const hash2 = (ix, iz) => fract(Math.sin(ix * 127.1 + iz * 311.7) * 43758.5453);
-  function noise2(x, z) {
-    const ix = Math.floor(x), iz = Math.floor(z), fx = x - ix, fz = z - iz;
-    const sx = fx * fx * (3 - 2 * fx), sz = fz * fz * (3 - 2 * fz);
-    const a = hash2(ix, iz), b = hash2(ix + 1, iz), c = hash2(ix, iz + 1), d = hash2(ix + 1, iz + 1);
-    return a + (b - a) * sx + (c - a) * sz + (a - b - c + d) * sx * sz;
-  }
-  // ground that stays level where the scene stands and rolls as it nears the block's edge (d = distance measure to the edge)
-  const rise = (x, z, inner, amp, seed, d = Math.max(Math.abs(x), Math.abs(z))) => {
-    const u = (d - inner) / (S - inner);
-    return u <= 0 ? 0 : amp * (u * u * (3 - 2 * Math.min(1, u))) * (0.25 + 1.2 * noise2(x * 0.75 + seed * 3.1, z * 0.75 + seed * 1.7));
-  };
-  // A terrain top: a heightfield over a rectangle, with the block's cut faces following its profile.
-  // edges = [front, right, back, left]; colour is a hex or (height, x, z) => hex
-  function landTop(g, { x0 = -S + 0.02, x1 = S - 0.02, z0 = -S + 0.02, z1 = S - 0.02, nx = 28, nz = 28, y = 0.705, base = 0.7, h, colour, wall, edges = [1, 1, 1, 1] }) {
-    const P = (i, j) => { const x = x0 + (x1 - x0) * i / nx, z = z0 + (z1 - z0) * j / nz; return [x, y + h(x, z), z]; };
-    const tri = [];
-    for (let i = 0; i < nx; i++) for (let j = 0; j < nz; j++) {
-      const a = P(i, j), b = P(i + 1, j), c = P(i, j + 1), d = P(i + 1, j + 1);
-      if ((i + j) % 2) tri.push(...a, ...c, ...b, ...b, ...c, ...d); else tri.push(...a, ...c, ...d, ...a, ...d, ...b);
-    }
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute("position", new THREE.Float32BufferAttribute(tri, 3));
-    const cols = new Float32Array(tri.length), col = new THREE.Color();
-    for (let i = 0; i < tri.length; i += 9) {
-      const cx = (tri[i] + tri[i + 3] + tri[i + 6]) / 3, cy = (tri[i + 1] + tri[i + 4] + tri[i + 7]) / 3, cz = (tri[i + 2] + tri[i + 5] + tri[i + 8]) / 3;
-      col.set(typeof colour === "function" ? colour(cy - y, cx, cz) : colour);
-      const s = 0.93 + hash2(i, 13) * 0.12;
-      for (let j = 0; j < 9; j += 3) { cols[i + j] = col.r * s; cols[i + j + 1] = col.g * s; cols[i + j + 2] = col.b * s; }
-    }
-    geo.setAttribute("color", new THREE.BufferAttribute(cols, 3));
-    const top = new THREE.Mesh(geo, facetMat);
-    top.userData.flat = true;
-    g.add(top);
-    const w = [];
-    const run = (n, at) => {
-      for (let k = 0; k < n; k++) {
-        const [xa, za] = at(k / n), [xb, zb] = at((k + 1) / n);
-        w.push(xa, base, za, xb, base, zb, xb, y + h(xb, zb), zb, xa, base, za, xb, y + h(xb, zb), zb, xa, y + h(xa, za), za);
-      }
-    };
-    if (edges[0]) run(nx, u => [x0 + (x1 - x0) * u, z1]);
-    if (edges[1]) run(nz, u => [x1, z1 + (z0 - z1) * u]);
-    if (edges[2]) run(nx, u => [x1 + (x0 - x1) * u, z0]);
-    if (edges[3]) run(nz, u => [x0, z0 + (z1 - z0) * u]);
-    const wg = new THREE.BufferGeometry();
-    wg.setAttribute("position", new THREE.Float32BufferAttribute(w, 3));
-    const side = fMesh(wg, wall, 0.06);
-    side.userData.flat = true;
-    g.add(side);
-  }
-
-  // ---------- diorama kit ----------
-  // Small parts are built from vertex-coloured facets, then every static part of an island is
-  // baked into one mesh (see bake), so a dense diorama still costs a handful of draw calls.
-  const box = (w, h, d, c, x = 0, y = 0, z = 0, v = 0.1) => {
-    const m = fMesh(new THREE.BoxGeometry(w, h, d), c, v);
-    m.position.set(x, y, z);
-    return m;
-  };
-  const cyl = (rt, rb, h, s, c, x = 0, y = 0, z = 0, v = 0.1) => {
-    const m = fMesh(new THREE.CylinderGeometry(rt, rb, h, s), c, v);
-    m.position.set(x, y, z);
-    return m;
-  };
-  const blob = (r, c, x, y, z, v = 0.2, j = 0.35) => {
-    const m = fMesh(jitter(new THREE.IcosahedronGeometry(r, 0), r * j), c, v);
-    m.position.set(x, y, z);
-    return m;
-  };
-  // four-sided roof; y is the eaves
-  const pyr = (w, h, d, c, x, y, z) => {
-    const geo = new THREE.ConeGeometry(0.7071, h, 4);
-    geo.rotateY(Math.PI / 4);
-    geo.scale(w, 1, d);
-    const m = fMesh(geo, c, 0.1);
-    m.position.set(x, y + h / 2, z);
-    return m;
-  };
-  const emis = (hex, k = 1.5) =>
-    new THREE.MeshStandardMaterial({ color: 0x15151a, emissive: hex, emissiveIntensity: k, flatShading: true });
-  // a glowing or see-through part: own material, casts no shadow, never baked
-  const lit = (geo, material, x = 0, y = 0, z = 0) => {
-    const o = new THREE.Mesh(geo, material);
-    o.position.set(x, y, z);
-    o.userData.noShadow = true;
-    return o;
-  };
-  const dyn = o => { o.userData.dyn = true; return o; };   // moving part: bake leaves it alone
-  const grp = (x = 0, y = 0, z = 0, ry = 0) => {
-    const o = new THREE.Group();
-    o.position.set(x, y, z);
-    o.rotation.y = ry;
-    return o;
-  };
-  const smooth = u => { u = Math.min(1, Math.max(0, u)); return u * u * (3 - 2 * u); };
-
-  // merge every static faceted mesh under root into a single mesh
-  function bake(root) {
-    root.updateMatrixWorld(true);
-    const inv = new THREE.Matrix4().copy(root.matrixWorld).invert();
-    const m4 = new THREE.Matrix4(), p = new THREE.Vector3();
-    const pos = [], col = [], dead = [];
-    (function walk(o) {
-      if (o !== root && o.userData.dyn) return;
-      if (o.isMesh && o.material === facetMat) {
-        m4.multiplyMatrices(inv, o.matrixWorld);
-        const gp = o.geometry.attributes.position, gc = o.geometry.attributes.color;
-        const at = pos.length;
-        let lo = Infinity, hi = -Infinity;
-        for (let i = 0; i < gp.count; i++) {
-          p.fromBufferAttribute(gp, i).applyMatrix4(m4);
-          pos.push(p.x, p.y, p.z);
-          lo = Math.min(lo, p.y); hi = Math.max(hi, p.y);
-        }
-        // every part darkens towards its foot, as if light could not quite reach under it
-        const shade = !o.userData.flat && hi - lo > 0.2, reach = Math.min(hi - lo, 1.6);
-        for (let i = 0; i < gp.count; i++) {
-          const f = shade ? 0.7 + 0.36 * smooth((pos[at + i * 3 + 1] - lo) / reach) : 1;
-          col.push(gc.getX(i) * f, gc.getY(i) * f, gc.getZ(i) * f);
-        }
-        dead.push(o);
-      }
-      o.children.forEach(walk);
-    })(root);
-    if (!pos.length) return root;
-    dead.forEach(o => { o.parent.remove(o); o.geometry.dispose(); });
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
-    geo.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
-    geo.computeVertexNormals();
-    root.add(new THREE.Mesh(geo, facetMat));
-    return root;
-  }
-
-  // painted sign: text on a small canvas, redrawn once the display font arrives
-  function sign(text, w, h, bg = "#131022", fg = "#ffb84d") {
-    const cv = document.createElement("canvas");
-    cv.width = 256;
-    cv.height = Math.max(32, Math.round(256 * h / w));
-    const ctx = cv.getContext("2d");
-    const tex = new THREE.CanvasTexture(cv);
-    tex.colorSpace = THREE.SRGBColorSpace;
-    const draw = () => {
-      ctx.fillStyle = bg;
-      ctx.fillRect(0, 0, cv.width, cv.height);
-      let px = cv.height * 0.64;
-      ctx.font = `${px}px Bungee, Impact, sans-serif`;
-      const tw = ctx.measureText(text).width;
-      if (tw > cv.width * 0.88) { px *= cv.width * 0.88 / tw; ctx.font = `${px}px Bungee, Impact, sans-serif`; }
-      ctx.fillStyle = fg;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(text, cv.width / 2, cv.height * 0.54);
-      tex.needsUpdate = true;
-    };
-    draw();
-    if (document.fonts && document.fonts.load) document.fonts.load("20px Bungee").then(draw).catch(() => {});
-    return lit(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: tex, toneMapped: false }));
-  }
-
-  // a sagging line of pennants between two points
-  function bunting(g, ax, ay, az, bx, by, bz, n, cols, sag = 0.35) {
-    for (let i = 0; i < n; i++) {
-      const u = (i + 0.5) / n;
-      const f = box(0.02, 0.2, 0.15, cols[i % cols.length],
-        ax + (bx - ax) * u, ay + (by - ay) * u - sag * 4 * u * (1 - u) - 0.1, az + (bz - az) * u, 0.05);
-      f.rotation.y = Math.atan2(bx - ax, bz - az);
-      g.add(f);
-    }
-  }
-
-  // ground cover: n small things dropped on the block wherever place(x, z) returns a height
-  function scatter(g, n, seed, place, make) {
-    const rnd = (k, s) => fract(Math.sin(k * 127.1 + s * 311.7 + seed * 74.7) * 43758.5453);
-    for (let k = 0, done = 0; k < n * 6 && done < n; k++) {
-      const x = (rnd(k, 1) - 0.5) * 2 * (S - 0.25), z = (rnd(k, 2) - 0.5) * 2 * (S - 0.25);
-      const y = place(x, z);
-      if (y == null) continue;
-      const o = make(rnd(k, 3));
-      o.position.set(x, y, z);
-      o.rotation.y = rnd(k, 4) * 6.28;
-      g.add(o);
-      done++;
-    }
-  }
-  const tuft = (c, s = 1) => {
+  function pine(x, z, s = 1) {
     const t = new THREE.Group();
-    for (const [ox, oz, lean] of [[0, 0, 0], [0.05, 0.03, 0.35], [-0.04, 0.04, -0.3]]) {
-      const blade = fMesh(new THREE.ConeGeometry(0.04 * s, 0.26 * s, 3, 1, true), c, 0.3);
-      blade.position.set(ox * s, 0.12 * s, oz * s);
-      blade.rotation.z = lean;
-      t.add(blade);
-    }
-    return t;
-  };
-  const pebble = (c, r) => { const m = blob(0.05 + r * 0.09, c, 0, 0, 0, 0.25, 0.4); m.scale.y = 0.6; const o = new THREE.Group(); o.add(m); return o; };
-  const bloom = c => { const o = new THREE.Group(); o.add(cyl(0.01, 0.01, 0.16, 3, 0x3f8f4f, 0, 0.08, 0), blob(0.045, c, 0, 0.18, 0, 0.1, 0.1)); return o; };
-
-  // a little standing figure for crowds and bystanders
-  function person(shirt, trousers = 0x2a2a34, s = 1) {
-    const p = new THREE.Group();
-    p.add(
-      box(0.2 * s, 0.26 * s, 0.14 * s, trousers, 0, 0.13 * s, 0, 0.06),
-      box(0.24 * s, 0.28 * s, 0.16 * s, shirt, 0, 0.4 * s, 0, 0.08),
-      box(0.14 * s, 0.14 * s, 0.14 * s, 0xe0b890, 0, 0.62 * s, 0, 0.06)
-    );
-    return p;
-  }
-
-  function pine(x, z, s = 1, y = 0.62) {
-    const t = new THREE.Group();
-    t.add(
-      cyl(0.11 * s, 0.16 * s, 0.6 * s, 5, 0x6b4a33, 0, 0.3 * s, 0),
-      fMesh(new THREE.ConeGeometry(0.68 * s, 1.1 * s, 6), 0x1f7a4d, 0.2),
-      fMesh(new THREE.ConeGeometry(0.46 * s, 0.9 * s, 6), 0x2b975f, 0.2)
-    );
-    t.children[1].position.y = 1.0 * s;
-    t.children[2].position.y = 1.7 * s;
-    t.position.set(x, y, z);
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.11 * s, 0.16 * s, 0.6 * s, 5), mat(0x6b4a33));
+    trunk.position.y = 0.3 * s;
+    const lo = fMesh(new THREE.ConeGeometry(0.68 * s, 1.1 * s, 6), 0x1f7a4d, 0.2);
+    lo.position.y = 1.0 * s;
+    const hi = fMesh(new THREE.ConeGeometry(0.46 * s, 0.9 * s, 6), 0x2b975f, 0.2);
+    hi.position.y = 1.7 * s;
+    t.add(trunk, lo, hi);
+    t.position.set(x, 0.62, z);
     return t;
   }
 
-  function cactus(x, z, s = 1, y = 0.62) {
+  function cactus(x, z, s = 1) {
     const c = new THREE.Group();
-    c.add(cyl(0.22 * s, 0.26 * s, 1.7 * s, 7, 0x4f9a4a, 0, 0.85 * s, 0, 0.2));
+    const bodyC = fMesh(new THREE.CylinderGeometry(0.22 * s, 0.26 * s, 1.7 * s, 7), 0x4f9a4a, 0.2);
+    bodyC.position.y = 0.85 * s;
+    c.add(bodyC);
     for (const side of [1, -1]) {
-      const arm = cyl(0.13 * s, 0.15 * s, 0.7 * s, 6, 0x458a41, 0.34 * s * side, (0.9 + 0.18 * side) * s, 0, 0.2);
+      const arm = fMesh(new THREE.CylinderGeometry(0.13 * s, 0.15 * s, 0.7 * s, 6), 0x458a41, 0.2);
+      arm.position.set(0.34 * s * side, (0.9 + 0.18 * side) * s, 0);
       arm.rotation.z = -0.9 * side;
-      c.add(arm, cyl(0.12 * s, 0.13 * s, 0.5 * s, 6, 0x4f9a4a, 0.56 * s * side, (1.25 + 0.18 * side) * s, 0, 0.2));
+      c.add(arm);
+      const tip = fMesh(new THREE.CylinderGeometry(0.12 * s, 0.13 * s, 0.5 * s, 6), 0x4f9a4a, 0.2);
+      tip.position.set(0.56 * s * side, (1.25 + 0.18 * side) * s, 0);
+      c.add(tip);
     }
-    c.position.set(x, y, z);
+    c.position.set(x, 0.62, z);
     c.rotation.y = x * 3.7;
     return c;
   }
 
   // ---------- island builders (each returns { group, animate(t) }) ----------
-  // Every diorama is composed facing +z, which is turned towards the visiting camera; +x is the viewer's right.
-
-  // GLIDER — alpine valley: peaks, lake, a river off the island's edge, a thermal, the sailplane
   function buildGlider() {
-    const g = blockBase([[0.55, 0x7a5a3c], [1.1, 0x6d7a9c], [1.4, 0x565f7c]], false);
+    const g = islandBase(6.6, 0x3f9d5c, 0x54607e);
 
+    // procedural mountain terrain — same DNA as the Glider game's world (~1,200 triangles)
+    const ss = (e0, e1, x) => { const u = Math.min(1, Math.max(0, (x - e0) / (e1 - e0))); return u * u * (3 - 2 * u); };
     const h2d = (ix, iz) => fract(Math.sin(ix * 127.1 + iz * 311.7) * 43758.5453);
     function vnoise(x, z) {
       const ix = Math.floor(x), iz = Math.floor(z);
@@ -845,51 +610,54 @@ async function boot() {
       return a + (b - a) * sx + (c - a) * sz + (a - b - c + d) * sx * sz;
     }
     const PEAKS = [
-      { x: -1.0, z: -1.9, s: 1.9, h: 5.6 },
-      { x: 2.1,  z: -3.3, s: 1.4, h: 3.9 },
-      { x: -3.9, z: -0.8, s: 1.3, h: 3.2 },
-      { x: -4.6, z: -4.6, s: 1.2, h: 2.6 }
+      { x: -1.0, z: -1.4, s: 2.2, h: 4.7 },
+      { x: 1.8,  z: -2.6, s: 1.4, h: 3.0 },
+      { x: -3.4, z: 0.4,  s: 1.3, h: 2.6 }
     ];
-    const LAKE = { x: 2.4, z: 5.7 };
-    const RIV = [0.5, 1.3, 1.9, 4.4];        // river: off the mountain, into the lake
-    function riverDist(x, z) {
-      const dx = RIV[2] - RIV[0], dz = RIV[3] - RIV[1];
-      const u = Math.min(1, Math.max(0, ((x - RIV[0]) * dx + (z - RIV[1]) * dz) / (dx * dx + dz * dz)));
-      return Math.hypot(x - RIV[0] - dx * u, z - RIV[1] - dz * u);
-    }
-    const FLOOR = -0.3;
+    const LAKE = { x: 2.9, z: 1.6 };
     function height(x, z) {
-      let h = 0.2;
+      const env = 1 - ss(4.3, 6.3, Math.hypot(x, z)); // settle to the rim
+      let h = 0;
       for (const p of PEAKS) {
         const d2 = (x - p.x) ** 2 + (z - p.z) ** 2;
-        h += p.h * (0.5 * Math.exp(-d2 / (2 * p.s * p.s)) + 0.5 * Math.exp(-Math.sqrt(d2) / (p.s * 0.55)));   // broad shoulders, sharp summit
+        h += p.h * Math.exp(-d2 / (2 * p.s * p.s));
       }
-      h += (vnoise(x * 0.45 + 7, z * 0.45 + 3) - 0.5) * 1.5;
-      h += (vnoise(x * 1.1 + 13, z * 1.1 + 5) - 0.5) * 0.6;
-      h = Math.max(FLOOR, h);
-      const rd = riverDist(x, z);
-      if (rd < 0.7) h += (FLOOR - 0.3 - h) * smooth(1 - rd / 0.7);   // the river cuts its own valley
-      const ld = Math.hypot(x - LAKE.x, z - LAKE.z);
-      if (ld < 2.5) { const k = smooth(1 - ld / 2.5); h += (FLOOR - 0.85 * k - h) * Math.min(1, k * 1.8); }   // lake basin
-      return h;
+      h += (vnoise(x * 0.45 + 7, z * 0.45 + 3) - 0.5) * 1.6;   // rolling hills
+      h += (vnoise(x * 1.1 + 13, z * 1.1 + 5) - 0.5) * 0.7;    // rough detail
+      h -= 1.5 * Math.exp(-((x - LAKE.x) ** 2 + (z - LAKE.z) ** 2) / (2 * 1.3 * 1.3)); // lake valley
+      return Math.max(-0.32, h * env);
     }
 
-    // square heightfield; the block's cut faces follow the terrain's profile
-    const N = 36, Y0 = 1.95, E = S - 0.02;
-    const gy = (x, z) => Y0 + height(x, z);
-    const tri = [];
-    const P = (i, j) => { const x = -E + 2 * E * i / N, z = -E + 2 * E * j / N; return [x, gy(x, z), z]; };
-    for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
-      const a = P(i, j), b = P(i + 1, j), c = P(i, j + 1), d = P(i + 1, j + 1);
-      if ((i + j) % 2) tri.push(...a, ...c, ...b, ...b, ...c, ...d); else tri.push(...a, ...c, ...d, ...a, ...d, ...b);
+    // build a disc-grid heightfield: centre vertex + 16 rings x 40 segments
+    const RINGS = 16, SEGS = 40, RAD = 6.35, Y0 = 0.68;
+    const verts = [0, Y0 + height(0, 0), 0];
+    for (let i = 1; i <= RINGS; i++) {
+      for (let j = 0; j < SEGS; j++) {
+        const r = (i / RINGS) * RAD, a = (j / SEGS) * Math.PI * 2;
+        const x = Math.cos(a) * r, z = Math.sin(a) * r;
+        verts.push(x, Y0 + height(x, z), z);
+      }
     }
-    const terra = new THREE.BufferGeometry();
-    terra.setAttribute("position", new THREE.Float32BufferAttribute(tri, 3));
+    const idx = [];
+    const vi = (i, j) => 1 + (i - 1) * SEGS + ((j % SEGS) + SEGS) % SEGS;
+    for (let j = 0; j < SEGS; j++) idx.push(0, vi(1, j + 1), vi(1, j));
+    for (let i = 1; i < RINGS; i++) {
+      for (let j = 0; j < SEGS; j++) {
+        const A = vi(i, j), B = vi(i, j + 1), C = vi(i + 1, j), D = vi(i + 1, j + 1);
+        idx.push(A, B, D, A, D, C);
+      }
+    }
+    let terra = new THREE.BufferGeometry();
+    terra.setAttribute("position", new THREE.Float32BufferAttribute(verts, 3));
+    terra.setIndex(idx);
+    terra = terra.toNonIndexed();
+
+    // paint faces by altitude and slope: grass → rock → snow, with dithered banding
     {
       const p = terra.attributes.position;
       const cols = new Float32Array(p.count * 3);
-      const cGrassLo = new THREE.Color(0x58b86a), cGrassHi = new THREE.Color(0x3f9a5a);
-      const cRock = new THREE.Color(0x7d88a6), cSnow = new THREE.Color(0xf2f5ff), cShore = new THREE.Color(0xa8a884);
+      const cGrassLo = new THREE.Color(0x46a763), cGrassHi = new THREE.Color(0x3b8f57);
+      const cRock = new THREE.Color(0x6d7a9c), cSnow = new THREE.Color(0xf2f5ff);
       const va = new THREE.Vector3(), vb = new THREE.Vector3(), vc = new THREE.Vector3();
       const e1 = new THREE.Vector3(), e2 = new THREE.Vector3(), nrm = new THREE.Vector3();
       for (let i = 0; i < p.count; i += 3) {
@@ -899,10 +667,9 @@ async function boot() {
         nrm.crossVectors(e1, e2).normalize();
         const dith = (h2d(i, 7) - 0.5) * 0.5;
         let c;
-        if (h + dith > 3.1) c = cSnow;
-        else if (h + dith > 1.8 || nrm.y < 0.55) c = cRock;
-        else if (h < FLOOR + 0.12) c = cShore;
-        else c = h > 0.8 ? cGrassHi : cGrassLo;
+        if (h + dith > 2.9) c = cSnow;
+        else if (h + dith > 1.6 || nrm.y < 0.55) c = cRock;
+        else c = h > 0.7 ? cGrassHi : cGrassLo;
         const s = 0.9 + h2d(i, 13) * 0.16;
         for (let j = 0; j < 3; j++) {
           cols[(i + j) * 3] = c.r * s;
@@ -912,573 +679,324 @@ async function boot() {
       }
       terra.setAttribute("color", new THREE.BufferAttribute(cols, 3));
     }
-    const land = new THREE.Mesh(terra, facetMat);
-    land.userData.flat = true;
-    g.add(land);
-    {
-      const wall = [];
-      const edges = [u => [u, E], u => [E, -u], u => [-u, -E], u => [-E, u]];
-      for (const edge of edges) for (let k = 0; k < N; k++) {
-        const [x0, z0] = edge(-E + 2 * E * k / N), [x1, z1] = edge(-E + 2 * E * (k + 1) / N);
-        wall.push(x0, 0.7, z0, x1, 0.7, z1, x1, gy(x1, z1), z1, x0, 0.7, z0, x1, gy(x1, z1), z1, x0, gy(x0, z0), z0);
-      }
-      const wg = new THREE.BufferGeometry();
-      wg.setAttribute("position", new THREE.Float32BufferAttribute(wall, 3));
-      const soil = fMesh(wg, 0x7a5a3c, 0.08);
-      soil.userData.flat = true;
-      g.add(soil);
+    g.add(new THREE.Mesh(terra, facetMat));
+
+    // alpine lake sits in the carved valley
+    const lake = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.25, 1.25, 0.08, 10),
+      new THREE.MeshStandardMaterial({ color: 0x3fa9d9, roughness: 0.25, metalness: 0.1, flatShading: true })
+    );
+    lake.position.set(LAKE.x, Y0 + height(LAKE.x, LAKE.z) + 0.07, LAKE.z);
+    g.add(lake);
+
+    // pines planted at terrain height, in the grass band
+    for (const [tx, tz, tsc] of [[4.7, -0.4, 1.1], [4.1, 3.3, 0.9], [-4.5, 2.9, 1.15], [0.6, 4.6, 1.0], [-2.1, 4.1, 0.8], [1.4, -4.7, 0.95]]) {
+      const tr = pine(tx, tz, tsc);
+      tr.position.y = Y0 + height(tx, tz) - 0.05;
+      g.add(tr);
     }
 
-    // water you can see into: the lake is cut by the block's front face, so its bed shows in section
-    const water = new THREE.MeshStandardMaterial({ color: 0x3fb6ea, roughness: 0.08, metalness: 0.1, flatShading: true, transparent: true, opacity: 0.58 });
-    const WY = Y0 + FLOOR - 0.06;
-    const z0 = LAKE.z - 2.6, z1 = E - 0.012;
-    g.add(lit(new THREE.BoxGeometry(5.3, WY - 0.74, z1 - z0), water, LAKE.x, (WY + 0.74) / 2, (z0 + z1) / 2));
-    const rdx = RIV[2] - RIV[0], rdz = RIV[3] - RIV[1], rLen = Math.hypot(rdx, rdz);
-    const river = lit(new THREE.BoxGeometry(rLen + 0.6, 0.5, 0.9), water, RIV[0] + rdx * 0.5, WY - 0.25, RIV[1] + rdz * 0.5);
-    river.rotation.y = -Math.atan2(rdz, rdx);
-    g.add(river);
-    for (const [bx, bz] of [[1.7, 5.3], [3.3, 6.0], [2.6, 4.6]]) { const st = blob(0.2, 0x8c95a8, bx, Y0 + height(bx, bz) + 0.05, bz); g.add(st); }
-    {
-      const skiff = grp(2.9, WY + 0.02, 5.3, 0.7);
-      skiff.add(box(0.5, 0.1, 0.2, 0x8a5a3a, 0, 0.04, 0), box(0.03, 0.4, 0.03, 0xe6e6e6, 0, 0.26, 0), box(0.02, 0.26, 0.2, 0xf4f1e8, 0, 0.3, 0.1, 0.04));
-      g.add(skiff);
-    }
-
-    // forest in the grass band, boulders, an alpine hut
-    for (const [tx, tz, tsc] of [[4.9, -0.6, 1.0], [-4.6, 2.9, 1.05], [-0.6, 5.9, 0.9], [-2.3, 4.3, 0.8], [1.2, -4.9, 0.9], [5.6, 3.6, 0.9]]) {
-      g.add(pine(tx, tz, tsc, gy(tx, tz) - 0.05));
-    }
-    let planted = 0;
-    for (let k = 0; k < 220 && planted < 30; k++) {
-      const x = (h2d(k, 3) - 0.5) * 12.8, z = (h2d(k, 9) - 0.5) * 12.8, h = height(x, z);
-      if (h < 0.02 || h > 1.35 || Math.hypot(x - LAKE.x, z - LAKE.z) < 2.7 || riverDist(x, z) < 0.9) continue;
-      g.add(pine(x, z, 0.45 + h2d(k, 5) * 0.4, Y0 + h - 0.05));
-      planted++;
-    }
-    for (const [bx, bz, bs] of [[2.6, 2.4, 0.3], [4.4, 1.0, 0.26], [-1.2, 3.3, 0.22], [5.3, 2.6, 0.24], [-4.9, 1.2, 0.3]]) {
-      g.add(blob(bs, 0x8c95a8, bx, gy(bx, bz) + bs * 0.4, bz));
-    }
-    {
-      const hx = -0.8, hz = 3.9, hy = gy(hx, hz) - 0.04;
-      const hut = grp(hx, hy, hz, 0.4);
-      hut.add(box(0.8, 0.46, 0.6, 0x8a5a3a, 0, 0.23, 0), pyr(1.0, 0.4, 0.8, 0x4a3530, 0, 0.46, 0),
-        box(0.14, 0.26, 0.03, 0x3a2a22, -0.15, 0.13, 0.31),
-        lit(new THREE.BoxGeometry(0.16, 0.14, 0.03), emis(0xffd27e, 1.4), 0.18, 0.26, 0.31));
-      g.add(hut);
-    }
-
-    const meadow = (x, z) => {
-      const hh = height(x, z);
-      return hh < 0.0 || hh > 1.5 || Math.hypot(x - LAKE.x, z - LAKE.z) < 2.6 || riverDist(x, z) < 0.7 ? null : Y0 + hh - 0.03;
-    };
-    scatter(g, 340, 1, meadow, r => tuft(r > 0.5 ? 0x6fcf7a : 0x4fae62, 0.8 + r * 0.6));
-    scatter(g, 46, 2, meadow, r => bloom([0xfff3a0, 0xff8fb8, 0xffffff][Math.floor(r * 3)]));
-
-    // windsock on the launch meadow
-    const WS = [-1.3, 5.0];
-    const wsY = gy(WS[0], WS[1]);
-    g.add(cyl(0.03, 0.04, 1.5, 5, 0xe6e6e6, WS[0], wsY + 0.75, WS[1]));
-    const sock = dyn(grp(WS[0], wsY + 1.45, WS[1]));
-    for (let k = 0; k < 4; k++) {
-      const seg = cyl(0.13 - k * 0.022, 0.11 - k * 0.022, 0.24, 6, k % 2 ? 0xf4f1e8 : 0xe0453a, 0.14 + k * 0.24, 0, 0, 0.05);
-      seg.rotation.z = Math.PI / 2;
-      sock.add(seg);
-    }
-    g.add(bake(sock));
-
-    // a thermal: rings of rising air under a cumulus, two buzzards working it
-    const TH = [-3.3, 2.0];
-    const thermals = [0, 1, 2, 3].map(() => {
-      const m = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.2, depthWrite: false });
-      const r = lit(new THREE.TorusGeometry(0.8, 0.035, 4, 18), m, TH[0], 3, TH[1]);
-      r.rotation.x = Math.PI / 2;
-      g.add(r);
-      return r;
-    });
-    for (const [cx, cy, cz, cs] of [[TH[0], 9.3, TH[1], 1], [2.2, 9.0, -3.6, 0.75]]) {
-      for (const [ox, oy, oz, r] of [[0, 0, 0, 0.8], [0.8, -0.1, 0.2, 0.6], [-0.75, -0.08, -0.1, 0.62], [0.2, 0.3, -0.2, 0.55]]) {
-        const puff = blob(r * cs, 0xf4f6ff, cx + ox * cs, cy + oy * cs, cz + oz * cs, 0.06, 0.25);
-        puff.scale.y = 0.62;
-        g.add(puff);
-      }
-    }
-    const birds = [0, 1].map(k => {
-      const b = dyn(new THREE.Group());
-      const wl = box(0.3, 0.02, 0.1, 0x3a3340, 0.15, 0, 0, 0.04), wr = box(0.3, 0.02, 0.1, 0x3a3340, -0.15, 0, 0, 0.04);
-      const pl = new THREE.Group(), pr = new THREE.Group();
-      pl.add(wl); pr.add(wr);
-      b.add(pl, pr);
-      b.userData.w = [pl, pr];
-      g.add(b);
-      return b;
-    });
-
-    // golden rings on the flight path
-    const FR = 7.6, FY = 7.1;
+    // golden rings on the flight path (height law matches the glider's)
     const ringMat = new THREE.MeshStandardMaterial({ color: 0xf5c451, emissive: 0xa06f10, emissiveIntensity: 0.5, roughness: 0.4, metalness: 0.6, flatShading: true });
     for (const a of [0.9, 2.6, 4.4]) {
       const rp = new THREE.Group();
       rp.rotation.y = a;
-      rp.add(lit(new THREE.TorusGeometry(1.75, 0.09, 6, 22), ringMat, FR, FY + Math.sin(2 * a) * 0.9, 0));
-      rp.children[0].userData.noShadow = false;
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(2.3, 0.1, 6, 22), ringMat);
+      ring.position.set(8.6, 5.6 + Math.sin(2 * a) * 0.9, 0);
+      rp.add(ring);
       g.add(rp);
     }
 
     // circling sailplane: pivot rotates, wrapper yaws nose to tangent, inner mesh banks
-    const pivot = dyn(new THREE.Group());
+    const pivot = new THREE.Group();
     const wrapper = new THREE.Group();
     const plane = new THREE.Group();
     const white = 0xf4f1e8, accent = 0x7fd4ff;
-    const tube = (rt, rb, len, c, x) => { const m = cyl(rt, rb, len, 8, c, x, 0, 0, 0.05); m.rotation.z = -Math.PI / 2; return m; };
+
+    // slender fuselage: nose cone → cockpit section → tapering tail boom
     const nose = fMesh(new THREE.ConeGeometry(0.13, 0.4, 8), white, 0.05);
     nose.rotation.z = -Math.PI / 2;
     nose.position.x = 1.15;
-    const canopy = fMesh(new THREE.SphereGeometry(1, 10, 8), 0x2a3a5a, 0.06);
+    const body = fMesh(new THREE.CylinderGeometry(0.13, 0.115, 0.75, 8), white, 0.05);
+    body.rotation.z = -Math.PI / 2;
+    body.position.x = 0.58;
+    const boom = fMesh(new THREE.CylinderGeometry(0.115, 0.045, 1.55, 8), white, 0.05);
+    boom.rotation.z = -Math.PI / 2;
+    boom.position.x = -0.57;
+    const band = fMesh(new THREE.CylinderGeometry(0.135, 0.135, 0.1, 8), accent, 0.04);
+    band.rotation.z = -Math.PI / 2;
+    band.position.x = 0.93;
+    const canopy = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 8), mat(0x2a3a5a, { roughness: 0.25, metalness: 0.2 }));
     canopy.scale.set(0.34, 0.15, 0.12);
     canopy.position.set(0.62, 0.12, 0);
-    plane.add(nose, tube(0.13, 0.115, 0.75, white, 0.58), tube(0.115, 0.045, 1.55, white, -0.57), tube(0.135, 0.135, 0.1, accent, 0.93), canopy);
+    plane.add(nose, body, boom, band, canopy);
+
+    // high-aspect wings: inner panel + tapered outer panel per side, gentle dihedral, blue winglets
     for (const side of [1, -1]) {
       const wingSide = new THREE.Group();
-      wingSide.add(box(0.46, 0.05, 2.0, white, 0, 0, 1.0 * side, 0.06), box(0.34, 0.045, 1.7, white, 0.02, 0.005, 2.85 * side, 0.06),
-        box(0.2, 0.26, 0.04, accent, 0, 0.13, 3.72 * side, 0.06));
-      wingSide.rotation.x = -0.07 * side;
+      const innerG = new THREE.BoxGeometry(0.46, 0.05, 2.0);
+      innerG.translate(0, 0, 1.0 * side);
+      wingSide.add(fMesh(innerG, white, 0.06));
+      const outerG = new THREE.BoxGeometry(0.34, 0.045, 1.7);
+      outerG.translate(0.02, 0.005, 2.85 * side);
+      wingSide.add(fMesh(outerG, white, 0.06));
+      const wingletG = new THREE.BoxGeometry(0.2, 0.26, 0.04);
+      wingletG.translate(0, 0.13, 3.72 * side);
+      wingSide.add(fMesh(wingletG, accent, 0.06));
+      wingSide.rotation.x = -0.07 * side; // dihedral: tips rise
       wingSide.position.set(0.28, 0.1, 0);
       plane.add(wingSide);
     }
-    plane.add(box(0.3, 0.52, 0.05, white, -1.22, 0.3, 0, 0.06), box(0.3, 0.04, 1.4, accent, -1.22, 0.58, 0, 0.06));
-    plane.rotation.x = -0.6;              // inner wing down: banked into the turn
-    plane.scale.setScalar(0.62);
+
+    // T-tail: horizontal stabiliser mounted on top of the fin
+    const fin = fMesh(new THREE.BoxGeometry(0.3, 0.52, 0.05), white, 0.06);
+    fin.position.set(-1.22, 0.3, 0);
+    const stab = fMesh(new THREE.BoxGeometry(0.3, 0.04, 1.4), accent, 0.06);
+    stab.position.set(-1.22, 0.58, 0);
+    plane.add(fin, stab);
+
+    plane.rotation.x = 0.42; // bank into the turn
     wrapper.add(plane);
-    wrapper.rotation.y = Math.PI / 2;
-    wrapper.position.set(FR, FY, 0);
+    wrapper.rotation.y = Math.PI / 2; // nose along direction of travel
+    wrapper.position.set(8.6, 5.6, 0);
     pivot.add(wrapper);
     g.add(pivot);
-    bake(plane);
 
     return {
       group: g,
       animate(t) {
         pivot.rotation.y = t * 0.55;
-        wrapper.position.y = FY + Math.sin(t * 1.1) * 0.9;
-        plane.rotation.x = -0.6 + Math.sin(t * 0.8) * 0.1;        // rolling a little as it works the turn
-        plane.rotation.z = Math.cos(t * 1.1) * 0.14;               // nose follows the climb and the sink
-        sock.rotation.y = 0.5 + Math.sin(t * 1.3) * 0.3;
-        sock.rotation.z = Math.sin(t * 2.3) * 0.08;
-        thermals.forEach((r, k) => {
-          const u = (t * 0.16 + k / 4) % 1;
-          r.position.y = 3.0 + u * 5.8;
-          r.scale.setScalar(0.7 + u * 0.7);
-          r.material.opacity = Math.sin(u * Math.PI) * 0.3;
-        });
-        birds.forEach((b, k) => {
-          const a = t * 0.8 + k * Math.PI;
-          b.position.set(TH[0] + Math.cos(a) * 1.0, 6.2 + k * 1.1 + Math.sin(t * 0.4 + k) * 0.3, TH[1] + Math.sin(a) * 1.0);
-          b.rotation.y = -a;
-          const fl = Math.sin(t * 5 + k) * 0.35;
-          b.userData.w[0].rotation.z = fl; b.userData.w[1].rotation.z = -fl;
-        });
+        wrapper.position.y = 5.6 + Math.sin(t * 1.1) * 0.9;
       }
     };
   }
 
-  // STUNTMANIA '76 — the canyon jump: a ramp on each rim, a ring of fire slung over the drop
   function buildStunt() {
-    const g = new THREE.Group();
-    const M = 2.1, BED = -1.0;                       // plateau top, canyon floor
-    const RED = 0xd94f3d, WHT = 0xf4f1e8, BLU = 0x2f4f9f, WOOD = 0x7a5236;
+    const g = islandBase(6.6, 0xd6924f, 0x9a5f36);
 
-    // the block: two plateaus of banded sandstone and a canyon stepped down between them
-    const bands = [[2.1, 1.6, 1.3, 0xd6924f], [1.6, 1.1, 1.12, 0xc8683a], [1.1, 0.75, 0.95, 0xe0a468], [0.75, 0.2, 0.82, 0xb4552f], [0.2, -0.3, 0.64, 0xc8683a], [-0.3, BED, 0.5, 0x9a4f30]];
-    const flat = m => { m.userData.flat = true; return m; };
-    for (const [y1, y0, w, c] of bands) for (const s of [-1, 1]) {
-      g.add(flat(box(S - w, y1 - y0, 2 * S, c, s * (S + w) / 2, (y1 + y0) / 2, 0, 0)));
+    // arena floor on top
+    const mesa = fMesh(jitter(new THREE.CylinderGeometry(4.9, 5.6, 1.5, 9), 0.4, 0.1), 0xdda05c, 0.16);
+    mesa.position.y = 1.35;
+    g.add(mesa);
+
+    // canyon buttes on the rim
+    for (const [bx, bz, br, bh] of [[-4.8, -2.2, 1.2, 3.4], [-3.4, -4.2, 0.9, 2.4], [4.6, 3.4, 1.0, 2.8]]) {
+      const butte = fMesh(jitter(new THREE.CylinderGeometry(br * 0.8, br, bh, 7, 2), 0.35), 0xb4552f, 0.2);
+      butte.position.set(bx, bh / 2 + 0.6, bz);
+      g.add(butte);
     }
-    g.add(flat(box(2 * S, 0.6, 2 * S, 0x8a4a30, 0, BED - 0.3, 0, 0)), flat(box(2 * S, BED - 0.6 - BLOCK_FLOOR, 2 * S, 0x6f3c2a, 0, (BED - 0.6 + BLOCK_FLOOR) / 2, 0, 0)));
-    const mesaH = (x, z) => rise(x, z, 5.6, 0.6, 2);
-    landTop(g, { x0: -S + 0.02, x1: -1.3, nx: 12, y: M + 0.006, base: M - 0.02, h: mesaH, colour: 0xdda05c, wall: 0xd6924f, edges: [1, 0, 1, 1] });
-    landTop(g, { x0: 1.3, x1: S - 0.02, nx: 12, y: M + 0.006, base: M - 0.02, h: mesaH, colour: 0xdda05c, wall: 0xd6924f, edges: [1, 1, 1, 0] });
-    // the river that cut it, rocks and scrub on the ledges
-    g.add(lit(new THREE.BoxGeometry(0.66, 0.08, 2 * S - 0.02), new THREE.MeshStandardMaterial({ color: 0x3fb0c8, roughness: 0.1, metalness: 0.15, flatShading: true, transparent: true, opacity: 0.7 }), 0.05, BED + 0.04, 0));
-    for (let k = 0; k < 22; k++) {
-      const s = k % 2 ? 1 : -1, i = 1 + (k * 3) % 4, z = -6.3 + k * 0.6 + fract(k * 0.37) * 0.3;
-      const x = s * (bands[i][2] + bands[i + 1][2]) / 2, y = bands[i + 1][0];
-      if (Math.abs(z + 3.4) < 0.9) continue;                        // keep the bridge's legs clear
-      if (k % 3) g.add(blob(0.16 + fract(k * 0.61) * 0.16, k % 4 ? 0xb4552f : 0xc98a55, x, y + 0.08, z));
-      else { const sc = tuft(0x8a9a4a, 1.1); sc.position.set(x, y, z); g.add(sc); }
-    }
-    for (const [px, pz, pr] of [[-0.3, -5.6, 0.2], [0.34, -1.6, 0.16], [-0.36, 1.2, 0.22], [0.3, 4.9, 0.18], [-0.32, 6.1, 0.14]]) g.add(blob(pr, 0x8a4a30, px, BED + pr * 0.4, pz));
 
-    const onTop = (x, z) => { const r = Math.hypot(x, z); return Math.abs(x) > 1.5 && (r < 3.0 || r > 4.0) ? M + 0.01 + mesaH(x, z) : null; };
-    scatter(g, 120, 3, onTop, r => pebble(r > 0.5 ? 0xb4552f : 0xc98a55, r));
-    scatter(g, 90, 4, onTop, r => tuft(r > 0.5 ? 0xc9b25a : 0x9a9a4a, 0.7 + r * 0.5));
+    g.add(cactus(-2.4, 3.9, 1.0), cactus(4.2, -3.4, 0.85), cactus(-4.9, 1.4, 0.9));
 
-    for (const [bx, bz, br, bh] of [[-5.6, -5.3, 1.05, 3.4], [-3.5, -5.7, 0.8, 2.3], [6.0, -3.2, 0.75, 2.5], [-5.9, 5.5, 0.75, 1.7], [5.9, 5.9, 0.6, 1.3]]) {
-      const butte = fMesh(jitter(new THREE.CylinderGeometry(br * 0.8, br, bh, 7, 2), 0.3), 0xb4552f, 0.2);
-      butte.position.set(bx, bh / 2 + M - 0.1, bz);
-      g.add(butte, cyl(br * 0.62, br * 0.8, 0.5, 7, 0xc8683a, bx, bh + M + 0.1, bz, 0.18));
-    }
-    g.add(cactus(-6.1, 3.3, 0.8, M), cactus(-3.0, 6.0, 0.7, M), cactus(3.2, 6.1, 0.75, M), cactus(6.2, 4.3, 0.8, M), cactus(-2.4, -6.1, 0.7, M),
-      cactus(2.1, -1.6, 0.6, M), cactus(-2.2, 0.3, 0.65, M), cactus(2.4, -6.2, 0.8, M));
-
-    // everything on the jump line lives in the arena, turned so the jump crosses the canyon at the front
-    const arena = grp(0, 0, 0, -2.37);
-    g.add(arena);
-    const arm = a => { const o = grp(0, 0, 0, a); arena.add(o); return o; };
-    const R = 3.5;
-
-    function ramp(o, s) {                            // s = 1 take-off, -1 landing
-      const r = new THREE.Group();
-      r.add(box(2.7, 0.2, 1.7, RED), box(2.72, 0.22, 0.5, WHT, 0, 0, 0, 0.05),
-        box(2.74, 0.34, 0.1, BLU, 0, 0.08, 0.86), box(2.74, 0.34, 0.1, BLU, 0, 0.08, -0.86));
-      for (const sx of [-1.0, -0.35, 0.35, 1.0]) {
-        r.add(box(0.13, 0.13, 0.03, WHT, sx, 0.1, 0.92, 0.03), box(0.13, 0.13, 0.03, WHT, sx, 0.1, -0.92, 0.03));
-      }
-      r.position.set(R, M + 0.52, 0);
-      r.rotation.set(0.42 * s, Math.PI / 2, 0);
-      o.add(r);
-      for (const dx of [-0.7, 0.7]) {
-        o.add(box(0.12, 1.0, 0.12, WOOD, R + dx, M + 0.5, -1.15 * s), box(0.1, 0.62, 0.1, WOOD, R + dx, M + 0.31, -0.4 * s));
-        const brace = box(0.07, 1.25, 0.07, 0x6b4a33, R + dx, M + 0.45, -0.78 * s);
-        brace.rotation.x = 0.75 * s;
-        o.add(brace);
-      }
-      o.add(box(1.5, 0.08, 0.08, 0x6b4a33, R, M + 0.55, -1.15 * s), box(1.5, 0.08, 0.08, 0x6b4a33, R, M + 0.2, -1.15 * s));
-    }
-    ramp(arm(0), 1);
-    ramp(arm(1.6), -1);
-
-    // the ring of fire, slung on a cable between two towers, one on each rim
-    const fireMat = emis(0xff7a1a, 2.4);
-    const HY = M + 3.62;
-    const hoop = arm(0.8);
-    hoop.add(lit(new THREE.TorusGeometry(1.15, 0.07, 6, 22), fireMat, R, HY, 0), box(0.04, 0.04, 4.3, 0x3a3632, R, M + 5.0, 0, 0.03), box(0.03, 0.26, 0.03, 0x3a3632, R, M + 4.88, 0, 0.03));
-    for (const tz of [-2.1, 2.1]) {
-      hoop.add(cyl(0.07, 0.1, 5.1, 5, WOOD, R - 0.3, M + 2.55, tz), cyl(0.07, 0.1, 5.1, 5, WOOD, R + 0.3, M + 2.55, tz), box(0.8, 0.08, 0.08, WOOD, R, M + 5.0, tz),
-        box(0.75, 0.07, 0.07, WOOD, R, M + 3.3, tz), box(0.75, 0.07, 0.07, WOOD, R, M + 1.6, tz));
-      const xb = box(0.06, 1.8, 0.06, 0x6b4a33, R, M + 2.45, tz); xb.rotation.z = 0.36;
-      const xc = box(0.06, 1.8, 0.06, 0x6b4a33, R, M + 4.15, tz); xc.rotation.z = -0.36;
-      hoop.add(xb, xc);
-    }
-    const flames = [];
-    for (let k = 0; k < 12; k++) {
-      const th = k / 12 * Math.PI * 2;
-      const f = lit(new THREE.ConeGeometry(0.11, 0.42, 5), fireMat, R + Math.cos(th) * 1.2, HY + Math.sin(th) * 1.2, 0);
-      f.rotation.z = th - Math.PI / 2;
-      hoop.add(f);
-      flames.push(f);
-    }
-    const fireLight = new THREE.PointLight(0xff8a2a, 10, 8, 2);
-    fireLight.position.set(R, HY, 0);
-    hoop.add(fireLight);
-
-    // the trestle bridge the circuit comes home over
-    const BZ = -3.4;
-    g.add(box(3.3, 0.1, 1.15, WOOD, 0, M, BZ), box(3.3, 0.06, 0.06, 0x6b4a33, 0, M + 0.36, BZ + 0.55), box(3.3, 0.06, 0.06, 0x6b4a33, 0, M + 0.36, BZ - 0.55));
-    for (const px of [-1.5, -0.75, 0, 0.75, 1.5]) for (const s of [-1, 1]) g.add(box(0.06, 0.4, 0.06, 0x6b4a33, px, M + 0.18, BZ + 0.55 * s));
-    for (const px of [-0.42, 0.42]) for (const s of [-1, 1]) {
-      g.add(box(0.11, M - BED, 0.11, WOOD, px, (M + BED) / 2, BZ + 0.45 * s));
-      const xb = box(0.07, 1.5, 0.07, 0x6b4a33, 0, 0.4 + (px > 0 ? 1.0 : -0.4), BZ + 0.45 * s);
-      xb.rotation.z = px > 0 ? 0.6 : -0.6;
-      g.add(xb);
-    }
-    g.add(box(0.95, 0.08, 1.0, 0x6b4a33, 0, 1.2, BZ), box(0.95, 0.08, 1.0, 0x6b4a33, 0, -0.1, BZ));
-
-    // grandstand on the west rim, facing the drop
-    const kit = [RED, WHT, 0x3d6cd9, 0xf5c451, 0x59a06a, 0xe08a3a];
-    const stand = grp(-4.9, 0, 0.5, Math.PI / 2);
-    for (let k = 0; k < 3; k++) {
-      stand.add(box(3.4, 0.3 * (k + 1), 0.45, 0x8a6a4a, 0, M + 0.15 * (k + 1), -0.6 - 0.45 * k));
-      for (let i = 0; i < 8; i++) {
-        const fan = person(kit[(i * 3 + k) % kit.length], 0x3a3340, 0.8);
-        fan.position.set(-1.47 + i * 0.42, M + 0.3 * (k + 1), -0.6 - 0.45 * k);
-        stand.add(fan);
-      }
-    }
-    g.add(stand);
-
-    // the marquee on the east rim
-    const SZ = -1.95;
-    const mq = grp(4.05, 0, -3.2, -0.3);
-    mq.add(cyl(0.06, 0.08, 3.4, 5, WOOD, -1.75, M + 1.7, SZ), cyl(0.06, 0.08, 3.4, 5, WOOD, 1.75, M + 1.7, SZ),
-      box(3.7, 1.1, 0.1, BLU, 0, M + 2.95, SZ));
-    const marquee = sign("STUNTMANIA '76", 3.4, 0.82, "#b3261e", "#fff3d6");
-    marquee.position.set(0, M + 2.95, SZ + 0.06);
-    mq.add(marquee);
-    const bulbs = [emis(0xffe9a8, 2.6), emis(0xffe9a8, 0.4)];
-    for (let k = 0; k < 14; k++) {
-      mq.add(lit(new THREE.SphereGeometry(0.06, 6, 5), bulbs[k % 2], -1.69 + k * 0.26, M + 3.56, SZ + 0.04),
-        lit(new THREE.SphereGeometry(0.06, 6, 5), bulbs[(k + 1) % 2], -1.69 + k * 0.26, M + 2.34, SZ + 0.04));
-    }
-    g.add(mq);
-
-    // paddock on the east rim: rocket sled on its rail, hay, drums, the borrowed BMX, the next rider up
-    const pd = grp(7.0, 0, 0.6, -Math.PI / 2);
-    const sled = grp(-1.3, M, 1.3, 0.55);
-    sled.add(box(2.4, 0.05, 0.06, 0x4a4650, 0, 0.05, 0.16), box(2.4, 0.05, 0.06, 0x4a4650, 0, 0.05, -0.16));
-    const sbody = cyl(0.2, 0.2, 1.1, 8, RED, 0.1, 0.34, 0), snose = fMesh(new THREE.ConeGeometry(0.2, 0.5, 8), WHT, 0.05);
-    sbody.rotation.z = Math.PI / 2;
-    snose.rotation.z = -Math.PI / 2;
-    snose.position.set(0.9, 0.34, 0);
-    sled.add(sbody, snose, box(0.3, 0.34, 0.04, WHT, -0.4, 0.62, 0), box(0.3, 0.04, 0.6, WHT, -0.4, 0.34, 0), box(0.9, 0.1, 0.4, 0x4a4650, 0.1, 0.13, 0));
-    const jet = lit(new THREE.ConeGeometry(0.15, 0.7, 6), fireMat, -0.8, 0.34, 0);
-    jet.rotation.z = Math.PI / 2;
-    sled.add(jet);
-    pd.add(sled);
-    for (const [hx, hy, hz, hr] of [[1.2, 0.25, 1.5, 0.1], [1.95, 0.25, 1.25, 0.5], [1.5, 0.75, 1.4, 0.3], [0.2, 0.25, 2.2, 1.2]]) {
-      const b = box(0.8, 0.5, 0.55, 0xd9b36a, hx, M + hy, hz, 0.15);
+    // hay bales + barrels near the ramp
+    const hay = 0xd9b36a;
+    for (const [hx, hz, hr] of [[1.2, 2.6, 0], [2.0, 2.9, 0.5], [1.6, 2.75, 0]]) {
+      const b = fMesh(new THREE.BoxGeometry(0.8, 0.5, 0.55), hay, 0.15);
+      b.position.set(hx, 2.35 + (hr ? 0.5 : 0), hz);
       b.rotation.y = hr;
-      pd.add(b);
+      g.add(b);
     }
-    pd.add(cyl(0.26, 0.26, 0.62, 9, 0x3d6cd9, -0.5, M + 0.31, 2.3), cyl(0.26, 0.26, 0.62, 9, RED, -1.0, M + 0.31, 2.55),
-      cyl(0.26, 0.26, 0.62, 9, 0x4a8a5a, -0.75, M + 0.93, 2.42));
-    const rider2 = person(WHT, WHT, 1.0);
-    rider2.add(box(0.2, 0.18, 0.2, RED, 0, 0.66, 0, 0.05));
-    rider2.position.set(0.75, M, 1.0);
-    pd.add(rider2);
-    {
-      const bmx = grp(1.15, M, 0.75, 0.9);
-      for (const wx of [0.3, -0.3]) {
-        const w = fMesh(new THREE.TorusGeometry(0.17, 0.04, 5, 10), 0x1c1a26, 0.04);
-        w.position.set(wx, 0.2, 0);
-        bmx.add(w);
-      }
-      bmx.add(box(0.5, 0.05, 0.05, 0xf5c451, 0, 0.36, 0), box(0.05, 0.3, 0.05, 0xf5c451, 0.26, 0.42, 0), box(0.05, 0.05, 0.34, 0x2a2438, 0.26, 0.58, 0),
-        box(0.16, 0.04, 0.1, 0x2a2438, -0.16, 0.44, 0));
-      bmx.rotation.z = 0.12;
-      pd.add(bmx);
+    for (const [bx, bz, bc] of [[-2.7, 1.6, 0x3d6cd9], [-3.1, 0.5, 0xd94f3d]]) {
+      const b = fMesh(new THREE.CylinderGeometry(0.3, 0.3, 0.68, 9), bc, 0.12);
+      b.position.set(bx, 2.44, bz);
+      g.add(b);
     }
-    g.add(pd);
 
-    // flag poles and bunting from the towers
-    const pen = [RED, WHT, BLU];
-    for (const sx of [-1, 1]) {
-      g.add(cyl(0.04, 0.05, 2.4, 5, WHT, 4.1 * sx, M + 1.2, 5.6), box(0.5, 0.26, 0.03, sx > 0 ? RED : BLU, 4.1 * sx + 0.27, M + 2.24, 5.6, 0.05));
-      bunting(g, 2.1 * sx, M + 5.0, 3.5, 4.1 * sx, M + 2.4, 5.6, 9, pen, 0.4);
-      bunting(g, 2.1 * sx, M + 5.0, 3.5, 3.4 * sx, M + 2.6, 1.0, 9, pen, 0.4);
-      g.add(cyl(0.04, 0.05, 2.6, 5, WHT, 3.4 * sx, M + 1.3, 1.0));
+    // star-spangled ramp on the bike's circular path (radius 3.5, at angle 0)
+    const rampG = new THREE.Group();
+    const rampRed = fMesh(new THREE.BoxGeometry(2.7, 0.22, 1.7), 0xd94f3d, 0.1);
+    const stripe = fMesh(new THREE.BoxGeometry(2.72, 0.24, 0.5), 0xf4f1e8, 0.05);
+    rampG.add(rampRed, stripe);
+    for (const sx of [-0.8, 0.8]) {
+      const strut = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.9, 0.14), mat(0x6b4a33));
+      strut.position.set(sx, -0.55, -0.5);
+      rampG.add(strut);
     }
+    rampG.position.set(3.5, 2.62, 0);
+    rampG.rotation.set(0.42, Math.PI / 2, 0); // low end faces the approaching bike, high end launches it
+    g.add(rampG);
 
     // stunt bike + rider
-    const pivot = dyn(new THREE.Group());
+    const pivot = new THREE.Group();
     const wrapper = new THREE.Group();
-    const spin = grp(0, 0.6, 0);
-    const bike = grp(0, -0.6, 0);
+    const bike = new THREE.Group();
+    const wheelG = new THREE.TorusGeometry(0.27, 0.09, 6, 12);
     for (const wx of [0.52, -0.52]) {
-      const w = fMesh(new THREE.TorusGeometry(0.27, 0.09, 6, 12), 0x1c1a26, 0.04);
+      const w = new THREE.Mesh(wheelG, mat(0x1c1a26));
       w.position.set(wx, 0.28, 0);
       bike.add(w);
     }
-    const torso = fMesh(new THREE.CapsuleGeometry(0.15, 0.3, 3, 8), WHT, 0.06);
+    const frame = fMesh(new THREE.BoxGeometry(0.95, 0.24, 0.16), 0xd94f3d, 0.1);
+    frame.position.y = 0.5;
+    const tank = fMesh(new THREE.BoxGeometry(0.4, 0.18, 0.2), 0xf4f1e8, 0.06);
+    tank.position.set(0.18, 0.66, 0);
+    const bars = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.5), mat(0x2a2438));
+    bars.position.set(0.46, 0.78, 0);
+    bike.add(frame, tank, bars);
+    // rider in white leathers, leaning forward
+    const torso = fMesh(new THREE.CapsuleGeometry(0.15, 0.3, 3, 8), 0xf4f1e8, 0.06);
     torso.position.set(-0.05, 0.95, 0);
     torso.rotation.z = -0.5;
-    bike.add(box(0.95, 0.24, 0.16, RED, 0, 0.5, 0), box(0.4, 0.18, 0.2, WHT, 0.18, 0.66, 0, 0.06), box(0.05, 0.05, 0.5, 0x2a2438, 0.46, 0.78, 0),
-      torso, blob(0.16, RED, 0.14, 1.13, 0, 0.05, 0.05), box(0.34, 0.12, 0.1, 0x3d6cd9, -0.12, 0.62, 0.16), box(0.34, 0.12, 0.1, 0x3d6cd9, -0.12, 0.62, -0.16),
-      box(0.3, 0.04, 0.3, BLU, -0.3, 1.0, 0, 0.04));
-    spin.add(bike);
-    wrapper.add(spin);
-    wrapper.rotation.y = Math.PI / 2;
-    wrapper.position.set(R, M + 0.05, 0);
-    pivot.add(wrapper);
-    arena.add(pivot);
-    bake(bike);
+    const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.15, 8, 8), mat(0xd94f3d));
+    helmet.position.set(0.14, 1.13, 0);
+    const legL = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.12, 0.1), mat(0x3d6cd9));
+    legL.position.set(-0.12, 0.62, 0.16);
+    const legR = legL.clone(); legR.position.z = -0.16;
+    bike.add(torso, helmet, legL, legR);
 
-    const TAU = Math.PI * 2;
+    wrapper.add(bike);
+    wrapper.rotation.y = Math.PI / 2;
+    wrapper.position.set(3.5, 2.15, 0);
+    pivot.add(wrapper);
+    g.add(pivot);
+
+    const topY = 2.15;
     return {
       group: g,
       animate(t) {
-        const a = (t * 1.05) % TAU;
+        const a = (t * 1.15) % (Math.PI * 2);
         pivot.rotation.y = a;
-        const b = a > Math.PI ? a - TAU : a;
-        let y = 0, rot = 0;
-        if (b > -0.35 && b <= 0.35) { y = (b + 0.35) / 0.7 * 1.07; rot = 0.42 * smooth((b + 0.4) / 0.2); }
-        else if (b > 0.35 && b < 1.25) {
-          const p = (b - 0.35) / 0.9;
-          y = 1.07 + Math.sin(p * Math.PI) * 1.95;
-          rot = 0.42 * Math.cos(p * Math.PI) + TAU * smooth(p);            // one clean backflip over the drop
-        } else if (b >= 1.25 && b < 1.95) { y = 1.07 * (1 - (b - 1.25) / 0.7); rot = -0.42 * (1 - smooth((b - 1.8) / 0.15)); }
-        wrapper.position.y = M + 0.05 + y;
-        spin.rotation.z = rot;
-        const fl = 2.0 + Math.sin(t * 13) * 0.5 + Math.sin(t * 7.1) * 0.4;
-        fireMat.emissiveIntensity = fl;
-        fireLight.intensity = 5 + fl * 2.5;
-        flames.forEach((f, k) => { f.scale.y = 0.8 + Math.sin(t * 11 + k * 1.9) * 0.35; });
-        const on = Math.floor(t * 3) % 2;
-        bulbs[0].emissiveIntensity = on ? 2.6 : 0.4;
-        bulbs[1].emissiveIntensity = on ? 0.4 : 2.6;
+        let y = topY;
+        const J = 1.6; // jump arc length in radians
+        if (a < J) {
+          const p = a / J;
+          y = topY + Math.sin(p * Math.PI) * 2.3;
+          bike.rotation.z = Math.sin(p * Math.PI * 2) * 0.55; // nose up, then down
+        } else {
+          bike.rotation.z = 0;
+        }
+        wrapper.position.y = y;
       }
     };
   }
 
-  // FITBA CRAZY — a full 7-a-side match under the lights
   function buildFitba() {
-    const g = blockBase([[0.45, 0x6a4a34], [0.9, 0x6a4a34], [0.7, 0x5a5a52], [1.0, 0x45463f]], false);
-    const turfH = (x, z) => rise(x, z, 5.95, 0.45, 5);
-    landTop(g, { h: turfH, colour: 0x2e7a44, wall: 0x6a4a34 });
-    scatter(g, 200, 6, (x, z) => (z > 4.6 || (Math.abs(x) > 4.4 && Math.abs(z) > 3.7) || (Math.abs(x) > 5.4 && Math.abs(z) > 2.5)) ? 0.71 + turfH(x, z) : null,
-      r => tuft(r > 0.5 ? 0x4fb866 : 0x3f9a52, 0.7 + r * 0.5));
-    const TOP = 1.1;
-    const WHT = 0xf4f7f2;
+    const g = islandBase(7.0, 0x2e7a44, 0x4c5a4a);
 
-    g.add(box(9.6, 0.5, 6.4, 0x2e8c49, 0, 0.85, 0, 0.08));
-    for (let i = 0; i < 6; i += 2) g.add(box(1.53, 0.02, 6.0, 0x37a457, -3.83 + i * 1.53, 1.11, 0, 0.05));
-    const mkLine = (w, d, x, z) => g.add(box(w, 0.03, d, WHT, x, 1.125, z, 0.02));
-    mkLine(9.2, 0.1, 0, 2.95); mkLine(9.2, 0.1, 0, -2.95);
-    mkLine(0.1, 6.0, 4.55, 0); mkLine(0.1, 6.0, -4.55, 0); mkLine(0.1, 6.0, 0, 0);
-    for (const s of [1, -1]) {
-      mkLine(0.08, 3.0, 3.35 * s, 0); mkLine(1.2, 0.08, 3.95 * s, 1.5); mkLine(1.2, 0.08, 3.95 * s, -1.5);
-      mkLine(0.08, 1.5, 4.1 * s, 0); mkLine(0.45, 0.08, 4.32 * s, 0.75); mkLine(0.45, 0.08, 4.32 * s, -0.75);
-      mkLine(0.12, 0.12, 3.65 * s, 0);
+    // striped pitch
+    const pitch = fMesh(new THREE.BoxGeometry(9.6, 0.5, 6.4), 0x2e8c49, 0.08);
+    pitch.position.y = 0.85;
+    g.add(pitch);
+    for (let i = 0; i < 3; i++) {
+      const s = new THREE.Mesh(new THREE.BoxGeometry(1.55, 0.02, 6.2), mat(0x37a457));
+      s.position.set(-3.1 + i * 3.1, 1.11, 0);
+      g.add(s);
     }
-    const circle = fMesh(new THREE.TorusGeometry(1.0, 0.04, 4, 24), WHT, 0.02);
+
+    const lineM = mat(0xf4f7f2);
+    const mkLine = (w, d, x, z) => {
+      const l = new THREE.Mesh(new THREE.BoxGeometry(w, 0.04, d), lineM);
+      l.position.set(x, 1.13, z);
+      g.add(l);
+    };
+    mkLine(9.2, 0.12, 0, 2.95); mkLine(9.2, 0.12, 0, -2.95);
+    mkLine(0.12, 6.0, 4.55, 0); mkLine(0.12, 6.0, -4.55, 0);
+    mkLine(0.12, 6.0, 0, 0);
+    const circle = new THREE.Mesh(new THREE.TorusGeometry(1.15, 0.05, 6, 24), lineM);
     circle.rotation.x = Math.PI / 2;
-    circle.position.y = 1.125;
+    circle.position.y = 1.13;
     g.add(circle);
 
-    // goals with nets, corner flags
-    const netMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide });
-    for (const s of [1, -1]) {
-      const x = 4.6 * s;
-      g.add(box(0.08, 0.08, 2.2, WHT, x, TOP + 0.9, 0, 0.02), box(0.08, 0.9, 0.08, WHT, x, TOP + 0.45, 1.1, 0.02), box(0.08, 0.9, 0.08, WHT, x, TOP + 0.45, -1.1, 0.02),
-        box(0.05, 0.05, 2.2, WHT, x + 0.55 * s, TOP + 0.5, 0, 0.02), box(0.05, 0.5, 0.05, WHT, x + 0.55 * s, TOP + 0.25, 1.1, 0.02), box(0.05, 0.5, 0.05, WHT, x + 0.55 * s, TOP + 0.25, -1.1, 0.02));
-      g.add(lit(new THREE.BoxGeometry(0.55, 0.88, 2.2), netMat, x + 0.28 * s, TOP + 0.45, 0));
-      for (const cz of [2.95, -2.95]) {
-        g.add(cyl(0.02, 0.02, 0.6, 4, WHT, 4.55 * s, TOP + 0.3, cz), box(0.18, 0.12, 0.02, 0xf5c451, 4.55 * s - 0.1 * s, TOP + 0.54, cz, 0.04));
-      }
+    // goals
+    const postM = mat(0xf4f7f2);
+    for (const side of [1, -1]) {
+      const goal = new THREE.Group();
+      const bar = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 2.2), postM);
+      bar.position.y = 0.9;
+      const p1 = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.9, 0.08), postM);
+      p1.position.set(0, 0.45, 1.1);
+      const p2 = p1.clone(); p2.position.z = -1.1;
+      goal.add(bar, p1, p2);
+      goal.position.set(4.7 * side, 1.1, 0);
+      g.add(goal);
     }
 
-    // stands: the main stand behind, a terrace at each end, all full
-    const kit = [0xf5c451, 0x9a5fd9, 0xf5c451, 0xf4f1e8, 0x9a5fd9, 0xd94f3d, 0x3d6cd9, 0xf5c451, 0x9a5fd9];
-    const crowd = [dyn(new THREE.Group()), dyn(new THREE.Group())];
-    let seat = 0;
-    const sit = (x, y, z) => {
-      const fan = person(kit[(seat * 5 + (seat >> 3)) % kit.length], 0x2a2a34, 0.72);
-      fan.position.set(x, y, z);
-      crowd[seat++ % 2].add(fan);
-    };
-    for (let k = 0; k < 4; k++) {
-      const z = -3.95 - k * 0.5, h = 0.34 * (k + 1);
-      g.add(box(7.6, h, 0.5, k % 2 ? 0x6a7080 : 0x5a6070, 0, 0.7 + h / 2 + 0.3, z, 0.1));
-      for (let i = 0; i < 17; i++) if (!(k < 2 && i > 6 && i < 10)) sit(-3.44 + i * 0.43, 1.0 + h, z);
-    }
-    g.add(box(1.1, 0.72, 0.1, 0x15151c, 0, 1.36, -3.69, 0.03));                 // players' tunnel
-    g.add(box(7.6, 0.12, 2.1, 0x3a4150, 0, 3.75, -4.75, 0.06), box(7.6, 2.9, 0.1, 0x4a5262, 0, 2.3, -5.76, 0.06));
-    for (const px of [-3.8, 3.8]) g.add(box(0.12, 2.9, 0.12, 0x3a4150, px, 2.3, -3.8, 0.04));
-    for (const s of [1, -1]) {
-      for (let k = 0; k < 3; k++) {
-        const x = (5.55 + k * 0.42) * s, h = 0.32 * (k + 1);
-        if (Math.hypot(x, 2.2) > 6.75) continue;
-        g.add(box(0.42, h, 4.2 - k * 0.5, 0x5a6070, x, 0.7 + h / 2 + 0.3, 0, 0.1));
-        for (let i = 0; i < 8 - k; i++) sit(x, 1.0 + h, (-1.75 + k * 0.22) + i * 0.5);
-      }
-    }
-    crowd.forEach(c => g.add(bake(c)));
-
-    // hoardings, dugouts, the scoreboard
-    const ads = [0xd94f3d, 0xf4f1e8, 0x3d6cd9, 0xf5c451, 0x59e07a, 0xff8a3d, 0x9a5fd9, 0xf4f1e8];
-    for (let i = 0; i < 8; i++) {
-      g.add(box(0.92, 0.26, 0.05, ads[i], -3.36 + i * 0.96, TOP + 0.13, -3.4, 0.05));
-      g.add(box(0.92, 0.2, 0.05, ads[(i + 3) % 8], -3.36 + i * 0.96, TOP + 0.1, 3.42, 0.05));
-    }
-    for (const sx of [-1.6, 1.6]) {
-      g.add(box(1.3, 0.06, 0.5, 0xdfe6f0, sx, TOP + 0.62, 4.0, 0.04), box(1.3, 0.56, 0.05, 0x9fb4d8, sx, TOP + 0.32, 4.24, 0.04),
-        box(1.2, 0.12, 0.3, 0x3a4150, sx, TOP + 0.14, 4.02, 0.04));
-      for (let i = 0; i < 3; i++) {
-        const sub = person(sx < 0 ? 0xf5c451 : 0x9a5fd9, 0x1c1a26, 0.7);
-        sub.position.set(sx - 0.4 + i * 0.4, TOP + 0.2, 4.02);
-        sub.rotation.y = Math.PI;
-        g.add(sub);
-      }
-    }
-    g.add(box(2.7, 1.0, 0.16, 0x15151c, 0, 4.36, -5.6, 0.04));
-    const score = sign("FITBA 2 – 1", 2.5, 0.8, "#0b0f14", "#59e07a");
-    score.position.set(0, 4.36, -5.5);
-    g.add(score);
-
-    // the league trophy, pitchside
-    g.add(box(0.44, 0.5, 0.44, 0x2a2a34, 0, TOP + 0.25, 4.1, 0.05));
-    const gold = new THREE.MeshStandardMaterial({ color: 0xf5c451, emissive: 0x7a5a10, emissiveIntensity: 0.5, roughness: 0.3, metalness: 0.8, flatShading: true });
-    const cup = dyn(grp(0, TOP + 0.5, 4.1));
-    cup.add(new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.13, 0.12, 8), gold), new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.08, 0.3, 8), gold));
-    cup.children[0].position.y = 0.06;
-    cup.children[1].position.y = 0.3;
-    for (const s of [1, -1]) {
-      const hnd = new THREE.Mesh(new THREE.TorusGeometry(0.08, 0.02, 4, 8), gold);
-      hnd.position.set(0.2 * s, 0.32, 0);
-      cup.add(hnd);
-    }
-    g.add(cup);
-
-    // floodlight towers
-    const bulbMat = new THREE.MeshStandardMaterial({ color: 0x222430, emissive: 0xfff2cc, emissiveIntensity: 2.4, flatShading: true });
-    for (const [fx, fz] of [[5.0, 3.3], [-5.0, 3.3], [5.3, -3.4], [-5.3, -3.4]]) {
-      g.add(cyl(0.07, 0.11, 4.6, 6, 0x5a6070, fx, 3.0, fz));
-      for (let k = 0; k < 3; k++) g.add(box(0.34, 0.04, 0.04, 0x5a6070, fx, 2.2 + k * 1.0, fz, 0.04));
-      const head = new THREE.Group();
-      head.add(box(1.0, 0.7, 0.1, 0x2a2e3a, 0, 0, -0.06, 0.04));
-      for (let i = 0; i < 6; i++) head.add(lit(new THREE.BoxGeometry(0.24, 0.24, 0.05), bulbMat, -0.31 + (i % 3) * 0.31, 0.16 - (i > 2) * 0.32, 0.02));
-      head.position.set(fx, 5.5, fz);
-      head.lookAt(new THREE.Vector3(0, 1.4, 0));
+    // floodlight towers at the corners
+    const bulbMat = new THREE.MeshStandardMaterial({ color: 0x222430, emissive: 0xfff2cc, emissiveIntensity: 2.2, flatShading: true });
+    for (const [fx, fz] of [[4.6, 2.9], [-4.6, 2.9], [4.6, -2.9], [-4.6, -2.9]]) {
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 3.4, 6), mat(0x5a6070));
+      pole.position.set(fx, 2.8, fz);
+      g.add(pole);
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.55, 0.12), bulbMat);
+      head.position.set(fx, 4.55, fz);
+      head.lookAt(new THREE.Vector3(0, 1.4, 0)); // aim panel at the pitch (group is at origin during build)
       g.add(head);
     }
     const pitchGlow = new THREE.PointLight(0xdfe8ff, 30, 16, 1.8);
     pitchGlow.position.set(0, 6, 0);
     g.add(pitchGlow);
-    const pen = [0xf5c451, 0x9a5fd9, 0xf4f1e8];
-    bunting(g, -5.0, 5.0, 3.3, 5.0, 5.0, 3.3, 26, pen, 0.9);
 
-    // the match: two sevens, a referee and a stateless passing game
-    const ball = dyn(blob(0.2, 0xffffff, 0, 0, 0, 0.04, 0));
+    // small stand with a crowd along one touchline
+    const stand1 = fMesh(new THREE.BoxGeometry(7.2, 0.8, 1.3), 0x5a6070, 0.12);
+    stand1.position.set(0, 1.0, -4.35);
+    const stand2 = fMesh(new THREE.BoxGeometry(7.2, 0.8, 1.0), 0x6a7080, 0.12);
+    stand2.position.set(0, 1.8, -4.85);
+    g.add(stand1, stand2);
+    const kitColours = [0xf5c451, 0xd94f3d, 0x3d6cd9, 0xf4f1e8, 0x59e07a, 0x9a5fd9];
+    for (let i = 0; i < 16; i++) {
+      const fan = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.3, 0.2), mat(kitColours[i % kitColours.length]));
+      const row = i % 2;
+      fan.position.set(-3.2 + (i >> 1) * 0.82 + row * 0.3, row ? 2.35 : 1.55, row ? -4.85 : -4.35);
+      g.add(fan);
+    }
+
+    // five-a-side: two teams of little articulated players and a stateless passing game
+    const ball = new THREE.Mesh(new THREE.IcosahedronGeometry(0.22, 0), mat(0xffffff));
     g.add(ball);
+
     function mkPlayer(shirt, shorts) {
-      const p = dyn(new THREE.Group());
+      const p = new THREE.Group();
       const skin = 0xe8c39e;
-      const core = new THREE.Group();
-      core.add(box(0.24, 0.3, 0.15, shirt, 0, 0.47, 0, 0.08), box(0.22, 0.12, 0.14, shorts, 0, 0.28, 0, 0.05), blob(0.095, skin, 0, 0.72, 0, 0.05, 0.05));
-      p.add(core);
-      bake(core);
+      const torso = fMesh(new THREE.BoxGeometry(0.24, 0.3, 0.15), shirt, 0.08);
+      torso.position.y = 0.47;
+      const hips = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.12, 0.14), mat(shorts));
+      hips.position.y = 0.28;
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 8), mat(skin));
+      head.position.y = 0.72;
+      p.add(torso, hips, head);
       const limbs = { legs: [], arms: [] };
       for (const side of [1, -1]) {
         const legGeo = new THREE.BoxGeometry(0.08, 0.26, 0.09);
-        legGeo.translate(0, -0.13, 0);
-        const leg = fMesh(legGeo, skin, 0.05);
+        legGeo.translate(0, -0.13, 0); // pivot at the hip
+        const leg = new THREE.Mesh(legGeo, mat(skin));
         leg.position.set(0.055 * side, 0.27, 0);
         const armGeo = new THREE.BoxGeometry(0.06, 0.24, 0.07);
-        armGeo.translate(0, -0.12, 0);
-        const armM = fMesh(armGeo, shirt, 0.06);
-        armM.position.set(0.165 * side, 0.6, 0);
-        p.add(leg, armM);
+        armGeo.translate(0, -0.12, 0); // pivot at the shoulder
+        const arm = fMesh(armGeo, shirt, 0.06);
+        arm.position.set(0.165 * side, 0.6, 0);
+        p.add(leg, arm);
         limbs.legs.push(leg);
-        limbs.arms.push(armM);
+        limbs.arms.push(arm);
       }
       p.userData.limbs = limbs;
       g.add(p);
       return p;
     }
-    const yellowSlots = [[-4.3, 0], [-2.9, 1.5], [-2.9, -1.5], [-1.7, 0], [-0.4, 1.9], [-0.4, -1.9], [0.9, 0.3]];
-    const purpleSlots = yellowSlots.map(([x, z]) => [-x, -z]);
-    const teamY = yellowSlots.map((_, i) => mkPlayer(i ? 0xf5c451 : 0x59e07a, 0x1c1a26));
-    const teamP = purpleSlots.map((_, i) => mkPlayer(i ? 0x9a5fd9 : 0xff8a3d, 0xf4f1e8));
-    const ref = mkPlayer(0x1c1a26, 0x1c1a26);
+
+    // formations: keeper first, then four outfield (yellow attacks +x, purple attacks -x)
+    const yellowSlots = [[-4.35, 0], [-2.5, 1.2], [-2.5, -1.2], [-0.7, 0.6], [0.6, -0.9]];
+    const purpleSlots = [[4.35, 0], [2.5, -1.2], [2.5, 1.2], [0.7, -0.6], [-0.6, 0.9]];
+    const teamY = yellowSlots.map(() => mkPlayer(0xf5c451, 0x1c1a26));
+    const teamP = purpleSlots.map(() => mkPlayer(0x9a5fd9, 0xf4f1e8));
 
     const hp = (n, s) => fract(Math.sin(n * 127.1 + s * 311.7) * 43758.5453);
-    const wpx = n => (hp(n, 1) - 0.5) * 7.0;
-    const wpz = n => (hp(n, 2) - 0.5) * 4.4;
+    const wpx = n => (hp(n, 1) - 0.5) * 6.8;
+    const wpz = n => (hp(n, 2) - 0.5) * 4.2;
     const clampN = (v, lim) => Math.min(lim, Math.max(-lim, v));
-    const PASS = 1.15;
-    const look = new THREE.Vector3();
+    const PASS = 1.15, TOP = 1.1;
+    const gw = new THREE.Vector3();
 
-    function drivePlayer(p, slot, isKeeper, bx, bz, t, i, pull = 0.4) {
+    function drivePlayer(p, slot, isKeeper, bx, bz, t, i) {
       let px, pz;
       if (isKeeper) {
         px = slot[0];
-        pz = clampN(bz * 0.6, 0.95);
+        pz = clampN(bz * 0.6, 0.95); // shuffle along the line
       } else {
-        px = clampN(slot[0] + (bx - slot[0]) * pull + Math.sin(t * 0.9 + i) * 0.12, 4.1);
-        pz = clampN(slot[1] + (bz - slot[1]) * (pull + 0.05) + Math.cos(t * 0.8 + i) * 0.12, 2.6);
+        px = clampN(slot[0] + (bx - slot[0]) * 0.4 + Math.sin(t * 0.9 + i) * 0.12, 4.1);
+        pz = clampN(slot[1] + (bz - slot[1]) * 0.45 + Math.cos(t * 0.8 + i) * 0.12, 2.5);
       }
       p.position.set(px, TOP, pz);
-      p.lookAt(g.localToWorld(look.set(bx, TOP, bz)));
+      p.lookAt(gw.x + bx, gw.y + TOP, gw.z + bz); // face the ball (world space)
       const sw = Math.sin(t * 9 + i * 1.3) * 0.55;
       const L = p.userData.limbs;
       L.legs[0].rotation.x = sw;  L.legs[1].rotation.x = -sw;
@@ -1488,1205 +1006,546 @@ async function boot() {
     return {
       group: g,
       animate(t) {
+        // ball is passed between hashed waypoints, forever
         const seg = Math.floor(t / PASS), f = (t % PASS) / PASS;
         const e = f * f * (3 - 2 * f);
         const bx = wpx(seg) + (wpx(seg + 1) - wpx(seg)) * e;
         const bz = wpz(seg) + (wpz(seg + 1) - wpz(seg)) * e;
         const arc = (0.3 + hp(seg, 3) * 0.7) * Math.sin(Math.PI * f);
-        ball.position.set(bx, TOP + 0.2 + arc, bz);
+        ball.position.set(bx, TOP + 0.22 + arc, bz);
         ball.rotation.x = t * 6; ball.rotation.z = t * 4;
+
+        g.getWorldPosition(gw); // island group is translation-only
         teamY.forEach((p, i) => drivePlayer(p, yellowSlots[i], i === 0, bx, bz, t, i));
-        teamP.forEach((p, i) => drivePlayer(p, purpleSlots[i], i === 0, bx, bz, t, i + 7));
-        drivePlayer(ref, [0, -1.2], false, bx, bz, t, 15, 0.7);
-        crowd[0].position.y = Math.max(0, Math.sin(t * 5.2)) * 0.07;
-        crowd[1].position.y = Math.max(0, Math.sin(t * 5.2 + 1.9)) * 0.07;
-        cup.rotation.y = t * 0.8;
+        teamP.forEach((p, i) => drivePlayer(p, purpleSlots[i], i === 0, bx, bz, t, i + 5));
       }
     };
   }
 
-  // GRUNT SQUAD — a wet night raid: tracer over the wire, a grenade through the pillbox slit, the prisoners waiting
   function buildGrunt() {
-    const g = blockBase([[0.65, 0x5a4530], [0.8, 0x4a4438], [1.0, 0x38342c]], false, 0.1);
-    // the ground: level where the camp stands, rolling at the edges, and cut by the stream
-    const camp = (x, z) => {
-      let hh = rise(x, z, 5.7, 0.6, 7);
-      const along = x * 0.8 + z * 0.6, across = Math.abs(x * 0.6 - z * 0.8);
-      if (along > 1.5 && across < 0.95) hh -= (0.52 + hh) * smooth(1 - across / 0.95) * smooth((along - 1.5) / 0.7);    // the channel
-      const pd = Math.hypot(x - 1.84, z - 1.38);
-      if (pd < 1.0) hh = Math.min(hh, -0.5 * smooth(1 - pd / 1.0));                                                    // the pond at its head
-      return hh;
-    };
-    landTop(g, { nx: 40, nz: 40, base: 0.1, h: camp, colour: hh => hh < -0.3 ? 0x6a5a40 : hh < -0.08 ? 0x5f6a38 : 0x4f6f30, wall: 0x5a4530 });
-    const lea = (x, z) => {
-      const r = Math.hypot(x, z), hh = camp(x, z);
-      return (r > 3.0 && r < 4.2) || hh < -0.04 ? null : 0.71 + hh;
-    };
-    scatter(g, 330, 7, lea, r => tuft(r > 0.6 ? 0x6f9a45 : r > 0.25 ? 0x557d2e : 0x86a85a, 0.8 + r * 0.7));
-    scatter(g, 40, 8, lea, r => pebble(0x7a7a70, r));
-    const T = 0.72;
-    const OLIVE = 0x5a6238, DARK = 0x2f2c26, WOOD = 0x6a5038;
+    const g = islandBase(6.5, 0x5f7f34, 0x5a5242);
 
-    const track = fMesh(new THREE.RingGeometry(3.15, 4.05, 28, 1), 0x7d6a48, 0.12);
+    // grass patches and a trodden track round the island
+    const track = fMesh(new THREE.RingGeometry(3.15, 4.05, 28, 1), 0x8a7650, 0.12);
     track.rotation.x = -Math.PI / 2;
     track.position.y = 0.8;
     g.add(track);
 
-    // stream out of the pond, under the bridge and off the edge
-    const water = new THREE.MeshStandardMaterial({ color: 0x3f86b8, roughness: 0.12, metalness: 0.2, flatShading: true, transparent: true, opacity: 0.72 });
-    const SD = [0.8, 0.6], SROT = -Math.atan2(0.6, 0.8);
-    const WL = 0.5;                                   // water level, well below the banks
-    g.add(lit(new THREE.BoxGeometry(S - 0.5, WL - 0.12, 5.6), water, (S + 0.5) / 2 - 0.012, (WL + 0.12) / 2, 3.3));   // one slab; the ground hides it except where the stream has cut down
-    const fall = lit(new THREE.BoxGeometry(0.06, WL - BLOCK_FLOOR, 0.7), water, S + 0.02, (WL + BLOCK_FLOOR) / 2, SD[1] * 8.5);
-    g.add(fall);
-    const bridge = grp(SD[0] * 3.6, 0.88, SD[1] * 3.6, -2.214);
-    bridge.add(box(1.25, 0.07, 0.95, WOOD, 0, 0, 0), box(1.25, 0.05, 0.05, WOOD, 0, 0.32, 0.45), box(1.25, 0.05, 0.05, WOOD, 0, 0.32, -0.45));
-    for (const bx of [-0.58, 0, 0.58]) for (const bz of [-0.45, 0.45]) bridge.add(box(0.06, 0.36, 0.06, WOOD, bx, 0.16, bz));
-    g.add(bridge);
-
-    // the pillbox: squat concrete, a dark firing slit, sandbags round the front
-    const pb = grp(-1.3, T - 0.02, 1.0, -0.3);
-    const body = fMesh(jitter(new THREE.CylinderGeometry(1.1, 1.25, 1.1, 7), 0.06), 0x9a968a, 0.1);
-    body.position.y = 0.55;
-    pb.add(body, cyl(1.3, 1.2, 0.24, 7, 0x8a867a, 0, 1.2, 0, 0.08), box(0.9, 0.15, 0.3, 0x15140f, 0, 0.85, 1.05, 0.02));
+    // the pillbox: a squat concrete box, a dark firing slit, sandbags round the front
+    const pb = new THREE.Group();
+    const body = fMesh(jitter(new THREE.CylinderGeometry(1.25, 1.4, 1.2, 7), 0.06), 0x9a968a, 0.1);
+    body.position.y = 0.6;
+    const roof = fMesh(new THREE.CylinderGeometry(1.45, 1.35, 0.25, 7), 0x8a867a, 0.08);
+    roof.position.y = 1.32;
+    const slit = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.16, 0.3), mat(0x15140f));
+    slit.position.set(0, 0.95, 1.22);
+    pb.add(body, roof, slit);
     for (let k = -3; k <= 3; k++) {
-      const a = k * 0.3;
-      const bag = box(0.5, 0.24, 0.3, 0xb5a575, Math.sin(a) * 1.75, 0.12, Math.cos(a) * 1.75, 0.14);
+      const a = k * 0.28;
+      const bag = fMesh(new THREE.BoxGeometry(0.55, 0.26, 0.32), 0xb5a575, 0.14);
+      bag.position.set(Math.sin(a) * 2.0, 0.13 + (Math.abs(k) % 2) * 0.0, Math.cos(a) * 2.0);
       bag.rotation.y = a;
       pb.add(bag);
-      if (Math.abs(k) < 3) { const b2 = box(0.5, 0.24, 0.3, 0xa89868, Math.sin(a) * 1.75, 0.36, Math.cos(a) * 1.75, 0.14); b2.rotation.y = a + 0.14; pb.add(b2); }
+      if (Math.abs(k) < 3) { const b2 = bag.clone(); b2.position.y = 0.39; b2.rotation.y = a + 0.14; pb.add(b2); }
     }
+    pb.position.set(-0.4, 0.7, -0.6);
+    pb.rotation.y = 0.5;
     g.add(pb);
 
-    function soldier(bodyC, helmet) {
-      const u = dyn(new THREE.Group());
-      const core = new THREE.Group();
-      const hat = fMesh(new THREE.SphereGeometry(0.16, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2), helmet, 0.08);
-      hat.position.y = 1.02;
-      core.add(cyl(0.17, 0.2, 0.5, 7, bodyC, 0, 0.62, 0), blob(0.13, 0xd9a982, 0, 0.98, 0, 0.05, 0.05), hat, box(0.06, 0.06, 0.55, 0x2a2620, 0.16, 0.7, 0.18, 0.04));
-      u.add(core);
-      bake(core);
-      const legs = [];
-      for (const lx of [-0.08, 0.08]) {
-        const leg = new THREE.Group();
-        leg.add(cyl(0.065, 0.06, 0.38, 6, bodyC, 0, -0.19, 0, 0.08), box(0.1, 0.07, 0.17, 0x2a2218, 0, -0.37, 0.03, 0.04));
-        leg.position.set(lx, 0.4, 0);
-        bake(leg);
-        u.add(leg);
-        legs.push(leg);
-      }
-      u.userData.legs = legs;
-      return u;
-    }
-    const GREY = 0x6e7062, GREYH = 0x4c4e44;
-
-    // watchtower with a searchlight working the wire
-    const TW = [0.2, -1.5];
-    for (const [lx, lz] of [[-0.55, -0.55], [0.55, -0.55], [-0.55, 0.55], [0.55, 0.55]]) {
-      g.add(cyl(0.06, 0.08, 2.6, 5, WOOD, TW[0] + lx, T + 1.3, TW[1] + lz), cyl(0.04, 0.04, 1.0, 4, WOOD, TW[0] + lx, T + 3.15, TW[1] + lz));
-    }
-    for (const s of [-1, 1]) {
-      const br = box(0.05, 1.9, 0.05, WOOD, TW[0], T + 1.3, TW[1] + 0.55 * s); br.rotation.z = 0.62 * s;
-      const bs = box(0.05, 1.9, 0.05, WOOD, TW[0] + 0.55 * s, T + 1.3, TW[1]); bs.rotation.x = 0.62 * s;
-      g.add(br, bs);
-      g.add(box(1.3, 0.34, 0.05, WOOD, TW[0], T + 2.85, TW[1] + 0.63 * s), box(0.05, 0.34, 1.3, WOOD, TW[0] + 0.63 * s, T + 2.85, TW[1]));
-    }
-    g.add(box(1.35, 0.1, 1.35, WOOD, TW[0], T + 2.62, TW[1]), pyr(1.7, 0.5, 1.7, 0x3a3530, TW[0], T + 3.65, TW[1]));
-    const ladder = box(0.3, 2.7, 0.05, 0x5a4530, TW[0] - 0.8, T + 1.3, TW[1]);
-    ladder.rotation.z = -0.12;
-    g.add(ladder);
-    const sentry = soldier(GREY, GREYH);
-    sentry.position.set(TW[0], T + 2.67, TW[1]);
+    // a sentry on the pillbox roof, his vision cone sweeping the grass
+    const sentry = soldier(0x6e7062, 0x4c4e44);
+    sentry.position.set(-0.4, 2.15, -0.6);
     g.add(sentry);
-    const beamMat = new THREE.MeshBasicMaterial({ color: 0xffe9a0, transparent: true, opacity: 0.15, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
-    const beamGeo = new THREE.ConeGeometry(1.15, 6.4, 14, 1, true);
-    beamGeo.translate(0, -3.2, 0);
-    const search = grp(TW[0], T + 3.2, TW[1] + 0.5);
-    search.rotation.order = "YXZ";
-    search.add(lit(beamGeo, beamMat), lit(new THREE.SphereGeometry(0.14, 8, 6), emis(0xfff0b8, 3)));
-    g.add(search);
-
-    // barracks hut, lit from inside
-    const warm = emis(0xffc46a, 1.8);
-    const hut = grp(1.55, T, -0.55, -0.45);
-    hut.add(box(1.5, 0.7, 0.95, 0x5a4a3a, 0, 0.35, 0), pyr(1.75, 0.5, 1.2, 0x34302c, 0, 0.7, 0), box(0.24, 0.44, 0.04, 0x2a221a, -0.4, 0.22, 0.48),
-      box(0.16, 0.5, 0.16, 0x4a443c, 0.5, 1.05, -0.2),
-      lit(new THREE.BoxGeometry(0.24, 0.2, 0.04), warm, 0.1, 0.42, 0.48), lit(new THREE.BoxGeometry(0.24, 0.2, 0.04), warm, 0.5, 0.42, 0.48));
-    g.add(hut);
-    const hutLight = new THREE.PointLight(0xffb45a, 5, 5, 2);
-    hutLight.position.set(1.3, T + 0.7, 0.3);
-    g.add(hutLight);
-
-    // the POW cage
-    const CG = [-1.95, -1.1];
-    for (const ex of [-1, 0, 1]) for (const ez of [-1, 0, 1]) {
-      if (ex || ez) g.add(cyl(0.035, 0.04, 0.9, 4, 0x4a4238, CG[0] + ex * 0.62, T + 0.45, CG[1] + ez * 0.62));
-    }
-    for (const y of [0.3, 0.58, 0.86]) for (const s of [-1, 1]) {
-      g.add(box(1.24, 0.025, 0.025, 0x8a8a86, CG[0], T + y, CG[1] + 0.62 * s, 0.03), box(0.025, 0.025, 1.24, 0x8a8a86, CG[0] + 0.62 * s, T + y, CG[1], 0.03));
-    }
-    for (const [px, pz, pr] of [[-0.25, 0.1, 0.4], [0.2, -0.2, 2.2], [0.1, 0.3, 1.2]]) {
-      const pw = person(0x9a9484, 0x7a7466, 0.85);
-      pw.position.set(CG[0] + px, T, CG[1] + pz);
-      pw.rotation.y = pr;
-      g.add(pw);
-    }
-
-    // outside the wire: jeep, truck, flak gun, radio mast, beach obstacles, a minefield
-    const jeep = grp(-4.95, T, 0.5, 1.35);
-    jeep.add(box(1.1, 0.26, 0.6, OLIVE, 0, 0.3, 0), box(0.4, 0.14, 0.56, OLIVE, 0.36, 0.5, 0), box(0.04, 0.26, 0.56, DARK, 0.14, 0.62, 0, 0.04),
-      box(0.3, 0.16, 0.5, 0x4a4030, -0.22, 0.5, 0), box(0.14, 0.14, 0.02, 0xf4f1e8, 0.36, 0.58, 0, 0.03));
-    for (const wx of [-0.36, 0.36]) for (const wz of [-0.32, 0.32]) {
-      const w = cyl(0.15, 0.15, 0.1, 8, 0x1c1a16, wx, 0.15, wz, 0.04);
-      w.rotation.x = Math.PI / 2;
-      jeep.add(w);
-    }
-    g.add(jeep);
-    const truck = grp(-4.3, T, -1.75, 0.35);
-    truck.add(box(0.55, 0.5, 0.7, OLIVE, 0.7, 0.5, 0), box(0.3, 0.3, 0.66, OLIVE, 1.08, 0.38, 0), box(1.2, 0.14, 0.74, 0x4a4030, -0.2, 0.3, 0),
-      box(1.15, 0.5, 0.72, 0x6a6a4a, -0.2, 0.62, 0), box(0.02, 0.2, 0.5, DARK, 0.99, 0.62, 0, 0.04));
-    for (const wx of [-0.55, 0.05, 0.85]) for (const wz of [-0.36, 0.36]) {
-      const w = cyl(0.16, 0.16, 0.1, 8, 0x1c1a16, wx, 0.16, wz, 0.04);
-      w.rotation.x = Math.PI / 2;
-      truck.add(w);
-    }
-    g.add(truck);
-
-    const FK = [4.95, -1.7];
-    for (let k = 0; k < 9; k++) {
-      const a = k / 9 * Math.PI * 2;
-      const bag = box(0.46, 0.22, 0.28, 0xb5a575, FK[0] + Math.sin(a) * 0.82, T + 0.11, FK[1] + Math.cos(a) * 0.82, 0.14);
-      bag.rotation.y = a;
-      g.add(bag);
-    }
-    g.add(cyl(0.3, 0.36, 0.2, 8, DARK, FK[0], T + 0.1, FK[1]));
-    const flak = dyn(grp(FK[0], T + 0.2, FK[1]));
-    flak.add(box(0.36, 0.3, 0.36, 0x4a4c44, 0, 0.15, 0), box(0.5, 0.06, 0.5, 0x4a4c44, 0, 0.02, 0));
-    for (const bx of [-0.09, 0.09]) {
-      const barrel = cyl(0.035, 0.045, 1.5, 6, DARK, bx, 0.72, 0.42, 0.04);
-      barrel.rotation.x = 0.75;
-      flak.add(barrel);
-    }
-    g.add(bake(flak));
-
-    g.add(cyl(0.025, 0.05, 4.2, 4, 0x55524a, 0.7, T + 2.1, -5.65), box(0.5, 0.03, 0.03, 0x55524a, 0.7, T + 3.4, -5.65, 0.03), box(0.36, 0.03, 0.03, 0x55524a, 0.7, T + 3.8, -5.65, 0.03),
-      box(0.4, 0.34, 0.3, OLIVE, 1.05, T + 0.17, -5.5));
-    const mastMat = emis(0xff2a30, 1.5);
-    g.add(lit(new THREE.SphereGeometry(0.08, 6, 5), mastMat, 0.7, T + 4.25, -5.65));
-
-    for (const [hx, hz, hr] of [[-1.3, 5.35, 0.3], [0.2, 5.7, 1.1], [1.6, 5.3, 2.0], [-2.8, 4.9, 0.8]]) {
-      const hh = grp(hx, T + 0.22, hz, hr);
-      for (let k = 0; k < 3; k++) {
-        const beam = box(0.07, 0.74, 0.07, 0x3a3632, 0, 0, 0, 0.06);
-        beam.rotation.set(k === 0 ? 0.9 : k === 1 ? -0.9 : 0, 0, k === 2 ? 1.57 : (k ? 0.5 : -0.5));
-        hh.add(beam);
-      }
-      g.add(hh);
-    }
-    let prev = null;
-    for (let k = 0; k < 7; k++) {
-      const th = -2.0 + k * 0.27, x = Math.sin(th) * 4.75, z = Math.cos(th) * 4.75;
-      g.add(cyl(0.035, 0.045, 0.6, 4, 0x4a4238, x, T + 0.3, z));
-      if (prev) for (const wy of [0.24, 0.5]) {
-        const w = box(Math.hypot(x - prev[0], z - prev[1]), 0.022, 0.022, 0x8a8a86, (x + prev[0]) / 2, T + wy, (z + prev[1]) / 2, 0.03);
-        w.rotation.y = -Math.atan2(z - prev[1], x - prev[0]);
-        g.add(w);
-      }
-      prev = [x, z];
-    }
-    g.add(cyl(0.025, 0.03, 0.6, 4, WOOD, 2.6, T + 0.3, 5.0), cyl(0.11, 0.11, 0.04, 8, DARK, 2.1, T + 0.03, 5.5), cyl(0.11, 0.11, 0.04, 8, DARK, 3.1, T + 0.03, 5.2));
-    const mines = sign("MINES", 0.6, 0.3, "#e8e0c8", "#b3261e");
-    mines.position.set(2.6, T + 0.62, 5.03);
-    g.add(mines);
-
-    for (const [px, pz, ps] of [[5.0, -3.4, 1.1], [-5.2, -2.9, 1.0], [-3.9, -4.4, 1.2], [5.7, 0.4, 0.9], [-5.7, 2.0, 0.85], [2.9, -5.1, 0.95], [-1.6, -5.6, 1.05], [-4.4, 3.6, 0.9], [4.2, -4.3, 0.75]]) {
-      g.add(pine(px, pz, ps));
-    }
-    for (const [rx, rz, rs] of [[2.0, -4.9, 0.4], [-5.5, 0.9, 0.3], [4.6, 1.5, 0.32], [-0.6, 4.7, 0.25]]) g.add(blob(rs, 0x7a7a70, rx, 0.62 + rs * 0.4, rz));
-
-    // a patrol with a dog, walking the back fence
-    const patrol = soldier(GREY, GREYH);
-    const coneMat = new THREE.MeshBasicMaterial({ color: 0xffd34a, transparent: true, opacity: 0.3, depthWrite: false, side: THREE.DoubleSide });
-    const cone = lit(new THREE.CircleGeometry(2.3, 14, -Math.PI / 2 - 0.45, 0.9), coneMat, 0, 0.12, 0);
+    const coneMat = new THREE.MeshBasicMaterial({ color: 0xffd34a, transparent: true, opacity: 0.34, depthWrite: false, side: THREE.DoubleSide });
+    const cone = new THREE.Mesh(new THREE.CircleGeometry(4.6, 20, -Math.PI / 2 - 0.5, 1.0), coneMat);
     cone.rotation.x = -Math.PI / 2;
-    patrol.add(cone);
-    const dog = dyn(new THREE.Group());
-    dog.add(box(0.2, 0.2, 0.5, 0x4a3a2a, 0, 0.3, 0), box(0.16, 0.18, 0.2, 0x4a3a2a, 0, 0.42, 0.3), box(0.05, 0.05, 0.2, 0x3a2a1c, 0, 0.42, -0.32),
-      box(0.06, 0.22, 0.06, 0x3a2a1c, 0.07, 0.11, 0.18), box(0.06, 0.22, 0.06, 0x3a2a1c, -0.07, 0.11, 0.18), box(0.06, 0.22, 0.06, 0x3a2a1c, 0.07, 0.11, -0.18), box(0.06, 0.22, 0.06, 0x3a2a1c, -0.07, 0.11, -0.18));
-    g.add(patrol, bake(dog));
+    const coneRig = new THREE.Group();
+    coneRig.add(cone);
+    coneRig.position.set(-0.4, 0.9, -0.6);
+    g.add(coneRig);
 
-    // the squad: four grunts in single file, going round the long way
+    g.add(pine(4.6, -3.0, 1.1), pine(-4.9, -2.4, 0.95), pine(-3.6, 4.1, 1.2), pine(5.2, 1.6, 0.85));
+    for (const [rx, rz, rs] of [[2.2, -4.6, 0.45], [-5.2, 1.2, 0.4]]) {
+      const rock = fMesh(jitter(new THREE.IcosahedronGeometry(rs, 0), rs * 0.35), 0x8a8a7e, 0.2);
+      rock.position.set(rx, 0.62 + rs * 0.4, rz);
+      g.add(rock);
+    }
+
+    // the squad: four men in single file, crawling round the long way
     const squad = [0x5f8a33, 0x6a9640, 0x557d2e, 0x6f9a45].map(c => {
       const m = soldier(c, 0x3f5a22);
       g.add(m);
       return m;
     });
 
-    // storm cloud and rain
-    const storm = dyn(new THREE.Group());
-    for (const [cx, cy, cz, cr] of [[-1.6, 10.2, -0.6, 1.9], [0.9, 10.5, 0.6, 2.2], [2.9, 10.1, -0.9, 1.6], [-0.2, 10.0, -2.2, 1.7], [-3.4, 10.0, 1.0, 1.4], [1.6, 9.9, 2.4, 1.5]]) {
-      const puff = blob(cr, 0x4a5068, cx, cy, cz, 0.12, 0.3);
-      puff.scale.y = 0.48;
-      storm.add(puff);
+    function soldier(body, helmet) {
+      const u = new THREE.Group();
+      const torso = fMesh(new THREE.CylinderGeometry(0.17, 0.2, 0.5, 7), body, 0.1);
+      torso.position.y = 0.62;
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 6), mat(0xd9a982));
+      head.position.y = 0.98;
+      const hat = fMesh(new THREE.SphereGeometry(0.16, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2), helmet, 0.08);
+      hat.position.y = 1.02;
+      const gun = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.55), mat(0x2a2620));
+      gun.position.set(0.16, 0.7, 0.18);
+      const legs = [];
+      for (const lx of [-0.08, 0.08]) {
+        const leg = new THREE.Group();
+        const l = fMesh(new THREE.CylinderGeometry(0.065, 0.06, 0.38, 6), body, 0.08);
+        l.position.y = -0.19;
+        const boot = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.07, 0.17), mat(0x2a2218));
+        boot.position.set(0, -0.37, 0.03);
+        leg.add(l, boot);
+        leg.position.set(lx, 0.4, 0);
+        u.add(leg);
+        legs.push(leg);
+      }
+      u.add(torso, head, hat, gun);
+      u.userData.legs = legs;
+      return u;
     }
-    g.add(bake(storm));
-    storm.traverse(o => { o.userData.noShadow = true; });   // the cloud must not black out the camp
-    const DROPS = 130, rainPos = new Float32Array(DROPS * 6), rainSeed = [];
-    for (let i = 0; i < DROPS; i++) {
-      const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * 6.2;
-      rainSeed.push([Math.cos(a) * r, Math.sin(a) * r, Math.random() * 9]);
-    }
-    const rainGeo = new THREE.BufferGeometry();
-    rainGeo.setAttribute("position", new THREE.BufferAttribute(rainPos, 3));
-    const rain = new THREE.LineSegments(rainGeo, new THREE.LineBasicMaterial({ color: 0xa8bce0, transparent: true, opacity: 0.5 }));
-    rain.frustumCulled = false;
-    g.add(rain);
 
-    const A0 = Math.atan2(SD[0], SD[1]);        // where the track crosses the bridge
-
-    // the firefight: tracer both ways, a grenade through the slit every few seconds, and what follows
-    const SLIT = new THREE.Vector3(-1.61, T + 0.83, 2.0);
-    const TOWER = new THREE.Vector3(TW[0], T + 3.2, TW[1]);
-    const sqPos = (i, time, out) => {
-      const a = time * 0.42 - i * 0.24;
-      return out.set(Math.sin(a) * 3.6, 0.72, Math.cos(a) * 3.6);
-    };
-    const hsh = (a, b) => fract(Math.sin(a * 127.1 + b * 311.7) * 43758.5453);
-    const tracerGeo = new THREE.BoxGeometry(0.07, 0.07, 1.1);
-    const mgMat = new THREE.MeshBasicMaterial({ color: 0xff6a3a }), sqMat = new THREE.MeshBasicMaterial({ color: 0xfff29a });
-    const tracers = [];
-    for (let k = 0; k < 11; k++) {
-      const tr = lit(tracerGeo, k < 6 ? mgMat : sqMat);
-      tr.visible = false;
-      g.add(tr);
-      tracers.push(tr);
-    }
-    const flashMat = new THREE.MeshBasicMaterial({ color: 0xfff0b0 });
-    const mgFlash = lit(new THREE.SphereGeometry(0.16, 6, 5), flashMat, SLIT.x - 0.06, SLIT.y, SLIT.z + 0.2);
-    const flakFlash = lit(new THREE.SphereGeometry(0.14, 6, 5), flashMat, FK[0], T + 1.45, FK[1] + 0.9);
-    g.add(mgFlash, flakFlash);
-    const grenade = dyn(blob(0.09, 0x2f3a22, 0, 0, 0, 0.05, 0.1));
-    g.add(grenade);
-    const fireballMat = new THREE.MeshBasicMaterial({ color: 0xff8a2a, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
-    const coreMat = new THREE.MeshBasicMaterial({ color: 0xfff6d0, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
-    const fireball = lit(new THREE.IcosahedronGeometry(1, 1), fireballMat, SLIT.x, SLIT.y, SLIT.z);
-    const core = lit(new THREE.IcosahedronGeometry(0.6, 1), coreMat, SLIT.x, SLIT.y, SLIT.z);
-    const boom = new THREE.PointLight(0xff9a3a, 0, 9, 2);
-    boom.position.set(SLIT.x, SLIT.y + 0.6, SLIT.z + 0.6);
-    g.add(fireball, core, boom);
-    const debris = [0, 1, 2, 3, 4, 5, 6].map(k => {
-      const d = dyn(box(0.1, 0.07, 0.12, k % 2 ? 0x9a968a : 0xb5a575));
-      d.visible = false;
-      g.add(d);
-      return d;
-    });
-    const smokeMat = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, transparent: true, opacity: 0, flatShading: true, depthWrite: false });
-    const smoke = [0, 1, 2, 3].map(() => {
-      const s = lit(new THREE.IcosahedronGeometry(0.4, 0), smokeMat);
-      g.add(s);
-      return s;
-    });
-    const slitFire = emis(0xff7a1a, 0);
-    g.add(lit(new THREE.BoxGeometry(0.7, 0.1, 0.06), slitFire, SLIT.x - 0.03, SLIT.y, SLIT.z + 0.06));
-    g.children[g.children.length - 1].rotation.y = -0.3;
-    const va = new THREE.Vector3(), vb = new THREE.Vector3(), vw = new THREE.Vector3();
-    const GREN = 7, FLY = 1.2;
     return {
       group: g,
       animate(t) {
         squad.forEach((m, i) => {
           const a = t * 0.42 - i * 0.24;
-          const d = Math.abs(((a - A0 + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI);
-          m.position.set(Math.sin(a) * 3.6, 0.72 + 0.2 * smooth(1 - d / 0.22), Math.cos(a) * 3.6);
+          m.position.set(Math.sin(a) * 3.6, 0.72, Math.cos(a) * 3.6);
           m.rotation.y = a + Math.PI / 2;
           const sw = Math.sin(t * 7 + i * 1.3) * 0.55;
           m.userData.legs[0].rotation.x = sw;
           m.userData.legs[1].rotation.x = -sw;
         });
-        // grenade cycle: lob, burst, smoke; the machine gun falls silent while it burns
-        const gu = t % GREN, g0 = t - gu, ex = (gu - FLY) / 1.1;
-        const mgUp = (gu < FLY || gu > 4.2) && Math.sin(t * 1.3) > -0.3;
-        tracers.forEach((tr, k) => {
-          const cyc = t * (k < 6 ? 2.6 : 1.7) + k * 0.37, n = Math.floor(cyc), f = (cyc - n) / 0.4;
-          const mg = k < 6;
-          tr.visible = f < 1 && (mg ? mgUp : hsh(n, k) > 0.35);
-          if (!tr.visible) return;
-          if (mg) {
-            va.copy(SLIT);
-            sqPos((n + k) % 4, t, vb);
-            vb.x += (hsh(n, k) - 0.5) * 1.6; vb.z += (hsh(k, n) - 0.5) * 1.6; vb.y += 0.3 + hsh(n, k + 9) * 1.2;
-          } else {
-            sqPos(k % 4, t, va);
-            va.y += 0.75;
-            vb.copy(hsh(n, 3) > 0.3 ? SLIT : TOWER);
-            vb.x += (hsh(n, k) - 0.5) * 0.7; vb.y += (hsh(k, n) - 0.5) * 0.5;
-          }
-          tr.position.lerpVectors(va, vb, f);
-          tr.lookAt(g.localToWorld(vw.copy(vb)));
-        });
-        mgFlash.visible = mgUp && Math.floor(t * 16) % 2 === 0;
-        flakFlash.visible = Math.sin(t * 0.9) > 0.5 && Math.floor(t * 9) % 3 === 0;
-        grenade.visible = gu < FLY;
-        if (grenade.visible) {
-          const v = gu / FLY;
-          sqPos(1, g0, va);
-          va.y += 0.9;
-          grenade.position.lerpVectors(va, SLIT, v);
-          grenade.position.y += Math.sin(v * Math.PI) * 2.4;
-          grenade.rotation.x = t * 9;
-        }
-        const live = ex > 0 && ex < 1;
-        fireballMat.opacity = live ? (1 - ex) * 0.9 : 0;
-        coreMat.opacity = live ? Math.max(0, 1 - ex * 2.2) : 0;
-        fireball.scale.setScalar(live ? 0.4 + 1.9 * Math.sqrt(ex) : 0.01);
-        core.scale.setScalar(live ? 0.4 + 1.2 * ex : 0.01);
-        boom.intensity = live ? 40 * (1 - ex) * (1 - ex) : 0;
-        debris.forEach((d, k) => {
-          d.visible = live;
-          if (!live) return;
-          const a = k * 0.9 + 0.3, sp = 1.6 + hsh(k, 4) * 1.6;
-          d.position.set(SLIT.x + Math.cos(a) * sp * ex * 0.9, SLIT.y + (3.6 + k * 0.3) * ex - 4.6 * ex * ex, SLIT.z + (0.4 + Math.abs(Math.sin(a))) * sp * ex);
-          d.rotation.set(ex * 9 + k, ex * 7, k);
-        });
-        const su = (gu - FLY - 0.15) / 3.2;
-        smokeMat.opacity = su > 0 && su < 1 ? Math.sin(su * Math.PI) * 0.6 : 0;
-        smoke.forEach((s, k) => {
-          const u2 = Math.max(0, su - k * 0.06);
-          s.position.set(SLIT.x + Math.sin(k * 2.1 + u2 * 2) * 0.25 + u2 * 0.5, SLIT.y + 0.3 + u2 * (2.6 + k * 0.5), SLIT.z + 0.2 - k * 0.12);
-          s.scale.setScalar(0.5 + u2 * 1.6 + k * 0.12);
-        });
-        slitFire.emissiveIntensity = gu > FLY && gu < 4.6 ? (1.6 + Math.sin(t * 17) * 0.8) * (1 - (gu - FLY) / 3.4) : 0;
-        const sweep = Math.sin(t * 0.5) * 1.15;
-        search.rotation.y = sweep;
-        search.rotation.x = -0.8 + Math.sin(t * 0.31) * 0.12;
-        sentry.rotation.y = sweep;
-        const th = 3.1 + Math.sin(t * 0.22) * 0.75, dir = Math.cos(t * 0.22) >= 0 ? 0 : Math.PI;
-        patrol.position.set(Math.sin(th) * 4.6, 0.72, Math.cos(th) * 4.6);
-        patrol.rotation.y = th + Math.PI / 2 + dir;
-        const pw = Math.sin(t * 6) * 0.5;
-        patrol.userData.legs[0].rotation.x = pw;
-        patrol.userData.legs[1].rotation.x = -pw;
-        const dth = th + (dir ? 0.16 : -0.16);
-        dog.position.set(Math.sin(dth) * 4.25, 0.72, Math.cos(dth) * 4.25);
-        dog.rotation.y = patrol.rotation.y;
-        coneMat.opacity = 0.24 + Math.max(0, Math.sin(t * 0.9)) * 0.1;
-        flak.rotation.y = Math.sin(t * 0.3) * 1.2 - 0.6;
-        mastMat.emissiveIntensity = Math.sin(t * 2.8) > 0.4 ? 2.4 : 0.2;
-        for (let i = 0; i < DROPS; i++) {
-          const s = rainSeed[i], y = 9.4 - ((t * 10 + s[2]) % 8.7);
-          rainPos[i * 6] = s[0]; rainPos[i * 6 + 1] = y; rainPos[i * 6 + 2] = s[1];
-          rainPos[i * 6 + 3] = s[0] + 0.06; rainPos[i * 6 + 4] = y - 0.42; rainPos[i * 6 + 5] = s[1];
-        }
-        rainGeo.attributes.position.needsUpdate = true;
+        const look = 2.3 + Math.sin(t * 0.6) * 1.1;   // sweeps the side the camera sees
+        coneRig.rotation.y = look;
+        sentry.rotation.y = look;
+        coneMat.opacity = 0.3 + Math.max(0, Math.sin(t * 0.6)) * 0.12;
       }
     };
   }
 
-  // SHACKLETON — a round block, one crater: the lander, the fallen astronaut, three robots keeping vigil
   function buildMoon() {
-    const g = new THREE.Group();
-    const T = 0.72;
-    const SUIT = 0xc9cfdd, GREY = 0x8a91a5;
-    const RO = S - 0.05, RI = 4.75;                  // block radius, crater floor radius
+    const g = islandBase(6.4, 0x9aa2b5, 0x565e70);
 
-    // a round block: the diorama is one crater, its wall high behind and cut low in front
-    {
-      let y = 0.7;
-      for (const [hgt, c] of [[0.4, 0x9aa2b5], [0.5, 0x7d8498], [0.9, 0x666d80], [1.25, 0x4a5062]]) {
-        const slab = fMesh(new THREE.CylinderGeometry(RO, RO, hgt, 48), c, 0);
-        slab.position.y = y - hgt / 2;
-        slab.userData.flat = true;
-        g.add(slab);
-        y -= hgt;
-      }
-      const floor = new THREE.RingGeometry(0.01, RI + 0.1, 40, 7);
-      floor.rotateX(-Math.PI / 2);
-      const fm = fMesh(floor, 0x9aa2b5, 0.1);
-      fm.position.y = 0.708;
-      fm.userData.flat = true;
-      g.add(fm);
-      const prof = [[RI, 0], [5.25, 0.32], [5.8, 1.0], [6.2, 0.9], [RO, 0.5]];
-      const SEG = 48, wallH = a => (0.42 + 1.75 * smooth((1 - Math.sin(a)) / 2 * 1.15)) * (0.88 + 0.24 * fract(Math.sin(a * 37.7) * 9137.3));
-      const pt = (k, j) => { const a = k / SEG * Math.PI * 2, [r, hh] = prof[j]; return [Math.cos(a) * r, T + hh * wallH(a), Math.sin(a) * r]; };
-      const tri = [];
-      for (let k = 0; k < SEG; k++) {
-        for (let j = 0; j < prof.length - 1; j++) {
-          const a = pt(k, j), b = pt(k + 1, j), c = pt(k, j + 1), d = pt(k + 1, j + 1);
-          tri.push(...a, ...b, ...d, ...a, ...d, ...c);
-        }
-        const c = pt(k, prof.length - 1), d = pt(k + 1, prof.length - 1);
-        tri.push(c[0], 0.7, c[2], ...c, ...d, c[0], 0.7, c[2], ...d, d[0], 0.7, d[2]);    // the cut face of the wall
-      }
-      const wg = new THREE.BufferGeometry();
-      wg.setAttribute("position", new THREE.Float32BufferAttribute(tri, 3));
-      const wall = fMesh(wg, 0x8f97ab, 0.16);
-      wall.userData.flat = true;
-      g.add(wall);
-    }
-    scatter(g, 120, 9, (x, z) => Math.hypot(x, z) < RI - 0.2 ? 0.72 : null, r => pebble(r > 0.5 ? 0x767e92 : 0x8a92a6, r));
-    const pull = (x, z, lim = 4.2) => { const r = Math.hypot(x, z); return r > lim ? [x * lim / r, z * lim / r] : [x, z]; };
-
-    const CR = [2.3, -1.0];
-    const rim = fMesh(jitter(new THREE.TorusGeometry(1.35, 0.36, 6, 16), 0.2), 0x848ca0, 0.18);
+    // crater
+    const rim = fMesh(jitter(new THREE.TorusGeometry(2.0, 0.5, 6, 16), 0.25), 0x848ca0, 0.18);
     rim.rotation.x = Math.PI / 2;
-    rim.position.set(CR[0], T - 0.05, CR[1]);
-    g.add(rim, cyl(1.2, 1.2, 0.04, 14, 0x3a4052, CR[0], T + 0.04, CR[1], 0.1));
-    const iceMat = new THREE.MeshStandardMaterial({ color: 0xbfe6ff, emissive: 0x3f8fd0, emissiveIntensity: 0.7, roughness: 0.2, flatShading: true });
-    for (const [ix, iz, is] of [[0.0, 0.1, 0.3], [-0.45, -0.3, 0.22], [0.4, -0.4, 0.18], [-0.2, 0.55, 0.16]]) {
-      const ice = lit(new THREE.IcosahedronGeometry(is, 0), iceMat, CR[0] + ix, T + 0.1, CR[1] + iz);
-      ice.scale.y = 0.45;
-      ice.rotation.y = ix * 9;
-      g.add(ice);
-    }
-    // drill rig on the crater floor
-    g.add(cyl(0.03, 0.03, 1.5, 4, GREY, CR[0] + 0.5, T + 0.75, CR[1] + 0.45), box(0.5, 0.1, 0.5, 0x6a7186, CR[0] + 0.5, T + 0.1, CR[1] + 0.45));
-    for (const a of [0.5, 2.6, 4.7]) {
-      const leg = box(0.04, 1.2, 0.04, GREY, CR[0] + 0.5 + Math.cos(a) * 0.3, T + 0.55, CR[1] + 0.45 + Math.sin(a) * 0.3);
-      leg.rotation.set(Math.sin(a) * 0.5, 0, -Math.cos(a) * 0.5);
-      g.add(leg);
-    }
-    const bit = dyn(cyl(0.07, 0.02, 0.5, 5, 0xd9a441, CR[0] + 0.5, T + 0.4, CR[1] + 0.45));
-    g.add(bit);
+    rim.position.set(2.6, 0.62, -1.8);
+    g.add(rim);
 
-    for (const [rx, rz, rs] of [[-4.6, 2.6, 0.5], [-2.4, 4.6, 0.55], [5.2, 1.7, 0.4], [0.9, 4.9, 0.32], [-5.2, -0.8, 0.35], [3.2, 4.2, 0.3], [-0.9, -3.1, 0.28], [2.2, 1.7, 0.18], [-3.3, 0.6, 0.2]]) {
-      const [qx, qz] = pull(rx, rz);
-      const rock = blob(rs, 0x767e92, qx, T - 0.06 + rs * 0.4, qz, 0.22, 0.4);
+    // scattered rocks
+    for (const [rx, rz, rs] of [[-4.2, 2.4, 0.5], [-2.0, 4.2, 0.6], [4.4, 1.8, 0.4], [0.6, -4.4, 0.5], [-4.4, -1.6, 0.35], [3.4, 3.8, 0.3]]) {
+      const rock = fMesh(jitter(new THREE.IcosahedronGeometry(rs, 0), rs * 0.4), 0x767e92, 0.22);
+      rock.position.set(rx, 0.6 + rs * 0.4, rz);
       rock.rotation.set(rx, rz, rs);
       g.add(rock);
     }
-    for (const [cx, cz, cr] of [[-3.7, 0.9, 0.5], [0.3, -2.9, 0.42], [1.3, -4.0, 0.3], [3.9, 1.3, 0.28]]) {
-      const r2 = fMesh(new THREE.TorusGeometry(cr, cr * 0.26, 4, 10), 0x8a92a6, 0.14);
-      r2.rotation.x = Math.PI / 2;
-      r2.position.set(cx, T, cz);
-      g.add(r2, cyl(cr * 0.85, cr * 0.85, 0.03, 10, 0x6a7186, cx, T + 0.03, cz, 0.08));
-    }
 
-    // the lander, back left: gold-foil descent stage, crew cabin, ladder
-    const LD = [-2.6, -1.7];
-    const lander = grp(LD[0], T, LD[1], 0.5);
-    lander.add(cyl(0.75, 0.75, 0.55, 8, 0xc9993c, 0, 1.0, 0, 0.16), cyl(0.5, 0.62, 0.7, 8, 0xd7dded, 0, 1.62, 0, 0.1), box(0.36, 0.36, 0.3, 0xa9b1c6, 0, 1.6, 0.56),
-      cyl(0.18, 0.34, 0.36, 8, 0x4a4f5e, 0, 0.56, 0), cyl(0.02, 0.02, 0.7, 4, GREY, 0.3, 2.3, -0.1), box(0.26, 1.0, 0.04, GREY, 0, 0.5, 1.0));
-    lander.children[5].rotation.x = -0.32;
-    const hatch = lit(new THREE.BoxGeometry(0.2, 0.2, 0.03), emis(0xffe3b0, 1.4), 0, 1.62, 0.72);
-    lander.add(hatch);
-    for (let k = 0; k < 4; k++) {
-      const a = k * Math.PI / 2 + Math.PI / 4;
-      const leg = box(0.07, 1.25, 0.07, 0xbdbab3, Math.cos(a) * 0.95, 0.6, Math.sin(a) * 0.95);
-      leg.rotation.set(-Math.sin(a) * 0.5, 0, Math.cos(a) * 0.5);
-      lander.add(leg, cyl(0.2, 0.24, 0.07, 8, 0xc9993c, Math.cos(a) * 1.25, 0.04, Math.sin(a) * 1.25));
-    }
-    g.add(lander);
-
-    // footprints from the ladder to where he fell
-    const AS = [-0.9, 1.9];
-    const start = [LD[0] + 0.9, LD[1] + 1.2];
-    for (let k = 0; k < 11; k++) {
-      const u = (k + 0.5) / 11.5;
-      const fx = start[0] + (AS[0] - 0.9 - start[0]) * u + Math.sin(u * 7) * 0.22, fz = start[1] + (AS[1] - 0.4 - start[1]) * u;
-      const fp = box(0.12, 0.02, 0.22, 0x6a7186, fx + (k % 2 ? 0.11 : -0.11), T + 0.03, fz, 0.05);
-      fp.rotation.y = 0.5;
-      g.add(fp);
-    }
-
-    // the fallen astronaut: face down, a red light under the visor
-    const astro = grp(AS[0], T - 0.1, AS[1], 0.25);
+    // the fallen astronaut — red glow under the helmet
+    const astro = new THREE.Group();
+    const suit = 0xc9cfdd;
     const helmet = fMesh(new THREE.IcosahedronGeometry(0.52, 1), 0xd7dded, 0.1);
     helmet.position.set(0.95, 0.42, 0);
-    const armL = box(0.95, 0.2, 0.22, SUIT, 0.5, 0.2, 0.58); armL.rotation.y = 0.6;
-    const armR = box(0.95, 0.2, 0.22, SUIT, 0.2, 0.2, -0.62); armR.rotation.y = -1.1;
-    const legL = box(1.25, 0.22, 0.26, SUIT, -1.25, 0.18, 0.26); legL.rotation.y = -0.14;
-    const legR = box(1.25, 0.22, 0.26, SUIT, -1.2, 0.18, -0.3); legR.rotation.y = 0.3;
-    astro.add(helmet, box(1.15, 0.5, 0.78, SUIT, -0.15, 0.36, 0), box(0.75, 0.32, 0.55, 0xa9b1c6, -0.2, 0.72, 0), armL, armR, legL, legR,
-      box(0.3, 0.2, 0.3, 0xb9c0d0, 0.95, 0.2, 0.75), box(0.3, 0.16, 0.34, 0xb9c0d0, -1.9, 0.14, 0.3), box(0.3, 0.16, 0.34, 0xb9c0d0, -1.8, 0.14, -0.5),
-      box(0.3, 0.06, 0.2, 0xd94f3d, -0.2, 0.9, 0, 0.04));
-    const glowMat = emis(0xff2020, 1.6);
-    astro.add(lit(new THREE.SphereGeometry(0.24, 8, 8), glowMat, 1.2, 0.2, 0));
+    const torso = fMesh(new THREE.BoxGeometry(1.15, 0.5, 0.78), suit, 0.1);
+    torso.position.set(-0.15, 0.36, 0);
+    const pack = fMesh(new THREE.BoxGeometry(0.75, 0.32, 0.55), 0xa9b1c6, 0.1);
+    pack.position.set(-0.2, 0.72, 0);
+    const armL = fMesh(new THREE.BoxGeometry(0.95, 0.2, 0.22), suit, 0.1);
+    armL.position.set(0.45, 0.2, 0.55);
+    armL.rotation.y = 0.55;
+    const armR = armL.clone();
+    armR.position.z = -0.55; armR.rotation.y = -0.55;
+    const legL = fMesh(new THREE.BoxGeometry(1.25, 0.22, 0.26), suit, 0.1);
+    legL.position.set(-1.25, 0.18, 0.24);
+    legL.rotation.y = -0.12;
+    const legR = legL.clone();
+    legR.position.z = -0.24; legR.rotation.y = 0.12;
+    astro.add(helmet, torso, pack, armL, armR, legL, legR);
+    const glowMat = new THREE.MeshStandardMaterial({ color: 0x330000, emissive: 0xff2020, emissiveIntensity: 1.6, flatShading: true });
+    const glow = new THREE.Mesh(new THREE.SphereGeometry(0.24, 8, 8), glowMat);
+    glow.position.set(1.15, 0.16, 0);
+    astro.add(glow);
     const redLight = new THREE.PointLight(0xff2020, 8, 6, 2);
-    redLight.position.set(1.25, 0.5, 0);
+    redLight.position.set(1.15, 0.45, 0);
     astro.add(redLight);
+    astro.position.set(-1.4, 0.55, 0.8);
+    astro.rotation.y = 0.7;
     g.add(astro);
 
-    // three small robots, circling
-    const eyeMat = emis(0x59e07a, 2.2);
-    const bots = [[0xd7dded, 0], [0xb9c4d6, 1], [0xe0b060, 2]].map(([c, kind]) => {
-      const b = dyn(new THREE.Group());
-      b.add(box(0.42, 0.28, 0.5, c, 0, 0.36, 0));
-      for (const [wx, wz] of [[0.16, 0.26], [-0.16, 0.26], [0.16, -0.26], [-0.16, -0.26]]) {
-        const w = cyl(0.11, 0.11, 0.08, 6, 0x1c1a26, wx, 0.11, wz, 0.04);
+    // beacon mast on a supply crate
+    const crate = fMesh(new THREE.BoxGeometry(0.8, 0.6, 0.8), 0x8a91a5, 0.12);
+    crate.position.set(-3.6, 0.9, -2.6);
+    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.6, 5), mat(0x8a91a5));
+    mast.position.set(-3.6, 2.0, -2.6);
+    const beaconMat = new THREE.MeshStandardMaterial({ color: 0x330000, emissive: 0xff2a30, emissiveIntensity: 1.2, flatShading: true });
+    const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 8), beaconMat);
+    beacon.position.set(-3.6, 2.85, -2.6);
+    g.add(crate, mast, beacon);
+
+    // two little robots keeping vigil around the astronaut
+    const botPivot = new THREE.Group();
+    botPivot.position.set(-1.4, 0, 0.8);
+    const mkBot = (r, z, c) => {
+      const b = new THREE.Group();
+      const bodyB = fMesh(new THREE.BoxGeometry(0.42, 0.3, 0.52), c, 0.1);
+      bodyB.position.y = 0.82;
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.06, 6, 6), new THREE.MeshStandardMaterial({ color: 0x111, emissive: 0x59e07a, emissiveIntensity: 2 }));
+      eye.position.set(0.22, 0.86, 0);
+      for (const [wx, wz] of [[0.14, 0.28], [-0.14, 0.28], [0.14, -0.28], [-0.14, -0.28]]) {
+        const w = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.08, 6), mat(0x1c1a26));
         w.rotation.x = Math.PI / 2;
+        w.position.set(wx, 0.64, wz);
         b.add(w);
       }
-      if (kind === 0) b.add(cyl(0.015, 0.015, 0.5, 4, GREY, -0.12, 0.75, 0), box(0.14, 0.1, 0.14, 0x3a4052, -0.12, 1.02, 0));
-      if (kind === 1) b.add(box(0.5, 0.03, 0.34, 0x1f2f6a, -0.05, 0.56, 0, 0.05));
-      if (kind === 2) { const armB = box(0.05, 0.05, 0.5, GREY, 0.3, 0.46, 0); armB.rotation.y = Math.PI / 2; armB.rotation.z = 0.5; b.add(armB); }
-      bake(b);
-      b.add(lit(new THREE.SphereGeometry(0.06, 6, 6), eyeMat, 0.22, 0.4, 0));
-      g.add(b);
+      b.add(bodyB, eye);
+      b.position.set(r, 0, z);
+      botPivot.add(b);
       return b;
-    });
-
-    // the foothold: beacon, supply crates, a solar wing, a dish turned to Earth
-    const FH = [-3.2, 2.7];
-    g.add(box(0.8, 0.6, 0.8, GREY, 3.0, T + 0.3, 2.5), box(0.6, 0.45, 0.6, 0x9aa2b5, 3.75, T + 0.22, 2.1), cyl(0.03, 0.03, 1.7, 5, GREY, 3.0, T + 1.45, 2.5));
-    const beaconMat = emis(0xff2a30, 1.2);
-    g.add(lit(new THREE.SphereGeometry(0.13, 8, 8), beaconMat, 3.0, T + 2.35, 2.5));
-    for (const s of [-1, 1]) {
-      const wing = box(0.95, 0.04, 0.6, 0x1f2f6a, FH[0] + 0.55 * s, T + 0.85, FH[1], 0.06);
-      wing.rotation.x = 0.5;
-      g.add(wing);
-    }
-    g.add(cyl(0.035, 0.05, 0.85, 5, GREY, FH[0], T + 0.42, FH[1]));
-    const dish = dyn(grp(-4.2, T + 0.9, 0.2));
-    const bowl = cyl(0.5, 0.08, 0.2, 10, 0xd7dded, 0, 0.25, 0);
-    dish.add(bowl, cyl(0.012, 0.012, 0.4, 4, GREY, 0, 0.45, 0));
-    dish.rotation.z = 0.7;
-    g.add(bake(dish), cyl(0.04, 0.06, 0.9, 5, GREY, -4.2, T + 0.45, 0.2));
-    // the wreck he came looking for
-    const wreck = grp(1.5, T, 3.8, 0.9);
-    wreck.add(box(0.9, 0.4, 0.6, 0x6a7186, 0, 0.18, 0), box(0.8, 0.03, 0.5, 0x1f2f6a, 0.5, 0.42, 0.2, 0.06), cyl(0.14, 0.14, 0.08, 6, 0x1c1a26, -0.6, 0.1, 0.5, 0.04));
-    wreck.rotation.z = 0.22;
-    wreck.children[1].rotation.z = 0.7;
-    g.add(wreck);
+    };
+    const bot1 = mkBot(2.4, 0, 0xd7dded);
+    const bot2 = mkBot(3.1, 1.1, 0xb9c4d6);
+    g.add(botPivot);
 
     return {
       group: g,
       animate(t) {
         const pulse = Math.sin(t * 2.2);
-        glowMat.emissiveIntensity = 1.2 + Math.max(0, pulse) * 1.6;
-        redLight.intensity = 5 + Math.max(0, pulse) * 9;
-        beaconMat.emissiveIntensity = 0.3 + (Math.sin(t * 2.8) > 0.4 ? 2.0 : 0);
-        bots.forEach((b, k) => {
-          const a = t * 0.3 + k * Math.PI * 2 / 3, r = 2.05 + (k === 1 ? 0.35 : 0);
-          b.position.set(AS[0] + 0.1 + Math.cos(a) * r, T - 0.02, AS[1] + Math.sin(a) * r * 0.8);
-          b.rotation.y = -a - Math.PI / 2;
-        });
-        dish.rotation.y = Math.sin(t * 0.2) * 0.6 + 2.4;
-        bit.rotation.y = t * 6;
-        bit.position.y = T + 0.36 + Math.sin(t * 1.4) * 0.08;
-        iceMat.emissiveIntensity = 0.6 + Math.sin(t * 1.1) * 0.2;
+        glowMat.emissiveIntensity = 1.2 + Math.max(0, pulse) * 1.4;
+        redLight.intensity = 5 + Math.max(0, pulse) * 8;
+        beaconMat.emissiveIntensity = 0.3 + (Math.sin(t * 2.8) > 0.4 ? 1.8 : 0);
+        botPivot.rotation.y = t * 0.3;
+        bot1.rotation.y = -t * 0.3 + Math.PI / 2;
+        bot2.rotation.y = -t * 0.3 + Math.PI / 2;
       }
     };
   }
 
-  // MASCON — the seed factory at work: lunar lander, supply runs, digger and assembly bots, modules, the mass driver firing
   function buildMascon() {
-    const g = blockBase([[0.4, 0x74716c], [0.5, 0x74716c], [0.9, 0x5c5a58], [1.25, 0x424247]], false);
-    const regH = (x, z) => rise(x, z, 6.1, 0.6, 10);
-    landTop(g, { h: regH, colour: 0x8a8781, wall: 0x74716c });
-    scatter(g, 130, 10, (x, z) => 0.72 + regH(x, z), r => pebble(r > 0.5 ? 0x77746e : 0x9b978f, r));
-    const TOP = 0.72;
-    const WHITE = 0xeceae4, GOLD = 0xd9a441, DARK = 0x2a2a2e, PANEL = 0x1f2f6a, STEEL = 0x8f8c86;
+    const g = islandBase(6.4, 0x8a8781, 0x4a4b52);   // warm grey regolith, darker basalt below
+    const TOP = 0.66;
 
-    // crater on the right, rocks
-    const CR = [3.9, 2.0];
-    const rim = fMesh(jitter(new THREE.TorusGeometry(1.6, 0.42, 6, 16), 0.2), 0x9b978f, 0.16);
+    // impact crater: raised rim, dark floor in hard shadow
+    const rim = fMesh(jitter(new THREE.TorusGeometry(1.7, 0.42, 6, 16), 0.2), 0x9b978f, 0.16);
     rim.rotation.x = Math.PI / 2;
-    rim.position.set(CR[0], TOP - 0.04, CR[1]);
-    g.add(rim, cyl(1.4, 1.4, 0.04, 14, 0x2b2b2e, CR[0], TOP + 0.03, CR[1], 0.08));
-    for (const [rx, rz, rs] of [[5.2, -1.0, 0.36], [-5.3, 1.0, 0.4], [0.2, 5.3, 0.3], [-2.9, 4.7, 0.26], [1.6, -3.2, 0.3], [-4.4, -3.0, 0.34], [2.6, 4.9, 0.22]]) {
-      const rock = blob(rs, 0x77746e, rx, TOP - 0.04 + rs * 0.3, rz, 0.22, 0.4);
+    rim.position.set(-2.9, TOP, 2.4);
+    const floor = new THREE.Mesh(new THREE.CircleGeometry(1.45, 14), mat(0x2b2b2e));
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.set(-2.9, TOP + 0.02, 2.4);
+    g.add(rim, floor);
+
+    for (const [rx, rz, rs] of [[4.3, -2.4, 0.4], [-4.6, -0.8, 0.5], [0.4, 4.6, 0.35], [4.8, 1.2, 0.3], [-1.0, -4.6, 0.45]]) {
+      const rock = fMesh(jitter(new THREE.IcosahedronGeometry(rs, 0), rs * 0.4), 0x77746e, 0.22);
+      rock.position.set(rx, TOP + rs * 0.3, rz);
       rock.rotation.set(rx, rz, rs);
       g.add(rock);
     }
 
-    // the lunar lander: white Starship, navy band, cargo lift down the side
-    const SHIP = new THREE.Vector3(-0.7, TOP, -1.3);
-    const ship = grp(SHIP.x, SHIP.y, SHIP.z);
-    const nose = fMesh(new THREE.SphereGeometry(0.62, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), WHITE, 0.05);
+    // the lander: white HLS-style Starship standing on its legs
+    const SHIP = new THREE.Vector3(-1.5, TOP, -1.4);
+    const ship = new THREE.Group();
+    const white = 0xeceae4;
+    const hull = fMesh(new THREE.CylinderGeometry(0.62, 0.62, 4.6, 12), white, 0.05);
+    hull.position.y = 3.0;
+    const nose = fMesh(new THREE.SphereGeometry(0.62, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), white, 0.05);
     nose.scale.y = 1.9;
     nose.position.y = 5.3;
-    ship.add(cyl(0.62, 0.62, 4.6, 12, WHITE, 0, 3.0, 0, 0.05), nose, cyl(0.635, 0.635, 0.5, 12, 0x1d2235, 0, 4.5, 0, 0.04), cyl(0.62, 0.7, 0.5, 12, 0xd6d3cc, 0, 0.95, 0, 0.06),
-      cyl(0.3, 0.42, 0.3, 8, 0x3a3a40, 0, 0.6, 0), box(0.5, 0.7, 0.05, 0x1d2235, 0, 3.4, 0.62, 0.03),
-      box(0.04, 2.9, 0.04, STEEL, -0.27, 1.95, 0.66), box(0.04, 2.9, 0.04, STEEL, 0.27, 1.95, 0.66));
-    for (let k = 1; k < 4; k++) ship.add(cyl(0.626, 0.626, 0.02, 12, 0xcfcdc6, 0, 1.2 + k * 0.78, 0, 0.03));
-    const windows = lit(new THREE.CylinderGeometry(0.64, 0.64, 0.07, 12), emis(0xffe3b0, 1.1), 0, 5.0, 0);
-    ship.add(windows);
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(0.635, 0.635, 0.36, 12), mat(0x1d2235));
+    band.position.y = 4.35;
+    const windows = new THREE.Mesh(new THREE.CylinderGeometry(0.64, 0.64, 0.08, 12),
+      new THREE.MeshStandardMaterial({ color: 0x222222, emissive: 0xffe3b0, emissiveIntensity: 0.9, flatShading: true }));
+    windows.position.y = 4.85;
+    const skirt = fMesh(new THREE.CylinderGeometry(0.62, 0.7, 0.5, 12), 0xd6d3cc, 0.06);
+    skirt.position.y = 0.95;
+    ship.add(hull, nose, band, windows, skirt);
     for (let k = 0; k < 4; k++) {
       const a = k * Math.PI / 2 + Math.PI / 4;
-      const leg = box(0.1, 1.5, 0.1, 0xbdbab3, Math.cos(a) * 0.95, 0.65, Math.sin(a) * 0.95);
-      leg.rotation.set(-Math.sin(a) * 0.45, 0, Math.cos(a) * 0.45);
-      ship.add(leg, cyl(0.2, 0.24, 0.08, 8, STEEL, Math.cos(a) * 1.25, 0.04, Math.sin(a) * 1.25));
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.5, 0.1), mat(0xbdbab3));
+      leg.position.set(Math.cos(a) * 0.95, 0.65, Math.sin(a) * 0.95);
+      leg.rotation.set(-Math.sin(a) * 0.45, 0, Math.cos(a) * 0.45);  // top in at the hull, foot out
+      const pad = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.24, 0.08, 8), mat(0x8f8c86));
+      pad.position.set(Math.cos(a) * 1.25, 0.04, Math.sin(a) * 1.25);
+      ship.add(leg, pad);
     }
+    ship.position.copy(SHIP);
     g.add(ship);
 
-    // open-frame module: twelve struts and whatever is working inside
-    function cage(w, h, d, c = WHITE, s = 0.05) {
-      const m = new THREE.Group();
-      for (const sx of [-1, 1]) for (const sz of [-1, 1]) m.add(box(s, h, s, c, sx * w / 2, h / 2, sz * d / 2, 0.05));
-      for (const y of [s / 2, h]) for (const sg of [-1, 1]) m.add(box(w + s, s, s, c, 0, y, sg * d / 2, 0.05), box(s, s, d + s, c, sg * w / 2, y, 0, 0.05));
-      return m;
-    }
-    const lift = dyn(cage(0.62, 0.62, 0.5, STEEL, 0.04));
-    lift.add(box(0.4, 0.3, 0.3, GOLD, 0, 0.17, 0));
-    lift.position.set(SHIP.x, TOP + 0.3, SHIP.z + 0.98);
-    g.add(bake(lift));
-
-    // furnace module: regolith in, metal out
-    const FURN = new THREE.Vector3(2.5, TOP, -1.2);
-    const furnace = cage(1.3, 1.25, 1.1);
-    furnace.add(box(1.0, 0.8, 0.8, 0x5d5b58, 0, 0.42, 0), cyl(0.1, 0.13, 0.9, 6, 0x55534f, 0.3, 1.3, -0.2), box(0.5, 0.3, 0.5, 0x6e6c68, -0.2, 0.97, 0.05));
-    const glowMat = emis(0xff9a2e, 2.0);
-    furnace.add(lit(new THREE.BoxGeometry(0.7, 0.2, 0.05), glowMat, 0, 0.45, 0.41));
+    // the furnace: squat block, amber slot, glowing from inside
+    const FURN = new THREE.Vector3(2.6, TOP, 1.2);
+    const furnace = new THREE.Group();
+    const fBody = fMesh(new THREE.BoxGeometry(1.5, 1.0, 1.2), 0x6e6c68, 0.1);
+    fBody.position.y = 0.5;
+    const fHood = fMesh(new THREE.BoxGeometry(1.1, 0.35, 0.9), 0x5d5b58, 0.1);
+    fHood.position.y = 1.17;
+    const flue = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 0.9, 6), mat(0x55534f));
+    flue.position.set(0.4, 1.6, -0.2);
+    const glowMat = new THREE.MeshStandardMaterial({ color: 0x331800, emissive: 0xff9a2e, emissiveIntensity: 2.0, flatShading: true });
+    const slot = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.22, 0.06), glowMat);
+    slot.position.set(0, 0.55, 0.61);
+    furnace.add(fBody, fHood, flue, slot);
     const furnaceLight = new THREE.PointLight(0xff9a3c, 10, 6, 2);
-    furnaceLight.position.set(0, 0.7, 1.0);
+    furnaceLight.position.set(0, 0.7, 1.1);
     furnace.add(furnaceLight);
     furnace.position.copy(FURN);
-    furnace.rotation.y = -0.5;
+    furnace.rotation.y = -0.6;   // slot faces the ship's side of the island
     g.add(furnace);
-    // printer module: a head tracking back and forth over the bed
-    const PR = [-3.5, 1.3];
-    const printer = cage(1.1, 1.0, 1.0);
-    printer.add(box(0.9, 0.12, 0.8, 0x3a3d48, 0, 0.1, 0), box(0.4, 0.16, 0.3, STEEL, 0, 0.24, 0));
-    const bedMat = emis(0x4fb8ff, 1.2);
-    printer.add(lit(new THREE.BoxGeometry(0.8, 0.02, 0.7), bedMat, 0, 0.17, 0));
-    const head = dyn(box(0.16, 0.18, 0.86, DARK, 0, 0.82, 0));
-    printer.add(head);
-    printer.position.set(PR[0], TOP, PR[1]);
-    printer.rotation.y = 0.45;
-    g.add(printer);
-    // tank module and stores
-    g.add(cyl(0.42, 0.42, 0.9, 10, WHITE, -3.6, TOP + 0.6, -1.5, 0.05), cyl(0.43, 0.43, 0.16, 10, DARK, -3.6, TOP + 0.75, -1.5, 0.04), cyl(0.3, 0.42, 0.14, 10, 0xd6d3cc, -3.6, TOP + 1.12, -1.5, 0.05),
-      cyl(0.46, 0.46, 0.14, 10, STEEL, -3.6, TOP + 0.08, -1.5, 0.05));
-    const store = cage(1.0, 0.8, 0.8);
-    [[0x9aa0a8, 0], [0xc9ccd2, 1], [0x5a6a8a, 2], [0xb87a4a, 3]].forEach(([c, k]) => {
-      for (let j = 0; j < 3 - (k > 1); j++) store.add(box(0.36, 0.13, 0.2, c, -0.22 + (k % 2) * 0.44, 0.1 + j * 0.14, -0.18 + (k >> 1) * 0.36, 0.08));
-    });
-    store.position.set(4.2, TOP, -2.9);
-    store.rotation.y = -0.3;
-    g.add(store);
 
-    // solar panels on their stands
-    for (const [sx, sz, sr] of [[-5.1, -0.6, 0.6], [-5.9, 2.0, 0.9], [-1.8, 4.6, 0.3], [2.9, 6.2, -0.2], [5.6, 0.6, -0.7]]) {
-      const sp = grp(sx, TOP, sz, sr);
-      const pv = box(0.9, 0.04, 0.62, PANEL, 0, 0.72, 0, 0.08);
-      pv.rotation.x = 0.6;
-      sp.add(cyl(0.03, 0.05, 0.7, 5, STEEL, 0, 0.35, 0), pv);
-      g.add(sp);
+    // ingots stacked by the furnace: what the regolith becomes
+    for (const [ix, iz, c] of [[3.9, 2.4, 0x9aa0a8], [4.2, 2.0, 0xc9ccd2], [3.7, 2.0, 0x5a6a8a]]) {
+      const ingot = fMesh(new THREE.BoxGeometry(0.42, 0.16, 0.22), c, 0.08);
+      ingot.position.set(ix, TOP + 0.08, iz);
+      ingot.rotation.y = ix;
+      g.add(ingot);
     }
 
-    // the bots. Digger: gold chassis, six wheels, a bucket drum at each end.
-    const headMat = new THREE.MeshBasicMaterial({ color: 0xfff6d8 });
-    function digger(s = 1) {
-      const r = dyn(new THREE.Group());
-      const hull = new THREE.Group();
-      hull.add(box(0.8, 0.2, 0.46, GOLD, 0, 0.34, 0, 0.1), box(0.4, 0.12, 0.34, WHITE, -0.05, 0.5, 0), box(0.05, 0.3, 0.05, STEEL, 0.1, 0.7, 0), box(0.14, 0.09, 0.2, DARK, 0.1, 0.88, 0, 0.04),
-        box(0.3, 0.05, 0.05, STEEL, 0.52, 0.3, 0.2), box(0.3, 0.05, 0.05, STEEL, 0.52, 0.3, -0.2), box(0.3, 0.05, 0.05, STEEL, -0.52, 0.3, 0.2), box(0.3, 0.05, 0.05, STEEL, -0.52, 0.3, -0.2));
-      for (const wx of [-0.3, 0, 0.3]) for (const wz of [-0.29, 0.29]) {
-        const w = cyl(0.14, 0.14, 0.1, 8, 0x1c1b20, wx, 0.14, wz, 0.05);
+    // two small rovers with drum diggers, shuttling regolith from the ship's side to the furnace
+    function rover() {
+      const r = new THREE.Group();
+      const chassis = fMesh(new THREE.BoxGeometry(0.75, 0.24, 0.5), 0xdcd8cf, 0.08);
+      chassis.position.y = 0.32;
+      const mast = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.32, 0.06), mat(0x55534f));
+      mast.position.set(-0.22, 0.6, 0);
+      const cam = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.08, 0.16), mat(0x2a2a2e));
+      cam.position.set(-0.22, 0.78, 0);
+      const drum = fMesh(new THREE.CylinderGeometry(0.2, 0.2, 0.56, 8), 0x8a6a3a, 0.12);
+      drum.rotation.x = Math.PI / 2;
+      drum.position.set(0.5, 0.24, 0);
+      r.add(chassis, mast, cam, drum);
+      for (const [wx, wz] of [[0.24, 0.3], [-0.24, 0.3], [0.24, -0.3], [-0.24, -0.3]]) {
+        const w = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.08, 8), mat(0x1c1b20));
         w.rotation.x = Math.PI / 2;
-        hull.add(w);
+        w.position.set(wx, 0.13, wz);
+        r.add(w);
       }
-      r.add(hull);
-      bake(hull);
-      r.userData.drums = [0.72, -0.72].map(dx => {
-        const d = grp(dx, 0.26, 0);
-        const core = cyl(0.2, 0.2, 0.5, 8, DARK, 0, 0, 0, 0.06);
-        core.rotation.x = Math.PI / 2;
-        d.add(core);
-        for (let k = 0; k < 6; k++) {
-          const a = k / 6 * Math.PI * 2;
-          d.add(box(0.1, 0.07, 0.46, GOLD, Math.cos(a) * 0.22, Math.sin(a) * 0.22, 0, 0.08));
-        }
-        bake(d);
-        r.add(d);
-        return d;
-      });
-      r.add(lit(new THREE.BoxGeometry(0.05, 0.07, 0.3), headMat, 0.41, 0.36, 0));
-      r.scale.setScalar(s);
+      r.userData.drum = drum;
       g.add(r);
       return r;
     }
-    const ringMat = emis(0xffc24a, 1.6);
-    const selRing = g2 => {
-      const ring = lit(new THREE.TorusGeometry(0.95, 0.03, 4, 28), ringMat, 0, 0.04, 0);
-      ring.rotation.x = Math.PI / 2;
-      g2.add(ring);
-    };
-    const rovers = [digger(1), digger(0.8)];
-    selRing(rovers[0]);
-    const PIT = [-1.9, 2.7];
-    const A = new THREE.Vector3(PIT[0] + 0.5, TOP, PIT[1] - 0.2);
-    const B = new THREE.Vector3(FURN.x - 0.9, TOP, FURN.z + 1.1);
-    const LANE = new THREE.Vector3(B.z - A.z, 0, A.x - B.x).normalize().multiplyScalar(0.36);
-    const HEAD = Math.atan2(-(B.z - A.z), B.x - A.x);
-    g.add(cyl(0.95, 0.95, 0.03, 12, 0x5f5c57, PIT[0], TOP + 0.03, PIT[1], 0.1));
-    for (const [mx, mz, ms] of [[-0.9, 0.5, 0.3], [-1.1, -0.2, 0.24], [-0.2, 1.0, 0.26], [0.5, 0.95, 0.2]]) g.add(blob(ms, 0x6e6b66, PIT[0] + mx, TOP + ms * 0.3, PIT[1] + mz, 0.2, 0.4));
-    for (const s of [-1, 1]) {
-      const tr = box(A.distanceTo(B), 0.02, 0.12, 0x76736d, (A.x + B.x) / 2 + LANE.x * s, TOP + 0.03, (A.z + B.z) / 2 + LANE.z * s, 0.06);
-      tr.rotation.y = HEAD;
-      g.add(tr);
-    }
-    // the swarm it has already built
-    for (const [mx, mz, mr] of [[-1.9, -3.4, 1.0], [1.6, -2.6, 2.8], [-2.3, 0.4, 0.2], [6.1, 3.5, 4.0]]) {
-      const m = digger(0.5);
-      m.position.set(mx, TOP, mz);
-      m.rotation.y = mr;
-      m.userData.dyn = false;                      // parked: goes into the island bake
-      m.traverse(o => { o.userData.dyn = false; });
-    }
+    const rovers = [rover(), rover()];
+    const A = new THREE.Vector3(SHIP.x + 1.6, TOP, SHIP.z + 1.3);   // dig site near the ship
+    const B = new THREE.Vector3(FURN.x - 1.0, TOP, FURN.z + 0.9);   // tipping point at the furnace
+    const LANE = new THREE.Vector3(B.z - A.z, 0, A.x - B.x).normalize().multiplyScalar(0.45);
 
-    // bots at work: three on their rounds, one courier running parts from the supply pad to the assembly stand
-    const loops = [[-4.5, 4.4, 0.85, 0.5], [4.9, -0.9, 0.7, -0.62], [-0.3, 5.3, 0.7, 0.44]].map(([cx, cz, r, w]) => ({ bot: digger(0.5), cx, cz, r, w }));
-    const PAD = new THREE.Vector3(5.2, TOP, 5.2);
-    const courier = digger(0.55);
-    const crateOnBot = box(0.3, 0.24, 0.3, 0xe8e4da, 0, 0.62, 0);
-    courier.add(crateOnBot);
-    const CA = new THREE.Vector3(PAD.x - 1.35, TOP, PAD.z - 0.1), CB = new THREE.Vector3(1.0, TOP, 4.3);
-
-    // the supply pad: lights round the rim, and the vitamin run, landing and lifting off again
-    const padMat = emis(0x7dffb0, 2);
-    g.add(cyl(1.1, 1.1, 0.04, 18, 0x3a3a40, PAD.x, TOP + 0.03, PAD.z, 0.06));
-    const padRing = lit(new THREE.TorusGeometry(0.86, 0.03, 4, 28), emis(0xf4f1e8, 1.2), PAD.x, TOP + 0.06, PAD.z);
-    padRing.rotation.x = Math.PI / 2;
-    g.add(padRing, box(0.5, 0.03, 0.12, 0xf4f1e8, PAD.x, TOP + 0.055, PAD.z, 0.03), box(0.12, 0.03, 0.5, 0xf4f1e8, PAD.x, TOP + 0.055, PAD.z, 0.03));
-    for (let k = 0; k < 6; k++) {
-      const a = k / 6 * Math.PI * 2;
-      g.add(lit(new THREE.SphereGeometry(0.06, 6, 5), padMat, PAD.x + Math.cos(a) * 1.05, TOP + 0.08, PAD.z + Math.sin(a) * 1.05));
-    }
-    const supply = dyn(new THREE.Group());
-    supply.add(cyl(0.5, 0.5, 0.22, 8, GOLD, 0, 0.5, 0, 0.14), cyl(0.36, 0.46, 0.5, 8, WHITE, 0, 0.86, 0, 0.06), cyl(0.12, 0.24, 0.26, 8, DARK, 0, 0.3, 0),
-      cyl(0.37, 0.37, 0.1, 8, 0x1d2235, 0, 0.9, 0, 0.04));
-    for (let k = 0; k < 4; k++) {
-      const a = k * Math.PI / 2 + Math.PI / 4;
-      const leg = box(0.05, 0.7, 0.05, STEEL, Math.cos(a) * 0.55, 0.3, Math.sin(a) * 0.55);
-      leg.rotation.set(-Math.sin(a) * 0.5, 0, Math.cos(a) * 0.5);
-      supply.add(leg, cyl(0.1, 0.12, 0.05, 6, STEEL, Math.cos(a) * 0.72, 0.03, Math.sin(a) * 0.72));
-    }
-    bake(supply);
-    const crate = box(0.32, 0.26, 0.32, 0xe8e4da, 0, 1.24, 0);
-    const flameMat = new THREE.MeshBasicMaterial({ color: 0xffc27a, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false });
-    const flameGeo = new THREE.ConeGeometry(0.2, 1.3, 8);
-    flameGeo.rotateX(Math.PI);
-    flameGeo.translate(0, -0.65, 0);
-    const flame = lit(flameGeo, flameMat, 0, 0.2, 0);
-    const burn = new THREE.PointLight(0xffb060, 0, 8, 2);
-    supply.add(crate, lit(new THREE.SphereGeometry(0.05, 6, 5), padMat, 0, 1.14, 0.38), flame, burn);
-    g.add(supply);
-    const dustMat = new THREE.MeshBasicMaterial({ color: 0xb8b4ac, transparent: true, opacity: 0, depthWrite: false });
-    const dust = [0, 1, 2, 3, 4, 5, 6, 7].map(k => {
-      const d = lit(new THREE.IcosahedronGeometry(0.22, 0), dustMat);
-      g.add(d);
-      return d;
-    });
-
-    // work lights: flood masts, beacons on the modules, navigation lights up the hull
-    const floodMat = emis(0xeaf4ff, 3), amber = emis(0xffb030, 2), navR = emis(0xff3040, 2), navG = emis(0x40ff80, 2), strobeMat = emis(0xffffff, 0);
-    for (const [fx, fz, fr] of [[-6.1, 5.9, 2.4], [6.1, -2.6, -1.9], [-6.0, -2.9, 1.2]]) {
-      const mast = grp(fx, TOP, fz, fr);
-      mast.add(cyl(0.04, 0.07, 2.8, 5, STEEL, 0, 1.4, 0), box(0.5, 0.26, 0.12, DARK, 0, 2.86, 0.02), lit(new THREE.BoxGeometry(0.42, 0.18, 0.04), floodMat, 0, 2.86, 0.1));
-      mast.children[1].rotation.x = mast.children[2].rotation.x = 0.5;
-      g.add(mast);
-    }
-    g.add(lit(new THREE.SphereGeometry(0.06, 6, 5), amber, FURN.x + 0.5, TOP + 1.82, FURN.z - 0.3), lit(new THREE.SphereGeometry(0.06, 6, 5), amber, PR[0], TOP + 1.1, PR[1]),
-      lit(new THREE.SphereGeometry(0.06, 6, 5), amber, 4.2, TOP + 0.9, -2.9), lit(new THREE.SphereGeometry(0.06, 6, 5), amber, -3.6, TOP + 1.26, -1.5),
-      lit(new THREE.SphereGeometry(0.07, 6, 5), navR, SHIP.x - 0.64, TOP + 2.4, SHIP.z), lit(new THREE.SphereGeometry(0.07, 6, 5), navG, SHIP.x + 0.64, TOP + 2.4, SHIP.z),
-      lit(new THREE.SphereGeometry(0.09, 6, 5), strobeMat, SHIP.x, TOP + 6.52, SHIP.z));
-    const workLight = new THREE.PointLight(0xdfeaff, 6, 9, 2);
-    workLight.position.set(-1.6, TOP + 2.6, 3.2);
-    g.add(workLight);
-
-    // assembly bot: dark tower, jointed arm, a robot half built on the stand in front of it
-    const AB = [1.3, 2.9];
-    const asm = grp(AB[0], TOP, AB[1], -0.5);
-    asm.add(cyl(0.34, 0.4, 0.3, 8, DARK, 0, 0.2, 0), cyl(0.2, 0.24, 0.5, 8, 0x3a3d48, 0, 0.6, 0), box(0.6, 0.06, 0.5, STEEL, -1.0, 0.3, 0), box(0.06, 0.3, 0.06, STEEL, -1.0, 0.15, 0),
-      box(0.5, 0.14, 0.3, GOLD, -1.0, 0.42, 0), box(0.5, 0.3, 0.4, WHITE, 0.9, 0.16, 0.3));
-    const shoulder = dyn(grp(0, 0.86, 0));
-    const upper = box(0.12, 0.12, 0.8, GOLD, 0, 0.25, -0.28); upper.rotation.x = 0.7;
-    const elbow = grp(0, 0.5, -0.58);
-    const fore = box(0.09, 0.09, 0.7, STEEL, 0, -0.1, -0.3); fore.rotation.x = -0.4;
-    elbow.add(fore, box(0.16, 0.16, 0.1, DARK, 0, -0.24, -0.62));
-    shoulder.add(cyl(0.16, 0.16, 0.14, 8, GOLD, 0, 0, 0), upper, elbow);
-    bake(elbow);
-    asm.add(shoulder);
-    const asmRing = lit(new THREE.TorusGeometry(0.62, 0.03, 4, 24), emis(0xff8a2a, 1.6), 0, 0.04, 0);
-    asmRing.rotation.x = Math.PI / 2;
-    const spark = lit(new THREE.SphereGeometry(0.07, 6, 5), emis(0xbfe6ff, 3), -1.0, 0.55, 0);
-    asm.add(asmRing, spark);
-    g.add(asm);
-
-    // the mass driver: a rail of drive rings along the back, running off the edge of the world
-    const MA = new THREE.Vector3(-4.8, TOP + 0.9, -4.6), MB = new THREE.Vector3(3.2, TOP + 5.0, -4.9);
-    const EARTH = new THREE.Vector3().lerpVectors(MA, MB, 1.5);      // the rail points straight at it
-    const aim = new THREE.Vector3().subVectors(MB, MA).normalize(), zAxis = new THREE.Vector3(0, 0, 1);
-    const mLen = MA.distanceTo(MB);
-    const rail = box(mLen, 0.07, 0.12, STEEL, (MA.x + MB.x) / 2, (MA.y + MB.y) / 2, (MA.z + MB.z) / 2, 0.06);
-    rail.rotation.y = -Math.atan2(MB.z - MA.z, MB.x - MA.x);
-    rail.rotation.z = Math.atan2(MB.y - MA.y, Math.hypot(MB.x - MA.x, MB.z - MA.z));
-    g.add(rail);
-    const driveRings = [];
-    const mp = new THREE.Vector3();
-    for (let k = 0; k < 22; k++) {
-      mp.lerpVectors(MA, MB, (k + 0.5) / 22);
-      const ring = lit(new THREE.TorusGeometry(0.36, 0.04, 5, 14), new THREE.MeshBasicMaterial({ color: 0x2a8fb0 }), mp.x, mp.y, mp.z);
-      driveRings.push(ring);
-      ring.quaternion.setFromUnitVectors(zAxis, aim);
-      g.add(ring);
-      if (k % 3 === 0 && Math.abs(mp.x) < 6.6) g.add(cyl(0.04, 0.06, mp.y - TOP, 5, 0x55534f, mp.x, (mp.y + TOP) / 2, mp.z));
-    }
-    const slug = lit(new THREE.SphereGeometry(0.15, 8, 6), new THREE.MeshBasicMaterial({ color: 0xf2fdff }));
-    const muzzleMat = new THREE.MeshBasicMaterial({ color: 0x9fefff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
-    const muzzle = lit(new THREE.IcosahedronGeometry(0.8, 1), muzzleMat, MB.x, MB.y, MB.z);
-    const breech = box(0.7, 0.5, 0.5, DARK, MA.x - 0.2, MA.y, MA.z);
-    g.add(slug, muzzle, breech, cyl(0.06, 0.08, MA.y - TOP, 5, 0x55534f, MA.x - 0.2, (MA.y + TOP) / 2, MA.z));
-    const cDim = new THREE.Color(0x1f6f8c), cHot = new THREE.Color(0xeaffff);
-
-    // Earth, and the command link down to the dish — 2.56 seconds each way
-    const earth = dyn(grp(EARTH.x, EARTH.y, EARTH.z));
-    const ocean = fMesh(new THREE.IcosahedronGeometry(0.62, 2), 0x2f6fd0, 0.1);
+    // Earth, hanging in the black above the island
+    const earth = new THREE.Group();
+    const ocean = new THREE.Mesh(new THREE.IcosahedronGeometry(0.55, 2),
+      new THREE.MeshStandardMaterial({ color: 0x2f6fd0, emissive: 0x0b2350, emissiveIntensity: 0.6, roughness: 0.6, flatShading: true }));
     earth.add(ocean);
-    for (const [lat, lon, s, c] of [[0.5, 0.3, 0.27, 0x4f8f4a], [-0.3, 1.9, 0.24, 0x6f8f47], [0.2, 3.6, 0.19, 0x5a8a4a], [1.2, 2.4, 0.19, 0xf2f4f8], [-1.2, 0.8, 0.18, 0xf2f4f8]]) {
-      earth.add(blob(s, c, Math.cos(lat) * Math.cos(lon) * 0.51, Math.sin(lat) * 0.51, Math.cos(lat) * Math.sin(lon) * 0.51, 0.1, 0));
+    for (const [lat, lon, s, c] of [[0.5, 0.3, 0.24, 0x4f8f4a], [-0.3, 1.9, 0.21, 0x6f8f47], [0.2, 3.6, 0.17, 0x5a8a4a], [1.2, 2.4, 0.17, 0xf2f4f8], [-1.2, 0.8, 0.16, 0xf2f4f8]]) {
+      const patch = fMesh(new THREE.IcosahedronGeometry(s, 0), c, 0.1);
+      patch.position.set(Math.cos(lat) * Math.cos(lon) * 0.45, Math.sin(lat) * 0.45, Math.cos(lat) * Math.sin(lon) * 0.45);
+      earth.add(patch);
     }
+    earth.position.set(1.2, 11.2, -1.2);
     earth.rotation.z = 0.41;
-    g.add(bake(earth));
-    earth.traverse(o => { o.userData.noShadow = true; });
-    const DISH = new THREE.Vector3(-3.3, TOP + 1.0, -3.1);
-    const bowl = cyl(0.5, 0.08, 0.2, 10, WHITE, DISH.x, DISH.y + 0.1, DISH.z, 0.06);
-    bowl.rotation.set(-0.1, 0, 0.12);
-    g.add(cyl(0.04, 0.07, 1.0, 5, STEEL, DISH.x, TOP + 0.5, DISH.z), bowl);
+    g.add(earth);
 
-    const LAG = 2.56;
+    const smooth = u => u * u * (3 - 2 * u);
     return {
       group: g,
       animate(t) {
         rovers.forEach((r, i) => {
-          const ph = (t * 0.14 + i * 0.5) % 1;
+          // ping-pong between dig site and furnace; each rover keeps to its own lane
+          const ph = (t * 0.16 + i * 0.5) % 1;
           const outbound = ph < 0.5;
           const u = smooth(outbound ? ph * 2 : 2 - ph * 2);
-          r.position.lerpVectors(A, B, u).addScaledVector(LANE, i === 0 ? 1 : -1);
-          r.rotation.y = HEAD + (outbound ? 0 : Math.PI);
-          r.userData.drums.forEach(d => { d.rotation.z = -t * 4; });
+          const lane = (i === 0 ? 1 : -1);
+          r.position.lerpVectors(A, B, u).addScaledVector(LANE, lane);
+          r.rotation.y = Math.atan2(-(B.z - A.z), B.x - A.x) + (outbound ? 0 : Math.PI);
+          r.userData.drum.rotation.y = t * 4;
         });
         const flicker = 0.85 + Math.sin(t * 7.3) * 0.08 + Math.sin(t * 3.1) * 0.07;
         glowMat.emissiveIntensity = 1.8 * flicker;
         furnaceLight.intensity = 9 * flicker;
         earth.rotation.y = t * 0.12;
-        const u = (t % LAG) / LAG;                   // a command in flight, then the ring answers
-        ringMat.emissiveIntensity = 1.0 + 3.5 * Math.exp(-u * 5);
-        head.position.x = Math.sin(t * 1.7) * 0.34;
-        bedMat.emissiveIntensity = 0.9 + Math.sin(t * 5) * 0.3;
-        lift.position.y = TOP + 0.3 + (0.5 + 0.5 * Math.sin(t * 0.45)) * 2.4;
-        shoulder.rotation.y = Math.PI / 2 + Math.sin(t * 0.9) * 1.5;
-        elbow.rotation.x = Math.sin(t * 1.8) * 0.25;
-        spark.material.emissiveIntensity = Math.sin(t * 0.9) < -0.8 ? 2 + Math.sin(t * 40) * 2 : 0;
-        // mass driver: the rings charge from the breech, the payload goes, the muzzle flashes
-        const sh = (t % 3.4) / 3.4, firing = sh > 0.45 && sh < 0.7;
-        const fp = firing ? Math.pow((sh - 0.45) / 0.25, 2) * 1.5 : -1;   // 1 = muzzle, 1.5 = Earth
-        slug.visible = firing;
-        if (firing) { slug.position.lerpVectors(MA, MB, fp); slug.scale.setScalar(fp > 1 ? 1 - (fp - 1) * 1.5 : 1); }
-        driveRings.forEach((ring, k) => {
-          const ru = (k + 0.5) / driveRings.length;
-          const charge = sh < 0.45 ? smooth(sh / 0.45 * 1.6 - ru) * (0.55 + 0.45 * Math.sin(t * 22 - k)) : 0;
-          const pass = firing ? Math.exp(-Math.pow((ru - fp) * 7, 2)) : 0;
-          ring.material.color.lerpColors(cDim, cHot, Math.min(1, charge * 0.7 + pass * 1.2));
-          ring.scale.setScalar(1 + pass * 0.35);
-        });
-        const mz = (sh - 0.654) / 0.16;
-        muzzleMat.opacity = mz > 0 && mz < 1 ? (1 - mz) * 0.9 : 0;
-        muzzle.scale.setScalar(0.3 + Math.max(0, mz) * 1.4);
-
-        // bots on their rounds, and the courier between the pad and the assembly stand
-        loops.forEach(({ bot, cx, cz, r, w }, k) => {
-          const a = t * w + k * 2;
-          bot.position.set(cx + Math.cos(a) * r, TOP, cz + Math.sin(a) * r * 0.7);
-          bot.rotation.y = -a - Math.sign(w) * Math.PI / 2;
-          bot.userData.drums.forEach(d => { d.rotation.z = -t * 5 * Math.sign(w); });
-        });
-        const SUP = 16, su = t % SUP;
-        const cph = ((su - 5.2) / 7 + 2) % 1, cu = smooth(cph < 0.5 ? cph * 2 : 2 - cph * 2), toStand = cph < 0.5;
-        const running = su > 5.2 && su < 12.2;
-        courier.position.lerpVectors(CA, CB, running ? cu : 0);
-        courier.rotation.y = Math.atan2(-(CB.z - CA.z), CB.x - CA.x) + (running && !toStand ? Math.PI : 0);
-        crateOnBot.visible = running && toStand;
-
-        // the supply lander: down on its flame, unloaded, away again
-        let alt = 0, thrust = 0;
-        if (su < 4.4) { const d = 1 - su / 4.4; alt = 15 * d * d; thrust = 0.55 + 0.45 * d; }
-        else if (su > 9.5) { const u2 = (su - 9.5) / 5; alt = 16 * u2 * u2; thrust = u2 < 1 ? 1 : 0; }
-        supply.visible = su < 14.6;
-        supply.position.set(PAD.x, TOP + 0.05 + alt, PAD.z);
-        supply.rotation.z = Math.sin(t * 1.7) * 0.03 * Math.min(1, alt);
-        crate.visible = su < 5.2;
-        flame.visible = thrust > 0;
-        flame.scale.set(1, thrust * (0.85 + Math.sin(t * 31) * 0.15), 1);
-        burn.intensity = thrust > 0 && alt < 6 ? 14 * thrust * (1 - alt / 6) : 0;
-        const du = su < 4.4 ? (su - 3.2) / 1.6 : (su - 9.5) / 1.4;
-        dustMat.opacity = du > 0 && du < 1 ? Math.sin(du * Math.PI) * 0.5 : 0;
-        dust.forEach((d, k) => {
-          const a = k / dust.length * Math.PI * 2;
-          d.position.set(PAD.x + Math.cos(a) * (0.6 + du * 1.5), TOP + 0.15 + du * 0.25, PAD.z + Math.sin(a) * (0.6 + du * 1.5));
-          d.scale.setScalar(0.6 + Math.max(0, du) * 1.3);
-        });
-        padMat.emissiveIntensity = Math.floor(t * 2.5) % 2 ? 2.6 : 0.4;
-        amber.emissiveIntensity = Math.sin(t * 3.3) > 0.2 ? 2.4 : 0.3;
-        strobeMat.emissiveIntensity = (t * 0.9) % 1 < 0.08 ? 5 : 0;
       }
     };
   }
 
-  // MU-S1K — the groovebox as the stage: speaker stacks, EQ wall, a lit floor and a small crowd
+
   function buildMusik() {
-    const g = blockBase([[0.35, 0x55507a], [0.12, 0xff4f9e], [1.3, 0x2f2c40], [0.12, 0x3f8cff], [1.16, 0x24222e]]);
-    const TOP = 0.72;
+    const g = islandBase(6.4, 0x55507a, 0x3d3a52);   // violet club floor on dark rock
+    const TOP = 0.66;
     const BPM = 124, BEAT = 60 / BPM;
-    const PADC = [0xff4b36, 0xffb01f, 0xffe03b, 0x8fe04c, 0x26d6c2, 0x3f8cff, 0xb073ff, 0xff4f9e];
 
     // the groovebox: a machined aluminium slab, tilted towards the viewer
     const unit = new THREE.Group();
     const alu = new THREE.MeshStandardMaterial({ color: 0xdcdfe1, roughness: 0.35, metalness: 0.75, flatShading: true });
     const slab = new THREE.Mesh(new THREE.BoxGeometry(5.0, 0.42, 3.6), alu);
     slab.position.y = 0.21;
-    unit.add(slab, box(5.1, 0.12, 3.7, 0x9aa0a6, 0, 0.04, 0, 0.05));
+    const lip = new THREE.Mesh(new THREE.BoxGeometry(5.1, 0.12, 3.7), new THREE.MeshStandardMaterial({ color: 0xa7acb1, roughness: 0.5, metalness: 0.7, flatShading: true }));
+    lip.position.y = 0.04;
+    unit.add(slab, lip);
+
+    // screen
     const lcdMat = new THREE.MeshStandardMaterial({ color: 0x9aa284, emissive: 0x5f6a3f, emissiveIntensity: 0.55, roughness: 0.6, flatShading: true });
-    unit.add(lit(new THREE.BoxGeometry(2.3, 0.06, 0.9), lcdMat, -1.1, 0.44, -1.15), box(2.44, 0.05, 1.04, 0x3a3d42, -1.1, 0.43, -1.15, 0.04));
-    const scopeMat = new THREE.MeshBasicMaterial({ color: 0x262b20 });
+    const lcd = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.06, 0.9), lcdMat);
+    lcd.position.set(-1.1, 0.44, -1.15);
     const scope = [];
     for (let k = 0; k < 12; k++) {
-      const b = lit(new THREE.BoxGeometry(0.1, 0.03, 0.06), scopeMat, -2.05 + k * 0.17, 0.48, -1.15);
+      const b = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.03, 0.06), new THREE.MeshBasicMaterial({ color: 0x262b20 }));
+      b.position.set(-2.05 + k * 0.17, 0.48, -1.15);
       scope.push(b); unit.add(b);
     }
+    unit.add(lcd);
+
+    // data wheel: a ribbed drum lying along the slab
     const wheel = new THREE.Group();
     const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 1.6, 18), new THREE.MeshStandardMaterial({ color: 0xe6e8ea, roughness: 0.3, metalness: 0.8, flatShading: true }));
     drum.rotation.z = Math.PI / 2;
     wheel.add(drum);
-    const ribs = new THREE.Group();
     for (let k = 0; k < 9; k++) {
+      const rib = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.05, 0.05), new THREE.MeshStandardMaterial({ color: 0x8f959b, metalness: 0.6, roughness: 0.4 }));
       const a = k / 9 * Math.PI * 2;
-      ribs.add(box(1.6, 0.05, 0.05, 0x8f959b, 0, Math.cos(a) * 0.29, Math.sin(a) * 0.29, 0.05));
+      rib.position.set(0, Math.cos(a) * 0.29, Math.sin(a) * 0.29);
+      wheel.add(rib);
     }
-    wheel.add(bake(ribs));
-    dyn(wheel).position.set(1.35, 0.5, -1.15);
-    unit.add(wheel, lit(new THREE.BoxGeometry(0.04, 0.05, 0.62), new THREE.MeshBasicMaterial({ color: 0xff4b36 }), 1.35, 0.8, -1.15));
+    wheel.position.set(1.35, 0.5, -1.15);
+    const pointer = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.05, 0.62), new THREE.MeshBasicMaterial({ color: 0xff4b36 }));
+    pointer.position.set(1.35, 0.8, -1.15);
+    unit.add(wheel, pointer);
+
+    // 4 × 4 rubber pads in the app's colours; they light as the sequence runs
+    const PADC = [0xff4b36, 0xffb01f, 0xffe03b, 0x8fe04c, 0x26d6c2, 0x3f8cff, 0xb073ff, 0xff4f9e];
     const pads = [];
     for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) {
       const col = new THREE.Color(PADC[(r * 4 + c) % 8]);
       const m = new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 0.08, roughness: 0.85, flatShading: true });
-      const pad = lit(new THREE.BoxGeometry(0.78, 0.16, 0.5), m, -1.8 + c * 1.2, 0.48, -0.25 + r * 0.6);
+      const pad = new THREE.Mesh(new THREE.BoxGeometry(0.78, 0.16, 0.5), m);
+      pad.position.set(-1.8 + c * 1.2, 0.48, -0.25 + r * 0.6);
       pad.userData.m = m;
       pads.push(pad); unit.add(pad);
     }
-    const playMat = new THREE.MeshStandardMaterial({ color: 0xff4f9e, emissive: 0xff4f9e, emissiveIntensity: 0.25, roughness: 0.8, flatShading: true });
-    unit.add(lit(new THREE.CylinderGeometry(0.16, 0.16, 0.18, 14), playMat, 2.33, 0.5, -0.56));
-    unit.position.set(0, TOP + 0.5, -0.9);
-    unit.rotation.set(0.3, 0, 0);
-    g.add(unit, box(4.6, 0.5, 1.2, 0x2a2734, 0, TOP + 0.25, -1.7, 0.08));
+    // play key: big rubber disc
+    const playMat = new THREE.MeshStandardMaterial({ color: 0x3fcf5c, emissive: 0x3fcf5c, emissiveIntensity: 0.25, roughness: 0.8, flatShading: true });
+    const playKey = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.18, 16), playMat);
+    playKey.position.set(-2.1, 0.5, 1.45);
+    unit.add(playKey);
+
+    unit.position.set(-0.4, TOP + 0.35, 0.4);
+    unit.rotation.set(-0.16, 0.35, 0);
+    g.add(unit);
 
     // speaker stacks either side, cones pumping on the kick
     const cones = [];
-    const coneMat = new THREE.MeshStandardMaterial({ color: 0x9aa0a8, roughness: 0.5, metalness: 0.5, flatShading: true });
-    const capMat = new THREE.MeshStandardMaterial({ color: 0x24272b, roughness: 0.4 });
     function stack(x, z, ry) {
-      const sp = grp(x, TOP, z, ry);
-      for (let k = 0; k < 3; k++) {
-        sp.add(box(1.2, 1.2, 1.0, 0x34313f, 0, 0.6 + k * 1.22, 0, 0.12));
-        const cone = lit(new THREE.CylinderGeometry(0.42, 0.2, 0.18, 14), coneMat, 0, 0.6 + k * 1.22, 0.52);
+      const sp = new THREE.Group();
+      for (let k = 0; k < 2; k++) {
+        const box = fMesh(new THREE.BoxGeometry(1.2, 1.2, 1.0), 0x34313f, 0.12);
+        box.position.y = 0.6 + k * 1.22;
+        const cone = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.2, 0.18, 14), new THREE.MeshStandardMaterial({ color: 0x9aa0a8, roughness: 0.5, metalness: 0.5 }));
         cone.rotation.x = Math.PI / 2;
-        const cap = lit(new THREE.SphereGeometry(0.12, 8, 6), capMat, 0, 0.6 + k * 1.22, 0.62);
-        sp.add(cone, cap);
+        cone.position.set(0, 0.6 + k * 1.22, 0.52);
+        const cap = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), new THREE.MeshStandardMaterial({ color: 0x24272b, roughness: 0.4 }));
+        cap.position.set(0, 0.6 + k * 1.22, 0.62);
+        sp.add(box, cone, cap);
         cones.push(cone, cap);
       }
+      sp.position.set(x, TOP, z);
+      sp.rotation.y = ry;
       g.add(sp);
     }
-    stack(-4.6, -1.5, 0.55);
-    stack(4.6, -1.5, -0.55);
+    stack(-4.5, -1.6, 0.9);
+    stack(3.6, -3.4, -0.45);
 
-    // EQ wall across the back
-    const eq = [];
-    for (let k = 0; k < 14; k++) {
-      const col = new THREE.Color(PADC[Math.floor(k * 8 / 14)]);
-      const geo = new THREE.BoxGeometry(0.34, 1, 0.2);
-      geo.translate(0, 0.5, 0);
-      const bar = lit(geo, new THREE.MeshBasicMaterial({ color: col }), -2.86 + k * 0.44, TOP + 0.3, -4.0);
-      eq.push(bar);
-      g.add(bar);
-    }
-    g.add(box(6.4, 0.3, 0.5, 0x2a2734, 0, TOP + 0.15, -4.0, 0.08));
-
-    // two beams sweeping the sky, a mirror ball over the floor
+    // two light beams sweeping the sky from the back of the island
     const beams = [];
-    for (const [bx, bz, c] of [[-3.9, -4.3, 0xff4f9e], [3.9, -4.3, 0x3f8cff]]) {
-      g.add(cyl(0.28, 0.34, 0.4, 10, 0x24272b, bx, TOP + 0.2, bz));
+    for (const [bx, bz, c] of [[-2.6, -4.2, 0xff4f9e], [2.0, -4.6, 0x3f8cff]]) {
+      const base = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.34, 0.4, 10), mat(0x24272b));
+      base.position.set(bx, TOP + 0.2, bz);
       const beamMat = new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
-      const geo = new THREE.ConeGeometry(1.1, 14, 16, 1, true);
-      geo.translate(0, -7, 0);
-      const beam = lit(geo, beamMat);
-      beam.rotation.x = Math.PI;
-      const pivot = grp(bx, TOP + 0.4, bz);
+      const beam = new THREE.Mesh(new THREE.ConeGeometry(1.1, 14, 16, 1, true), beamMat);
+      beam.geometry.translate(0, -7, 0);
+      const pivot = new THREE.Group();
+      pivot.position.set(bx, TOP + 0.4, bz);
+      beam.rotation.x = Math.PI;      // apex at the lamp, opening upward
       pivot.add(beam);
-      g.add(pivot);
+      g.add(base, pivot);
       beams.push({ pivot, beamMat });
     }
-    const mirror = lit(new THREE.IcosahedronGeometry(0.6, 1), new THREE.MeshStandardMaterial({ color: 0xf2f4fa, roughness: 0.2, metalness: 0.25, flatShading: true, emissive: 0x8a7ad0, emissiveIntensity: 0.45 }), 0, 7.2, 2.6);
-    g.add(mirror, lit(new THREE.CylinderGeometry(0.015, 0.015, 1.6, 4), capMat, 0, 8.6, 2.6));
 
-    // dance floor: tiles lit in turn with the sequence
-    const tileMats = [0, 1, 2, 3].map(k => {
-      const col = new THREE.Color(PADC[[7, 5, 4, 1][k]]);
-      return new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 0.2, roughness: 0.6, flatShading: true });
-    });
-    for (let r = 0; r < 3; r++) for (let c = 0; c < 7; c++) {
-      const x = -2.82 + c * 0.94, z = 2.4 + r * 0.94;
-      if (Math.hypot(x, z) > 5.9) continue;
-      g.add(lit(new THREE.BoxGeometry(0.86, 0.1, 0.86), tileMats[(c + r * 2) % 4], x, TOP + 0.06, z));
-    }
-    const dancers = [[-2.6, 2.6], [-1.5, 3.4], [-0.4, 2.5], [0.7, 3.5], [1.8, 2.7], [2.7, 3.3], [-2.0, 4.3], [0.1, 4.4], [1.5, 4.3]].map(([x, z], i) => {
-      const d = dyn(person(PADC[(i * 3) % 8], 0x24222e, 1.05));
-      const arms = box(0.5, 0.07, 0.07, PADC[(i * 3) % 8], 0, 0.62, 0, 0.06);
-      d.add(arms);
-      bake(d);
-      d.position.set(x, TOP + 0.11, z);
-      d.rotation.y = Math.PI + (i % 3 - 1) * 0.4;
-      g.add(d);
-      return d;
-    });
-
-    // "add your own voice": a microphone, and the headphones left on the monitor
-    g.add(cyl(0.22, 0.26, 0.08, 10, 0x24272b, 3.6, TOP + 0.04, 1.2), cyl(0.03, 0.03, 1.5, 5, 0x9aa0a8, 3.6, TOP + 0.8, 1.2), cyl(0.08, 0.06, 0.26, 8, 0x24272b, 3.6, TOP + 1.62, 1.2),
-      blob(0.13, 0xc9ccd2, 3.6, TOP + 1.84, 1.2, 0.08, 0.05));
-    const cans = grp(-3.5, TOP, 1.3, 0.5);
-    const hb = fMesh(new THREE.TorusGeometry(0.42, 0.05, 5, 12, Math.PI), 0x24272b, 0.05);
-    hb.position.y = 0.55;
-    cans.add(box(1.0, 0.4, 0.7, 0x34313f, 0, 0.2, 0), hb, cyl(0.2, 0.2, 0.16, 10, 0xff4f9e, -0.42, 0.52, 0, 0.06), cyl(0.2, 0.2, 0.16, 10, 0xff4f9e, 0.42, 0.52, 0, 0.06));
-    cans.children[2].rotation.z = cans.children[3].rotation.z = Math.PI / 2;
-    g.add(cans);
-
-    const wash = new THREE.PointLight(0xff4f9e, 6, 10, 2);
-    wash.position.set(0, 3.6, 2.4);
+    // a pink glow over the pads, like the stage wash
+    const wash = new THREE.PointLight(0xff4f9e, 6, 9, 2);
+    wash.position.set(-0.4, 3.2, 1.2);
     g.add(wash);
 
+    // the drum pattern the pads play (pad indices per 16th step)
     const SEQ = [[0], [10], [2], [10], [0, 4], [10], [2, 13], [10], [0], [10, 6], [2], [10], [0, 4], [10], [2, 9], [10, 14]];
     return {
       group: g,
       animate(t) {
-        const pos = t / BEAT;
+        const pos = t / BEAT;                 // in beats
         const step = Math.floor(pos * 4) % 16;
         const frac = pos * 4 - Math.floor(pos * 4);
-        const on16 = SEQ[step];
+        const lit = SEQ[step];
         pads.forEach((p, k) => {
-          const on = on16.includes(k);
+          const on = lit.includes(k);
           const target = on ? 1.4 * (1 - frac * 0.6) : 0.08;
           p.userData.m.emissiveIntensity += (target - p.userData.m.emissiveIntensity) * (on ? 1 : 0.25);
           p.position.y = on ? 0.44 : 0.48;
         });
-        const kick = Math.pow(1 - (pos % 1), 3);
-        cones.forEach(c => { c.scale.set(1 + kick * 0.12, 1, 1 + kick * 0.12); });
+        const kick = Math.pow(1 - (pos % 1), 3);  // sharp on each beat, decaying
+        cones.forEach((c, k) => { c.scale.set(1 + kick * 0.12, 1, 1 + kick * 0.12); });
         wash.intensity = 4 + kick * 7;
         playMat.emissiveIntensity = 0.25 + kick * 0.6;
         lcdMat.emissiveIntensity = 0.5 + kick * 0.15;
-        scope.forEach((b, k) => { b.position.y = 0.48 + Math.sin(k * 0.9 + t * 9) * 0.05 * (0.4 + kick); });
+        scope.forEach((b, k) => { b.scale.z = 1; b.position.y = 0.48 + Math.sin(k * 0.9 + t * 9) * 0.05 * (0.4 + kick); });
         wheel.rotation.x = Math.sin(t * 0.6) * 1.4;
         beams.forEach(({ pivot, beamMat }, k) => {
           pivot.rotation.z = Math.sin(t * 0.55 + k * 2.1) * 0.55;
           pivot.rotation.x = Math.cos(t * 0.4 + k) * 0.3;
           beamMat.opacity = 0.14 + kick * 0.12;
         });
-        eq.forEach((b, k) => {
-          const lvl = 0.35 + 1.5 * Math.abs(Math.sin(t * 3.1 + k * 0.7) * Math.sin(t * 1.3 + k * 1.9)) + kick * (k < 4 ? 1.4 : 0.4);
-          b.scale.y += (lvl - b.scale.y) * 0.35;
-        });
-        const beatN = Math.floor(pos) % 4;
-        tileMats.forEach((m, k) => { m.emissiveIntensity = 0.15 + (k === beatN ? 0.5 + kick * 1.3 : 0); });
-        dancers.forEach((d, i) => {
-          const hop = Math.pow(1 - ((pos + (i % 2) * 0.5) % 1), 2);
-          d.position.y = TOP + 0.11 + hop * 0.2;
-          d.rotation.z = Math.sin(pos * Math.PI + i) * 0.12;
-        });
-        mirror.rotation.y = t * 0.5;
       }
     };
   }
 
-  // SUNSET CITY: GETAWAY — the bank job at dusk: downtown, the coast, the suburbs, and something in the sky
   function buildSunset() {
-    const root = new THREE.Group();
-    const g = grp(0, 0, -0.8);                       // the city, set back to leave room for the sea
-    root.add(g);
-    const ROAD = 0.92, BLK = 1.1, MID = 3.72, OUT = 4.22, INN = 3.22;
-    const SHORE = 4.3, LAND = SHORE + S;
-    const duneH = (x, z) => rise(x, z, 6.0, 0.6, 11, Math.max(Math.abs(x), -z));   // dunes at the back and sides; the shore stays level
+    const g = islandBase(6.6, 0xd08a6a, 0x6b4a63);
+    const TOP = 0.7, RING = 3.95;
 
-    // the block: banded land behind, and in front the sea in section over a shelving bed
-    {
-      let y = 0.8;
-      for (const [hgt, c] of [[0.55, 0xdcae82], [0.7, 0xc98a6a], [0.8, 0x8a5a6a], [1.1, 0x5a3f58]]) {
-        const slab = box(2 * S, hgt, LAND, c, 0, y - hgt / 2, (SHORE - S) / 2, 0);
-        slab.userData.flat = true;
-        root.add(slab);
-        y -= hgt;
-      }
-      landTop(root, { z1: SHORE, nz: 22, y: 0.806, base: 0.78, h: duneH, colour: 0xdcae82, wall: 0xdcae82, edges: [0, 1, 1, 1] });
-      const bedShape = new THREE.Shape();
-      bedShape.moveTo(SHORE, BLOCK_FLOOR); bedShape.lineTo(S, BLOCK_FLOOR); bedShape.lineTo(S, -1.25);
-      bedShape.lineTo(SHORE + 1.5, 0.1); bedShape.lineTo(SHORE + 0.7, 0.72); bedShape.lineTo(SHORE, 0.72);
-      const bedGeo = new THREE.ExtrudeGeometry(bedShape, { depth: 2 * S, bevelEnabled: false });
-      bedGeo.rotateY(-Math.PI / 2);
-      bedGeo.translate(S, 0, 0);
-      const bed = fMesh(bedGeo, 0xe8c79a, 0.05);
-      bed.userData.flat = true;
-      root.add(bed);
-      for (const [bx, bz, br] of [[-4.2, 5.9, 0.3], [-1.0, 6.3, 0.22], [3.6, 6.0, 0.34], [5.4, 5.3, 0.2], [0.9, 5.6, 0.18]]) {
-        root.add(blob(br, bx > 3 ? 0xd97a8a : 0x8a7a9a, bx, 0.72 - (bz - SHORE - 0.7) * 0.85 + br * 0.3, bz));
-      }
-    }
-    const seaMat = new THREE.MeshStandardMaterial({ color: 0x35c0d8, roughness: 0.08, metalness: 0.1, flatShading: true, transparent: true, opacity: 0.5 });
-    const SEA = 0.84;
-    root.add(lit(new THREE.BoxGeometry(2 * S - 0.03, SEA + 1.3, S - SHORE - 0.012), seaMat, 0, (SEA - 1.3) / 2, (SHORE + S) / 2 - 0.008));
-    scatter(root, 70, 11, (x, z) => Math.hypot(x, z + 0.8) > 5.75 && z < SHORE - 0.3 ? 0.81 + duneH(x, z) : null, r => r > 0.45 ? tuft(0x7ab87a, 0.6 + r * 0.5) : pebble(0xf4e6cf, r));
-
-    g.add(cyl(5.6, 5.6, 0.1, 24, 0xe8c79a, 0, 0.82, 0, 0.08), cyl(4.75, 4.75, 0.1, 28, 0x34344e, 0, 0.87, 0, 0.06), cyl(2.7, 2.7, 0.34, 10, 0x6a7290, 0, 0.93, 0, 0.08),
-      cyl(4.9, 4.9, 0.02, 28, 0x9a94a8, 0, 0.865, 0, 0.04));
-    for (let k = 0; k < 16; k++) {
-      const a = k / 16 * Math.PI * 2;
-      const dash = box(0.1, 0.02, 0.5, 0xf7eeda, Math.cos(a) * MID, ROAD + 0.005, Math.sin(a) * MID, 0.03);
+    // a ring road around one downtown block
+    const road = fMesh(new THREE.CylinderGeometry(5.3, 5.3, 0.16, 28), 0x34344e, 0.06);
+    road.position.y = TOP + 0.06;
+    const block = fMesh(new THREE.CylinderGeometry(2.7, 2.7, 0.34, 8), 0x6a7290, 0.08);
+    block.position.y = TOP + 0.22;
+    g.add(road, block);
+    for (let k = 0; k < 14; k++) {
+      const a = k / 14 * Math.PI * 2;
+      const dash = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.03, 0.62), mat(0xf7eeda));
+      dash.position.set(Math.cos(a) * RING, TOP + 0.15, Math.sin(a) * RING);
       dash.rotation.y = -a;
       g.add(dash);
     }
-    for (let k = -2; k <= 2; k++) g.add(box(0.14, 0.02, 0.9, 0xf7eeda, k * 0.3, ROAD + 0.006, MID, 0.03));   // crossing outside the bank
 
-    // downtown
+    // downtown: two dusk-blue towers, two pastel deco blocks, window strips lit
     const winMat = new THREE.MeshStandardMaterial({ color: 0xffd27e, emissive: 0xffb45a, emissiveIntensity: 1.2, roughness: 0.6 });
-    [[-0.95, -1.15, 1.25, 4.8, 1.25, 0x2a3a55], [0.55, -1.5, 1.15, 3.5, 1.1, 0x32466b], [1.75, -0.35, 1.05, 2.5, 1.05, 0xf2a0b4], [-1.85, 0.05, 1.0, 1.9, 1.0, 0x8ad0c8], [0.35, -0.2, 0.9, 1.5, 0.8, 0xe8c79a]].forEach(([bx, bz, w, h, d, c], n) => {
-      g.add(box(w, h, d, c, bx, BLK + h / 2, bz));
-      g.add(box(w * 0.7, 0.16, d * 0.7, 0x24283a, bx, BLK + h + 0.08, bz, 0.06));
+    [[-0.9, -0.75, 1.3, 4.6, 1.3, 0x2a3a55], [0.75, -0.95, 1.2, 3.3, 1.2, 0x32466b],
+     [0.95, 0.75, 1.3, 2.3, 1.2, 0xf2a0b4], [-0.85, 0.95, 1.2, 1.7, 1.1, 0x8ad0c8]].forEach(([bx, bz, w, h, d, c], n) => {
+      const b = fMesh(new THREE.BoxGeometry(w, h, d), c, 0.1);
+      b.position.set(bx, TOP + 0.39 + h / 2, bz);
+      g.add(b);
       let row = 0;
-      for (let y = 0.45; y < h - 0.3; y += 0.55, row++) {
-        if ((row + n) % 3 === 0) continue;
-        g.add(lit(new THREE.BoxGeometry(w + 0.04, 0.2, d * 0.62), winMat, bx, BLK + y, bz), lit(new THREE.BoxGeometry(w * 0.62, 0.2, d + 0.04), winMat, bx, BLK + y, bz));
+      for (let y = 0.5; y < h - 0.3; y += 0.6, row++) {
+        if ((row + n) % 3 === 0) continue;                       // a few dark floors
+        const sx = new THREE.Mesh(new THREE.BoxGeometry(w + 0.04, 0.2, d * 0.62), winMat);
+        const sz = new THREE.Mesh(new THREE.BoxGeometry(w * 0.62, 0.2, d + 0.04), winMat);
+        sx.position.set(bx, TOP + 0.39 + y, bz);
+        sz.position.copy(sx.position);
+        sx.userData.noShadow = sz.userData.noShadow = true;
+        g.add(sx, sz);
       }
     });
-    g.add(lit(new THREE.BoxGeometry(0.12, 1.5, 0.5), new THREE.MeshBasicMaterial({ color: 0xff6ab8 }), 2.34, BLK + 1.7, -0.1));
-    g.add(cyl(0.02, 0.03, 1.2, 4, 0x8a8fa8, -0.95, BLK + 5.4, -1.15));
-    const aerial = emis(0xff2a30, 2);
-    g.add(lit(new THREE.SphereGeometry(0.06, 6, 5), aerial, -0.95, BLK + 6.05, -1.15));
+    const fin = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.5, 0.5), new THREE.MeshBasicMaterial({ color: 0xff6ab8 }));
+    fin.position.set(1.55, TOP + 0.39 + 2.3, 1.25);                // neon fin on the pink block
+    fin.userData.noShadow = true;
+    g.add(fin);
 
-    // the bank: steps, columns, pediment, and the crew coming out with the bags
-    const bank = grp(0, BLK, 1.55);
-    bank.add(box(1.9, 0.95, 0.8, 0xe9e2d0, 0, 0.55, 0), box(2.1, 0.1, 1.25, 0xd6cfbc, 0, 0.05, 0.15), box(2.0, 0.08, 1.1, 0xd6cfbc, 0, 0.13, 0.12),
-      box(2.1, 0.22, 1.05, 0xe9e2d0, 0, 1.13, 0.1), pyr(2.1, 0.4, 1.05, 0xcfc7b2, 0, 1.24, 0.1), box(0.4, 0.56, 0.04, 0x2a2438, 0, 0.45, 0.41));
-    for (const cx of [-0.78, -0.27, 0.27, 0.78]) bank.add(cyl(0.07, 0.08, 0.86, 8, 0xf4eedd, cx, 0.6, 0.55, 0.05));
-    const bankSign = sign("BANK", 1.1, 0.2, "#e9e2d0", "#2a2438");
-    bankSign.position.set(0, 1.13, 0.64);
-    bank.add(bankSign);
-    const alarm = emis(0xff2030, 2);
-    bank.add(lit(new THREE.BoxGeometry(0.14, 0.14, 0.1), alarm, 0.8, 0.86, 0.45));
-    for (const [rx, rz, rr] of [[-0.25, 0.82, 0.3], [0.3, 0.9, -0.2]]) {
-      const crook = person(0x1c1a26, 0x1c1a26, 0.72);
-      crook.add(blob(0.11, 0xb89a5a, 0.2, 0.2, 0.05, 0.1, 0.2));
-      crook.position.set(rx, 0.17, rz);
-      crook.rotation.y = rr;
-      bank.add(crook);
-    }
-    g.add(bank);
-    const lampMat = emis(0xffc98a, 2.2);
-    for (let k = 0; k < 6; k++) {
-      const a = k / 6 * Math.PI * 2;
-      g.add(cyl(0.025, 0.035, 1.0, 4, 0x3a3d52, Math.cos(a) * 2.55, BLK + 0.5, Math.sin(a) * 2.55), lit(new THREE.SphereGeometry(0.08, 6, 5), lampMat, Math.cos(a) * 2.55, BLK + 1.04, Math.sin(a) * 2.55));
-    }
-
-    // palms
-    function palm(x, z, s, lean, y = 0.87) {
-      const p = grp(x, y, z);
-      p.add(cyl(0.07 * s, 0.12 * s, 2.6 * s, 5, 0x8a6242, 0, 1.3 * s, 0));
+    // palms on the sand
+    function palm(x, z, s, lean) {
+      const p = new THREE.Group();
+      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.07 * s, 0.12 * s, 2.6 * s, 5), mat(0x8a6242));
+      trunk.position.y = 1.3 * s;
+      p.add(trunk);
       for (let k = 0; k < 6; k++) {
         const fg = new THREE.BoxGeometry(0.16 * s, 0.04 * s, 1.15 * s);
         fg.translate(0, 0, 0.575 * s);
@@ -2697,170 +1556,82 @@ async function boot() {
         f.rotation.x = 0.5;
         p.add(f);
       }
+      p.position.set(x, TOP, z);
       p.rotation.z = lean;
       return p;
     }
-    g.add(palm(-3.4, 4.2, 0.8, 0.08), palm(3.7, 3.9, 0.75, -0.1), palm(-5.3, 3.0, 0.9, 0.05, 0.8), palm(5.4, 2.6, 0.85, -0.06, 0.8), palm(-2.0, -5.6, 0.9, 0.04, 0.8), palm(5.75, 0.9, 0.8, -0.05, 0.8));
-
-    // the coast: parasols, the pier, a boat, surf
-    for (const [ux, uz, uc] of [[-0.9, 5.15, 0xff6ab8], [0.3, 5.25, 0xffd27e], [-2.2, 4.85, 0x8ad0c8]]) {
-      const shade = fMesh(new THREE.ConeGeometry(0.32, 0.16, 8), uc, 0.1);
-      shade.position.set(ux, 1.42, uz);
-      g.add(cyl(0.02, 0.02, 0.5, 4, 0xf4f1e8, ux, 1.12, uz), shade, box(0.34, 0.03, 0.16, 0xf4f1e8, ux + 0.3, 0.89, uz + 0.1, 0.04));
-    }
-    const pier = grp(1.7, 0.84, 5.45);
-    pier.add(box(0.5, 0.07, 1.7, 0x8a6242, 0, 0.3, 0.8), box(0.9, 0.07, 0.7, 0x8a6242, 0, 0.3, 1.65), box(0.5, 0.34, 0.4, 0xf2a0b4, 0, 0.5, 1.7), pyr(0.62, 0.22, 0.52, 0x8ad0c8, 0, 0.67, 1.7));
-    for (const pz of [0.2, 0.8, 1.4, 1.9]) for (const px of [-0.2, 0.2]) pier.add(cyl(0.03, 0.03, 0.5, 4, 0x6b4a33, px, 0.05, pz));
-    pier.add(lit(new THREE.SphereGeometry(0.07, 6, 5), lampMat, 0.34, 0.75, 1.9));
-    g.add(pier);
-    const boat = dyn(grp(-2.7, 0.86, 6.9, 0.6));
-    boat.add(box(0.9, 0.16, 0.34, 0xf4f1e8, 0, 0.06, 0), box(0.3, 0.16, 0.26, 0x3d6cd9, -0.1, 0.22, 0));
-    g.add(bake(boat));
-    const surf = [0, 1, 2].map(k => {
-      const m = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.6, depthWrite: false });
-      const w = lit(new THREE.BoxGeometry(9.5 - k * 2.2, 0.012, 0.07), m, (k - 1) * 1.4, SEA + 0.012, SHORE + 0.9 + k * 0.6);
-      w.userData.z = w.position.z;
-      root.add(w);
-      return w;
-    });
-
-    // the suburbs
-    const face = (x, z) => Math.atan2(-x, -z);
-    [[-5.55, 0.9, 0xf2e2b4, 0x9a5a4a], [-5.65, -0.7, 0xbfe0d6, 0x4a5a7a], [-5.15, -2.3, 0xf2c0b4, 0x7a4a5a], [-4.3, -3.75, 0xe2d8f0, 0x5a4a7a]].forEach(([hx, hz, wall, roofC]) => {
-      const h = grp(hx, 0.8, hz, face(hx, hz));
-      h.add(box(0.75, 0.48, 0.62, wall, 0, 0.24, 0), pyr(0.9, 0.36, 0.78, roofC, 0, 0.48, 0), box(0.14, 0.26, 0.03, 0x4a3530, -0.18, 0.13, 0.32),
-        lit(new THREE.BoxGeometry(0.18, 0.14, 0.03), lampMat, 0.16, 0.28, 0.32), box(0.5, 0.02, 0.5, 0x7ab87a, 0, 0.01, 0.6, 0.1));
-      g.add(h);
-    });
-
-    // diner, petrol station, motel, billboard
-    const diner = grp(5.45, 0.8, -0.9, face(5.45, -0.9));
-    diner.add(box(1.4, 0.46, 0.66, 0xdfe6ee, 0, 0.23, 0), box(1.42, 0.1, 0.68, 0xd94f3d, 0, 0.3, 0, 0.05), box(1.5, 0.07, 0.76, 0xc9ccd2, 0, 0.5, 0),
-      lit(new THREE.BoxGeometry(1.1, 0.14, 0.03), winMat, 0, 0.38, 0.34));
-    const dinerSign = sign("DINER", 0.9, 0.28, "#1a1024", "#ff5ab0");
-    dinerSign.position.set(0, 0.72, 0.2);
-    diner.add(dinerSign, box(0.96, 0.34, 0.05, 0x1a1024, 0, 0.72, 0.16, 0.04));
-    g.add(diner);
-    const fuel = grp(4.6, 0.8, -3.4, face(4.6, -3.4));
-    fuel.add(box(1.2, 0.08, 0.8, 0xf4f1e8, 0, 0.72, 0.1), box(1.22, 0.1, 0.82, 0xd94f3d, 0, 0.66, 0.1, 0.04), cyl(0.04, 0.04, 0.68, 5, 0xc9ccd2, -0.45, 0.34, 0.1), cyl(0.04, 0.04, 0.68, 5, 0xc9ccd2, 0.45, 0.34, 0.1),
-      box(0.16, 0.34, 0.14, 0xd94f3d, -0.15, 0.17, 0.1), box(0.16, 0.34, 0.14, 0xd94f3d, 0.15, 0.17, 0.1), box(0.6, 0.36, 0.4, 0xdfe6ee, 0, 0.18, -0.55));
-    g.add(fuel);
-    const motel = grp(-2.9, 0.8, -5.0, face(-2.9, -5.0));
-    motel.add(box(2.0, 0.44, 0.56, 0x7fc8c0, 0, 0.22, 0), box(2.1, 0.07, 0.72, 0xf2a0b4, 0, 0.47, 0.06));
-    for (let k = 0; k < 4; k++) motel.add(box(0.14, 0.28, 0.03, 0xf2a0b4, -0.72 + k * 0.48, 0.14, 0.29), lit(new THREE.BoxGeometry(0.16, 0.12, 0.03), lampMat, -0.5 + k * 0.48, 0.26, 0.29));
-    const motelSign = sign("MOTEL", 0.8, 0.26, "#1a1024", "#5fe0ff");
-    motelSign.position.set(0.7, 1.0, 0.1);
-    motel.add(motelSign, cyl(0.03, 0.03, 0.9, 4, 0x3a3d52, 0.7, 0.45, 0.06), box(0.86, 0.32, 0.05, 0x1a1024, 0.7, 1.0, 0.06, 0.04));
-    g.add(motel);
-    const boardBack = box(2.1, 0.86, 0.08, 0x2a1a4a, 3.3, 2.9, -4.9, 0.04);
-    boardBack.rotation.y = -0.4;
-    g.add(cyl(0.05, 0.06, 1.9, 5, 0x3a3d52, 2.6, 1.75, -5.2), cyl(0.05, 0.06, 1.9, 5, 0x3a3d52, 4.0, 1.75, -4.6), boardBack);
-    const board = sign("SUNSET CITY", 2.0, 0.76, "#2a1a4a", "#ffb45a");
-    board.position.set(3.32, 2.9, -4.85);
-    board.rotation.y = -0.4;
-    g.add(board);
+    g.add(palm(-5.7, 1.6, 1, 0.08), palm(5.6, 2.0, 0.9, -0.1), palm(-4.6, -3.9, 0.85, 0.05), palm(4.3, 4.2, 1.05, -0.06));
 
     // the sun going down behind the skyline
-    const sunDisc = lit(new THREE.CircleGeometry(3.1, 28), new THREE.MeshBasicMaterial({ color: 0xff8a5c, fog: false, side: THREE.DoubleSide }), 0.4, 3.2, -6.3);
+    const sunDisc = new THREE.Mesh(new THREE.CircleGeometry(3.1, 28), new THREE.MeshBasicMaterial({ color: 0xff8a5c, fog: false, side: THREE.DoubleSide }));
+    sunDisc.position.set(0.4, TOP + 2.5, -6.0);
     const haloMat = new THREE.MeshBasicMaterial({ color: 0xe85a8a, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
-    g.add(sunDisc, lit(new THREE.CircleGeometry(5.2, 28), haloMat, 0.4, 3.2, -6.4));
+    const halo = new THREE.Mesh(new THREE.CircleGeometry(5.2, 28), haloMat);
+    halo.position.set(0.4, TOP + 2.5, -6.1);
+    sunDisc.userData.noShadow = halo.userData.noShadow = true;
+    g.add(sunDisc, halo);
 
-    // traffic. Front of every car is -z.
-    function car(bodyC, roofC, len = 1.5) {
-      const c = dyn(new THREE.Group());
-      c.add(box(0.62, 0.2, len, bodyC, 0, 0.2, 0, 0.06), box(0.52, 0.17, len * 0.42, roofC, 0, 0.37, 0.14, 0.06));
-      for (const [wx, wz] of [[-0.31, -0.32 * len], [0.31, -0.32 * len], [-0.31, 0.33 * len], [0.31, 0.33 * len]]) {
-        const w = cyl(0.13, 0.13, 0.1, 8, 0x111114, wx, 0.13, wz, 0.04);
+    // the chase: a black coupe with its tail out, a patrol car on its bumper (front of each car is -z)
+    function car(body, roof) {
+      const c = new THREE.Group();
+      const hull = fMesh(new THREE.BoxGeometry(0.62, 0.2, 1.5), body, 0.06);
+      hull.position.y = 0.2;
+      const cabin = fMesh(new THREE.BoxGeometry(0.52, 0.17, 0.62), roof, 0.06);
+      cabin.position.set(0, 0.37, 0.14);
+      c.add(hull, cabin);
+      for (const [wx, wz] of [[-0.31, -0.48], [0.31, -0.48], [-0.31, 0.5], [0.31, 0.5]]) {
+        const w = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.1, 8), mat(0x111114));
         w.rotation.z = Math.PI / 2;
+        w.position.set(wx, 0.13, wz);
         c.add(w);
       }
-      bake(c);
-      c.add(lit(new THREE.BoxGeometry(0.5, 0.06, 0.04), headMat, 0, 0.22, -len / 2 - 0.01), lit(new THREE.BoxGeometry(0.56, 0.07, 0.04), tailMat, 0, 0.24, len / 2 + 0.01));
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.06, 0.04), new THREE.MeshBasicMaterial({ color: 0xfff2c0 }));
+      head.position.set(0, 0.22, -0.76);
+      head.userData.noShadow = true;
+      c.add(head);
       return c;
     }
-    const headMat = new THREE.MeshBasicMaterial({ color: 0xfff2c0 }), tailMat = new THREE.MeshBasicMaterial({ color: 0xff2a2a });
-    const chase = grp(0, ROAD, 0);
+    const chase = new THREE.Group();
+    chase.position.y = TOP + 0.14;
     const coupe = car(0x0c0c10, 0x16161c);
-    coupe.position.set(OUT, 0, 0);
-    const cops = [-0.75, -1.2].map((lag, k) => {
-      const armG = grp(0, 0, 0, lag);
-      const cop = car(0xf2efe8, 0x15151b);
-      const redMat = new THREE.MeshBasicMaterial({ color: 0xff2030 }), blueMat = new THREE.MeshBasicMaterial({ color: 0x2040ff });
-      cop.add(lit(new THREE.BoxGeometry(0.2, 0.08, 0.14), redMat, -0.12, 0.5, 0.14), lit(new THREE.BoxGeometry(0.2, 0.08, 0.14), blueMat, 0.12, 0.5, 0.14));
-      cop.position.set(OUT + (k ? -0.25 : 0.12), 0, 0);
-      armG.add(cop);
-      chase.add(armG);
-      return { cop, redMat, blueMat };
-    });
+    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.07, 0.04), new THREE.MeshBasicMaterial({ color: 0xff2a2a }));
+    tail.position.set(0, 0.24, 0.76);
+    tail.userData.noShadow = true;
+    coupe.add(tail);
+    coupe.position.set(RING, 0, 0);
+    const copArm = new THREE.Group();
+    copArm.rotation.y = -0.85;                                      // a few car lengths behind
+    const cop = car(0xf2efe8, 0x15151b);
+    const redMat = new THREE.MeshBasicMaterial({ color: 0xff2030 });
+    const blueMat = new THREE.MeshBasicMaterial({ color: 0x2040ff });
+    const barR = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.08, 0.14), redMat);
+    const barB = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.08, 0.14), blueMat);
+    barR.position.set(-0.12, 0.5, 0.14);
+    barB.position.set(0.12, 0.5, 0.14);
+    barR.userData.noShadow = barB.userData.noShadow = true;
     const strobe = new THREE.PointLight(0xff2030, 5, 5, 2);
     strobe.position.set(0, 0.8, 0);
-    cops[0].cop.add(strobe);
-    chase.add(coupe);
-    const traffic = grp(0, ROAD, 0);
-    [[0.4, 0xf2c230, 0x2a2a30, 1.4], [2.6, 0x8ad0c8, 0xf4f1e8, 2.3], [4.6, 0xd94f3d, 0x2a2a30, 1.4]].forEach(([a, bc, rc, len]) => {
-      const armG = grp(0, 0, 0, a);
-      const v = car(bc, rc, len);
-      v.position.set(INN, 0, 0);
-      v.rotation.y = Math.PI;
-      armG.add(v);
-      traffic.add(armG);
-    });
-    g.add(chase, traffic);
+    cop.add(barR, barB, strobe);
+    cop.position.set(RING + 0.2, 0, 0);
+    copArm.add(cop);
+    chase.add(coupe, copArm);
+    g.add(chase);
 
-    // the thing in the sky after dark
-    const ufo = dyn(grp(0, 9.2, 0));
-    const hull = cyl(0.5, 1.15, 0.2, 12, 0xaab2c8, 0, 0.1, 0, 0.08), belly = cyl(1.15, 0.6, 0.16, 12, 0x7a829a, 0, -0.08, 0, 0.08);
-    ufo.add(hull, belly);
-    bake(ufo);
-    const domeMat = emis(0x7dffd8, 1.6);
-    ufo.add(lit(new THREE.SphereGeometry(0.42, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), domeMat, 0, 0.2, 0));
-    const ufoLights = [emis(0xffe36a, 2.5), emis(0xff5ab0, 2.5)];
-    for (let k = 0; k < 8; k++) {
-      const a = k / 8 * Math.PI * 2;
-      ufo.add(lit(new THREE.SphereGeometry(0.07, 6, 5), ufoLights[k % 2], Math.cos(a) * 0.95, -0.02, Math.sin(a) * 0.95));
-    }
-    const tractorMat = new THREE.MeshBasicMaterial({ color: 0x7dffd8, transparent: true, opacity: 0.07, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.FrontSide });
-    const tGeo = new THREE.ConeGeometry(0.9, 8.2, 14, 1, true);
-    tGeo.translate(0, -4.1, 0);
-    ufo.add(lit(tGeo, tractorMat, 0, -0.1, 0));
-    g.add(ufo);
-
-    const streetGlow = new THREE.PointLight(0xffa050, 5, 9, 2);
-    streetGlow.position.set(0.2, BLK + 2.6, 3.0);
-    g.add(streetGlow);
+    // warm street-lamp wash over the block
+    const lamp = new THREE.PointLight(0xffa050, 5, 9, 2);
+    lamp.position.set(0.2, TOP + 3.2, 2.6);
+    g.add(lamp);
 
     return {
-      group: root,
+      group: g,
       animate(t) {
-        chase.rotation.y = t * 0.8;
-        traffic.rotation.y = -t * 0.3;
-        coupe.rotation.y = 0.36 + Math.sin(t * 2.3) * 0.12;                // sawing at the wheel
+        chase.rotation.y = t * 0.85;
+        coupe.rotation.y = 0.36 + Math.sin(t * 2.3) * 0.12;        // sawing at the wheel
         const on = Math.floor(t * 6) % 2;
-        cops.forEach(({ cop, redMat, blueMat }, k) => {
-          const f = (on + k) % 2;
-          redMat.color.setHex(f ? 0xff2030 : 0x3a0a10);
-          blueMat.color.setHex(f ? 0x0a1040 : 0x2a50ff);
-          cop.rotation.y = 0.12 + Math.sin(t * 1.9 + k * 2) * 0.1;
-        });
+        redMat.color.setHex(on ? 0xff2030 : 0x3a0a10);
+        blueMat.color.setHex(on ? 0x0a1040 : 0x2a50ff);
         strobe.color.setHex(on ? 0xff2030 : 0x2a50ff);
-        alarm.emissiveIntensity = Math.floor(t * 3) % 2 ? 2.6 : 0.3;
-        aerial.emissiveIntensity = Math.sin(t * 2.4) > 0 ? 2.2 : 0.2;
         haloMat.opacity = 0.2 + Math.sin(t * 0.7) * 0.05;
-        const ua = t * 0.35;
-        ufo.position.set(Math.cos(ua) * 2.6, 9.2 + Math.sin(t * 0.9) * 0.35, Math.sin(ua) * 2.6 + 0.6);
-        ufo.rotation.y = t * 1.2;
-        ufo.rotation.z = Math.sin(t * 0.7) * 0.08;
-        ufoLights[0].emissiveIntensity = on ? 2.8 : 0.5;
-        ufoLights[1].emissiveIntensity = on ? 0.5 : 2.8;
-        tractorMat.opacity = 0.07 + Math.sin(t * 3) * 0.025;
-        boat.position.y = 0.86 + Math.sin(t * 1.4) * 0.04;
-        boat.rotation.z = Math.sin(t * 1.1) * 0.06;
-        seaMat.opacity = 0.5 + Math.sin(t * 0.8) * 0.03;
-        surf.forEach((w, k) => {
-          const u = (t * 0.25 + k / 3) % 1;
-          w.material.opacity = Math.sin(u * Math.PI) * 0.6;
-          w.position.z = w.userData.z - u * 0.4;
-        });
       }
     };
   }
@@ -2905,8 +1676,7 @@ async function boot() {
     const { group, animate } = builders[i]();
     const a = layout[i].angle;
     group.position.set(Math.sin(a) * R, layout[i].y, Math.cos(a) * R);
-    bake(group);                              // every static part of the diorama becomes one mesh
-    group.rotation.y = a;                     // turn the diorama's front (+z) towards the visiting camera
+    if (game.faceOut) group.rotation.y = a;   // turn the diorama's front (+z) towards the visiting camera
     group.traverse(o => {
       if (o.isMesh) { o.castShadow = !o.userData.noShadow; o.receiveShadow = true; }
     });
@@ -2918,8 +1688,7 @@ async function boot() {
     hit.userData.index = i;
     scene.add(hit);
 
-    islands.push({ game, group, animate, hit, baseY: layout[i].y, phase: i * 1.7, angle: a, shown: 1, drawn: true, parts: [] });
-    group.traverse(o => { if (o.isMesh || o.isLine) islands[i].parts.push(o); });
+    islands.push({ game, group, animate, hit, baseY: layout[i].y, phase: i * 1.7, angle: a });
   });
 
   // ---------- HUD wiring ----------
@@ -2961,8 +1730,6 @@ async function boot() {
     gRadius: 57, gAz: -2.35, gEl: 0.34
   };
   let mode = "tour";      // "tour" | "focus"
-  let focusAz = 0, focusT0 = 0, turned = false;   // a visited diorama sways until the visitor turns it
-  const clock = new THREE.Clock();
   let current = -1;
   let introGone = false;
 
@@ -2985,11 +1752,10 @@ async function boot() {
     mode = "focus";
     current = i;
     const isl = islands[i];
-    cam.gEl = 0.5;
-    focusAz = cam.gAz = nearestAngle(cam.az, isl.angle);
-    focusT0 = clock.elapsedTime;
-    turned = false;
-    frameFocus();
+    cam.gTarget.copy(isl.group.position).add(new THREE.Vector3(0, 2.6, 0));
+    cam.gRadius = 16.5;
+    cam.gEl = 0.3;
+    cam.gAz = nearestAngle(cam.az, isl.angle);
 
     const g = isl.game;
     panel.style.setProperty("--pc", g.accent);
@@ -3000,15 +1766,6 @@ async function boot() {
 
     selButtons.forEach((b, k) => b.classList.toggle("active", k === i));
     tags.forEach((t, k) => t.classList.toggle("active", k === i));
-  }
-
-  // Frame the visited diorama: wide enough to fit a portrait phone, lifted clear of the info strip.
-  function frameFocus() {
-    if (mode !== "focus" || current < 0) return;
-    const half = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-    cam.gRadius = Math.max(25, 9.4 / (half * camera.aspect));   // wide enough for the block's diagonal
-    cam.gTarget.copy(islands[current].group.position);
-    cam.gTarget.y = islands[current].baseY + 0.4 - (camera.aspect < 1 ? cam.gRadius * half * 0.1 : 0);
   }
 
   function backToTour() {
@@ -3049,7 +1806,7 @@ async function boot() {
     const dx = e.clientX - pxl, dy = e.clientY - pyl;
     pxl = e.clientX; pyl = e.clientY;
     moved += Math.abs(dx) + Math.abs(dy);
-    if (moved > 4) { dismissIntro(); turned = true; }
+    if (moved > 4) dismissIntro();
     cam.gAz -= dx * 0.0055;
     cam.gEl = Math.min(1.15, Math.max(0.06, cam.gEl + dy * 0.004));
   });
@@ -3077,13 +1834,13 @@ async function boot() {
     renderer.setSize(w, h, false);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
-    frameFocus();
   }
   window.addEventListener("resize", resize);
   resize();
 
   // ---------- main loop ----------
-  const v = new THREE.Vector3(), tagLift = new THREE.Vector3(0, 8, 0);
+  const clock = new THREE.Clock();
+  const v = new THREE.Vector3();
   let firstFrame = true;
 
   function frame() {
@@ -3099,22 +1856,9 @@ async function boot() {
       });
       cloudLayer.rotation.y = t * 0.008;
       if (mode === "tour" && !dragging) cam.gAz += dt * 0.05;
-      else if (mode === "focus" && !dragging && !turned) cam.gAz = focusAz + Math.sin((t - focusT0) * 0.22) * 0.42;
     } else {
       islands.forEach(isl => isl.animate(0));
     }
-
-    // a visited diorama stands alone: the fog closes in behind it, then the others step out
-    const fk = reducedMotion ? 1 : 1 - Math.exp(-dt * 2.4);
-    scene.fog.near += ((mode === "focus" ? cam.radius + 11 : 75) - scene.fog.near) * fk;
-    scene.fog.far += ((mode === "focus" ? cam.radius + 16 : 230) - scene.fog.far) * fk;
-    islands.forEach((o, i) => {
-      const goal = mode === "focus" && i !== current && t - focusT0 > 0.35 ? 0 : 1;
-      o.shown += (goal - o.shown) * (reducedMotion ? 1 : 1 - Math.exp(-dt * 5));
-      o.group.scale.setScalar(Math.max(0.0001, o.shown));
-      const draw = o.shown > 0.02;        // a stepped-out diorama is not drawn at all; its lights stay, so no shader rebuilds
-      if (draw !== o.drawn) { o.drawn = draw; o.parts.forEach(p => p.layers.set(draw ? 0 : 1)); }
-    });
 
     // damp camera towards goals
     const k = reducedMotion ? 1 : 1 - Math.exp(-dt * 3.2);
@@ -3132,7 +1876,7 @@ async function boot() {
 
     // project island tags
     islands.forEach((isl, i) => {
-      v.copy(isl.group.position).add(tagLift).project(camera);
+      v.copy(isl.group.position).add(new THREE.Vector3(0, 8, 0)).project(camera);
       const behind = v.z > 1;
       const x = (v.x * 0.5 + 0.5) * window.innerWidth;
       const y = (-v.y * 0.5 + 0.5) * window.innerHeight;

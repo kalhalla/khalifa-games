@@ -14,7 +14,7 @@
 <meta name="twitter:card" content="summary_large_image"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <link rel="apple-touch-icon" href="/sunset-city/square.png"/>
-<meta name="build-version" content="v0.31"/>
+<meta name="build-version" content="v0.32"/>
 <style>
   html,body{margin:0;padding:0;overflow:hidden;background:#1a1420;height:100%;touch-action:none;}
   canvas{display:block;}
@@ -179,13 +179,14 @@
   /* ---------- HUD layout v2: slim top line + ticker, compact phone HUD, two-mode sat-nav ---------- */
   :root{--st:env(safe-area-inset-top,0px);--sr:env(safe-area-inset-right,0px);
     --sb:env(safe-area-inset-bottom,0px);--sl:env(safe-area-inset-left,0px);
-    --mm:156px;--mmb:300px;--mmc:var(--mm);--pad:14px;--lw:190px;--tb:0px;--ctl:184px;}
-  html.navbig{--mmc:var(--mmb);}
+    --mm:168px;--mmp:24px;--mmb:min(45vh,45vw,400px);--mmc:var(--mm);--mmh:calc(var(--mm) + var(--mmp));--pad:14px;--lw:190px;--tb:0px;--ctl:184px;}
+  html.navbig{--mmc:var(--mmb);--mmh:var(--mmb);}
   #cash{top:calc(var(--st) + var(--tb) + 12px);left:calc(var(--sl) + var(--pad) + 2px);}
   #speed{top:calc(var(--st) + var(--tb) + 42px);left:calc(var(--sl) + var(--pad) + 2px);}
-  #minimap{top:calc(var(--st) + var(--tb) + var(--pad));right:calc(var(--sr) + var(--pad));width:var(--mmc);height:var(--mmc);
-    transition:width .28s ease,height .28s ease;cursor:pointer;touch-action:none;background:#2e2a44;box-sizing:content-box;}
-  #hudbtns{position:fixed;top:calc(var(--st) + var(--tb) + var(--mmc) + var(--pad) + 14px);right:calc(var(--sr) + var(--pad));
+  #minimap{top:calc(var(--st) + var(--tb) + var(--pad));right:calc(var(--sr) + var(--pad));width:var(--mmc);height:var(--mmh);
+    transition:width .28s ease,height .28s ease;cursor:pointer;touch-action:none;background:none;border:0;border-radius:0;box-shadow:none;
+    box-sizing:content-box;}   /* NAV: the canvas draws its own round radar, rim and turn pill (--mmp) */
+  #hudbtns{position:fixed;top:calc(var(--st) + var(--tb) + var(--mmh) + var(--pad) + 14px);right:calc(var(--sr) + var(--pad));
     display:flex;flex-direction:column;align-items:flex-end;gap:8px;transition:top .28s ease;}
   #hudbtns>div{position:static;}
   #helpbtn{padding:6px 11px;border-radius:14px;font-size:10px;font-weight:700;color:#ffe6c8;background:rgba(24,28,52,.7);
@@ -237,20 +238,19 @@
   @media (pointer:coarse){#hudbtns>#mapbtn,#hudbtns>#stubtn{display:none;}}
   /* touch: the small HUD buttons sit in one row under the map; 30 px pills inside 44 px hit boxes */
   html.touchui #hudbtns{flex-direction:row-reverse;align-items:center;gap:0;
-    top:calc(var(--st) + var(--tb) + var(--mmc) + var(--pad) + 3px);right:calc(var(--sr) + var(--pad) - 7px);}
+    top:calc(var(--st) + var(--tb) + var(--mmh) + var(--pad) + 3px);right:calc(var(--sr) + var(--pad) - 7px);}
   html.touchui #hudbtns>div{box-sizing:border-box;min-width:44px;height:44px;display:flex;align-items:center;justify-content:center;
     padding:0 8px;border:7px solid transparent;background-clip:padding-box;border-radius:22px;font-size:9px;letter-spacing:1px;
     white-space:nowrap;box-shadow:inset 0 0 0 1px rgba(255,240,220,.45);touch-action:none;}
   html.touchui #hudbtns>#mapbtn,html.touchui #hudbtns>#stubtn{display:none;}
   /* phones (either way up): everything ~22% smaller, tighter margins */
   @media (max-width:600px),(max-height:500px){
-    :root{--mm:86px;--mmb:196px;--pad:8px;--lw:124px;--ctl:166px;}
+    :root{--mm:112px;--pad:8px;--lw:124px;--ctl:166px;}
     #cash{font-size:17px;letter-spacing:1.5px;top:calc(var(--st) + var(--tb) + 6px);}
     #speed{font-size:11px;letter-spacing:1.5px;top:calc(var(--st) + var(--tb) + 28px);}
     #hplabel,html.touchui #hplabel{font-size:8px;letter-spacing:1px;top:calc(var(--st) + var(--tb) + 44px);bottom:auto;}
     #hpwrap,html.touchui #hpwrap{width:104px;height:10px;border-width:1.5px;top:calc(var(--st) + var(--tb) + 56px);bottom:auto;}
     #fuelwrap,html.touchui #fuelwrap{width:104px;height:8px;border-width:1.5px;top:calc(var(--st) + var(--tb) + 69px);bottom:auto;}
-    #minimap{border-width:1.5px;border-radius:7px;}
     #objbar{font-size:12px;letter-spacing:1px;padding:3px 11px 4px;gap:8px;}
     #ticker{font-size:12px;letter-spacing:.6px;}
     #hint{font-size:9px;letter-spacing:.8px;padding:5px 11px;}
@@ -258,17 +258,17 @@
   }
   /* phone landscape */
   @media (max-height:500px){
-    :root{--mm:76px;--mmb:168px;}
+    :root{--mm:112px;}
     #big{top:calc(var(--st) + 52px);font-size:min(4.2vw,20px);max-width:56vw;}
     html.touchui #dlg{bottom:calc(var(--sb) + 8px);width:min(500px,calc(100vw - 2 * var(--ctl) - var(--sl) - var(--sr)));}
   }
   /* phone portrait: the line spans the full top edge (two lines at most); the HUD starts under it */
   @media (max-width:600px){
-    :root{--tb:60px;--mmb:160px;}
+    :root{--tb:60px;}
     #topc{left:var(--sl);right:var(--sr);align-items:stretch;}
     #objbar{flex-wrap:wrap;gap:0 9px;border-radius:0;max-height:30px;padding:2px 8px 3px;}
     #ticker{align-self:center;max-width:calc(100% - 16px);}
-    #big{top:calc(var(--st) + var(--tb) + var(--mmc) + var(--pad) + 50px);font-size:21px;max-width:88vw;}
+    #big{top:calc(var(--st) + var(--tb) + var(--mmh) + var(--pad) + 50px);font-size:21px;max-width:88vw;}
     #hint{bottom:calc(var(--sb) + 172px);max-width:92vw;}
     html.touchui #dlg{bottom:calc(var(--sb) + 166px);}
   }
@@ -13718,40 +13718,50 @@ function hudTick(t,P){
     if(SOL.sayT>0&&SOL.say){ if(SOL.say!==HUD.say){ HUD.say=SOL.say; tickerPush('Sol: “'+SOL.say+'”','#ffb3e2'); } }
     else HUD.say='';
   }
-  // compass chip at the top edge: a chevron that turns toward the active objective, with the distance
+  // NAV: the chevron at the top edge points the way the ROUTE goes next (straight bearing when there is no
+  // road route), in the primary objective's colour, with the road distance left. Clockwise = to your right.
   const a=NAV.act, key=a?a.type:'';
   if(key!==HUD.chip){ HUD.chip=key; HUD.dist=''; HUD.chipEl.style.display=a?'flex':'none';
     if(a){ HUD.chipEl.style.color=NAV.COL[a.type]; HUD.chipEl.style.order=a.type==='sol'?2:0; } }   // the chip sits beside the line it measures
-  if(a){ const rel=Math.atan2(a.x-P.x,a.z-P.z)-P.h;
-    HUD.arrow.style.transform='rotate('+rel.toFixed(2)+'rad)';
-    const d=({fuel:'FUEL ',meteor:'CRATER ',garage:'GARAGE '}[a.type]||'')+(a.d<1000?Math.round(a.d/5)*5+' M':(a.d/1000).toFixed(1)+' KM');
+  if(a){ HUD.arrow.style.transform='rotate('+NAV.dir.toFixed(2)+'rad)';
+    const d=({fuel:'FUEL ',meteor:'CRATER ',garage:'GARAGE '}[a.type]||'')+navDist(NAV.rem).toUpperCase();
     if(d!==HUD.dist){ HUD.dist=d; HUD.distEl.textContent=d; } }
 }
 
-// ---------------- sat-nav (the minimap) ----------------
-// Two modes, tap the map to switch (animated):
-//   FOLLOW   - you are fixed at the centre, the map turns heading-up around you, zoomed in to street level
-//   OVERVIEW - north-up map of the whole city area, you are the moving arrow, the map is larger
-// Every active objective is a glowing dot with expanding rings in its own colour (pink: Sol / the women,
-// gold: jobs, green: the meteor, amber: fuel, blue: garage). Off the map it becomes an arrow pinned to
-// the edge with the distance in metres.
+// ---------------- sat-nav (the radar) ----------------
+// AXES. The world is x / z with heading a measured from +z: forward = (sin a, cos a). Steering LEFT raises a,
+// so the driver's RIGHT is (-cos a, sin a): seen from above with +z ("north") up, +x is on the LEFT. The map
+// is therefore a true top-down view (navXf): north-up puts +x on the left and the sea (-x) on the right;
+// heading-up puts whatever is on your right on the right. Never draw x to the right with z up: that mirrors it.
+// FOLLOW (default): a round heading-up radar. You are the white arrow, fixed a little below the centre and
+//   always pointing up; the map turns around you and zooms out with speed.
+// OVERVIEW (tap): a larger north-up map of the city, suburbs and coast; you are the moving, turning arrow.
+//   Tap again, or drive for six seconds, to go back.
+// One PRIMARY objective at a time (NAV.act) gets the pulsing ring, the road route (navRouteCalc: shortest
+// drivable path over nodes[].adj, one-way slips respected) drawn in its colour, the next-turn pill under the
+// radar and the chevron in the top line. Off the radar its blip is pinned to the rim in its true direction.
+// The static world (sea, blocks, roads, motorway, mountain roads) is painted north-up into an offscreen tile
+// around you (navTile) and blitted turned and scaled each frame.
 const mm=document.getElementById('minimap'),mx=mm.getContext('2d');
 const MMW=156, MMVIEW=560, MMSCALE=MMW/(2*MMVIEW);     // legacy constants (older marker code still names them)
-const NAV={mode:0,k:0,lt:0,VIEW:118,ocx:-30,ocz:-40,oext:330,objs:[],act:null,garT:0,garOn:false,
+const NAV={mode:0,k:0,lt:0,view:66,PILL:24,driveT:0,ov:null,base:null,objs:[],act:null,garT:0,garOn:false,
+  route:null,off:0,rem:0,dir:0,turn:null,tile:null,tileN:0,dbg:{me:[0,0],blip:null},
   COL:{sol:'#ff5ab4',job:'#ffd76a',meteor:'#52e88a',fuel:'#ffa53a',garage:'#7db4ff'},
-  PRI:{sol:5,job:4,meteor:3,fuel:2,garage:1}};
-function navToggle(){ NAV.mode=1-NAV.mode; document.documentElement.classList.toggle('navbig',NAV.mode===1); }
+  PRI:{job:5,meteor:4,sol:3,fuel:2,garage:1}};
+function navToggle(){ NAV.mode=1-NAV.mode; NAV.driveT=0; document.documentElement.classList.toggle('navbig',NAV.mode===1); }
 mm.addEventListener('pointerdown',e=>{ e.preventDefault(); e.stopPropagation(); navToggle(); });
 // who the map follows: the car, or the man on foot (heading-up = the way the camera looks)
 function navPose(){
-  if(onFoot&&typeof foot!=='undefined') return {x:foot.x,z:foot.z,a:foot.a,h:FT.camYaw};
-  return {x:player.x,z:player.z,a:player.a,h:player.a};
+  if(onFoot&&typeof foot!=='undefined') return {x:foot.x,z:foot.z,y:foot.y||0,a:foot.a,h:FT.camYaw,vx:0,vz:0,spd:0};
+  return {x:player.x,z:player.z,y:player.y||0,a:player.a,h:player.a,vx:player.vx,vz:player.vz,spd:Math.hypot(player.vx,player.vz)};
 }
+// every live objective; the one with the highest pri is the primary: the main job, else Sol, else fuel when
+// low, else the garage. Two overrides: Sol in the passenger seat (her nerve is running) and a nearly dry tank.
 function navObjectives(P,t){
   const o=[], add=(x,z,type)=>o.push({x,z,type,d:Math.hypot(x-P.x,z-P.z),pri:NAV.PRI[type]});
   if(typeof SOL!=='undefined'&&!SOL.paused){
     if(SOL.state==='wait'||SOL.state==='greet'||SOL.state==='walk'){ const v=SOL.venues[SOL.act]; if(v&&v.kerb) add(v.kerb.x,v.kerb.z,'sol'); }
-    else if(SOL.state==='ride'&&SOL.dest) add(SOL.dest.x,SOL.dest.z,'sol');
+    else if(SOL.state==='ride'&&SOL.dest){ add(SOL.dest.x,SOL.dest.z,'sol'); o[o.length-1].pri=6; }
   }
   const ph=mission.phase;
   if((ph==='drive'||ph==='heist')&&banks[mission.bankIdx]) add(banks[mission.bankIdx].x,banks[mission.bankIdx].z,'job');
@@ -13760,124 +13770,281 @@ function navObjectives(P,t){
   if(ph==='tail'&&st.tail) add(st.tail.x,st.tail.z,'job');
   if(zombieMode) add(CRASH.x,CRASH.z,'meteor');
   if(fuel<22){ let b=null,bd=1e9; for(const s of STATIONS){ const d=Math.hypot(s.x-P.x,s.z-P.z); if(d<bd){ bd=d; b=s; } }
-    if(b){ add(b.x,b.z,'fuel'); if(fuel<10) o[o.length-1].pri=6; } }
+    if(b){ add(b.x,b.z,'fuel'); if(fuel<10) o[o.length-1].pri=7; } }
   if(t-NAV.garT>1.5||t<NAV.garT){ NAV.garT=t; NAV.garOn=false;            // the garage matters when there is a car you can afford
     for(const id in MODELS){ const m=MODELS[id]; if(m.garage&&!owned.has(id)&&cash>=m.price){ NAV.garOn=true; break; } } }
   if(NAV.garOn) add(GARAGE.x,GARAGE.z,'garage');
   return o;
 }
+function navDist(d){ return d<1000?(d<100?Math.round(d/5)*5:Math.round(d/10)*10)+' m':(d/1000).toFixed(1)+' km'; }
+// world (x,z) -> canvas: a rotation + scale, never a reflection. th = the heading that points up (0 = north-up);
+// (cx,cz) lands on (ox,oy) css px; S = css px per metre; k = device px per css px.
+function navXf(c,cx,cz,S,th,ox,oy,k){ const cs=Math.cos(th)*S*k, sn=Math.sin(th)*S*k;
+  c.setTransform(-cs,-sn,sn,-cs,ox*k+cs*cx-sn*cz,oy*k+sn*cx+cs*cz); }
+function navMtnRoads(){ return (typeof MTN!=='undefined'&&MTN&&Array.isArray(MTN.roads))?MTN.roads:null; }
+// ---- the static world, painted north-up in metres (the transform is already set); m = metres per device px ----
+function navPaintWorld(c,T){
+  const m=1/T.s, x0=T.cx-T.half, x1=T.cx+T.half, z0=T.cz-T.half, z1=T.cz+T.half;
+  const out=(ax,az,bx,bz,w)=>(ax<x0-w&&bx<x0-w)||(ax>x1+w&&bx>x1+w)||(az<z0-w&&bz<z0-w)||(az>z1+w&&bz>z1+w);
+  // sea + beach along the shore curve (the sea is on the -x side)
+  if(x0<-240){ const n=28;
+    c.fillStyle='#1d6388'; c.beginPath(); c.moveTo(x0-60,z0-8);
+    for(let i=0;i<=n;i++){ const z=z0-8+(z1-z0+16)*i/n; c.lineTo(shoreX(z),z); }
+    c.lineTo(x0-60,z1+8); c.closePath(); c.fill();
+    c.strokeStyle='#d2b07e'; c.lineWidth=Math.max(20,2.5*m); c.lineCap='butt'; c.lineJoin='round'; c.beginPath();
+    for(let i=0;i<=n;i++){ const z=z0-8+(z1-z0+16)*i/n; i?c.lineTo(shoreX(z)+11,z):c.moveTo(shoreX(z)+11,z); }
+    c.stroke(); }
+  // downtown: pavement footprint, then the blocks as quiet fills (parks a touch green)
+  if(!out(-HALF,-HALF,HALF,HALF,RW)){
+    c.fillStyle='#231f38'; c.fillRect(-HALF-RW/2-2,-HALF-RW/2-2,2*HALF+RW+4,2*HALF+RW+4);
+    for(const b of world.blocks){ if(out(b.cx,b.cz,b.cx,b.cz,40)) continue;
+      c.fillStyle=b.park?'#35524a':'#4a4370'; c.fillRect(b.cx-b.hx,b.cz-b.hz,2*b.hx,2*b.hz); } }
+  // roads: dark casing + fill per class, minor first so the hierarchy reads: country < suburb < street < boulevard
+  const pass=(test,col,w,cas)=>{ c.lineCap='round'; c.lineJoin='round';
+    for(let p=cas?0:1;p<2;p++){ c.strokeStyle=p?col:'#15121f'; c.lineWidth=p?w:w+2.2*m; c.beginPath();
+      for(const e of edges){ if(e.mw||!test(e)||out(e.ax,e.az,e.bx,e.bz,w)) continue; c.moveTo(e.ax,e.az); c.lineTo(e.bx,e.bz); }
+      c.stroke(); } };
+  pass(e=>e.rural&&!e.sub,'#8f89a6',Math.max(RW*0.5,2*m),true);
+  pass(e=>e.sub,'#aaa3c2',Math.max(RW*0.55,2.4*m),true);
+  pass(e=>!e.rural&&!e.sub&&!e.blvd,'#bdb6d4',Math.max(RW*0.74,2.8*m),true);
+  pass(e=>e.blvd,'#f4eeff',Math.max(RW*0.96,3.8*m),true);
+  // mountain roads (another region; present only when MTN.roads exists)
+  const mr=navMtnRoads();
+  if(mr){ c.lineCap='round'; c.lineJoin='round';
+    for(let p=0;p<2;p++){ for(const r of mr){ const q=r&&r.pts; if(!q||q.length<2) continue;
+        const w=Math.max((r.w||8)*0.8,2.4*m); c.strokeStyle=p?'#c9a877':'#15121f'; c.lineWidth=p?w:w+2*m; c.beginPath();
+        let any=false; for(let i=0;i<q.length;i++){ const x=q[i][0], z=q[i].length>2?q[i][2]:q[i][1];
+          if(x>x0-60&&x<x1+60&&z>z0-60&&z<z1+60) any=true; i?c.lineTo(x,z):c.moveTo(x,z); }
+        if(any) c.stroke(); } } }
+  // the motorway: a shadow thrown aside (it is up on a deck), dark casing, blue carriageway, pale centre line
+  if(typeof MW!=='undefined'&&MW.all){ c.lineCap='butt';
+    for(let p=0;p<4;p++){ for(const e of MW.all){
+        if(out(e.ax,e.az,e.bx,e.bz,30)) continue;
+        if(p===3&&e.slip) continue;
+        const up=(nodes[e.a].y||0)>1||(nodes[e.b].y||0)>1; if(p===0&&!up) continue;
+        const w=e.slip?Math.max(e.hw*1.5,2.6*m):Math.max(e.hw*2,4.6*m), o=p===0?Math.max(5,2.2*m):0;
+        c.strokeStyle=p===0?'rgba(6,4,14,.55)':(p===1?'#0e0b1c':(p===2?(e.slip?'#6f9dff':'#3f7dff'):'#eaf1ff'));
+        c.lineWidth=p===0?w+2*m:(p===1?w+2.4*m:(p===2?w:Math.max(0.9*m,w*0.14)));
+        c.lineCap=(p===2&&e.slip)?'round':'butt';
+        c.beginPath(); c.moveTo(e.ax-o,e.az-o); c.lineTo(e.bx-o,e.bz-o); c.stroke(); } } }
+}
+// the cached layer: valid while it still covers the view (reach metres around cx,cz) at about the right scale
+function navTile(cx,cz,reach,S,dpr){
+  let T=NAV.tile; const ds=S*dpr, mr=navMtnRoads(), mn=mr?mr.length:0;
+  if(T&&T.mn===mn&&T.ne===edges.length&&ds<T.s*1.3&&ds>T.s*0.6&&Math.abs(cx-T.cx)+reach<=T.half&&Math.abs(cz-T.cz)+reach<=T.half) return T;
+  const half=reach*1.32+26; let s=ds*1.1, px=Math.ceil(2*half*s);
+  if(px>1536){ s*=1536/px; px=1536; }
+  const cv=T?T.cv:document.createElement('canvas'); cv.width=px; cv.height=px;
+  const c=cv.getContext('2d');
+  c.setTransform(1,0,0,1,0,0); c.fillStyle='#2c3344'; c.fillRect(0,0,px,px);
+  T=NAV.tile={cv,cx,cz,half,s,px,mn,ne:edges.length};
+  navXf(c,cx,cz,s,0,px/2,px/2,1);
+  navPaintWorld(c,T); NAV.tileN++;
+  return T;
+}
+// ---- the route: shortest drivable path from where you are to the objective ----
+// Dijkstra over nodes[].adj (the elevated motorway edges live there too); one-way slips only a->b. You join
+// the graph on the nearest edge at your own height (so the deck and the street under it stay apart) and the
+// objective on its nearest ground road. A U-turn costs extra while you are moving. Returns {ok:false} when you
+// are too far from any road: the caller then draws a straight bearing line.
+function navRouteCalc(P,goal,t){
+  const R={ok:false,t,type:goal.type,gx:goal.x,gz:goal.z,x:[],z:[],e:[],cum:[],len:0};
+  const py=P.y||0; let se=null,sd=1e9,st=0;
+  const scan=list=>{ for(const e of list){ const r=distToEdge(P.x,P.z,e), d=r.d+Math.abs(edgeY(e,r.t)-py)*4; if(d<sd){ sd=d; se=e; st=r.t; } } };
+  scan(edges); if(typeof MW!=='undefined'&&MW.sky) scan(MW.sky);
+  let ge=null,gd=1e9,gt=0;
+  for(const e of edges){ if(e.mw) continue; const r=distToEdge(goal.x,goal.z,e); if(r.d<gd){ gd=r.d; ge=e; gt=r.t; } }
+  if(!se||!ge||sd>48) return R;
+  const wt=e=>e.mw?(e.main?0.7:0.9):(e.sub?1.2:(e.rural?1:1.1));        // time-ish cost per metre
+  const N=nodes.length;
+  if(!NAV._d||NAV._d.length<N){ NAV._d=new Float64Array(N+64); NAV._p=new Int32Array(N+64); NAV._f=new Uint8Array(N+64); NAV._e=new Array(N+64); }
+  const D=NAV._d, PV=NAV._p, F=NAV._f, PE=NAV._e; D.fill(Infinity); F.fill(0); PV.fill(-1);
+  const along=(P.spd||0)>4?(P.vx*se.dx+P.vz*se.dz):0, pen=se.mw?600:45, ws=wt(se);
+  D[se.b]=(se.len-st)*ws+(along<-1?pen:0); PE[se.b]=se;
+  if(!se.oneway){ D[se.a]=st*ws+(along>1?pen:0); PE[se.a]=se; }
+  for(;;){ let u=-1,ud=Infinity; for(let i=0;i<N;i++) if(!F[i]&&D[i]<ud){ ud=D[i]; u=i; }
+    if(u<0) break; F[u]=1; if(F[ge.a]&&F[ge.b]) break;
+    for(const e of nodes[u].adj){ if(e.oneway&&e.a!==u) continue; const v=e.a===u?e.b:e.a; if(F[v]) continue;
+      const nd=ud+e.len*wt(e); if(nd<D[v]){ D[v]=nd; PV[v]=u; PE[v]=e; } } }
+  const wg=wt(ge), ca=D[ge.a]+gt*wg, cb=D[ge.b]+(ge.len-gt)*wg;
+  let cd=Infinity; if(se===ge&&!(se.oneway&&gt<st)) cd=Math.abs(gt-st)*wg+(((gt-st)*along<0&&Math.abs(along)>1)?pen:0);
+  const best=Math.min(ca,cb,cd); if(!(best<Infinity)) return R;
+  const push=(x,z,e)=>{ const n=R.x.length; if(n&&Math.hypot(x-R.x[n-1],z-R.z[n-1])<0.6) return; R.x.push(x); R.z.push(z); R.e.push(e); };
+  push(se.ax+se.dx*st,se.az+se.dz*st,null);
+  if(best!==cd){ const ch=[]; for(let u=(best===ca?ge.a:ge.b);u>=0;u=PV[u]) ch.push(u);
+    for(let i=ch.length-1;i>=0;i--) push(nodes[ch[i]].x,nodes[ch[i]].z,PE[ch[i]]); }
+  push(ge.ax+ge.dx*gt,ge.az+ge.dz*gt,ge);
+  R.last=gd>3; if(R.last) push(goal.x,goal.z,null);            // the last few metres off the road, to the door
+  R.cum.push(0); for(let i=1;i<R.x.length;i++) R.cum.push(R.cum[i-1]+Math.hypot(R.x[i]-R.x[i-1],R.z[i]-R.z[i-1]));
+  R.len=R.cum[R.cum.length-1]; R.ok=R.x.length>1; R.cost=best;
+  return R;
+}
+// once a second, at once when the objective changes or you leave the route
+function navRouteTick(P,act,t){
+  if(!act){ NAV.route=null; return; }
+  const R=NAV.route, fresh=!R||R.type!==act.type||Math.hypot(R.gx-act.x,R.gz-act.z)>6||t<R.t;
+  if(!fresh&&t-R.t<(NAV.off>20?0.3:1)) return;
+  const nr=navRouteCalc(P,act,t);
+  // on the route and the new one is no real gain: keep the line steady rather than flip between equals
+  if(!fresh&&R.ok&&nr.ok&&NAV.off<12&&nr.len>NAV.rem*0.9-10&&Math.hypot(R.gx-act.x,R.gz-act.z)<0.5){ R.t=t; return; }
+  NAV.route=nr;
+}
+// where you are along the route: distance left, the direction to steer (a point a little way ahead on the
+// line) and the next real turn. Angles are clockwise-positive: + is to the driver's right.
+function navProgress(P,act){
+  const R=NAV.route; NAV.turn=null; NAV.off=0;
+  const brg=(x,z)=>{ const dx=x-P.x, dz=z-P.z, sh=Math.sin(P.h), ch=Math.cos(P.h); return Math.atan2(-dx*ch+dz*sh,dx*sh+dz*ch); };
+  if(!act){ NAV.rem=0; NAV.dir=0; return; }
+  if(!R||!R.ok){ NAV.rem=act.d; NAV.dir=brg(act.x,act.z); return; }
+  const X=R.x, Z=R.z, n=X.length; let bi=0,bu=0,bd=1e9;
+  for(let i=0;i<n-1;i++){ const sx=X[i+1]-X[i], sz=Z[i+1]-Z[i], L=R.cum[i+1]-R.cum[i]; if(L<1e-6) continue;
+    const u=clamp(((P.x-X[i])*sx+(P.z-Z[i])*sz)/L,0,L), d=Math.hypot(P.x-X[i]-sx/L*u,P.z-Z[i]-sz/L*u);
+    if(d<bd-0.05){ bd=d; bi=i; bu=u; } }
+  R.i=bi; R.u=bu; NAV.off=bd; const al=R.cum[bi]+bu; NAV.rem=Math.max(0,R.len-al);
+  // steer-to point
+  const la=al+clamp(12+(P.spd||0)*0.9,12,44);
+  if(la>=R.len) NAV.dir=brg(X[n-1],Z[n-1]);
+  else { let i=bi; while(i<n-2&&R.cum[i+1]<la) i++; const L=R.cum[i+1]-R.cum[i], f=L>0?(la-R.cum[i])/L:0;
+    NAV.dir=brg(X[i]+(X[i+1]-X[i])*f,Z[i]+(Z[i+1]-Z[i])*f); }
+  // next turn: bends closer than 16 m apart count as one; a slip road counts even though it only bears off
+  const tA=k=>{ const ax=X[k]-X[k-1], az=Z[k]-Z[k-1], bx=X[k+1]-X[k], bz=Z[k+1]-Z[k]; return Math.atan2(-bx*az+bz*ax,bx*ax+bz*az); };
+  for(let j=Math.max(1,bi+1);j<n-1;){ let ang=0,k=j;
+    for(;;){ ang+=tA(k); if(k+1<n-1&&R.cum[k+1]-R.cum[k]<16) k++; else break; }
+    const dT=R.cum[j]-al, door=R.last&&k===n-2, e0=R.e[j], e1=R.e[k+1], slip=!!(e1&&e1.slip&&!(e0&&e0.slip));
+    if(dT>1.5&&!door&&(Math.abs(ang)>=0.5||(slip&&Math.abs(ang)>=0.1))){ NAV.turn={d:dT,ang,slip}; break; }
+    j=k+1; }
+}
+// a turn arrow: stem up, then an arm leaving at the turn angle (clockwise +), drawn in a box of size s
+function navGlyph(c,x,y,ang,s,col){
+  const a=clamp(Math.abs(ang)<0.6?Math.sign(ang)*0.6:ang,-2.5,2.5), ex=Math.sin(a)*s*0.5, ey=-Math.cos(a)*s*0.5-s*0.02;
+  c.save(); c.translate(x,y); c.strokeStyle=col; c.fillStyle=col; c.lineWidth=Math.max(2,s*0.17); c.lineCap='round'; c.lineJoin='round';
+  c.beginPath(); c.moveTo(0,s*0.48); c.lineTo(0,-s*0.02); c.lineTo(ex*0.72,-s*0.02+(ey+s*0.02)*0.72); c.stroke();
+  c.translate(ex,ey); c.rotate(a); c.beginPath(); c.moveTo(0,-s*0.2); c.lineTo(s*0.25,s*0.16); c.lineTo(-s*0.25,s*0.16); c.closePath(); c.fill();
+  c.restore();
+}
+function navRR(c,x,y,w,h,r){ r=Math.min(r,w/2,h/2); c.beginPath(); c.moveTo(x+r,y); c.arcTo(x+w,y,x+w,y+h,r); c.arcTo(x+w,y+h,x,y+h,r); c.arcTo(x,y+h,x,y,r); c.arcTo(x,y,x+w,y,r); c.closePath(); }
 function drawMinimap(t){
   const P=navPose(), c=mx;
-  const L=mm.clientWidth||MMW, dpr=Math.min(window.devicePixelRatio||1,2.5), bw=Math.max(32,Math.round(L*dpr));
-  if(mm.width!==bw||mm.height!==bw){ mm.width=bw; mm.height=bw; }
+  const Wc=mm.clientWidth||168, Hc=mm.clientHeight||(Wc+NAV.PILL), dpr=Math.min(window.devicePixelRatio||1,3);
+  const bw=Math.max(32,Math.round(Wc*dpr)), bh=Math.max(32,Math.round(Hc*dpr));
+  if(mm.width!==bw||mm.height!==bh){ mm.width=bw; mm.height=bh; }
   const dtm=clamp(t-NAV.lt,0,0.1); NAV.lt=t;
+  if(NAV.mode){ if((P.spd||0)>5) NAV.driveT+=dtm; if(NAV.driveT>6) navToggle(); }     // driving on: back to the radar
   NAV.k=clamp(NAV.k+(NAV.mode?1:-1)*dtm/0.32,0,1);
   const e=NAV.k*NAV.k*(3-2*NAV.k);
   const objs=NAV.objs=navObjectives(P,t);
   let act=null; for(const o of objs) if(!act||o.pri>act.pri) act=o; NAV.act=act;
-  // overview frame: the city area, widened to keep you and every objective on the sheet
-  { let x0=-360,x1=300,z0=-370,z1=290;
+  navRouteTick(P,act,t); navProgress(P,act);
+  const R=NAV.route&&NAV.route.ok?NAV.route:null, col=act?NAV.COL[act.type]:'#fff';
+  // zoom: close when slow, wide when fast (metres from the radar centre to its rim)
+  { const vT=(onFoot?46:62+92*clamp((P.spd||0)/34,0,1)); NAV.view+=(vT-NAV.view)*Math.min(1,dtm*1.4); }
+  // overview frame: downtown, the ring boulevard and the coast, widened (out to the suburbs and beyond) to keep
+  // you, the objective and the whole route on the sheet
+  if(!NAV.base){ let x0=1e9,x1=-1e9,z0=1e9,z1=-1e9;
+    for(const g of edges){ if(!g.blvd) continue; x0=Math.min(x0,g.ax,g.bx); x1=Math.max(x1,g.ax,g.bx); z0=Math.min(z0,g.az,g.bz); z1=Math.max(z1,g.az,g.bz); }
+    if(x0>x1){ x0=z0=-HALF; x1=z1=HALF; }
+    NAV.base={x0:Math.min(x0,shoreX(0)-30)-24,x1:Math.max(x1,MW.X+30)+24,z0:Math.min(z0,-HALF)-24,z1:Math.max(z1,HALF)+24}; }
+  { let {x0,x1,z0,z1}=NAV.base;
     const inc=(x,z,m)=>{ if(x-m<x0)x0=x-m; if(x+m>x1)x1=x+m; if(z-m<z0)z0=z-m; if(z+m>z1)z1=z+m; };
-    inc(P.x,P.z,60); for(const o of objs) inc(o.x,o.z,60);
-    const tx=(x0+x1)/2, tz=(z0+z1)/2, te=Math.max(x1-x0,z1-z0)/2, kk=Math.min(1,dtm*4);
-    NAV.ocx+=(tx-NAV.ocx)*kk; NAV.ocz+=(tz-NAV.ocz)*kk; NAV.oext+=(te-NAV.oext)*kk; }
-  const hN=Math.atan2(Math.sin(P.h),Math.cos(P.h));
-  const cx=P.x+(NAV.ocx-P.x)*e, cz=P.z+(NAV.ocz-P.z)*e;
-  const half=Math.exp(Math.log(NAV.VIEW)*(1-e)+Math.log(NAV.oext)*e), S=L/(2*half), rot=-hN*(1-e);
-  const cr=Math.cos(rot), sr=Math.sin(rot), VR=half*1.45;
-  const W2S=(x,z)=>{ const dx=(x-cx)*S, dy=-(z-cz)*S; return [L/2+dx*cr-dy*sr, L/2+dx*sr+dy*cr]; };
+    inc(P.x,P.z,70); if(act) inc(act.x,act.z,70); if(R) for(let i=R.i||0;i<R.x.length;i++) inc(R.x[i],R.z[i],40);
+    const tx=(x0+x1)/2, tz=(z0+z1)/2, th=Math.max(x1-x0,z1-z0)/2, kk=NAV.ov?Math.min(1,dtm*4):1, O=NAV.ov||(NAV.ov={cx:tx,cz:tz,half:th});
+    O.cx+=(tx-O.cx)*kk; O.cz+=(tz-O.cz)*kk; O.half+=(th-O.half)*kk; }
+  // ---- the view: one transform blended between the two modes ----
+  const mapH=Math.max(24,Math.min(Hc,Hc-NAV.PILL*(1-e))), Rr=Math.min(Wc,mapH)/2-1.5;      // map area height, radar radius
+  const hN=Math.atan2(Math.sin(P.h),Math.cos(P.h)), th=hN*(1-e);
+  const S=Math.exp(Math.log(Rr/NAV.view)*(1-e)+Math.log(Rr/NAV.ov.half)*e);
+  const wx=P.x+(NAV.ov.cx-P.x)*e, wz=P.z+(NAV.ov.cz-P.z)*e, ox=Wc/2, oy=mapH/2+Rr*0.2*(1-e);
+  const cs=Math.cos(th)*S, sn=Math.sin(th)*S;
+  const W2S=(x,z)=>[ox-cs*(x-wx)+sn*(z-wz), oy-sn*(x-wx)-cs*(z-wz)];
+  const round=e<0.5, rad=Rr+(11-Rr)*e, ccx=Wc/2, ccy=mapH/2;
+  const shape=()=>navRR(c,1.5,1.5,Wc-3,mapH-3,rad);
+  const inside=(q,m)=>round?Math.hypot(q[0]-ccx,q[1]-ccy)<Rr-m:(q[0]>1.5+m&&q[0]<Wc-1.5-m&&q[1]>1.5+m&&q[1]<mapH-1.5-m);
+  const me=W2S(P.x,P.z); NAV.dbg.me=me; NAV.dbg.blip=null; NAV.dbg.S=S; NAV.dbg.th=th;
+  c.setTransform(1,0,0,1,0,0); c.clearRect(0,0,bw,bh);
   c.setTransform(dpr,0,0,dpr,0,0);
-  c.fillStyle='#2b2740'; c.fillRect(0,0,L,L);
-  // ---- the world layer (drawn in metres, turned and scaled as one) ----
-  c.save(); c.translate(L/2,L/2); c.rotate(rot); c.scale(S,-S); c.translate(-cx,-cz);
-  const px=1/S;                                            // one screen pixel, in metres
-  // sea + beach along the shore curve
-  { const zA=cz-VR, zB=cz+VR, n=16;
-    c.fillStyle='#235a78'; c.beginPath(); c.moveTo(cx-VR*3-400,zA);
-    for(let i=0;i<=n;i++){ const z=zA+(zB-zA)*i/n; c.lineTo(shoreX(z),z); }
-    c.lineTo(cx-VR*3-400,zB); c.closePath(); c.fill();
-    c.strokeStyle='#d8b27c'; c.lineWidth=Math.max(16,2.2*px); c.lineCap='butt'; c.beginPath();
-    for(let i=0;i<=n;i++){ const z=zA+(zB-zA)*i/n; i?c.lineTo(shoreX(z)+10,z):c.moveTo(shoreX(z)+10,z); }
-    c.stroke(); }
-  // city footprint
-  c.fillStyle='#463f63'; c.fillRect(-HALF-RW/2,-HALF-RW/2,2*HALF+RW,2*HALF+RW);
-  // roads, three classes batched: country / suburb, city streets, boulevards
-  { const far=e2=>{ const hx=(e2.ax+e2.bx)/2-cx, hz=(e2.az+e2.bz)/2-cz, r=VR+(e2.len||0)/2; return hx>r||hx<-r||hz>r||hz<-r; };
-    const pass=(test,col,w)=>{ c.strokeStyle=col; c.lineWidth=w; c.beginPath();
-      for(const e2 of edges){ if(e2.mw||!test(e2)||far(e2)) continue; c.moveTo(e2.ax,e2.az); c.lineTo(e2.bx,e2.bz); } c.stroke(); };
-    c.lineCap='round';
-    pass(e2=>e2.rural||e2.sub,'#7a7392',Math.max(RW*0.6,1.2*px));
-    pass(e2=>!e2.rural&&!e2.sub&&!e2.blvd&&!e2.main,'#a59dbd',Math.max(RW*0.8,1.7*px));
-    pass(e2=>!e2.rural&&!e2.sub&&(e2.blvd||e2.main),'#d2cbe6',Math.max(RW,2.3*px)); }
-  // the motorway: dark casing, bright blue carriageway, pale centre line (slips thinner)
-  if(typeof MW!=='undefined'&&MW.all){ c.lineCap='butt';
-    for(let p=0;p<3;p++){ for(const m of MW.all){
-        const hx=(m.ax+m.bx)/2-cx, hz=(m.az+m.bz)/2-cz, r=VR+(m.len||0)/2; if(hx>r||hx<-r||hz>r||hz<-r) continue;
-        if(p===2&&m.slip) continue;
-        const w=m.slip?Math.max(m.hw*1.6,1.6*px):Math.max(m.hw*2+2,3.4*px);
-        c.strokeStyle=p===0?'#141126':(p===1?(m.slip?'#6f8be0':'#5f8dff'):'#e6eeff');
-        c.lineWidth=p===0?w+2.2*px:(p===1?w:Math.max(0.8*px,w*0.16));
-        c.beginPath(); c.moveTo(m.ax,m.az); c.lineTo(m.bx,m.bz); c.stroke(); } }
-    c.lineCap='round'; }
-  c.restore();
+  c.save(); shape(); c.clip();
+  // the cached world layer, turned and scaled
+  { const reach=((round&&e<0.02)?Rr*1.22:Math.hypot(Wc,mapH)/2+Rr*0.2)/S;
+    const vc=round&&e<0.02?[P.x,P.z]:[wx+(-cs*(ccx-ox)-sn*(ccy-oy))/(S*S), wz+(sn*(ccx-ox)-cs*(ccy-oy))/(S*S)];
+    const T=navTile(vc[0],vc[1],reach,S,dpr), q=W2S(T.cx,T.cz);
+    c.fillStyle='#2c3344'; c.fillRect(0,0,Wc,mapH);
+    c.save(); c.translate(q[0],q[1]); c.rotate(th); c.scale(S/T.s,S/T.s); c.drawImage(T.cv,-T.px/2,-T.px/2); c.restore(); }
+  // the route (world space), or a dashed straight bearing line when there is no road route
+  if(act){ navXf(c,wx,wz,S,th,ox,oy,dpr); c.lineCap='round'; c.lineJoin='round';
+    const lw=(Wc>=150?5:4.2)/S;
+    for(let p=0;p<2;p++){ c.strokeStyle=p?col:'#120e1f'; c.lineWidth=p?lw:lw+2.6/S; c.beginPath();
+      if(R){ const i=R.i||0, L=R.cum[i+1]-R.cum[i]||1, f=(R.u||0)/L;
+        if(NAV.off>6) c.moveTo(P.x,P.z), c.lineTo(R.x[i]+(R.x[i+1]-R.x[i])*f,R.z[i]+(R.z[i+1]-R.z[i])*f);
+        else c.moveTo(R.x[i]+(R.x[i+1]-R.x[i])*f,R.z[i]+(R.z[i+1]-R.z[i])*f);
+        for(let k=i+1;k<R.x.length;k++) c.lineTo(R.x[k],R.z[k]); }
+      else { c.setLineDash([7/S,6/S]); c.lineWidth=p?lw*0.7:lw*0.7+2.4/S; c.moveTo(P.x,P.z); c.lineTo(act.x,act.z); }
+      c.stroke(); }
+    c.setLineDash([]); c.setTransform(dpr,0,0,dpr,0,0); }
   // ---- markers (screen space, always upright) ----
-  const inMap=(q,m)=>q[0]>m&&q[0]<L-m&&q[1]>m&&q[1]<L-m;
-  const sq=(x,z,col,r,ch)=>{ const q=W2S(x,z); if(!inMap(q,-2)) return;
-    c.fillStyle='#17132a'; c.fillRect(q[0]-r-1,q[1]-r-1,2*r+2,2*r+2); c.fillStyle=col; c.fillRect(q[0]-r,q[1]-r,2*r,2*r);
-    if(ch&&r>=3.5){ c.fillStyle='#17132a'; c.font='bold '+(r*2-1)+'px Arial'; c.textAlign='center'; c.textBaseline='middle'; c.fillText(ch,q[0],q[1]+0.5); } };
-  const big=L>=120, pr=big?4:3;
-  for(const s of STATIONS) sq(s.x,s.z,'#ffb060',pr,'F');
-  for(const b of banks) sq(b.x,b.z,'#9be58a',pr,'$');
-  sq(GARAGE.x,GARAGE.z,'#7db4ff',pr,'G');
-  // traffic (cops always, the rest only at street scale)
-  for(const v of traffic){
-    const cop=v.kind==='cop'; if(!cop&&e>0.5) continue;
-    const q=W2S(v.x,v.z); if(!inMap(q,0)) continue;
-    c.fillStyle=cop?((wanted&&Math.floor(t*6)%2)?'#ff4d5e':'#7db4ff'):(v.kind==='bus'?'#3fbac2':'#e4ddd0');
-    const r=cop?2:1.5; c.fillRect(q[0]-r,q[1]-r,2*r,2*r);
-  }
-  if(zombieMode){ c.fillStyle='#8fdc6a';
-    for(const z of zombies){ if(z.dead) continue; const q=W2S(z.x,z.z); if(inMap(q,0)) c.fillRect(q[0]-1,q[1]-1,2,2); } }
+  const big=Wc>=150, ps=big?3.6:3;
+  const poi=(x,z,pc,dia)=>{ if(act&&Math.hypot(x-act.x,z-act.z)<14) return; const q=W2S(x,z); if(!inside(q,3)) return;
+    c.save(); c.translate(q[0],q[1]); if(dia) c.rotate(0.785); c.fillStyle='#15121f'; c.fillRect(-ps-1.2,-ps-1.2,2*ps+2.4,2*ps+2.4);
+    c.fillStyle=pc; c.fillRect(-ps,-ps,2*ps,2*ps); c.restore(); };
+  for(const s of STATIONS) poi(s.x,s.z,'#ffa53a',false);
+  for(const b of banks) poi(b.x,b.z,'#86d27a',true);
+  poi(GARAGE.x,GARAGE.z,'#7db4ff',false);
+  // threats: police (red and flashing once you are wanted), the dead in zombie mode
+  for(const v of traffic){ if(v.kind!=='cop') continue; const q=W2S(v.x,v.z); if(!inside(q,2)) continue;
+    const hot=wanted&&Math.floor(t*6)%2; c.fillStyle='#15121f'; c.beginPath(); c.arc(q[0],q[1],3.6,0,7); c.fill();
+    c.fillStyle=wanted?(hot?'#ff3347':'#ffd0d4'):'#6fa0ff'; c.beginPath(); c.arc(q[0],q[1],2.5,0,7); c.fill(); }
+  if(zombieMode){ c.fillStyle='#ff4d5e';
+    for(const z of zombies){ if(z.dead) continue; const q=W2S(z.x,z.z); if(inside(q,1)) c.fillRect(q[0]-1.3,q[1]-1.3,2.6,2.6); } }
   // your parked car while you walk
   if(onFoot&&pCar&&!player.wreck){ const q=W2S(player.x,player.z);
-    if(inMap(q,3)){ c.fillStyle='#ffd76a'; c.strokeStyle='#221a30'; c.lineWidth=1.5; c.beginPath(); c.arc(q[0],q[1],3.4,0,7); c.fill(); c.stroke(); } }
-  // objectives: glow dot + expanding rings, or an edge arrow with the distance
-  c.font='bold '+(big?10:9)+'px Arial'; c.textAlign='center'; c.textBaseline='middle';
-  for(let i=0;i<objs.length;i++){
-    const o=objs[i], col=NAV.COL[o.type], q=W2S(o.x,o.z), m=8, isAct=o===act;
-    if(inMap(q,m)){
-      const span=big?17:12;
-      for(let r=0;r<2;r++){ const ph=(t*0.85+r*0.5+i*0.23)%1;
-        c.globalAlpha=(1-ph)*0.95; c.strokeStyle=col; c.lineWidth=(big?2.6:2.1)-ph; c.beginPath(); c.arc(q[0],q[1],3.5+ph*span,0,7); c.stroke(); }
-      c.globalAlpha=1; c.shadowColor=col; c.shadowBlur=9; c.fillStyle=col; c.beginPath(); c.arc(q[0],q[1],4.2+Math.sin(t*6)*0.6,0,7); c.fill();
-      c.shadowBlur=0; c.fillStyle='#fff'; c.beginPath(); c.arc(q[0],q[1],1.7,0,7); c.fill();
-    } else {
-      const dx=q[0]-L/2, dy=q[1]-L/2, kk=Math.min((L/2-m)/Math.max(1e-6,Math.abs(dx)),(L/2-m)/Math.max(1e-6,Math.abs(dy)));
-      const ex=L/2+dx*kk, ey=L/2+dy*kk, ang=Math.atan2(dy,dx), ph=(t*0.85+i*0.23)%1;
-      c.globalAlpha=(1-ph)*0.85; c.strokeStyle=col; c.lineWidth=1.6; c.beginPath(); c.arc(ex,ey,3+ph*9,0,7); c.stroke(); c.globalAlpha=1;
-      c.save(); c.translate(ex,ey); c.rotate(ang); const sc=(big?1.3:1)*(1+Math.sin(t*6)*0.12); c.scale(sc,sc);
-      c.shadowColor=col; c.shadowBlur=7; c.fillStyle=col; c.strokeStyle='#17132a'; c.lineWidth=1.2;
-      c.beginPath(); c.moveTo(7,0); c.lineTo(-4,-5.5); c.lineTo(-1.5,0); c.lineTo(-4,5.5); c.closePath(); c.fill(); c.shadowBlur=0; c.stroke(); c.restore();
-      if(isAct||big){ const lab=o.d<1000?Math.round(o.d)+'m':(o.d/1000).toFixed(1)+'km';
-        const lx=clamp(ex-Math.cos(ang)*19,15,L-15), ly=clamp(ey-Math.sin(ang)*15,8,L-8);
-        c.lineWidth=3; c.strokeStyle='rgba(18,13,30,.9)'; c.strokeText(lab,lx,ly); c.fillStyle=col; c.fillText(lab,lx,ly); }
-    }
-  }
-  // north tick while the map is turning with you
-  if(e<0.9){ const nx=L/2+sr*(L/2-7), ny=L/2-cr*(L/2-7);
-    c.globalAlpha=(1-e)*0.85; c.fillStyle='#17132a'; c.beginPath(); c.arc(nx,ny,5.5,0,7); c.fill();
-    c.fillStyle='#ffe6c8'; c.font='bold 8px Arial'; c.fillText('N',nx,ny+0.5); c.globalAlpha=1; }
-  // you: fixed at the centre pointing up (follow), a moving, turning arrow with a halo (overview)
-  { const q=W2S(P.x,P.z), ha=Math.atan2(Math.sin(P.a),Math.cos(P.a))+rot, sz=(big?1.35:1)*(1+0.25*e);
-    if(e>0.05){ const ph=(t*1.1)%1; c.globalAlpha=e*(1-ph)*0.8; c.strokeStyle='#fff'; c.lineWidth=1.4; c.beginPath(); c.arc(q[0],q[1],4+ph*10,0,7); c.stroke(); c.globalAlpha=1; }
-    c.save(); c.translate(q[0],q[1]); c.rotate(ha); c.scale(sz,sz);
-    c.fillStyle='#fff7df'; c.strokeStyle='#17132a'; c.lineWidth=1.3;
-    c.beginPath(); c.moveTo(0,-5.6); c.lineTo(4,4.2); c.lineTo(0,2.2); c.lineTo(-4,4.2); c.closePath(); c.fill(); c.stroke(); c.restore(); }
-  // corner glyph: what a tap does (expand / shrink)
-  { const g=5, x=5, y=L-5; c.strokeStyle='rgba(255,240,220,.6)'; c.lineWidth=1.3; c.beginPath();
-    if(NAV.mode){ c.moveTo(x+g,y-g-3); c.lineTo(x+g,y-g); c.lineTo(x+g+3,y-g); c.moveTo(x+g,y-g); c.lineTo(x+g+4,y-g-4); }
-    else { c.moveTo(x,y-3.5); c.lineTo(x,y); c.lineTo(x+3.5,y); c.moveTo(x,y); c.lineTo(x+g,y-g); }
-    c.stroke(); }
+    if(inside(q,5)){ c.save(); c.translate(q[0],q[1]); c.rotate(th-player.a); c.fillStyle='#15121f'; navRR(c,-4.6,-6.8,9.2,13.6,2.5); c.fill();
+      c.fillStyle='#ffd76a'; navRR(c,-3.2,-5.4,6.4,10.8,1.8); c.fill(); c.fillStyle='#15121f'; c.fillRect(-2.2,-2.6,4.4,2.2); c.restore(); } }
+  // secondary objectives: a quiet ringed dot
+  for(const o of objs){ if(o===act) continue; const q=W2S(o.x,o.z); if(!inside(q,5)) continue; const oc=NAV.COL[o.type];
+    c.fillStyle='#15121f'; c.beginPath(); c.arc(q[0],q[1],5,0,7); c.fill(); c.fillStyle=oc; c.beginPath(); c.arc(q[0],q[1],3.4,0,7); c.fill(); }
+  // the primary objective, on the map
+  let rim=null;
+  if(act){ const q=W2S(act.x,act.z);
+    if(inside(q,7)){ NAV.dbg.blip=q; const span=big?20:15;
+      for(let r=0;r<2;r++){ const ph=(t*0.9+r*0.5)%1; c.globalAlpha=(1-ph)*0.95; c.strokeStyle=col; c.lineWidth=3-ph*1.6; c.beginPath(); c.arc(q[0],q[1],5+ph*span,0,7); c.stroke(); }
+      c.globalAlpha=1; c.fillStyle='#120e1f'; c.beginPath(); c.arc(q[0],q[1],7.4,0,7); c.fill();
+      c.shadowColor=col; c.shadowBlur=10; c.fillStyle=col; c.beginPath(); c.arc(q[0],q[1],5.6+Math.sin(t*6)*0.5,0,7); c.fill();
+      c.shadowBlur=0; c.fillStyle='#fff'; c.beginPath(); c.arc(q[0],q[1],2.1,0,7); c.fill(); }
+    else rim=q; }
+  c.restore();
+  // rim, north marker
+  c.lineWidth=big?2.5:2; c.strokeStyle='rgba(12,9,22,.9)'; navRR(c,1.5,1.5,Wc-3,mapH-3,rad); c.stroke();
+  c.lineWidth=big?1.6:1.3; c.strokeStyle='rgba(255,240,220,.78)'; navRR(c,2.2,2.2,Wc-4.4,mapH-4.4,Math.max(2,rad-0.7)); c.stroke();
+  { const nx=round?ccx+Math.sin(th)*(Rr-7.5):15, ny=round?ccy-Math.cos(th)*(Rr-7.5):15, al=Math.abs(e-0.5)*2;
+    c.globalAlpha=Math.min(1,al*1.5); c.fillStyle='#15121f'; c.beginPath(); c.arc(nx,ny,7,0,7); c.fill();
+    c.strokeStyle='#ff6a5c'; c.lineWidth=1.3; c.stroke();
+    c.fillStyle='#fff'; c.font='bold 9px Arial'; c.textAlign='center'; c.textBaseline='middle'; c.fillText('N',nx,ny+0.6); c.globalAlpha=1; }
+  // the primary objective pinned to the rim, in its true direction from you, with the distance
+  if(rim){ const dx=rim[0]-me[0], dy=rim[1]-me[1], dl=Math.hypot(dx,dy)||1, ux=dx/dl, uy=dy/dl; let s;
+    if(round){ const rx=me[0]-ccx, ry=me[1]-ccy, b=rx*ux+ry*uy, rr=Rr-6; s=-b+Math.sqrt(Math.max(0,b*b-(rx*rx+ry*ry-rr*rr))); }
+    else { const m=9; s=Math.min(ux>0?(Wc-m-me[0])/ux:(ux<0?(m-me[0])/ux:1e9), uy>0?(mapH-m-me[1])/uy:(uy<0?(m-me[1])/uy:1e9)); }
+    const bx=me[0]+ux*s, by=me[1]+uy*s, ph=(t*0.9)%1; NAV.dbg.blip=[bx,by];
+    c.globalAlpha=(1-ph)*0.9; c.strokeStyle=col; c.lineWidth=2.2; c.beginPath(); c.arc(bx,by,5+ph*10,0,7); c.stroke(); c.globalAlpha=1;
+    c.fillStyle='#120e1f'; c.beginPath(); c.arc(bx,by,7.6,0,7); c.fill();
+    c.shadowColor=col; c.shadowBlur=8; c.fillStyle=col; c.beginPath(); c.arc(bx,by,5.6,0,7); c.fill(); c.shadowBlur=0;
+    c.save(); c.translate(bx,by); c.rotate(Math.atan2(uy,ux)); c.fillStyle='#120e1f'; c.beginPath(); c.moveTo(3.6,0); c.lineTo(-2,-3.2); c.lineTo(-2,3.2); c.closePath(); c.fill(); c.restore();
+    const lab=navDist(NAV.rem).replace(' ',''), lx=clamp(bx-ux*21,17,Wc-17), ly=clamp(by-uy*17,9,mapH-9);
+    c.font='bold '+(big?11:10)+'px Arial'; c.textAlign='center'; c.textBaseline='middle';
+    c.lineWidth=3.2; c.strokeStyle='rgba(18,13,30,.95)'; c.strokeText(lab,lx,ly); c.fillStyle=col; c.fillText(lab,lx,ly); }
+  // you: a bold white arrow. Follow: fixed, pointing up. Overview: it moves and turns, with a halo.
+  { const sz=(big?1.25:1)*(1-0.12*e);
+    if(e>0.05){ const ph=(t*1.1)%1; c.globalAlpha=e*(1-ph)*0.85; c.strokeStyle='#fff'; c.lineWidth=1.6; c.beginPath(); c.arc(me[0],me[1],5+ph*11,0,7); c.stroke(); c.globalAlpha=1; }
+    c.save(); c.translate(me[0],me[1]); c.rotate(th-P.a); c.scale(sz,sz);
+    c.fillStyle='#fff'; c.strokeStyle='#120e1f'; c.lineWidth=2; c.lineJoin='round';
+    c.beginPath(); c.moveTo(0,-9.5); c.lineTo(6.8,7); c.lineTo(0,3.4); c.lineTo(-6.8,7); c.closePath(); c.stroke(); c.fill(); c.restore(); }
+  // the next-turn pill: under the radar (follow), inside the bottom-left corner (overview)
+  if(act){ const ph=NAV.PILL-4, pw=Math.min(Wc-6,big?104:96), px0=(Wc-pw)/2*(1-e)+6*e, py0=(mapH+3)*(1-e)+(mapH-ph-6)*e;
+    const tn=NAV.turn, txt=navDist(tn?tn.d:NAV.rem);
+    c.fillStyle='rgba(16,11,24,.86)'; navRR(c,px0,py0,pw,ph,ph/2); c.fill(); c.strokeStyle=col; c.lineWidth=1.5; c.stroke();
+    const gx=px0+ph*0.62+3, gy=py0+ph/2;
+    if(tn) navGlyph(c,gx,gy,tn.ang,ph*0.72,col);
+    else if(R){ c.strokeStyle=col; c.lineWidth=2; c.beginPath(); c.arc(gx,gy,ph*0.27,0,7); c.stroke(); c.fillStyle=col; c.beginPath(); c.arc(gx,gy,ph*0.11,0,7); c.fill(); }   // no turn left: the target itself
+    else { c.save(); c.translate(gx,gy); c.rotate(NAV.dir); c.fillStyle=col; c.beginPath(); c.moveTo(0,-ph*0.34); c.lineTo(ph*0.27,ph*0.3); c.lineTo(0,ph*0.14); c.lineTo(-ph*0.27,ph*0.3); c.closePath(); c.fill(); c.restore(); }
+    c.fillStyle='#fff'; c.font='bold '+(big?13:12)+'px Arial'; c.textAlign='left'; c.textBaseline='middle'; c.fillText(txt,gx+ph*0.5+3,gy+0.5); }
   hudTick(t,P);
 }
 
@@ -17569,6 +17736,6 @@ addEventListener('resize',()=>{
   if(meOn){ mecv.width=innerWidth; mecv.height=innerHeight; }
 });
 </script>
-<div id="buildver" style="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(2px + env(safe-area-inset-bottom));font:600 10px/1.2 ui-monospace,Menlo,monospace;color:#fff;opacity:.6;letter-spacing:.06em;pointer-events:none;z-index:2147483000;text-shadow:0 1px 2px #000">v0.31 · 10 Nov 19:22</div>
+<div id="buildver" style="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(2px + env(safe-area-inset-bottom));font:600 10px/1.2 ui-monospace,Menlo,monospace;color:#fff;opacity:.6;letter-spacing:.06em;pointer-events:none;z-index:2147483000;text-shadow:0 1px 2px #000">v0.32 · 10 Nov 22:33</div>
 </body>
 </html>
