@@ -14,7 +14,7 @@
 <meta name="twitter:card" content="summary_large_image"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <link rel="apple-touch-icon" href="/sunset-city/square.png"/>
-<meta name="build-version" content="v0.28"/>
+<meta name="build-version" content="v0.29"/>
 <style>
   html,body{margin:0;padding:0;overflow:hidden;background:#1a1420;height:100%;touch-action:none;}
   canvas{display:block;}
@@ -7280,11 +7280,12 @@ function buildMidnight(hex){
   const tailM=lambert(0xc23038,{emissive:0xc02020,emissiveIntensity:1.0});
   const lightRig={front:[],rear:[],tail:tailM};
   for(const s of [1,-1]){
-    const hs=[];
+    const hs=[], lp=[];
     for(const my of [-0.014,-0.067]){ const c=at(-0.9225,my,0.2835), d=new THREE.CylinderGeometry(0.07,0.07,0.05,10).toNonIndexed();
-      d.rotateX(Math.PI/2); d.translate(s*c[0],c[1],c[2]+0.02); hs.push(d); }
+      d.rotateX(Math.PI/2); d.translate(s*c[0],c[1],c[2]+0.02); hs.push(d); lp.push([s*c[0],c[1],c[2]+0.05]); }
     { const c=at(-0.906,-0.074,0.202), d=new THREE.BoxGeometry(0.17,0.04,0.04).toNonIndexed(); d.translate(s*c[0],c[1],c[2]+0.015); hs.push(d); }
-    const hm=new THREE.Mesh(cat(hs),MAT.hLight); hm.userData.part='light'; bodyG.add(hm);
+    // r9: each round lamp is its own part, so a hit can put out one of the four (the signal bar rides with the lower lamp)
+    for(const [i,list] of [[0,[hs[0]]],[1,[hs[1],hs[2]]]]){ const hm=new THREE.Mesh(cat(list),MAT.hLight); hm.userData.part='light'; hm.userData.hlLamp=lp[i]; bodyG.add(hm); }
     const tc=at(0.9475,-0.021,0.3105), tg=new THREE.BoxGeometry(0.075,0.33,0.05).toNonIndexed(); tg.translate(s*tc[0],tc[1],tc[2]-0.012);
     const tm=new THREE.Mesh(cat([tg]),tailM); tm.userData.part='light'; bodyG.add(tm);
     const hmat=new THREE.MeshBasicMaterial({map:glowTex,color:0xff2018,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false,fog:false,side:THREE.DoubleSide});
@@ -8789,7 +8790,7 @@ function footSmoothNormals(geo){
 // look: the embedded models are now ~3,000-triangle decimations (tools/lowpoly.py) with one atlas cell per triangle.
 // The GLB keeps welded vertices (position + skin) and the per-corner uv in a side accessor (_UVC, 3 per triangle);
 // expand to one vertex per corner here with face normals, so the Lambert shading is faceted like the rest of the world.
-function footFacet(geo,headJ){
+function footFacet(geo,headJ,cloth){
   const ix=geo.index.array, n=ix.length, P=geo.attributes.position.array, SI=geo.attributes.skinIndex, SW=geo.attributes.skinWeight, U=geo.attributes._uvc;
   const p=new Float32Array(n*3), nm=new Float32Array(n*3), si=new SI.array.constructor(n*4), sw=new SW.array.constructor(n*4), uv=new U.array.constructor(n*2), seq=new Uint16Array(n);
   const acc=new Float32Array(P.length), wsc=SW.normalized?1/255:1;
@@ -8808,6 +8809,15 @@ function footFacet(geo,headJ){
     if(w<0.05) continue; const v=ix[i]*3, l=Math.hypot(acc[v],acc[v+1],acc[v+2])||1, f=0.7*Math.min(1,w);
     let nx=nm[i*3]*(1-f)+acc[v]/l*f, ny=nm[i*3+1]*(1-f)+acc[v+1]/l*f, nz=nm[i*3+2]*(1-f)+acc[v+2]/l*f; const m=Math.hypot(nx,ny,nz)||1;
     nm[i*3]=nx/m; nm[i*3+1]=ny/m; nm[i*3+2]=nz/m; }
+  // matte cloth (r9): triangles whose atlas cell is dark cloth lean 55% towards the smooth normal, so a black suit shades
+  // as soft folds instead of a scatter of sun-catching facets; skin and the head keep their planes
+  if(cloth){ const us=U.normalized?1/(Math.pow(2,8*U.array.BYTES_PER_ELEMENT)-1):1;
+    for(let i=0;i<n;i+=3){ const cu=(uv[i*2]+uv[i*2+2]+uv[i*2+4])/3*us, cv=(uv[i*2+1]+uv[i*2+3]+uv[i*2+5])/3*us;
+      if(cloth(cu,cv)<0.5) continue;
+      for(let j=i;j<i+3;j++){ let w=0; if(headJ>=0) for(let k=0;k<4;k++) if(si[j*4+k]===headJ) w+=sw[j*4+k]*wsc; if(w>=0.05) continue;
+        const v=ix[j]*3, l=Math.hypot(acc[v],acc[v+1],acc[v+2])||1, f=0.55;
+        let nx=nm[j*3]*(1-f)+acc[v]/l*f, ny=nm[j*3+1]*(1-f)+acc[v+1]/l*f, nz=nm[j*3+2]*(1-f)+acc[v+2]/l*f; const m=Math.hypot(nx,ny,nz)||1;
+        nm[j*3]=nx/m; nm[j*3+1]=ny/m; nm[j*3+2]=nz/m; } } }
   const g=new THREE.BufferGeometry();
   g.setAttribute('position',new THREE.BufferAttribute(p,3)); g.setAttribute('normal',new THREE.BufferAttribute(nm,3));
   g.setAttribute('uv',new THREE.BufferAttribute(uv,2,U.normalized));
@@ -8816,14 +8826,36 @@ function footFacet(geo,headJ){
   g.boundingSphere=geo.boundingSphere; g.boundingBox=geo.boundingBox;
   return g;
 }
+// r9 matte cloth: the Meshy bake paints satin highlights into the black cloth (the suit's atlas cells run from sRGB 12 to 69,
+// a 20x spread in linear light), which reads as shiny leather once the sun and the look pass stretch it. Dark, near-neutral
+// texels (suit, hat, tie, shoes, the women's black dress) are pulled onto one charcoal value keeping 30% of their variation;
+// shirt, skin, hair highlights and anything coloured are left alone. Returns the new texture and a per-uv cloth test.
+const FR_MATTE_L=0.095, FR_MATTE_KEEP=0.30;
+function footMatteTex(map){
+  const im=map.image; if(!im||!im.width) return null;
+  const w=im.width, h=im.height, c=document.createElement('canvas'); c.width=w; c.height=h;
+  const x=c.getContext('2d'); x.drawImage(im,0,0);
+  const d=x.getImageData(0,0,w,h), a=d.data, mask=new Uint8Array(w*h), sm=(e0,e1,v)=>{ v=Math.min(1,Math.max(0,(v-e0)/(e1-e0))); return v*v*(3-2*v); };
+  for(let i=0,j=0;i<a.length;i+=4,j++){ const r=a[i], g=a[i+1], b=a[i+2], mx=Math.max(r,g,b), mn=Math.min(r,g,b);
+    const l=(r*0.299+g*0.587+b*0.114)/255, sat=mx>0?(mx-mn)/mx:0, sl=l<0.10?0.45:0.16;
+    const wg=(1-sm(0.22,0.34,l))*(1-sm(sl,sl+0.12,sat)); if(wg<=0.01) continue;
+    mask[j]=Math.round(wg*255);
+    const t=FR_MATTE_L+(l-FR_MATTE_L)*FR_MATTE_KEEP;
+    if(l<0.02){ const q=t*255*wg; a[i]=r*(1-wg)+q; a[i+1]=g*(1-wg)+q; a[i+2]=b*(1-wg)+q*1.04; }
+    else { const k=1+(t/l-1)*wg; a[i]=Math.min(255,r*k); a[i+1]=Math.min(255,g*k); a[i+2]=Math.min(255,b*k); } }
+  x.putImageData(d,0,0);
+  const tex=new THREE.CanvasTexture(c); tex.flipY=map.flipY; tex.wrapS=map.wrapS; tex.wrapT=map.wrapT; tex.name=map.name;
+  return {tex,cloth:(u,v)=>mask[Math.min(h-1,Math.max(0,Math.floor(v*h)))*w+Math.min(w-1,Math.max(0,Math.floor(u*w)))]/255};
+}
 // make a Meshy character sit in the flat-shaded world: faceted Lambert + its posterised colour map (sRGB),
 // a little of the map as emissive so faces and skin still read at night, shadows on
 function footSkinPrep(root){
   let mesh=null; root.traverse(o=>{ if(o.isSkinnedMesh) mesh=o; }); if(!mesh) return null;
   const facet=!!mesh.geometry.attributes._uvc&&!!mesh.geometry.index;
-  if(facet){ const og=mesh.geometry; mesh.geometry=footFacet(og,mesh.skeleton?mesh.skeleton.bones.findIndex(b=>/Head$/.test(b.name)):-1); og.dispose(); }
+  const om=mesh.material; let map=om.map||null, MT=null;
+  if(map&&facet){ try{ MT=footMatteTex(map); }catch(e){ MT=null; } if(MT){ map.dispose(); map=MT.tex; } }      // r9: matte black cloth
+  if(facet){ const og=mesh.geometry; mesh.geometry=footFacet(og,mesh.skeleton?mesh.skeleton.bones.findIndex(b=>/Head$/.test(b.name)):-1,MT&&MT.cloth); og.dispose(); }
   else if(!mesh.geometry.attributes.normal) footSmoothNormals(mesh.geometry);
-  const om=mesh.material, map=om.map||null;
   if(map){ map.encoding=THREE.sRGBEncoding;
     if(facet){ map.generateMipmaps=false; map.minFilter=THREE.LinearFilter; map.magFilter=THREE.LinearFilter; map.anisotropy=1; map.needsUpdate=true; }   // per-triangle cells: mip levels would bleed neighbours together
     else map.anisotropy=4; }
@@ -9782,9 +9814,9 @@ function applyCfg(cf){
   carRoll=cf.roll||1; carSquat=cf.squat||1; carColR=cf.colR||2.35; carPitchL=cf.pitchL||1.45;   // heavy cars lean, squat and reach further
 }
 function attachHeadSpot(m){
-  headSpot=new THREE.SpotLight(0xffe2b0,1.6,52,0.55,0.5,1.2);
+  headSpot=new THREE.SpotLight(0xffe6bc,0,64,0.50,0.75,1.0);      // r9: driven by hlTick (intensity, reach, aim, broken lamps)
   headSpot.position.set(...(m.hs||[0,1.0,2.4]));
-  const hT=new THREE.Object3D(); hT.position.set(0,0,20);
+  const hT=new THREE.Object3D(); hT.position.set(0,-0.4,24);
   pCar.g.add(headSpot); pCar.g.add(hT); headSpot.target=hT;
 }
 function initPlayerCar(modelId){
@@ -15384,7 +15416,7 @@ function updateDusk(dt){
   for(const m of clouds.children) m.material.color.setRGB(1-0.55*k,1-0.58*k,1-0.42*k);
   starsMat.opacity=k*0.95;
   moonSpr.material.opacity=k;
-  if(headSpot) headSpot.intensity=1.6+1.1*k;
+  hlTick(dt,k);                          // r9: headlights (spot, lamp glows, cones, road pool), traffic lamp glows
   // Coupe rear tail-strip halo — brighter at night (no front glows)
   if(pCar&&pCar.lights){
     for(const m of pCar.lights.rear) m.opacity=Math.min(1,m.userData.baseOp*(0.75+0.7*k));
@@ -16162,6 +16194,236 @@ function updateRuralAnim(dt,t){
     if(crowTimer<=0){ crowTimer=rand(15,42); if(rural>0.22&&Math.random()<0.72) crowCaw(); }
   } else if(windGain){ windGain.gain.value*=0.9; if(droneGain)droneGain.gain.value*=0.9; }
 }
+// ================= VIS r9: working headlights, traffic lamp glows, Sol's sky beacon, matte box for the look pass =================
+// Controls hook (touch button etc.): call toggleHeadlights(); read headlightsOn / headlightsHigh.
+//   single press = on/off, a second press within 0.38 s = high beam. Key L does the same. Auto: on as dusk falls (duskK>0.28).
+// Everything visible lives in ONE scene-level group that follows the player's car (so the damage system, which hides every
+// additive mesh on a car when a lamp breaks, never sees it); each lamp reads its own lamp mesh to know if it is broken.
+var headlightsOn=false, headlightsHigh=false;
+const HL={g:null,car:null,lamps:[],side:[null,null],user:null,pressT:-1e9,prevK:0,lvl:0,hi:0,revK:0,
+  spr:[],flare:[],cone:[],pool:[],rev:[],revPool:null,splash:null,sprM:null,flM:null,coneM:null,poolM:null,revM:null,revPM:null,splM:null,
+  tex:null,tr:null,fz:2.4,rz:-2.4,rx:0.6,ry:0.6,hi0:false,hitAx:-1};
+const _hlM=new THREE.Matrix4(), _hlM2=new THREE.Matrix4(), _hlV=new THREE.Vector3(), _hlV2=new THREE.Vector3(), _hlB=new THREE.Box3(),
+  _hlQ=new THREE.Quaternion(), _hlS=new THREE.Vector3(), _hlUp=new THREE.Vector3(0,1,0);
+const hlSm=(a,b,x)=>{ x=Math.min(1,Math.max(0,(x-a)/(b-a))); return x*x*(3-2*x); };
+function toggleHeadlights(){
+  const now=performance.now(), say=typeof floatText==='function'&&started?floatText:null;
+  if(now-HL.pressT<380){                      // double press: the lights stay on and the high beam flips
+    HL.pressT=-1e9; HL.user=true; headlightsOn=true; headlightsHigh=!HL.hi0;
+    if(say) say(headlightsHigh?'HIGH BEAM':'DIPPED BEAM'); return headlightsOn; }
+  HL.pressT=now; HL.hi0=headlightsHigh; HL.user=!headlightsOn; headlightsOn=HL.user; if(!headlightsOn) headlightsHigh=false;
+  if(say) say(headlightsOn?'HEADLIGHTS ON':'HEADLIGHTS OFF');
+  return headlightsOn;
+}
+addEventListener('keydown',e=>{ if(e.target&&e.target.tagName==='TEXTAREA') return;
+  if(e.key&&e.key.toLowerCase()==='l'&&!e.repeat&&started) toggleHeadlights(); });
+// road pool: a soft lobe, hot a few metres out, fading with distance (v runs away from the car)
+function hlPoolTex(){
+  const W=64,H=256,c=document.createElement('canvas'); c.width=W; c.height=H; const x=c.getContext('2d'), d=x.createImageData(W,H);
+  for(let py=0;py<H;py++){ const v=1-py/(H-1), rise=hlSm(0,0.07,v), fall=Math.pow(1-v,1.25), hot=1+0.55*Math.exp(-Math.pow((v-0.13)/0.11,2));
+    for(let px=0;px<W;px++){ const u=Math.abs(px/(W-1)-0.5)*2, ac=Math.pow(Math.max(0,1-Math.pow(u,2.2)),1.6);
+      const b=Math.min(255,Math.round(255*ac*rise*fall*hot/1.55)), i=(py*W+px)*4; d.data[i]=d.data[i+1]=d.data[i+2]=b; d.data[i+3]=255; } }
+  x.putImageData(d,0,0); const t=new THREE.CanvasTexture(c); t.wrapS=t.wrapT=THREE.ClampToEdgeWrapping; return t;
+}
+function hlPoolGeo(){                           // unit fan on the ground: z 0..1, half-width 0.16 -> 0.5
+  const N=8, p=[], uv=[], ix=[];
+  for(let i=0;i<=N;i++){ const t=i/N, w=0.16+0.34*t; p.push(-w,0,t, w,0,t); uv.push(0,t, 1,t); if(i<N){ const a=i*2; ix.push(a,a+2,a+1, a+1,a+2,a+3); } }
+  const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(p,3)); g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2)); g.setIndex(ix); return g;
+}
+function hlBuild(){
+  const add={transparent:true,blending:THREE.AdditiveBlending,depthWrite:false,fog:false};
+  const G=HL.g=new THREE.Group(); G.visible=false; scene.add(G);
+  HL.tex=hlPoolTex();
+  HL.sprM=new THREE.SpriteMaterial(Object.assign({map:glowTex,color:0xffe9c2},add));
+  HL.flM=new THREE.SpriteMaterial(Object.assign({map:glowTex,color:0xffd49a},add));
+  for(let i=0;i<6;i++){ const s=new THREE.Sprite(HL.sprM); s.visible=false; G.add(s); HL.spr.push(s); }
+  for(let i=0;i<2;i++){ const s=new THREE.Sprite(HL.flM); s.visible=false; G.add(s); HL.flare.push(s); }
+  // light cones: open cones, brightest where the eye looks through the most beam, fading along their length
+  const cg=new THREE.CylinderGeometry(1.9,0.1,12,14,1,true); cg.translate(0,6,0); cg.rotateX(Math.PI/2);
+  HL.coneM=new THREE.ShaderMaterial(Object.assign({side:THREE.DoubleSide,uniforms:{uCol:{value:new THREE.Color(0xffdfa8)},uOp:{value:0}},
+    vertexShader:'varying float vT; varying vec3 vN; varying vec3 vP; void main(){ vT=uv.y; vN=normalMatrix*normal; vec4 mv=modelViewMatrix*vec4(position,1.0); vP=mv.xyz; gl_Position=projectionMatrix*mv; }',
+    fragmentShader:'uniform vec3 uCol; uniform float uOp; varying float vT; varying vec3 vN; varying vec3 vP; void main(){ float f=abs(dot(normalize(vN),normalize(vP))); gl_FragColor=vec4(uCol,pow(1.0-vT,1.7)*smoothstep(0.0,0.04,vT)*f*f*uOp); }'},add));
+  for(let i=0;i<2;i++){ const m=new THREE.Mesh(cg,HL.coneM); m.visible=false; m.frustumCulled=false; m.rotation.x=0.075; G.add(m); HL.cone.push(m); }
+  const pg=hlPoolGeo();
+  HL.poolM=new THREE.MeshBasicMaterial(Object.assign({map:HL.tex,color:0xffd08a,opacity:0},add));
+  for(let i=0;i<2;i++){ const m=new THREE.Mesh(pg,HL.poolM); m.visible=false; m.frustumCulled=false; m.renderOrder=2; G.add(m); HL.pool.push(m); }
+  // reversing lights: two white lamps and a small pool behind
+  HL.revM=new THREE.SpriteMaterial(Object.assign({map:glowTex,color:0xf4f6ff},add));
+  for(let i=0;i<2;i++){ const s=new THREE.Sprite(HL.revM); s.visible=false; G.add(s); HL.rev.push(s); }
+  HL.revPM=new THREE.MeshBasicMaterial(Object.assign({map:glowTex,color:0xe8ecff,opacity:0},add));
+  const rp=new THREE.PlaneGeometry(1,1); rp.rotateX(-Math.PI/2);
+  HL.revPool=new THREE.Mesh(rp,HL.revPM); HL.revPool.visible=false; HL.revPool.renderOrder=2; G.add(HL.revPool);
+  // wall splash: where the beam meets a building (world space)
+  HL.splM=new THREE.MeshBasicMaterial(Object.assign({map:glowTex,color:0xffd9a0,opacity:0,side:THREE.DoubleSide},add));
+  HL.splash=new THREE.Mesh(new THREE.PlaneGeometry(1,1),HL.splM); HL.splash.visible=false; HL.splash.renderOrder=2; scene.add(HL.splash);
+  // traffic: pooled camera-facing lamp glows + one small road pool per car (no real lights)
+  const NG=112, NP=56, dyn=m=>{ m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.frustumCulled=false; m.count=0; m.renderOrder=2; scene.add(m); return m; };
+  HL.tr={ glow:dyn(new THREE.InstancedMesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMaterial(Object.assign({map:glowTex,color:0xffe7b8,opacity:0},add)),NG)),
+    pool:dyn(new THREE.InstancedMesh(pg,new THREE.MeshBasicMaterial(Object.assign({map:HL.tex,color:0xffd9a0,opacity:0},add)),NP)), NG, NP };
+}
+// find the car's front lamps (car-local): tagged lamp centres first, else the headlight meshes' own boxes
+function hlScan(car){
+  HL.car=car; const L=HL.lamps; L.length=0; const g=car.g; g.updateMatrixWorld(true); _hlM.copy(g.matrixWorld).invert();
+  _hlB.makeEmpty(); const all=new THREE.Box3();
+  g.traverse(o=>{ if(!o.isMesh||!o.geometry||!o.visible) return; const m=o.material;
+    if(m&&!Array.isArray(m)&&(m.transparent||m.blending===THREE.AdditiveBlending)) return;
+    if(!o.geometry.boundingBox) o.geometry.computeBoundingBox();
+    _hlM2.multiplyMatrices(_hlM,o.matrixWorld); _hlB.copy(o.geometry.boundingBox).applyMatrix4(_hlM2);
+    all.union(_hlB); });
+  if(all.isEmpty()) all.set(_hlV.set(-1,0,-2.4),_hlV2.set(1,1.4,2.4));
+  const cz=(all.min.z+all.max.z)/2, hz=(all.max.z-all.min.z)/2, hx=(all.max.x-all.min.x)/2;
+  g.traverse(o=>{ if(!o.isMesh||o.material!==MAT.hLight||!o.geometry||L.length>=6) return;
+    _hlM2.multiplyMatrices(_hlM,o.matrixWorld);
+    const T=o.userData.hlLamp;
+    if(T){ _hlV.set(T[0],T[1],T[2]).applyMatrix4(_hlM2); L.push({x:_hlV.x,y:_hlV.y,z:_hlV.z,src:o}); return; }
+    if(!o.geometry.boundingBox) o.geometry.computeBoundingBox();
+    _hlB.copy(o.geometry.boundingBox).applyMatrix4(_hlM2);
+    if((_hlB.min.z+_hlB.max.z)/2<cz+hz*0.35) return;
+    const y=(_hlB.min.y+_hlB.max.y)/2, z=_hlB.max.z+0.03, w=_hlB.max.x-_hlB.min.x;
+    if(w>0.9){ const e=Math.min(0.2,w*0.12); L.push({x:_hlB.max.x-e,y,z,src:o}); if(L.length<6) L.push({x:_hlB.min.x+e,y,z,src:o}); }
+    else L.push({x:(_hlB.min.x+_hlB.max.x)/2,y,z,src:o}); });
+  if(!L.length) for(const s of [1,-1]) L.push({x:s*hx*0.62,y:0.62,z:all.max.z+0.03,src:null});
+  HL.fz=all.max.z; HL.rz=all.min.z-0.04; HL.rx=hx*0.55; HL.ry=Math.min(0.85,Math.max(0.42,all.min.y+(all.max.y-all.min.y)*0.42));
+  for(let i=0;i<HL.spr.length;i++){ const s=HL.spr[i], l=L[i]; if(l) s.position.set(l.x,l.y,l.z+0.05); else s.visible=false; }
+  for(let s=0;s<2;s++){ const sg=s?-1:1; let n=0,x=0,y=0,z=0;                       // side 0 = the car's left (+x)
+    for(const l of L) if(l.x*sg>-0.1){ n++; x+=l.x; y+=l.y; z+=l.z; }
+    HL.side[s]=n?{x:x/n,y:y/n,z:z/n}:null;
+    const S=HL.side[s]||{x:sg*0.6,y:0.62,z:HL.fz};
+    HL.cone[s].position.set(S.x,S.y,S.z); HL.cone[s].rotation.y=sg*0.02;
+    HL.flare[s].position.set(S.x,S.y,S.z+0.08);
+    HL.pool[s].position.set(S.x*0.75,0.19,HL.fz+0.5);
+    HL.rev[s].position.set(sg*HL.rx,HL.ry,HL.rz-0.03); }
+  HL.revPool.position.set(0,0.19,HL.rz-2.4);
+}
+function hlLampOn(l,car){ if(car.dmg&&car.dmg.exploded) return false; const o=l.src; return !o||(o.visible&&o.material===MAT.hLight&&!!o.parent); }
+// the beam against the first building ahead: 2D ray through the collision grid's boxes; returns the distance (or -1) and the wall axis in HL.hitAx
+function hlRay(ox,oz,dx,dz,maxD){
+  if(typeof COLG==='undefined') return -1;
+  if(COLG.nb!==world.boxes.length||COLG.nc!==world.circles.length) return -1;      // the grid is rebuilt by the collision code; never here
+  let best=maxD, ax=-1; const C=COLG.cell; let lk=-1;
+  for(let s=0;s<=maxD+C;s+=C*0.5){ const k=colKey(Math.floor((ox+dx*s)/C),Math.floor((oz+dz*s)/C)); if(k===lk) continue; lk=k;
+    const Lb=COLG.boxes.get(k); if(!Lb) continue;
+    for(const b of Lb){ if(b.x1-b.x0<3||b.z1-b.z0<3) continue;
+      let t0=0,t1=best,a=-1;
+      if(Math.abs(dx)<1e-6){ if(ox<b.x0||ox>b.x1) continue; } else { let u=(b.x0-ox)/dx, v=(b.x1-ox)/dx; if(u>v){ const q=u; u=v; v=q; } if(u>t0){ t0=u; a=0; } if(v<t1) t1=v; if(t0>t1) continue; }
+      if(Math.abs(dz)<1e-6){ if(oz<b.z0||oz>b.z1) continue; } else { let u=(b.z0-oz)/dz, v=(b.z1-oz)/dz; if(u>v){ const q=u; u=v; v=q; } if(u>t0){ t0=u; a=1; } if(v<t1) t1=v; if(t0>t1) continue; }
+      if(a>=0&&t0>0.5&&t0<best){ best=t0; ax=a; } } }
+  HL.hitAx=ax; return ax>=0?best:-1;
+}
+function hlTick(dt,k){
+  if(!HL.g) hlBuild();
+  // ---- state: auto as dusk falls, manual override from the toggle
+  if((HL.prevK<=0.28&&k>0.28)||(HL.prevK<0.6&&k>=0.6)) HL.user=null;
+  HL.prevK=k;
+  headlightsOn=HL.user===null?k>0.28:HL.user; if(!headlightsOn) headlightsHigh=false;
+  const car=pCar, ok=!!car&&car.g.parent===scene&&car.g.visible&&started;
+  const want=ok&&headlightsOn&&!player.wreck?1:0, a=Math.min(1,dt*9);
+  HL.lvl+=(want-HL.lvl)*a; HL.hi+=((headlightsHigh?1:0)-HL.hi)*a;
+  const night=hlSm(0.2,0.7,k), lv=HL.lvl, hi=HL.hi;
+  hlTraffic(k);
+  if(!ok){ HL.g.visible=false; HL.splash.visible=false; if(headSpot) headSpot.intensity=0; return; }
+  if(HL.car!==car) hlScan(car);
+  const G=HL.g; G.visible=true; G.position.copy(car.g.position); G.quaternion.copy(car.g.quaternion);
+  // ---- which lamps still work (the damage system swaps a broken lamp's material / hides a lost one)
+  let nOn=0, sx=0; const sideOn=[0,0], L=HL.lamps;
+  for(let i=0;i<L.length;i++){ const l=L[i]; l.on=hlLampOn(l,car); if(l.on){ nOn++; sx+=l.x; if(l.x>-0.1) sideOn[0]++; if(l.x<0.1) sideOn[1]++; } }
+  const frac=L.length?nOn/L.length:0, fx=Math.sin(player.a), fz=Math.cos(player.a);
+  // facing: lamp glows only blaze when you look into them
+  _hlV.set(0,0.7,HL.fz).applyQuaternion(G.quaternion).add(G.position); _hlV2.copy(camera.position).sub(_hlV); const cd=_hlV2.length()||1;
+  const face=hlSm(-0.15,0.55,(_hlV2.x*fx+_hlV2.z*fz)/cd);
+  const sz=(0.30+0.20*lv*(0.6+0.4*night))*(1+0.25*hi);
+  for(let i=0;i<HL.spr.length;i++){ const s=HL.spr[i], l=L[i]; s.visible=!!l&&l.on; if(s.visible) s.scale.set(sz,sz,1); }
+  HL.sprM.opacity=(0.30+0.70*lv)*(0.45+0.55*face);
+  const fs=(0.9+0.8*night)*(1+0.35*hi)*(0.5+0.5*face);
+  HL.flM.opacity=lv*face*(0.14+0.26*night)*(1+0.5*hi);
+  const vis=lv*(0.22+0.78*night);
+  HL.coneM.uniforms.uOp.value=vis*(0.20+0.10*hi);
+  HL.poolM.opacity=vis*(0.36+0.12*hi);        // two pools overlap down the middle
+  const plen=(48+28*hi), pw=(15+5*hi);
+  for(let s=0;s<2;s++){ const on=sideOn[s]>0&&lv>0.02;
+    HL.flare[s].visible=on&&HL.flM.opacity>0.01; if(on) HL.flare[s].scale.set(fs,fs,1);
+    HL.cone[s].visible=on; if(on) HL.cone[s].scale.set(1+0.2*hi,1+0.2*hi,1+0.5*hi);
+    HL.pool[s].visible=on; if(on) HL.pool[s].scale.set(pw,1,plen); }
+  // ---- the one real light: warm white, wide soft cone, aimed a little down so road-side things catch it
+  if(headSpot){ headSpot.intensity=lv*frac*(1.3+3.3*night)*(1+0.5*hi); headSpot.distance=64+30*hi;
+    headSpot.position.x=nOn?sx/nOn*0.7:0; if(headSpot.target) headSpot.target.position.set(headSpot.position.x*0.5,-0.4+0.5*hi,24); }
+  // ---- wall splash
+  let spl=0;
+  if(lv>0.05&&frac>0){                         // collision boxes sit ~0.4 m proud of the wall: push the splash 0.3 m in
+    const ox=G.position.x+fx*HL.fz, oz=G.position.z+fz*HL.fz, d=hlRay(ox,oz,fx,fz,34+20*hi);
+    if(d>0){ const S=HL.splash, w=2.2+0.34*d, h=Math.min(1.6+0.20*d,7), xf=HL.hitAx===0;
+      S.position.set(ox+fx*d+(xf?Math.sign(fx)*0.3:0),G.position.y+0.25+h*0.42,oz+fz*d+(xf?0:Math.sign(fz)*0.3));
+      S.rotation.y=xf?Math.PI/2:0; S.scale.set(w*1.5,h*1.5,1);
+      spl=vis*frac*(0.55+0.2*hi)*Math.pow(1-d/(36+20*hi),1.2); }
+  }
+  HL.splM.opacity=Math.max(0,spl); HL.splash.visible=spl>0.01;
+  // ---- reversing lights
+  const vf=player.vx*fx+player.vz*fz, rv=!onFoot&&!player.wreck&&!(car.dmg&&car.dmg.exploded)&&vf<-0.6?1:0;
+  HL.revK+=(rv-HL.revK)*Math.min(1,dt*14);
+  const rk=HL.revK, rs=0.32+0.14*night;
+  for(const s of HL.rev){ s.visible=rk>0.03; s.scale.set(rs,rs,1); }
+  HL.revM.opacity=rk*0.9; HL.revPool.visible=rk>0.03; HL.revPM.opacity=rk*(0.08+0.24*night); HL.revPool.scale.set(5.2,1,4.6);
+}
+// traffic: two lamp glows that face the camera + a short pool on the road, from dusk on
+function hlTraffic(k){
+  const T=HL.tr; if(!T) return; const nk=hlSm(0.24,0.55,k);
+  if(nk<=0||!started){ T.glow.count=0; T.pool.count=0; return; }
+  let ng=0, np=0; const cx=camera.position.x, cy=camera.position.y, cz=camera.position.z, cq=camera.quaternion;
+  for(const v of traffic){ if(v.wrecked||v.dyn||v.parked||v.abandoned||v.car===pCar) continue;
+    const dx=v.x-cx, dz=v.z-cz, d2=dx*dx+dz*dz; if(d2>190*190) continue;
+    const D=v.car&&v.car.dmg; if(D&&(D.exploded||D.hp<=0)) continue;
+    const fx=Math.sin(v.a), fz=Math.cos(v.a), y0=v.y||0, hl=v.hl||2.35, hw=(v.hw||1.05)*0.66, ly=v.kind==='bus'?0.95:0.62;
+    const px=v.x+fx*(hl+0.06), pz=v.z+fz*(hl+0.06), d=Math.sqrt(d2)||1;
+    const face=hlSm(-0.1,0.5,-(dx*fx+dz*fz)/d);
+    if(face>0.03&&ng+2<=T.NG){ const s=(0.55+0.5*face+Math.min(1.6,d*0.012))*(0.6+0.4*nk);
+      for(const sg of [1,-1]){ _hlV.set(px+fz*hw*sg,y0+ly,pz-fx*hw*sg); _hlM.compose(_hlV,cq,_hlS.set(s,s,1)); T.glow.setMatrixAt(ng++,_hlM); } }
+    if(np<T.NP&&d2<120*120){ _hlQ.setFromAxisAngle(_hlUp,v.a); _hlM.compose(_hlV.set(px+fx*0.4,y0+0.19,pz+fz*0.4),_hlQ,_hlS.set(8.5,1,17)); T.pool.setMatrixAt(np++,_hlM); } }
+  T.glow.count=ng; T.pool.count=np; T.glow.instanceMatrix.needsUpdate=true; T.pool.instanceMatrix.needsUpdate=true;
+  T.glow.material.opacity=0.85*nk; T.pool.material.opacity=0.30*nk;
+}
+// ---- Sol's beacon: one hot-pink pillar of light over the venue she is waiting at, then over her destination while she rides
+const SB={m:null,gh:null,a:0,x:0,z:0,y:0,has:false};
+function solBeaconBuild(){
+  const H=170, parts=[[0.9,1.5,0.62],[2.6,4.2,0.20]], pos=[], col=[], ix=[]; let base=0;
+  for(const [r0,r1,br] of parts){ const N=12, R=6;
+    for(let j=0;j<=R;j++){ const t=j/R, r=r0+(r1-r0)*t, b=br*Math.pow(1-t,1.5)*(0.55+0.45*Math.min(1,t*14+0.2));
+      for(let i=0;i<=N;i++){ const a=i/N*Math.PI*2; pos.push(Math.cos(a)*r,t*H,Math.sin(a)*r); col.push(b,b,b); } }
+    for(let j=0;j<R;j++) for(let i=0;i<N;i++){ const a=base+j*(N+1)+i, b=a+N+1; ix.push(a,b,a+1, a+1,b,b+1); }
+    base+=(R+1)*(N+1); }
+  const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3)); g.setAttribute('color',new THREE.Float32BufferAttribute(col,3)); g.setIndex(ix);
+  const m=new THREE.Mesh(g,new THREE.MeshBasicMaterial({color:0xff1f9a,vertexColors:true,transparent:true,opacity:0,blending:THREE.AdditiveBlending,
+    depthWrite:false,fog:false,side:THREE.DoubleSide}));
+  m.frustumCulled=false; m.visible=false; m.renderOrder=3; scene.add(m); SB.m=m;
+  // a faint copy that ignores depth: from street level downtown the towers hide the pillar, the ghost still points the way
+  const gm=m.material.clone(); gm.depthTest=false; SB.gh=new THREE.Mesh(g,gm); SB.gh.frustumCulled=false; SB.gh.visible=false; SB.gh.renderOrder=3; scene.add(SB.gh);
+}
+function solBeaconTick(dt,t){
+  let p=null;
+  if(started&&typeof SOL!=='undefined'&&SOL.state!=='off'&&!SOL.paused){
+    if(SOL.state==='wait'||SOL.state==='greet'||SOL.state==='walk'){ const v=SOL.venues[SOL.act]; if(v) p=v.kerb||v.spot; }
+    else if(SOL.state==='ride'&&SOL.dest) p=SOL.dest; }
+  if(p&&(!SB.has||Math.hypot(p.x-SB.x,p.z-SB.z)>1)){ SB.a=0; SB.x=p.x; SB.z=p.z; SB.y=groundHeight(p.x,p.z,p.y||0)||0; }     // a new site: fade in afresh
+  SB.has=!!p; SB.a+=((p?1:0)-SB.a)*Math.min(1,dt*2.2);
+  if(SB.a<0.01){ if(SB.m){ SB.m.visible=false; SB.gh.visible=false; } return; }
+  if(!SB.m) solBeaconBuild();
+  const L=onFoot?foot:player, d=Math.hypot(L.x-SB.x,L.z-SB.z), near=hlSm(10,34,d);          // gone by the time you pull up
+  const cd=Math.hypot(camera.position.x-SB.x,camera.position.z-SB.z), w=Math.min(5,Math.max(1,cd/110));   // stays a few pixels wide from across town
+  const m=SB.m, gh=SB.gh, far=hlSm(45,110,d); m.visible=near>0.01; gh.visible=m.visible&&far>0.01; if(!m.visible) return;
+  m.position.set(SB.x,SB.y,SB.z); m.scale.set(w,1,w);
+  m.material.opacity=SB.a*near*(0.62+0.14*Math.sin(t*2.3))*(1.15-0.3*duskK);
+  if(gh.visible){ gh.position.copy(m.position); gh.scale.copy(m.scale); gh.material.opacity=m.material.opacity*0.22*far; }
+}
+// ---- look pass: the driver on foot is boxed in screen space + depth so the grade can keep his suit matte (see TRIP_FS uMat)
+function tripMatte(u){
+  let on=0;
+  if(onFoot&&avatar&&avatar.rig&&avatar.g.visible){
+    camera.updateMatrixWorld(); _hlM.copy(camera.matrixWorld).invert();
+    _hlV.copy(avatar.g.position); _hlV.y+=0.95; _hlV.applyMatrix4(_hlM); const z=-_hlV.z;
+    if(z>0.6&&z<70){ const P=camera.projectionMatrix.elements; on=1;
+      u.uMat.value.set(_hlV.x*P[0]/z*0.5+0.5,_hlV.y*P[5]/z*0.5+0.5,0.85*P[0]/z*0.5,1.12*P[5]/z*0.5); u.uMatZ.value.set(z,1); } }
+  if(!on) u.uMatZ.value.set(0,0);
+}
+
 // ================= TRIP: the surreal look (post-process pass + living sky) =================
 // Levels (P key / LOOK button / ?trip=0..3, remembered in localStorage):
 //   0 OFF     - exactly the plain renderer: nothing below is built, drawn or ticked
@@ -16209,6 +16471,7 @@ const TRIP_FS=`
 uniform sampler2D tScene; uniform sampler2D tDepth; uniform sampler2D tTrail;
 uniform vec2 uRes; uniform vec2 uPx; uniform vec2 uWeave; uniform vec2 uSunUV; uniform vec2 uSeed; uniform vec2 uKc; uniform vec3 uBodyA; uniform vec3 uBodyB;
 uniform float uT,uMono,uInk,uInkW,uHatch,uHatchS,uGrain,uVig,uDream,uShroom,uPulse,uLove,uSpeed,uZ,uK,uNear,uFar,uHor,uDepth,uGlow,uSunOn,uSunR,uPud;
+uniform vec4 uMat; uniform vec2 uMatZ;
 varying vec2 vUv;
 float tLin(float d){ return uNear*uFar/(uFar-d*(uFar-uNear)); }
 float tHash(vec2 p){ vec3 q=fract(vec3(p.xyx)*0.1031); q+=dot(q,q.yzx+33.33); return fract((q.x+q.y)*q.z); }
@@ -16308,12 +16571,17 @@ void main(){
   sc=mix(sc,sc*vec3(0.72,1.08,0.80),uZ*0.55);
   g=mix(g,sc,sky);
   col=mix(col,g,uMono);
+  // matte cloth (r9): inside the driver's screen box, at his depth, the grade stops lifting black cloth to slate, and the
+  // pale dark-on-dark rim and the shadow hatching are held back so they don't read as sheen across the suit
+  float mm=0.0;
+  if(uMatZ.y>0.5){ vec2 mq=abs(uv-uMat.xy)/uMat.zw; mm=(1.0-smoothstep(0.85,1.0,max(mq.x,mq.y)))*(1.0-smoothstep(0.9,1.7,abs(z0-uMatZ.x))); }
+  col*=1.0-0.34*mm*(1.0-smoothstep(0.08,0.30,l));
   // ink: black lines on lit surfaces, a pale cool rim where dark meets dark (the black coupe never melts into the road)
   float dk=1.0-smoothstep(0.06,0.22,lc);
-  col=mix(col,mix(vec3(0.018,0.022,0.05),vec3(0.40,0.46,0.60),dk),ink*mix(0.88,0.50,dk));
+  col=mix(col,mix(vec3(0.018,0.022,0.05),vec3(0.40,0.46,0.60),dk),ink*mix(0.88,0.50*(1.0-0.7*mm),dk));
   // ---- hatching in the deepest shadows (DREAM+)
   float hl=(1.0-smoothstep(0.03,0.20,lc))*(1.0-sky);
-  col+=vec3(0.045,0.055,0.085)*hl*uHatch*step(0.6,fract((gl_FragCoord.x+gl_FragCoord.y)*uHatchS));
+  col+=vec3(0.045,0.055,0.085)*hl*uHatch*(1.0-0.75*mm)*step(0.6,fract((gl_FragCoord.x+gl_FragCoord.y)*uHatchS));
   // ---- oil-slick drift in the pale highlights only (kept colours and hazards are never hue-shifted)
   float ia=uT*0.22+uv.x*3.0+uv.y*2.0+l*5.0;
   col+=smoothstep(0.62,0.95,lc)*(1.0-keep)*uDream*0.07*vec3(sin(ia),sin(ia+2.094),sin(ia+4.189));
@@ -16340,7 +16608,8 @@ function tripBuild(){
     uniforms:U({tScene:null,tDepth:null,tTrail:null,uRes:new THREE.Vector2(1,1),uPx:new THREE.Vector2(),uWeave:new THREE.Vector2(),
       uSunUV:new THREE.Vector2(),uSeed:new THREE.Vector2(),uT:0,uMono:0,uInk:0,uInkW:1,uHatch:0,uHatchS:0.2,uGrain:0,uVig:0,uDream:0,uShroom:0,
       uPulse:0,uLove:0,uSpeed:0,uZ:0,uK:0,uNear:0.1,uFar:800,uHor:0.5,uDepth:0,uGlow:0,uSunOn:0,uSunR:0.1,uPud:0,
-      uKc:new THREE.Vector2(0.5,0.9),uBodyA:new THREE.Vector3(-9,-9,0.01),uBodyB:new THREE.Vector3(-9,-9,0.01)})});
+      uKc:new THREE.Vector2(0.5,0.9),uBodyA:new THREE.Vector3(-9,-9,0.01),uBodyB:new THREE.Vector3(-9,-9,0.01),
+      uMat:new THREE.Vector4(0.5,0.5,0.1,0.1),uMatZ:new THREE.Vector2(0,0)})});
   T.tmat=new THREE.ShaderMaterial({vertexShader:TRIP_QUAD_VS,fragmentShader:TRIP_TRAIL_FS,depthTest:false,depthWrite:false,fog:false,
     uniforms:U({tScene:null,tDepth:null,tPrev:null,uStep:new THREE.Vector2(),uDecay:0,uDepth:0,uNear:0.1,uFar:800,uNight:0,uStepY:0})});
   T.quad=new THREE.Mesh(new THREE.PlaneGeometry(2,2),T.mat); T.quad.frustumCulled=false; T.scn.add(T.quad);
@@ -16637,6 +16906,7 @@ function tripUniforms(dt){
   u.uPulse.value=T.pulse*(lv>=2?1:0.5); u.uLove.value=T.love; u.uSpeed.value=lv>=2?T.speed:0;
   u.uGlow.value=(lv>=3?0.75:(lv>=2?0.6:0.45))*(1+0.7*night);
   u.uPud.value=(T.pud&&T.pud.mesh.visible)?1:0;
+  tripMatte(u);                           // r9: the driver's matte box
   // gate weave: a slow two-sine drift well under a pixel-and-a-half
   u.uWeave.value.set(Math.sin(t*7.3)*0.00035+Math.sin(t*1.9)*0.0004,Math.sin(t*5.1)*0.0003+Math.sin(t*2.7)*0.0004);
   const fr=Math.floor(t*24); u.uSeed.value.set((fr*37)%251,(fr*91)%241);
@@ -16884,6 +17154,7 @@ function loop(){
   updateDusk(dt);
   updateRuralAnim(dt,elapsed);
   birdUpdate(dt,elapsed);                // BIRDS: pigeons, wire rows, flocks, gulls, carrion
+  solBeaconTick(dt,elapsed);             // r9: Sol's pink sky beacon over the pickup venue / her destination
   if(debugOn) updateDebugReadout(dt);
   tripRender(dt);                        // TRIP: post-process look (plain renderer.render at level 0)
 }
@@ -16916,6 +17187,6 @@ addEventListener('resize',()=>{
   if(meOn){ mecv.width=innerWidth; mecv.height=innerHeight; }
 });
 </script>
-<div id="buildver" style="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(2px + env(safe-area-inset-bottom));font:600 10px/1.2 ui-monospace,Menlo,monospace;color:#fff;opacity:.6;letter-spacing:.06em;pointer-events:none;z-index:2147483000;text-shadow:0 1px 2px #000">v0.28 · 10 Nov 17:56</div>
+<div id="buildver" style="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(2px + env(safe-area-inset-bottom));font:600 10px/1.2 ui-monospace,Menlo,monospace;color:#fff;opacity:.6;letter-spacing:.06em;pointer-events:none;z-index:2147483000;text-shadow:0 1px 2px #000">v0.29 · 10 Nov 18:05</div>
 </body>
 </html>
