@@ -363,7 +363,7 @@
 </head>
 <body>
 
-<div id="version">STUNTMANIA '76 — Build 0.27.0</div>
+<div id="version">STUNTMANIA '76 — Build 0.28.0</div>
 
 <canvas id="canvas"></canvas>
 
@@ -529,7 +529,7 @@ rocketcar: "Z2xURgIAAAA8RwQA+BIAAEpTT057ImFzc2V0Ijp7ImdlbmVyYXRvciI6ImdsVEYtVHJh
 // Build 0.2.0  —  Active runup (throttle + steering), camera snap on launch.
 // ============================================================================
 
-const BUILD_VERSION = '0.27.0';
+const BUILD_VERSION = '0.28.0';
 
 // ---------- PALETTE ---------------------------------------------------------
 const COL = {
@@ -766,6 +766,7 @@ const G = {
   celebrateTimer: 0,
   fireworkTimer: 0,
   landPitch: 0,
+  bounceV: 0, bounceY: 0,   // landing bounce: upward speed and height off the surface
 };
 
 // Launch point reference (computed each launch)
@@ -4516,6 +4517,7 @@ function startLaunch() {
   G.celebrateTimer = 0;
   G.fireworkTimer = 0;
   G.landPitch = 0;
+  G.bounceV = 0; G.bounceY = 0;
 
   G.launchRampZ  = LAUNCH_RAMP_OFFSET;    // take-off is fixed
   // Quick run-up (default): swing meter, short approach, skill in the air
@@ -5084,6 +5086,18 @@ function finishJump(where) {
     if (lp > Math.PI) lp -= Math.PI * 2;
     if (lp < -Math.PI) lp += Math.PI * 2;
     G.landPitch = lp;
+    // Every landing bounces. The kick comes from how hard the wheels hit the
+    // surface (speed along its normal), so the curved run-out at the bottom of
+    // the ramp, where the deck flattens under a falling bike, throws it highest.
+    {
+      const LRb = landingRampLocal(G.posX);
+      const th = rampSlopeAt(LRb.S, LRb.xl);
+      const vn = Math.max(0, -(G.vx * Math.sin(th) + G.vy * Math.cos(th)));
+      const f = THREE.MathUtils.clamp((G.posX - LRb.faceX) / LRb.S.foot, 0, 1);   // 0 top of ramp, 1 bottom
+      const low = THREE.MathUtils.smoothstep(f, 0.5, 1);
+      G.bounceV = THREE.MathUtils.clamp(0.3 * vn, 3, 5) * (1 + 1.6 * low);
+      G.bounceY = 0;
+    }
     // Snap the camera into the celebration framing so it doesn't lag down
     // through the landing-ramp descent and lose the rider out of frame.
     if (celebrating && vehicleGroup) {
@@ -6145,7 +6159,20 @@ function animate() {
       const slopeTilt = onSlope ? -rampSlopeAt(LR.S, LR.xl) * slopeBlend : 0;
 
       const surfaceY = getGroundAt(G.posX, G.zPos);
-      G.posY = surfaceY + 0.4 + Math.max(0, Math.sin(wheelie)) * 0.35;
+      // Landing bounce: ballistic hops off the surface, each about half the last
+      if (G.bounceV !== 0 || G.bounceY > 0) {
+        G.bounceY += G.bounceV * dt;
+        G.bounceV -= GRAVITY * dt;
+        if (G.bounceY <= 0) {
+          const back = -G.bounceV * 0.45;
+          G.bounceY = 0;
+          if (back > 1.2) {
+            G.bounceV = back;
+            if (!SIM) { SFX.land(); for (let i = 0; i < 4; i++) spawnDust(G.posX - 0.6 + Math.random() * 1.2, surfaceY + 0.1, G.zPos + (Math.random() - 0.5) * 1.2); }
+          } else G.bounceV = 0;
+        }
+      }
+      G.posY = surfaceY + 0.4 + Math.max(0, Math.sin(wheelie)) * 0.35 + G.bounceY;
       vehicleGroup.position.set(G.posX, G.posY, G.zPos);
       vehicleGroup.rotation.set((fw ? 0 : G.bankAngle) + weave, 0, slopeTilt + wheelie);
       // Wave the near arm — ease it off the bars, then oscillate. Coords come
