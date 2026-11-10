@@ -14,7 +14,7 @@
 <meta name="twitter:card" content="summary_large_image"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <link rel="apple-touch-icon" href="/sunset-city/square.png"/>
-<meta name="build-version" content="v0.15"/>
+<meta name="build-version" content="v0.16"/>
 <style>
   html,body{margin:0;padding:0;overflow:hidden;background:#1a1420;height:100%;touch-action:none;}
   canvas{display:block;}
@@ -1713,6 +1713,451 @@ function trRoadY(v){
   return edgeY(e,v.fwd?v.t:e.len-v.t);
 }
 
+// ======================= citydet: downtown street / facade / rooftop / alley detail =======================
+// Everything here is DERIVED at build time from what the city builders produced: each lot's own facade walls
+// (read back out of the merged buckets, so any style's real outline is used), its flat roof and whatever already
+// stands on it, the alleys, the block pavements and the road graph. No coordinates are hard-coded and every
+// choice is a pure function of (ARCH_SEED, position) through archRng. Facade + rooftop detail goes into the
+// existing merged buckets / roofParts / neonParts / neonSigns / beacons / pools (no new draw calls); street props
+// are a few InstancedMeshes registered with the breakables (brkTag) so they can be knocked flying.
+const CD={lots:[],alleys:[],cafe:[],bags:[],vents:[],glow:[],depth:0,fx:null,
+  n:{bill:0,sign:0,heli:0,ant:0,wt:0,hvac:0,esc:0,ac:0,awn:0,blade:0,shut:0,tag:0,win:0,bus:0,kiosk:0,booth:0,cart:0,taxi:0,vent:0,bollard:0,planter:0,table:0,bag:0,meter:0}};
+const CD_FAC=['office','apt','deco','old','mimo','mission','motel','shop'];
+// lit-pane rectangles of each facade tile (see facadeTextures / archTex): u ranges inside a bay, v range inside a floor
+const CD_WIN={office:{u:[[0.06,0.47],[0.53,0.94]],v:[0.25,0.78]},apt:{u:[[0.27,0.73]],v:[0.27,0.8]},deco:{u:[[0.2,0.42],[0.59,0.81]],v:[0.28,0.75]},
+  old:{u:[[0.31,0.69]],v:[0.22,0.62]},mission:{u:[[0.36,0.64]],v:[0.28,0.55]},motel:{u:[[0.48,0.89]],v:[0.34,0.66]},mimo:{u:[[0.03,0.97]],v:[0.28,0.81]}};
+const CD_MIMO_SCR=1+Math.floor(archRng(4*13,109,77)()*3);   // archTex('mimo') draws its breeze-block bay first
+// shared low-poly rooftop bits (merged by mergeParts, so sharing the source geometry is free)
+const CD_FAN=(()=>{ const g=new THREE.CircleGeometry(0.4,6); g.rotateX(-Math.PI/2); return g; })();
+const CD_VENT=mergeParts([{g:new THREE.CylinderGeometry(0.11,0.11,0.55,5,1,true),c:'#9aa2b0',y:0.275},{g:new THREE.ConeGeometry(0.24,0.14,5),c:'#7a828e',y:0.62}]);
+const CD_DISH=mergeParts([{g:new THREE.CylinderGeometry(0.035,0.035,0.6,4,1,true),c:'#c8ccd4',y:0.3},{g:new THREE.ConeGeometry(0.38,0.16,6),c:'#e8e8ec',y:0.72,rx:-1.1}]);
+const CD_TAGC=['#e85a8a','#3fbab0','#f2d06a','#8a5cd1','#ff6f3f','#5cff8a','#3f9fff','#f2f2ea','#ff3fa4'];
+// wrap bld()/tower(): remember which slice of every merged bucket each lot wrote
+function cdWrapLot(fn,BK,RP,tag){
+  return function(x,z,w,d,o){
+    if(CD.depth>0) return fn.apply(this,arguments);
+    const n0={}; for(const k in BK) n0[k]=BK[k].p.length;
+    const A=cityFX.arch, a0=A?A.lots.length:0, r0=RP.length;
+    CD.depth++; let ret; try{ ret=fn.apply(this,arguments); } finally{ CD.depth--; }
+    const n1={}; for(const k in BK) n1[k]=BK[k].p.length;
+    const A2=cityFX.arch, st=(A2&&A2.lots.length>a0)?A2.lots[A2.lots.length-1].st:(tag==='t'?'tower':null);
+    CD.lots.push({x,z,w,d,o:o||{},tag,st,n0,n1,r0,r1:RP.length});
+    return ret;
+  };
+}
+// ---- facades, rooftops, alleys: runs at the end of buildBlocks, before the buckets are emitted ----
+function cdDressLots(api){
+  const {vbox,flat,tri3,roofParts:RP,pools,billboard,waterTower,BK,G0,PH}=api;
+  const MR=Math.random, low=LOWQ, C3=h=>new THREE.Color(h), podTop=G0+PH;
+  const vc0=BK.vc?BK.vc.p.length:0, rp0=RP.length;   // everything citydet adds is split off into its own (shadowless) meshes
+  const boxes=world.boxes.slice();
+  const inBox=(x,z,skip)=>{ for(const b of boxes){ if(x>b.x0&&x<b.x1&&z>b.z0&&z<b.z1&&skip.indexOf(b)<0) return true; } return false; };
+  const groundOK=(x,z)=>clearOfCarriageways(x,z,0.2)&&overpassHeight(x,z)<0;
+  const PK=a=>a[Math.floor(Math.random()*a.length)];
+  const WP=(W,al,out)=>[W.ax+W.rx*al+W.nx*out, W.az+W.rz*al+W.nz*out];
+  const wbox=(c,W,al,out,y0,len,h,th)=>{ const q=WP(W,al,out+th/2), X=Math.abs(W.nx)>0.5; vbox(c,q[0],y0,q[1],X?th:len,h,X?len:th); };
+  const wq4=(c,W,pts,out)=>{ const cc=C3(c), fy=[W.nx,0,W.nz], V=pts.map(([al,y])=>{ const q=WP(W,al,out); return [q[0],y,q[1]]; });
+    tri3('vc',V[0],V[1],V[2],cc,fy); tri3('vc',V[0],V[2],V[3],cc,fy); };
+  const wquad=(c,W,a0,a1,ya,yb,out)=>wq4(c,W,[[a0,ya],[a1,ya],[a1,yb],[a0,yb]],out);
+  const win=[[],[]];   // additive night overlays: [steady, tv]; xyz rgb per vertex
+  const WCOLS=[['#ffb05a',28],['#ff5ab4',13],['#3ff2d0',9],['#a05cff',9],['#ff3a3a',5],['#d8ecff',12],['#ffd890',6],['TV',18]];
+  function addWin(W,a0,a1,ya,yb){
+    let pick=Math.random()*100, col=WCOLS[0][0]; for(const [c,w] of WCOLS){ if((pick-=w)<0){ col=c; break; } }
+    const tv=col==='TV', cc=C3(tv?'#5a7cff':col).multiplyScalar(0.62), arr=win[tv?1:0];
+    const quad=(b0,b1,y0,y1)=>{ const P=(al,y)=>{ const q=WP(W,al,0.035); return [q[0],y,q[1]]; }, A=P(b0,y0),B=P(b1,y0),C=P(b1,y1),D=P(b0,y1);
+      for(const v of [A,B,C,A,C,D]) arr.push(v[0],v[1],v[2],cc.r,cc.g,cc.b); };
+    if(!tv&&Math.random()<0.3){ const h=(yb-ya)/3; for(let k=0;k<3;k++) quad(a0,a1,ya+k*h+h*0.2,ya+(k+1)*h-0.02); }   // half-drawn blinds
+    else quad(a0,a1,ya,yb);
+    CD.n.win++;
+  }
+  // every lit pane rectangle of a textured wall: fn(along0, along1, y0, y1, floor, bay)
+  function eachWindow(W,fn){ const S=CD_WIN[W.k]; if(!S) return; const fl=FK[W.k].fl, unit=4*fl, du=W.u1-W.u0; if(du<0.2) return;
+    const vb=W.y0-W.v0*unit, i0=Math.floor((W.y0-vb)/fl)-1, i1=Math.ceil((W.y1-vb)/fl)+1;
+    for(let i=i0;i<=i1;i++){ const yb=vb+i*fl, ya=yb+S.v[0]*fl, yt=yb+S.v[1]*fl; if(ya<W.y0+0.05||yt>W.y1-0.05) continue;
+      for(let q=Math.floor(W.u0*4)-1;q<=Math.ceil(W.u1*4);q++){ if(W.k==='mimo'&&((q%4)+4)%4===CD_MIMO_SCR) continue;
+        for(const [ua,ub] of S.u){ const U0=(q+ua)/4, U1=(q+ub)/4; if(U0<W.u0-1e-3||U1>W.u1+1e-3) continue;
+          fn((U0-W.u0)/du*W.len,(U1-W.u0)/du*W.len,ya,yt,i,q); } } } }
+  // spray-paint tag: bubble letters (dark outline + fill) leaning a little, optional zig-zag underline
+  function tag(W,al,yb,mw,out){ out=out||0.03; const n=3+Math.floor(Math.random()*3), lw=Math.min(0.42,(mw||2.2)/n), c=PK(CD_TAGC), c2=PK(CD_TAGC);
+    if(al<0.3||al+n*lw>W.len-0.3) return;
+    for(let i=0;i<n;i++){ const a=al+i*lw*0.92, h=rand(0.42,0.72), sk=rand(-0.12,0.12), y=yb+rand(-0.08,0.08), r=lw*0.88;
+      const q=(col,g,o)=>wq4(col,W,[[a-g+sk,y-g],[a+r+g+sk,y-g],[a+r+g-sk,y+h+g],[a-g-sk,y+h+g]],o);
+      q(i%2&&Math.random()<0.5?c2:c,0,out+0.008); }
+    if(Math.random()<0.5){ let px=al, py=yb-0.12; for(let k=0;k<4;k++){ const nx=px+n*lw/4, ny=yb-0.12+(k%2?0.1:-0.05);
+      wq4(c2,W,[[px,py],[nx,ny],[nx,ny+0.06],[px,py+0.06]],out+0.012); px=nx; py=ny; } }
+    CD.n.tag++; }
+  function posters(W,al,yb){ const n=2+Math.floor(Math.random()*3), pw=0.6, ph=0.86;
+    if(al<0.3||al+n*(pw+0.08)>W.len-0.3) return;
+    const PC=['#ff5ab4','#3fbab0','#f2d06a','#2a3a5a','#ff6f3f','#8a5cd1','#e8e2d2'];
+    for(let i=0;i<n;i++){ const a=al+i*(pw+0.08), y=yb+rand(-0.05,0.05);
+      wquad('#f2efe6',W,a,a+pw,y,y+ph,0.025); wquad(PK(PC),W,a+0.05,a+pw-0.05,y+0.05,y+ph-0.05,0.031);
+      wquad(PK(PC),W,a+0.05,a+pw-0.05,y+ph*0.62,y+ph*0.78,0.036); } }
+  function awning(W){ const len=Math.min(W.len*0.8,W.len-1.2), n=Math.max(3,Math.round(len/1.1)), seg=len/n, a0=(W.len-len)/2;
+    const pal=PK([['#d9402a','#f4f0e6'],['#2a9d8f','#f4f0e6'],['#e85a8a','#f6e6ee'],['#2a3a5a','#f2d06a'],['#3fbab0','#ffffff'],['#f4a259','#3a2a22'],['#5a7ac9','#f4f0e6'],['#1f6f78','#f2d06a']]);
+    const X=Math.abs(W.nx)>0.5, sl=0.38, dep=1.5, cs=Math.cos(sl)*dep, drop=Math.sin(sl)*dep, ytop=G0+3.05;
+    for(let i=0;i<n;i++){ const al=a0+(i+0.5)*seg, q=WP(W,al,cs/2), c=pal[i%2];
+      RP.push(X?{g:new THREE.BoxGeometry(dep,0.05,seg),c,x:q[0],y:ytop-drop/2,z:q[1],rz:-sl*W.nx}
+               :{g:new THREE.BoxGeometry(seg,0.05,dep),c,x:q[0],y:ytop-drop/2,z:q[1],rx:sl*W.nz});
+      wbox(c,W,al,cs-0.03,ytop-drop-0.3,seg,0.3,0.04); }
+    CD.n.awn++; }
+  function neonShape(W){ const al=rand(1.0,W.len-1.0), c=PK(NEON_COLS), y=G0+rand(1.55,2.2), X=Math.abs(W.nx)>0.5, s=Math.floor(Math.random()*4);
+    const tube=(lx,ly,len,rot)=>{ const q=WP(W,al+lx,0.05); neonParts.push(X?{g:new THREE.BoxGeometry(0.05,0.05,len),c,x:q[0],y:y+ly,z:q[1],rx:rot}
+                                                                         :{g:new THREE.BoxGeometry(len,0.05,0.05),c,x:q[0],y:y+ly,z:q[1],rz:rot}); };
+    if(s===0){ tube(0,0.22,0.9,0); tube(0,-0.22,0.9,0); tube(-0.45,0,0.44,Math.PI/2); tube(0.45,0,0.44,Math.PI/2); }
+    else if(s===1){ tube(0,0,0.8,0); tube(0.3,0.1,0.3,0.7); tube(0.3,-0.1,0.3,-0.7); }
+    else if(s===2){ tube(-0.15,0.14,0.42,1.0); tube(0.15,0.14,0.42,-1.0); tube(0,0.31,0.62,0); tube(0,-0.2,0.34,Math.PI/2); tube(0,-0.37,0.3,0); }
+    else { tube(-0.3,0,0.42,0.9); tube(0,0,0.42,-0.9); tube(0.3,0,0.42,0.9); } }
+  function roofSign(L,fx,fz,roofY){ const fw=fx?L.d:L.w, sw=Math.min(fw*0.85,8), sh=sw*0.25, by=roofY+0.6, sx=L.x+fx*(L.w/2-1.6), sz=L.z+fz*(L.d/2-1.6);
+    for(const s of [-1,1]){ const px=sx+(fx?0:s*sw*0.4), pz=sz+(fx?s*sw*0.4:0); vbox('#2a2834',px,roofY,pz,0.16,sh+0.8,0.16); }
+    vbox('#2a2834',sx,by-0.15,sz,fx?0.3:sw,0.15,fx?sw:0.3);
+    vbox('#16141e',sx-fx*0.12,by,sz-fz*0.12,fx?0.08:sw,sh,fx?sw:0.08);
+    neonSigns.push({word:PK(['SUNSET','PARADISE','MIRAMAR','FLAMINGO','HOTEL','LOUNGE','CLUB','LIQUOR','DINER','TACOS','NOODLES']),x:sx+fx*0.02,y:by+sh/2,z:sz+fz*0.02,ry:Math.atan2(fx,fz),kind:'roof',w:sw}); }
+
+  function dressLot(L){
+    const R=Math.random, o=L.o, kind=L.tag==='t'?'office':(o.kind||'apt'), st=L.st;
+    const own=boxes.filter(b=>Math.abs((b.x0+b.x1)/2-L.x)<0.05&&Math.abs((b.z0+b.z1)/2-L.z)<0.05);
+    // ---- read this lot's walls back out of the buckets (6 verts each: A0 B0 B1 A0 B1 A1) ----
+    const walls=[];
+    for(const k of CD_FAC){ const B=BK[k]; if(!B) continue; const i1=L.n1[k]||0;
+      for(let i=L.n0[k]||0;i+18<=i1;i+=18){ const p=B.p, vi=i/3, u=B.u;
+        const ax=p[i],y0=p[i+1],az=p[i+2],bx=p[i+3],bz=p[i+5],y1=p[i+7], nx=B.n[i], nz=B.n[i+2], len=Math.hypot(bx-ax,bz-az);
+        if(len<0.6||(Math.abs(nx)<0.99&&Math.abs(nz)<0.99)) continue;
+        walls.push({k,ax,az,bx,bz,y0,y1,nx,nz,rx:(bx-ax)/len,rz:(bz-az)/len,len,u0:u[vi*2],v0:u[vi*2+1],u1:u[vi*2+2],v1:u[vi*2+5],
+          row:k==='shop'?Math.round((1-u[vi*2+5]-0.003)*8):-1}); } }
+    if(!walls.length) return;
+    const vc=BK.vc, t0=L.n0.vc||0, t1=L.n1.vc||0, VP=vc?vc.p:[];
+    const inFront=(W,o0,o1,ya,yb,a0,a1)=>{ const pc=W.ax*W.nx+W.az*W.nz;
+      for(let i=t0;i<t1;i+=9){ const y=(VP[i+1]+VP[i+4]+VP[i+7])/3; if(y<ya||y>yb) continue;
+        const x=(VP[i]+VP[i+3]+VP[i+6])/3, z=(VP[i+2]+VP[i+5]+VP[i+8])/3, ou=x*W.nx+z*W.nz-pc; if(ou<o0||ou>o1) continue;
+        const al=(x-W.ax)*W.rx+(z-W.az)*W.rz; if(al>=a0&&al<=a1) return true; } return false; };
+    const isSt=W=>(o.faces||[]).some(f=>f[0]===Math.round(W.nx)&&f[1]===Math.round(W.nz));
+    let facTop=G0; for(const W of walls) if(W.k!=='shop') facTop=Math.max(facTop,W.y1);
+    for(const W of walls){
+      const mid=WP(W,W.len/2,1.0); if(inBox(mid[0],mid[1],own)) continue;          // party wall / hidden
+      const openAt=al=>{ const q=WP(W,al,1.0); return !inBox(q[0],q[1],own); };
+      const street=isSt(W);
+      if(W.k==='shop'){
+        const row=W.row;
+        if(row===7||row===2||!street){                                              // service / shuttered / back of house
+          if(R()<(row===2?0.6:0.45)){ const al=rand(0.6,Math.max(0.7,W.len-2.6)); if(openAt(al+1)) tag(W,al,G0+rand(0.35,1.1)); }
+          if(R()<0.35){ const al=rand(0.6,Math.max(0.7,W.len-2.8)); if(openAt(al+1)) posters(W,al,G0+0.95); }
+          if(row===7&&R()<0.22){ const al=rand(1,W.len-1), q=WP(W,al,0.85); if(openAt(al)) CD.bags.push([q[0],q[1],R()*6.28]); }
+          continue; }
+        if(row===3) continue;
+        const hasCan=inFront(W,0.1,1.7,G0+2.2,G0+3.6,W.len*0.25,W.len*0.75);
+        let awn=hasCan;
+        if(!hasCan&&[0,1,5,6].includes(row)&&W.len>3.2&&R()<0.6){ const q=WP(W,W.len/2,1.6); if(groundOK(q[0],q[1])){ awning(W); awn=true; } }
+        if(awn&&(row===1||row===0)&&R()<0.4){ const q=WP(W,W.len*(R()<0.5?0.3:0.7),1.0); CD.cafe.push([q[0],q[1],Math.atan2(W.nx,W.nz)]); }
+        if([0,1,5,6].includes(row)&&W.len>3&&R()<0.16){                             // roller shutter, down or half down
+          const sl=Math.min(W.len*0.42,4.4), al=rand(sl/2+0.6,W.len-sl/2-0.6), down=R()<0.5, yl=down?G0+0.02:G0+rand(1.2,2.0);
+          wbox('#8a8e98',W,al,0.02,yl,sl,G0+3.15-yl,0.05);
+          for(let y=yl+0.22;y<G0+3.05;y+=0.3) wquad('#6a6e78',W,al-sl/2,al+sl/2,y,y+0.05,0.075);
+          wbox('#55595f',W,al,0.0,G0+3.15,sl+0.12,0.3,0.28); CD.n.shut++;
+          if(down&&R()<0.6) tag(W,al-sl/2+0.3,G0+0.55,sl-0.6,0.085); }
+        if([0,1,4,6].includes(row)&&facTop>podTop+3&&W.len>4&&R()<0.3&&!inFront(W,0.5,1.7,podTop,podTop+5,0,W.len)){   // projecting blade sign
+          const s=R()<0.5?-1:1, al=W.len/2+s*(W.len/2-1.1), q=WP(W,al,0.95), y=Math.min(facTop-2.2,podTop+2.4), X=Math.abs(W.nx)>0.5;
+          neonSigns.push({word:PK(['HOTEL','BAR','CLUB','MOTEL','LOUNGE','CAFE','JAZZ']),x:q[0],y,z:q[1],ry:Math.atan2(W.nx,W.nz)+Math.PI/2,kind:'v'});
+          vbox('#14121c',q[0],y-1.85,q[1],X?0.6:0.2,3.7,X?0.2:0.6);
+          wbox('#2a2834',W,al,0,y+1.55,0.1,0.1,0.66); wbox('#2a2834',W,al,0,y-1.7,0.1,0.1,0.66); CD.n.blade++; }
+        if(row!==2&&W.len>2.6&&R()<0.32) neonShape(W);
+        continue;
+      }
+      // ---- textured facade walls ----
+      const glassy=W.k==='office';
+      eachWindow(W,(a0,a1,ya,yb)=>{ if(R()<(glassy?0.05:0.085)*(low?0.5:1)) addWin(W,a0,a1,ya,yb); });
+      if(glassy||W.y0>podTop+0.05) continue;                                         // upper tiers / curtain walls: lights only
+      const F=FK[W.k], fl=F.fl, vb=W.y0-W.v0*4*fl;
+      let esc=null;
+      // fire escape: brick walk-ups and plain apartments, on yards, alleys and side streets
+      if((W.k==='old'||W.k==='apt')&&(st==null||st==='dingbat')&&W.len>6&&W.y1-Math.max(W.y0,podTop)>=2*fl-0.1){
+        const already=street&&inFront(W,0.9,1.25,podTop,W.y1,0,W.len);
+        if(!already&&R()<(street?(W.k==='old'?0.35:0.12):0.65)){
+          const al=rand(1.8,W.len-1.8), oq=WP(W,al,1.2);
+          if(openAt(al)&&groundOK(oq[0],oq[1])){
+            const ir='#1e1e26', L2=2.6, X=Math.abs(W.nx)>0.5, plats=[];
+            for(let i=0;i<60;i++){ const yb=vb+i*fl; if(yb<Math.max(W.y0,G0+2.9)-0.05) continue; if(yb>W.y1-fl+0.05) break; plats.push(yb-0.1); }
+            plats.forEach((yy,f)=>{
+              wbox(ir,W,al,0,yy,L2,0.07,1.1); wbox(ir,W,al,1.06,yy+0.07,L2,0.75,0.04);
+              for(const s of [-1,1]) wbox(ir,W,al+s*(L2/2-0.02),0,yy+0.07,0.04,0.75,1.1);
+              if(f<plats.length-1){ const q=WP(W,al,0.72), run=L2*0.9, ang=Math.atan2(fl,run)*(f%2?1:-1), ln=Math.hypot(fl,run);
+                RP.push(X?{g:new THREE.BoxGeometry(0.5,0.05,ln),c:ir,x:q[0],y:yy+fl/2,z:q[1],rx:ang}
+                         :{g:new THREE.BoxGeometry(ln,0.05,0.5),c:ir,x:q[0],y:yy+fl/2,z:q[1],rz:ang}); } });
+            if(plats.length){ const y0=plats[0]-2.1, la=al+L2/2-0.4;                    // drop ladder under the bottom landing
+              for(const s of [-0.2,0.2]) wbox(ir,W,la+s,0.85,y0,0.04,2.1,0.04);
+              for(let y=y0+0.3;y<plats[0];y+=0.35) wbox(ir,W,la,0.85,y,0.4,0.03,0.04);
+              esc=[al-L2/2-0.4,al+L2/2+0.4]; CD.n.esc++; } } } }
+      if(W.k==='office') continue;
+      // drainpipe from the gutter to the pavement, near one end
+      if(R()<0.4){ const al=R()<0.5?0.75:W.len-0.75;
+        if(openAt(al)&&!(esc&&al>esc[0]&&al<esc[1])){ const pc=PK(['#4a4e58','#5a5048','#3e4a48','#6a6e78']);
+          wbox(pc,W,al,0.05,G0,0.13,W.y1+0.15-G0,0.13); wbox(pc,W,al,0.0,W.y1-0.4,0.34,0.32,0.26); } }
+      // window AC units on the upper floors
+      if(['apt','old','deco','mimo','mission'].includes(W.k)){ const pAC=(W.k==='old'||W.k==='apt'?0.045:0.025)*(low?0.5:1);
+        eachWindow(W,(a0,a1,ya)=>{ if(ya<G0+2.6||R()>pAC) return; const al=(a0+a1)/2; if(esc&&al>esc[0]&&al<esc[1]) return; if(!openAt(al)) return;
+          wbox(R()<0.5?'#c8ccd0':'#b0b6bc',W,al,-0.05,ya+0.02,Math.min(0.62,a1-a0+0.1),0.4,0.45); CD.n.ac++; }); }
+      // ground-floor tags and fly-posters on blank side walls (no shop podium here)
+      if(!street&&W.y0<G0+0.05){ if(R()<0.35){ const al=rand(0.6,Math.max(0.7,W.len-2.6)); if(openAt(al+1)) tag(W,al,G0+rand(0.4,1.2)); }
+        if(R()<0.2){ const al=rand(0.6,Math.max(0.7,W.len-2.8)); if(openAt(al+1)) posters(W,al,G0+1.0); } }
+    }
+    // ---- roof: flat top of this lot and what already stands on it ----
+    const RB=BK.roof; if(!RB) return; const r0=L.n0.roof||0, r1=L.n1.roof||0; if(r1<=r0) return;
+    let ry=-1e9; for(let i=r0;i<r1;i+=3) ry=Math.max(ry,RB.p[i+1]);
+    let bx0=1e9,bx1=-1e9,bz0=1e9,bz1=-1e9;
+    for(let i=r0;i<r1;i+=3) if(Math.abs(RB.p[i+1]-ry)<0.02){ const x=RB.p[i], z=RB.p[i+2]; bx0=Math.min(bx0,x); bx1=Math.max(bx1,x); bz0=Math.min(bz0,z); bz1=Math.max(bz1,z); }
+    bx0+=0.3; bx1-=0.3; bz0+=0.3; bz1-=0.3; if(bx1-bx0<3||bz1-bz0<3) return;
+    L.roofY=ry;
+    const CS=0.5, gx=Math.ceil((bx1-bx0)/CS), gz=Math.ceil((bz1-bz0)/CS), occ=new Uint8Array(gx*gz);
+    const cells=(x0,z0,x1,z1,fn)=>{ const i0=Math.max(0,Math.floor((x0-bx0)/CS)), i1=Math.min(gx-1,Math.floor((x1-bx0)/CS)), j0=Math.max(0,Math.floor((z0-bz0)/CS)), j1=Math.min(gz-1,Math.floor((z1-bz0)/CS));
+      for(let i=i0;i<=i1;i++) for(let j=j0;j<=j1;j++) if(fn(i*gz+j)) return true; return false; };
+    const mark=(x0,z0,x1,z1)=>cells(x0,z0,x1,z1,k=>{ occ[k]=1; return false; });
+    const free=(x0,z0,x1,z1)=>x0>=bx0&&z0>=bz0&&x1<=bx1&&z1<=bz1&&!cells(x0,z0,x1,z1,k=>occ[k]);
+    for(let i=t0;i<t1;i+=9){ const ym=Math.max(VP[i+1],VP[i+4],VP[i+7]); if(ym<ry+0.04||Math.min(VP[i+1],VP[i+4],VP[i+7])>ry+30) continue;
+      const xa=Math.min(VP[i],VP[i+3],VP[i+6]), xb=Math.max(VP[i],VP[i+3],VP[i+6]), za=Math.min(VP[i+2],VP[i+5],VP[i+8]), zb=Math.max(VP[i+2],VP[i+5],VP[i+8]);
+      if(xb<bx0||xa>bx1||zb<bz0||za>bz1) continue; mark(xa-0.15,za-0.15,xb+0.15,zb+0.15); }
+    let hasWT=false;
+    for(let i=L.r0;i<L.r1;i++){ const e=RP[i]; if(!e.g.boundingSphere) e.g.computeBoundingSphere();
+      const r=e.g.boundingSphere.radius*Math.max(e.sx||1,e.sy||1,e.sz||1); if((e.y||0)+r<ry+0.04) continue;
+      if(e.g.type==='CylinderGeometry'&&e.g.parameters.radiusTop===1.0) hasWT=true; mark(e.x-r,e.z-r,e.x+r,e.z+r); }
+    const spot=(w,d,tries)=>{ for(let k=0;k<(tries||8);k++){ const x=rand(bx0+w/2,bx1-w/2), z=rand(bz0+d/2,bz1-d/2);
+      if(free(x-w/2-0.15,z-d/2-0.15,x+w/2+0.15,z+d/2+0.15)){ mark(x-w/2-0.15,z-d/2-0.15,x+w/2+0.15,z+d/2+0.15); return [x,z]; } } return null; };
+    const area=(bx1-bx0)*(bz1-bz0), tower=L.tag==='t', tall=ry>24, resi=!tower&&kind!=='office';
+    const sf=(o.faces||[])[0];
+    // billboard or a lit sign frame facing the main street (low / mid rise)
+    if(sf&&!tower&&ry<podTop+18){ const [fx,fz]=sf, fw=fx?L.d:L.w;
+      if(CD.n.bill<16&&R()<0.14){ const bw=Math.min(fw*0.85,7.5), bx=L.x+fx*(L.w/2-1.4), bz=L.z+fz*(L.d/2-1.4);
+        const rc=fx?[bx-0.7,bz-bw/2,bx+0.7,bz+bw/2]:[bx-bw/2,bz-0.7,bx+bw/2,bz+0.7];
+        if(free(...rc)){ mark(...rc); billboard(L.x,L.z,L.w,L.d,fx,fz,ry); CD.n.bill++; } }
+      else if(CD.n.sign<16&&R()<0.14){ const sw=Math.min(fw*0.85,8), sx=L.x+fx*(L.w/2-1.6), sz=L.z+fz*(L.d/2-1.6);
+        const rc=fx?[sx-0.5,sz-sw/2,sx+0.5,sz+sw/2]:[sx-sw/2,sz-0.5,sx+sw/2,sz+0.5];
+        if(free(...rc)){ mark(...rc); roofSign(L,fx,fz,ry); CD.n.sign++; } } }
+    // helipad on a big flat top
+    if(ry>30&&CD.n.heli<3&&R()<0.6){ const S=Math.min(7,bx1-bx0-0.6,bz1-bz0-0.6), cx=(bx0+bx1)/2, cz=(bz0+bz1)/2;
+      if(S>=5.5&&free(cx-S/2,cz-S/2,cx+S/2,cz+S/2)){ mark(cx-S/2,cz-S/2,cx+S/2,cz+S/2);
+        vbox('#2c2c34',cx,ry,cz,S,0.14,S); const Y='#ffd23f';
+        vbox(Y,cx-S*0.16,ry+0.14,cz,0.32,0.02,S*0.42); vbox(Y,cx+S*0.16,ry+0.14,cz,0.32,0.02,S*0.42); vbox(Y,cx,ry+0.14,cz,S*0.32,0.02,0.3);
+        for(let k=0;k<12;k++){ const a=k*Math.PI/6, r=S*0.42; vbox('#f2f2ea',cx+Math.cos(a)*r,ry+0.14,cz+Math.sin(a)*r,0.3,0.02,0.3); }
+        for(const [sx,sz] of [[-1,-1],[1,-1],[-1,1],[1,1],[0,-1],[0,1],[-1,0],[1,0]]) neonParts.push({g:new THREE.BoxGeometry(0.16,0.12,0.16),c:'#5cff8a',x:cx+sx*S*0.48,y:ry+0.2,z:cz+sz*S*0.48});
+        CD.n.heli++; } }
+    // water tank on old walk-ups that lack one
+    if(kind==='old'&&!tower&&!hasWT&&area>40&&R()<0.55){ const s=spot(2.6,2.6,10); if(s){ waterTower(s[0],s[1],ry); CD.n.wt++; } }
+    // antenna mast with an aviation light on tall tops
+    if((tall&&!tower&&R()<0.6)||(tower&&R()<0.3)){ const s=spot(1,1,10); if(s){ const h=4+R()*5, c='#2a2432';
+      RP.push({g:new THREE.CylinderGeometry(0.05,0.09,h,5),c,x:s[0],y:ry+h/2,z:s[1]},{g:new THREE.BoxGeometry(0.9,0.05,0.05),c,x:s[0],y:ry+h*0.6,z:s[1]},
+        {g:new THREE.BoxGeometry(0.05,0.05,0.7),c,x:s[0],y:ry+h*0.8,z:s[1]});
+      cityFX.beacons.push([s[0],ry+h+0.12,s[1]]); CD.n.ant++; } }
+    // HVAC plant
+    const nH=area>120?2:1;
+    for(let k=0;k<nH;k++){ if(R()>0.75) continue; const w=rand(1.6,2.6), d=rand(1.2,1.8), h=rand(0.9,1.4), s=spot(w,d,8); if(!s) continue;
+      vbox(R()<0.5?'#8f97a4':'#a2a8b2',s[0],ry,s[1],w,h,d);
+      RP.push({g:CD_FAN,c:'#3a404a',x:s[0]+(w>2.1?w*0.22:0),y:ry+h+0.01,z:s[1]}); CD.n.hvac++; }
+    // vents
+    const nV=R()<0.6?1:0;
+    for(let k=0;k<nV;k++){ const s=spot(0.6,0.6,6); if(!s) continue;
+      if(R()<0.5) RP.push({g:CD_VENT,c:'#9aa2b0',x:s[0],y:ry,z:s[1]}); else vbox('#a0a8b4',s[0],ry,s[1],0.5,0.4,0.5); }
+    // satellite dish on homes
+    if(resi&&R()<0.45){ const s=spot(0.9,0.9,6); if(s) RP.push({g:CD_DISH,c:'#e8e8ec',x:s[0],y:ry,z:s[1],ry:R()*6.28}); }
+  }
+  function dressAlley(A){
+    const R=Math.random, P2=(u,c)=>{ const nc=A.FR-u, cr=A.a0+c; return [A.cx+(A.ax?A.ax*nc:cr), A.cz+(A.az?A.az*nc:cr)]; }, X=A.ax!==0;
+    for(let k=0;k<1+(R()<0.6?1:0);k++){ const u=rand(0.8,A.dep-0.8), c=rand(1.0,A.aw-1.0), [x,z]=P2(u,c), a=rand(0.6,1.4), b=rand(0.4,0.9);   // puddles
+      flat('vc',x-a/2,z-b/2,x+a/2,z+b/2,G0+0.012,C3('#262c3e')); flat('vc',x-a*0.3+0.2,z-b*0.8,x+a*0.35,z+b*0.6,G0+0.014,C3('#2e3650'));
+      if(R()<0.5) pools.push({x,z,ry:0,len:a*1.6,dep:b*1.8,col:PK(['#ff5ab4','#3ff2ff','#b45cff'])}); }
+    { const u=rand(1.2,Math.max(1.3,A.dep*0.5)), [dx,dz]=P2(u,0.03), [lx,lz]=P2(u,0.22), [px,pz]=P2(u,1.3);          // back door + lamp
+      vbox('#3a3e48',dx,G0,dz,X?1.0:0.06,2.1,X?0.06:1.0); vbox('#2a2834',lx,G0+2.42,lz,X?0.36:0.4,0.12,X?0.4:0.36);
+      neonParts.push({g:new THREE.BoxGeometry(0.24,0.06,0.24),c:'#ffd89a',x:lx,y:G0+2.38,z:lz});
+      pools.push({x:px,z:pz,ry:0,len:2.6,dep:2.6,col:'#ffcf7a'}); }
+    for(const u of [A.dep*0.28,A.dep*0.92]){ if(R()<0.35) continue; const [x,z]=P2(u,A.aw-0.75);                     // crates
+      vbox('#8a6a48',x,G0,z,0.75,0.6,0.75); if(R()<0.6) vbox('#9a7a52',x+0.05,G0+0.6,z-0.04,0.6,0.5,0.6); world.circles.push({x,z,r:0.5}); }
+    for(let k=0;k<2+(R()<0.5?1:0);k++){ const q=P2(A.dep*0.5+k*0.6,0.8+R()*0.2); CD.bags.push([q[0],q[1],R()*6.28]); }
+    if(R()<0.4){ const q=P2(rand(0.8,A.dep*0.4),A.aw/2); flat('vc',q[0]-0.35,q[1]-0.35,q[0]+0.35,q[1]+0.35,G0+0.016,C3('#1a1c22')); CD.vents.push([q[0],G0+0.02,q[1]]); }
+  }
+  for(const L of CD.lots){ Math.random=archRng(L.x,L.z,47); try{ dressLot(L); } finally{ Math.random=MR; } }
+  for(const A of CD.alleys){ Math.random=archRng(A.cx+A.a0,A.cz+A.ax*3+A.az*5,53); try{ dressAlley(A); } finally{ Math.random=MR; } }
+  // ---- night window variety: two additive meshes (steady + TV flicker), faded in with dusk ----
+  const mk=arr=>{ if(!arr.length) return null; const n=arr.length/6, p=new Float32Array(n*3), c=new Float32Array(n*3);
+    for(let i=0;i<n;i++){ p[i*3]=arr[i*6]; p[i*3+1]=arr[i*6+1]; p[i*3+2]=arr[i*6+2]; c[i*3]=arr[i*6+3]; c[i*3+1]=arr[i*6+4]; c[i*3+2]=arr[i*6+5]; }
+    const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.BufferAttribute(p,3)); g.setAttribute('color',new THREE.BufferAttribute(c,3)); g.computeBoundingSphere();
+    const m=new THREE.MeshBasicMaterial({vertexColors:true,transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide,fog:false,
+      polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});
+    const me=new THREE.Mesh(g,m); me.renderOrder=2; me.visible=false; scene.add(me); return me; };
+  const fx=CD.fx||(CD.fx={}); fx.winM=mk(win[0]); fx.tvM=mk(win[1]);
+  // detail is small and numerous: no shadow casting (halves its cost), but it still receives shadows
+  const B=BK.vc; if(B&&B.p.length>vc0){ const g=new THREE.BufferGeometry();
+    g.setAttribute('position',new THREE.Float32BufferAttribute(B.p.slice(vc0),3)); g.setAttribute('normal',new THREE.Float32BufferAttribute(B.n.slice(vc0),3));
+    g.setAttribute('color',new THREE.Float32BufferAttribute(B.c.slice(vc0),3)); g.computeBoundingSphere();
+    B.p.length=vc0; B.n.length=vc0; B.c.length=vc0; B.u.length=vc0/3*2;
+    const m=new THREE.Mesh(g,MAT.vc); m.receiveShadow=true; scene.add(m); fx.det=m; }
+  if(RP.length>rp0){ const m=new THREE.Mesh(mergeParts(RP.splice(rp0)),MAT.vc); m.receiveShadow=true; scene.add(m); fx.detR=m; }
+}
+// ---- street level: runs after buildStreetscape so it can see every lamp / tree / bench / meter collider ----
+function cdStreet(){
+  const MR=Math.random, G=0.34;
+  Object.assign(BRK_SMALL,{booth:{keep:0.9,hit:0.4,b:[0.46,1.12,0.46],up:1.12},cart:{keep:0.92,hit:0.3,b:[0.78,0.5,0.4],up:0.5},
+    planter:{keep:0.84,hit:0.5,b:[0.46,0.3,0.46],up:0.3},bollard:{keep:0.9,hit:0.42,b:[0.12,0.46,0.12],up:0.46},
+    table:{keep:0.975,hit:0.05,b:[0.55,0.38,0.55],up:0.38},bag:{keep:0.99,hit:0,b:[0.3,0.24,0.3],up:0.24}});
+  const lim=HALF+RW+12, HS=6, CG=new Map();
+  const addC=c=>{ const k=Math.floor(c.x/HS)*65536+Math.floor(c.z/HS); let a=CG.get(k); if(!a) CG.set(k,a=[]); a.push(c); };
+  for(const c of world.circles) if(Math.abs(c.x)<lim&&Math.abs(c.z)<lim) addC(c);
+  const nearC=(x,z,r)=>{ for(let i=Math.floor((x-r-5)/HS);i<=Math.floor((x+r+5)/HS);i++) for(let j=Math.floor((z-r-5)/HS);j<=Math.floor((z+r+5)/HS);j++){
+      const a=CG.get(i*65536+j); if(a) for(const c of a) if(Math.hypot(c.x-x,c.z-z)<c.r+r) return true; } return false; };
+  const res=(x,z,r)=>addC({x,z,r});
+  const cityBoxes=world.boxes.filter(b=>b.x1>-lim&&b.x0<lim&&b.z1>-lim&&b.z0<lim);
+  const inBoxR=(x,z,r)=>cityBoxes.some(b=>x>b.x0-r&&x<b.x1+r&&z>b.z0-r&&z<b.z1+r);
+  const paveAt=(x,z,park,r)=>{ r=r||0; return world.blocks.some(b=>(park||!b.park)&&Math.abs(x-b.cx)<b.hx-0.05-r&&Math.abs(z-b.cz)<b.hz-0.05-r); };
+  const ok=(x,z,r,park)=>paveAt(x,z,park,r)&&clearOfCarriageways(x,z,r+0.15)&&overpassHeight(x,z)<0&&!inBoxR(x,z,r)&&!nearC(x,z,r+0.2);
+  // static street furniture (one lambert mesh) + backlit panels (one unlit mesh)
+  const SB={p:[],n:[],c:[]}, PB={p:[],c:[]}, _c=new THREE.Color();
+  function sq(B,col,A,Bv,C,D,nrm){ _c.set(col); let V=[A,Bv,C,A,C,D];
+    if(nrm){ const ux=Bv[0]-A[0],uy=Bv[1]-A[1],uz=Bv[2]-A[2],vx=C[0]-A[0],vy=C[1]-A[1],vz=C[2]-A[2];
+      if((uy*vz-uz*vy)*nrm[0]+(uz*vx-ux*vz)*nrm[1]+(ux*vy-uy*vx)*nrm[2]<0) V=[A,C,Bv,A,D,C]; }
+    for(const v of V){ B.p.push(v[0],v[1],v[2]); if(B.n) B.n.push(nrm[0],nrm[1],nrm[2]); B.c.push(_c.r,_c.g,_c.b); } }
+  function frame(x,y0,z,ry){ const cs=Math.cos(ry), sn=Math.sin(ry);
+    const T=(lx,ly,lz)=>[x+lx*cs+lz*sn,y0+ly,z-lx*sn+lz*cs], N=(lx,lz)=>[lx*cs+lz*sn,0,-lx*sn+lz*cs];
+    return { T,
+      box(col,lx,ly,lz,w,h,d){ const a=w/2,b=d/2, P=(u,v,s)=>T(lx+u,ly+v,lz+s);
+        sq(SB,col,P(-a,0,b),P(a,0,b),P(a,h,b),P(-a,h,b),N(0,1)); sq(SB,col,P(a,0,-b),P(-a,0,-b),P(-a,h,-b),P(a,h,-b),N(0,-1));
+        sq(SB,col,P(a,0,b),P(a,0,-b),P(a,h,-b),P(a,h,b),N(1,0)); sq(SB,col,P(-a,0,-b),P(-a,0,b),P(-a,h,b),P(-a,h,-b),N(-1,0));
+        sq(SB,col,P(-a,h,b),P(a,h,b),P(a,h,-b),P(-a,h,-b),[0,1,0]); },
+      flat(col,lx,ly,lz,w,d){ const a=w/2,b=d/2; sq(SB,col,T(lx-a,ly,lz+b),T(lx+a,ly,lz+b),T(lx+a,ly,lz-b),T(lx-a,ly,lz-b),[0,1,0]); },
+      pan(col,lx,ly,lz,w,h,ax){ if(ax==='z') sq(PB,col,T(lx,ly,lz-w/2),T(lx,ly,lz+w/2),T(lx,ly+h,lz+w/2),T(lx,ly+h,lz-w/2));
+        else if(ax==='y') sq(PB,col,T(lx-w/2,ly,lz-h/2),T(lx+w/2,ly,lz-h/2),T(lx+w/2,ly,lz+h/2),T(lx-w/2,ly,lz+h/2));
+        else sq(PB,col,T(lx-w/2,ly,lz),T(lx+w/2,ly,lz),T(lx+w/2,ly+h,lz),T(lx-w/2,ly+h,lz)); } }; }
+  const LS={booth:[],cart:[],planter:[],bollard:[],table:[],bag:[],meter:[]};
+  const solid=(x,z,r)=>{ const c={x,z,r}; world.circles.push(c); res(x,z,r); };
+  const AD=[['#ff5ab4','#f6f0e4'],['#3ff2ff','#1f2a4a'],['#ffd23f','#d9402a'],['#ff7a3f','#f6f0e4'],['#b45cff','#ffd23f'],['#5cff8a','#1f2a4a']];
+  // ---- per kerb (edge side) ----
+  const sides=[];
+  for(const e of edges){ if(!isCityEdge(e)) continue; const nx=e.dz, nz=-e.dx;
+    for(const s of [1,-1]){ const P=(t,lat)=>[e.ax+e.dx*t+nx*lat*s, e.az+e.dz*t+nz*lat*s], ry=Math.atan2(-nx*s,-nz*s);
+      const mid=P(e.len/2,RW/2+1.0); if(!paveAt(mid[0],mid[1],0,0)) continue;
+      let F=RW/2+6;
+      for(const tf of [0.3,0.5,0.7]) for(let lat=RW/2+0.4;lat<F;lat+=0.2){ const q=P(e.len*tf,lat); if(inBoxR(q[0],q[1],0)||!paveAt(q[0],q[1],1,0)){ F=lat; break; } }
+      sides.push({e,s,P,ry,F,nx:nx*s,nz:nz*s,R:archRng(e.ax*0.5+e.bx*0.5+s*3.1,e.az*0.5+e.bz*0.5-s*1.7,61)}); } }
+  function busStop(S,t){ const c=S.P(t,RW/2+1.1), f=frame(c[0],G,c[1],S.ry);
+    for(const lx of [-2.4,-1.9,0,1.9]) for(const lz of [-0.75,0.75]){ const q=f.T(lx,0,lz); if(!ok(q[0],q[1],0.12,0)) return false; }
+    for(const sx of [-1.75,1.75]) for(const sz of [-0.62,0.62]) f.box('#2a2834',sx,0,sz,0.08,2.4,0.08);
+    f.box('#2a2834',0,2.4,0,3.9,0.1,1.6); f.box('#7a8494',0,2.5,0,3.7,0.04,1.4);
+    f.box('#3a5068',0,0.32,-0.62,3.4,1.9,0.04); f.box('#2a2834',0,0.08,-0.62,3.5,0.24,0.06);
+    f.box('#2a2834',1.78,0.12,-0.05,0.14,2.12,1.25); const [a1,a2]=AD[Math.floor(S.R()*AD.length)];
+    for(const sx of [1.857,1.703]){ f.pan(a1,sx,0.32,-0.05,1.05,1.75,'z'); f.pan(a2,sx+(sx>1.8?0.004:-0.004),0.95,-0.05,1.05,0.42,'z'); }
+    f.pan('#fff0c8',0,2.385,0,3.0,0.14,'y');
+    f.box('#7a5a3e',0,0.42,-0.36,2.2,0.07,0.38); for(const sx of [-0.9,0.9]) f.box('#2a2834',sx,0,-0.36,0.06,0.42,0.3);
+    f.box('#3a3644',-2.35,0,0.5,0.07,2.75,0.07); f.box('#d23a2e',-2.35,2.15,0.5,0.05,0.55,0.55); for(const sx of [-2.38,-2.32]) f.pan('#f2f2ea',sx,2.27,0.5,0.34,0.3,'z');
+    for(const lx of [-1.2,0,1.2]){ const q=f.T(lx,0,-0.38); solid(q[0],q[1],0.5); }
+    { const q=f.T(1.78,0,-0.05); solid(q[0],q[1],0.62); const p=f.T(-2.35,0,0.5); solid(p[0],p[1],0.15); }
+    const b=f.T(0,0,-0.36); (world.benches=world.benches||[]).push([b[0],b[2],S.ry]);
+    { const q=f.T(0,0,-0.3); CD.glow.push([q[0],q[2],2.6,'#ffe2b0']); } CD.n.bus++; return true; }
+  function kiosk(S,t){ const c=S.P(t,RW/2+1.25), f=frame(c[0],G,c[1],S.ry);
+    for(const lx of [-1.15,0,1.15]) for(const lz of [-0.75,0.75]){ const q=f.T(lx,0,lz); if(!ok(q[0],q[1],0.12,0)) return false; }
+    f.box('#2f5a46',0,0,0,2.0,2.2,1.2); f.box('#1c1e22',0,0.95,0.6,1.5,0.85,0.03);
+    const MC=['#ff5ab4','#f2d06a','#3fbab0','#e8e2d2','#ff6f3f','#5a7ac9'];
+    for(let i=0;i<5;i++) f.box(MC[(i+Math.floor(S.R()*6))%6],-0.8+i*0.4,0.25,0.64,0.32,0.55,0.06);
+    f.box('#24463a',0,2.2,0,2.3,0.12,1.5);
+    for(let i=0;i<4;i++) f.box(i%2?'#f4f0e6':'#2a9d8f',-0.75+i*0.5,1.92,0.86,0.5,0.06,0.5);
+    f.pan('#ffd23f',0,2.33,0.76,1.7,0.38,'x'); f.pan('#d23a2e',0,2.44,0.765,1.3,0.13,'x');
+    for(const lx of [-0.5,0.5]){ const q=f.T(lx,0,0); solid(q[0],q[1],0.75); }
+    { const q=f.T(0,0,-0.3); CD.glow.push([q[0],q[2],2.4,'#fff0c0']); } CD.n.kiosk++; return true; }
+  function taxiRank(S,t){ const c=S.P(t,RW/2+0.6), f=frame(c[0],G,c[1],S.ry);
+    for(const lx of [-7,-3.5,0,3.5,7]){ const q=f.T(lx,0,0.45); if(!(paveAt(q[0],q[1],0,0)&&clearOfCarriageways(q[0],q[1],0.05))) return false; }
+    for(const lx of [-1.6,0,1.6]){ const q=f.T(lx,0,-1.0); if(!ok(q[0],q[1],0.1,0)) return false; }
+    if(!ok(c[0],c[1],0.2,0)) return false;
+    f.box('#3a3644',0,0,0,0.08,2.8,0.08); f.box('#2a2834',0,2.15,0,0.08,0.6,0.95);
+    for(const sx of [-0.05,0.05]){ f.pan('#ffd23f',sx,2.2,0,0.85,0.5,'z'); for(let k=0;k<4;k++) f.pan(k%2?'#ffd23f':'#1a1a1e',sx*1.1,2.6,-0.3+k*0.2,0.2,0.08,'z'); }
+    { const p=[]; for(const lx of [-7,7]) for(const lz of [0.3,0.5]) p.push(f.T(lx,0.012,lz)); sq(SB,'#f2c43f',p[0],p[2],p[3],p[1],[0,1,0]); }
+    for(const lx of [-1.6,0,1.6]) f.box('#c8ccd4',lx,0,-1.0,0.06,1.0,0.06); f.box('#c8ccd4',0,0.95,-1.0,3.3,0.05,0.05);
+    solid(c[0],c[1],0.15); for(const lx of [-1.6,0,1.6]){ const q=f.T(lx,0,-1.0); solid(q[0],q[1],0.12); }
+    { const q=f.T(0,0,-1.0); CD.glow.push([q[0],q[2],2.6,'#ffd23f']); } CD.n.taxi++; return true; }
+  for(const S of sides){ Math.random=S.R; try{
+    const {e,P,ry}=S, R=Math.random, t0=RW/2+3, t1=e.len-RW/2-3, pw=S.F-RW/2, span=t1-t0, at=(t,lat)=>P(t,RW/2+lat);
+    if(span<6) continue;
+    if(pw>=2.9&&span>26&&R()<0.34&&CD.n.bus<(LOWQ?10:22)) for(const tt of [0.3,0.62,0.45,0.8,0.16]) if(busStop(S,t0+span*tt)) break;
+    if(pw>=3.0&&CD.n.kiosk<6&&R()<0.16) for(const t of [t0+2.6,t1-2.6,t0+span*0.4,t0+span*0.6]) if(kiosk(S,t)) break;
+    if(pw>=2.8&&span>30&&CD.n.taxi<2&&R()<0.3){ const m=P(e.len/2,RW/2); if(Math.hypot(m[0],m[1])<HALF*0.6) for(const tt of [0.72,0.5,0.28]) if(taxiRank(S,t0+span*tt)) break; }
+    if(R()<0.22){ const t=t0+R()*span, q=at(t,0.68); if(ok(q[0],q[1],0.5,0)){ LS.booth.push([q[0],q[1],ry]); res(q[0],q[1],0.5); const g=at(t,1.35); CD.glow.push([g[0],g[1],2.2,'#cfe6ff']); } }
+    if(CD.n.cart<(LOWQ?5:10)&&R()<0.14){ const t=t0+span*(0.2+R()*0.6), q=at(t,1.15), dx=e.dx*0.6, dz=e.dz*0.6;
+      if(ok(q[0]+dx,q[1]+dz,0.45,0)&&ok(q[0]-dx,q[1]-dz,0.45,0)){ LS.cart.push([q[0],q[1],ry]); res(q[0],q[1],0.85); CD.n.cart++; } }
+    if(R()<0.35) for(const tt of [R()<0.5?0.42:0.58]){ const q=at(t0+span*tt,0.66); if(ok(q[0],q[1],0.5,0)){ LS.planter.push([q[0],q[1],ry]); res(q[0],q[1],0.5); } }
+    if(!LOWQ&&CD.vents.length<18&&R()<0.1){ const q=at(t0+R()*span,1.05); if(ok(q[0],q[1],0.45,0)){ const f=frame(q[0],G,q[1],ry); f.flat('#1a1c22',0,0.012,0,0.8,0.8);
+      for(let k=-1;k<=1;k++) f.flat('#3a3e48',k*0.22,0.016,0,0.06,0.7); CD.vents.push([q[0],G+0.02,q[1]]); res(q[0],q[1],0.45); } }
+  } finally{ Math.random=MR; } }
+  // ---- parking meters beside parked cars that have none ----
+  for(const pc of (world.parkedCars||[])){ const R=archRng(pc.x,pc.z,63); if(R()<0.15) continue;
+    const ne=nearestEdge(pc.x,pc.z), e=ne.e; if(!e||!isCityEdge(e)) continue; const nx=e.dz, nz=-e.dx, s=Math.sign((pc.x-e.ax)*nx+(pc.z-e.az)*nz)||1;
+    const x=e.ax+e.dx*ne.t+nx*s*(RW/2+0.4), z=e.az+e.dz*ne.t+nz*s*(RW/2+0.4);
+    if(nearC(x,z,1.0)||!ok(x,z,0.15,0)) continue; LS.meter.push([x,z,Math.atan2(-nx*s,-nz*s)]); res(x,z,0.3); }
+  // ---- rubbish bags by bins, yards and alleys ----
+  for(const c of world.circles){ if(!c.br||c.br.k!=='bin'||Math.abs(c.x)>lim||Math.abs(c.z)>lim) continue; const R=archRng(c.x,c.z,67); if(R()>0.3) continue;
+    const e=nearestEdge(c.x,c.z).e; if(!e) continue; const sg=R()<0.5?-1:1;
+    for(let k=0;k<2+(R()<0.5?1:0);k++){ const d=sg*(0.75+k*0.55), x=c.x+e.dx*d, z=c.z+e.dz*d; if(ok(x,z,0.28,0)){ LS.bag.push([x,z,R()*6.28]); res(x,z,0.3); } } }
+  for(const b of CD.bags){ if(ok(b[0],b[1],0.28,0)){ LS.bag.push(b); res(b[0],b[1],0.3); } }
+  // ---- café sets under the new awnings ----
+  for(const t of CD.cafe){ if(ok(t[0],t[1],0.45,0)){ LS.table.push(t); res(t[0],t[1],0.55); } }
+  // ---- bollards: lobby fronts of the towers, the banks, the plaza ----
+  for(const Lt of CD.lots){ if(Lt.tag!=='t') continue; const R=archRng(Lt.x,Lt.z,71);
+    for(const [fx,fz] of (Lt.o.faces||[]).slice(0,1)){ if(R()<0.3) continue; const fw=fx?Lt.d:Lt.w, ox=Lt.x+fx*Lt.w/2, oz=Lt.z+fz*Lt.d/2;
+      let k=0.5; while(k<8&&paveAt(ox+fx*k,oz+fz*k,1,0)) k+=0.1; if(k>=8) continue;
+      const kd=k-0.45; for(let a=-fw*0.25;a<=fw*0.25+0.01;a+=1.8){ const x=ox+fx*kd+fz*a, z=oz+fz*kd-fx*a; if(ok(x,z,0.14,0)){ LS.bollard.push([x,z,0]); res(x,z,0.2); } } } }
+  for(const b of banks){ for(let a=-7;a<=7.01;a+=1.6){ if(Math.abs(a)<2.2) continue; const x=b.x+a, z=b.z+RW/2+0.4; if(ok(x,z,0.14,0)){ LS.bollard.push([x,z,0]); res(x,z,0.2); } } }
+  for(const b of world.blocks){ if(!b.plaza) continue; const lx=b.hx>b.hz;
+    for(const s of [-1,1]) for(let a=-(lx?b.hx:b.hz)+1;a<=(lx?b.hx:b.hz)-1;a+=2.6){ const x=b.cx+(lx?a:s*(b.hx-0.4)), z=b.cz+(lx?s*(b.hz-0.4):a); if(ok(x,z,0.14,1)){ LS.bollard.push([x,z,0]); res(x,z,0.2); } } }
+  // ---- instanced, breakable props ----
+  const BG=(w,h,d)=>new THREE.BoxGeometry(w,h,d), CY=(a,b,h,n,open)=>new THREE.CylinderGeometry(a,b,h,n||8,1,!!open);
+  const GEO={
+    booth:[{g:BG(0.95,0.08,0.95),c:'#3a3644',y:0.04},...[[-0.42,-0.42],[0.42,-0.42],[-0.42,0.42],[0.42,0.42]].map(([x,z])=>({g:BG(0.08,2.2,0.08),c:'#c8ccd4',x,y:1.1,z})),
+      {g:BG(0.8,1.6,0.03),c:'#2a3a4e',y:1.15,z:-0.42},{g:BG(0.03,1.6,0.8),c:'#2a3a4e',x:-0.42,y:1.15},{g:BG(0.03,1.6,0.8),c:'#2a3a4e',x:0.42,y:1.15},
+      {g:BG(0.3,0.42,0.12),c:'#3a3644',y:1.3,z:-0.34},{g:BG(1.0,0.12,1.0),c:'#c8ccd4',y:2.26},{g:BG(1.02,0.22,1.02),c:'#bfe6ff',y:2.05}],
+    cart:[{g:BG(1.5,0.7,0.75),c:'#d8dce4',y:0.55},{g:BG(1.52,0.12,0.77),c:'#d23a2e',y:0.72},{g:BG(1.4,0.05,0.65),c:'#9aa2b0',y:0.93},
+      {g:CY(0.28,0.28,0.08,6),c:'#1a1a1e',x:0.45,y:0.28,z:0.41,rx:Math.PI/2},{g:CY(0.28,0.28,0.08,6),c:'#1a1a1e',x:0.45,y:0.28,z:-0.41,rx:Math.PI/2},
+      {g:BG(0.08,0.3,0.08),c:'#3a3644',x:-0.6,y:0.15},{g:BG(0.05,0.05,0.7),c:'#3a3644',x:-0.86,y:0.95},
+      {g:CY(0.025,0.025,1.5,4,true),c:'#c8ccd4',y:1.65},{g:new THREE.ConeGeometry(0.85,0.36,8),c:'#f2d06a',y:2.45},{g:new THREE.ConeGeometry(0.36,0.16,8),c:'#d23a2e',y:2.7}],
+    planter:[{g:BG(0.9,0.6,0.9),c:'#8a8a92',y:0.3},{g:new THREE.IcosahedronGeometry(0.42,0),c:'#3f7a4f',y:0.95,sy:0.85},{g:new THREE.IcosahedronGeometry(0.16,0),c:'#ff7ad9',x:0.2,y:1.18,z:0.14}],
+    bollard:[{g:CY(0.12,0.13,0.9,5),c:'#3a3644',y:0.45},{g:CY(0.125,0.125,0.08,5,true),c:'#f2f2ea',y:0.74}],
+    table:[{g:CY(0.36,0.36,0.04,6),c:'#f2f2ea',y:0.74},{g:CY(0.03,0.03,0.72,4,true),c:'#3a3644',y:0.36},
+      ...[-1,1].flatMap(s=>[{g:BG(0.38,0.45,0.38),c:'#3fbab0',x:s*0.58,y:0.25},{g:BG(0.05,0.45,0.38),c:'#3fbab0',x:s*0.77,y:0.7}])],
+    bag:[{g:new THREE.IcosahedronGeometry(0.3,0),c:'#1e2026',y:0.22,sy:0.75}],
+    meter:[{g:CY(0.04,0.05,1.1,4,true),c:'#3a3644',y:0.55},{g:BG(0.2,0.3,0.14),c:'#8a92a0',y:1.2},{g:BG(0.12,0.1,0.02),c:'#e8e2d2',y:1.25,z:0.075}]};
+  const RAD={booth:0.5,cart:0.6,planter:0.5,bollard:0.15,table:0.5,bag:0.3};
+  const SHAD={booth:false,cart:false,planter:false,bollard:false,table:false,bag:false,meter:false};
+  const one=new THREE.Vector3(1,1,1);
+  for(const k in LS){ const list=LS[k]; if(!list.length) continue; CD.n[k]=(CD.n[k]||0)+list.length;
+    const im=new THREE.InstancedMesh(mergeParts(GEO[k]),MAT.vc,list.length); im.castShadow=SHAD[k]; im.frustumCulled=false;   // r128 culls instances by the base geometry's sphere
+    list.forEach((p,i)=>{ q4.setFromAxisAngle(YAXIS,p[2]); m4.compose(v3.set(p[0],groundHeight(p[0],p[1],0),p[1]),q4,one); im.setMatrixAt(i,m4);
+      if(k==='meter') brkTag(null,0,im,i,p); else world.circles.push(brkTag({x:p[0],z:p[1],r:RAD[k]},k,im,i)); });
+    scene.add(im); }
+  // ---- emit the static meshes, glow pools and steam ----
+  const fx=CD.fx||(CD.fx={});
+  if(SB.p.length){ const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(SB.p,3)); g.setAttribute('normal',new THREE.Float32BufferAttribute(SB.n,3));
+    g.setAttribute('color',new THREE.Float32BufferAttribute(SB.c,3)); g.computeBoundingSphere(); const m=new THREE.Mesh(g,MAT.vc); m.castShadow=true; m.receiveShadow=true; scene.add(m); fx.sb=m; }
+  if(PB.p.length){ const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(PB.p,3)); g.setAttribute('color',new THREE.Float32BufferAttribute(PB.c,3)); g.computeBoundingSphere();
+    fx.panel=new THREE.MeshBasicMaterial({vertexColors:true,side:THREE.DoubleSide}); scene.add(new THREE.Mesh(g,fx.panel)); }
+  if(CD.glow.length){ const g=new THREE.PlaneGeometry(1,1); g.rotateX(-Math.PI/2);
+    const im=new THREE.InstancedMesh(g,new THREE.MeshBasicMaterial({map:glowTex,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,opacity:0,fog:false}),CD.glow.length);
+    const cc=new THREE.Color(), Q=new THREE.Quaternion();
+    CD.glow.forEach((p,i)=>{ m4.compose(v3.set(p[0],0.37,p[1]),Q,new THREE.Vector3(p[2],1,p[2])); im.setMatrixAt(i,m4); im.setColorAt(i,cc.set(p[3])); });
+    im.instanceColor.needsUpdate=true; im.renderOrder=1; im.visible=false; scene.add(im); fx.glow=im; }
+  if(!LOWQ&&CD.vents.length){ const V=CD.vents.slice(0,24), PER=6, n=V.length*PER, pos=new Float32Array(n*3), col=new Float32Array(n*3);
+    const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.BufferAttribute(pos,3).setUsage(THREE.DynamicDrawUsage)); g.setAttribute('color',new THREE.BufferAttribute(col,3).setUsage(THREE.DynamicDrawUsage));
+    const m=new THREE.PointsMaterial({map:glowTex,size:2.4,sizeAttenuation:true,vertexColors:true,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending});
+    const pts=new THREE.Points(g,m); pts.frustumCulled=false; pts.renderOrder=3; scene.add(pts);
+    const R=archRng(V[0][0],V[0][2],73), life=new Float32Array(n), age=new Float32Array(n), dx=new Float32Array(n), dz=new Float32Array(n);
+    for(let i=0;i<n;i++){ life[i]=2.2+R()*1.6; age[i]=life[i]*((i%PER)/PER); dx[i]=R()-0.5; dz[i]=R()-0.5; }
+    fx.steam={V,PER,n,pos,col,life,age,dx,dz,g,pts};
+  }
+  CD.n.vent=CD.vents.length; CD.built=true;
+}
+function cdTick(dt,t,k){ const F=CD.fx; if(!F) return;
+  if(F.winM){ F.winM.material.opacity=0.95*k; F.winM.visible=k>0.02; }
+  if(F.tvM){ const f=0.5+0.5*Math.sin(t*7.3)*Math.sin(t*3.1+1.3); F.tvM.material.opacity=0.95*k*(0.45+0.55*f); F.tvM.visible=k>0.02; }
+  if(F.panel) F.panel.color.setScalar(0.72+0.28*k);
+  if(F.glow){ F.glow.material.opacity=0.5*k*k; F.glow.visible=k>0.03; }
+  const S=F.steam; if(S){ const p=S.pos, c=S.col;
+    for(let i=0;i<S.n;i++){ S.age[i]+=dt; if(S.age[i]>S.life[i]) S.age[i]-=S.life[i]; const v=S.V[(i/S.PER)|0], a=S.age[i]/S.life[i];
+      p[i*3]=v[0]+S.dx[i]*a*1.1+0.35*a*Math.sin(t*0.6+i); p[i*3+1]=v[1]+0.15+a*2.8; p[i*3+2]=v[2]+S.dz[i]*a*1.1;
+      const b=0.3*Math.sin(Math.PI*a)*(0.55+0.45*k); c[i*3]=b; c[i*3+1]=b; c[i*3+2]=b*1.04; }
+    S.g.attributes.position.needsUpdate=true; S.g.attributes.color.needsUpdate=true; }
+}
+// ======================= /citydet =======================
+
 // buildings + banks
 const banks=[];
 const neonParts=[];   // unlit coloured neon tubes, merged into one mesh
@@ -2409,6 +2854,7 @@ const streetTrees=[];  // [x,z] of every pavement tree/palm (pits, keep-clear fo
     cityFX.bladeBulbs={x:bx,z:bz,y0:G0+5.2,y1:top+5,fx,fz};
     pools.push({x:x+fx*(w/2+1.6),z:z+fz*(d/2+1.6),ry,len:mw*1.2,dep:3.8,col:'#ffe0a0'});
   }
+  bld=cdWrapLot(bld,BK,roofParts,'b'); tower=cdWrapLot(tower,BK,roofParts,'t');   // citydet: note each lot's geometry slice
   // ---------------- lay out the blocks ----------------
   const taken=new Set(bankBlocks.map(b=>b.i+','+b.j)); taken.add('0,3'); taken.add('4,0');
   const pickBlock=(pref)=>{ for(const p of pref){ if(p[0]!==6&&!taken.has(p[0]+','+p[1])){ taken.add(p[0]+','+p[1]); return p[0]+','+p[1]; } } return null; };
@@ -2510,6 +2956,7 @@ const streetTrees=[];  // [x,z] of every pavement tree/palm (pits, keep-clear fo
         vbox('#2f5a46',axx+(ax?0:0.9),G0,azz+(az?0:0.9),ax?1.0:1.6,1.1,ax?1.6:1.0); vbox('#24463a',axx+(ax?0:0.9),G0+1.1,azz+(az?0:0.9),ax?1.05:1.7,0.08,ax?1.7:1.05);
         vbox('#8a6a48',axx-(ax?0:1.0),G0,azz-(az?0:1.0),0.8,0.6,0.8);
         world.circles.push({x:axx+(ax?0:0.9),z:azz+(az?0:0.9),r:0.8});
+        CD.alleys.push({cx,cz,ax,az,a0,aw,dep,FR});   // citydet: alley dressing
       } else segs=[[-span/2,span/2]];
       for(const [s0,s1] of segs){
         const sl=s1-s0, n=sl>15?2:1;
@@ -2524,6 +2971,7 @@ const streetTrees=[];  // [x,z] of every pavement tree/palm (pits, keep-clear fo
       }
     });
   }
+  cdDressLots({vbox,flat,tri3,roofParts,pools,billboard,waterTower,BK,G0,PH});   // citydet: facade / rooftop / alley detail
   // ---------------- emit the merged meshes ----------------
   const MATS=Object.assign({shop:SHOP_MAT,roof:ROOF_MAT,vc:MAT.vc},FACADE_MATS);
   for(const k in BK){ const B=BK[k]; if(!B.p.length) continue;
@@ -3590,6 +4038,7 @@ const STOP_OFF=RW/2+4.4;               // stop line distance back from a junctio
     bim.instanceColor.needsUpdate=true; scene.add(bim,dim);
   }
 })();
+cdStreet();   // citydet: street furniture, kiosks, bus stops, steam
 
 // ---------------- traffic signals ----------------
 // Every downtown junction with 3+ arms is signalled. Each approach gets a
@@ -3751,6 +4200,7 @@ function cityTick(dt,t){         // owned by CITY: blinking beacons, chasing mar
   if(neonFX.bulbs) neonFX.bulbs.offset.x=(Math.floor(t*7)%3)/3;
   if(cityFX.lampPools) for(const m of cityFX.lampPools) m.opacity=0.08+0.47*k;
   if(cityFX.lampHalo) cityFX.lampHalo.opacity=0.2+0.7*k;
+  cdTick(dt,t,k);   // citydet
 }
 function peopleTick(dt,t){}     // owned by PEOPLE
 function trafficTick(dt,t){}    // owned by TRAFFIC
@@ -13687,6 +14137,6 @@ addEventListener('resize',()=>{
   if(meOn){ mecv.width=innerWidth; mecv.height=innerHeight; }
 });
 </script>
-<div id="buildver" style="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(2px + env(safe-area-inset-bottom));font:600 10px/1.2 ui-monospace,Menlo,monospace;color:#fff;opacity:.6;letter-spacing:.06em;pointer-events:none;z-index:2147483000;text-shadow:0 1px 2px #000">v0.15 · 9 Nov 21:42</div>
+<div id="buildver" style="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(2px + env(safe-area-inset-bottom));font:600 10px/1.2 ui-monospace,Menlo,monospace;color:#fff;opacity:.6;letter-spacing:.06em;pointer-events:none;z-index:2147483000;text-shadow:0 1px 2px #000">v0.16 · 10 Nov 05:33</div>
 </body>
 </html>
