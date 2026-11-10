@@ -14,7 +14,7 @@
 <meta name="twitter:card" content="summary_large_image"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <link rel="apple-touch-icon" href="/sunset-city/square.png"/>
-<meta name="build-version" content="v0.27"/>
+<meta name="build-version" content="v0.28"/>
 <style>
   html,body{margin:0;padding:0;overflow:hidden;background:#1a1420;height:100%;touch-action:none;}
   canvas{display:block;}
@@ -90,24 +90,37 @@
     cursor:pointer;padding:11px;border-radius:8px;background:rgba(255,255,255,.06);}
   @media(max-width:520px){#garageList{grid-template-columns:1fr;}}
   #touchControls{position:fixed;inset:0;pointer-events:none;z-index:30;display:none;}
-  #wheel{position:absolute;left:20px;bottom:20px;width:150px;height:150px;border-radius:50%;
-    background:radial-gradient(circle at 50% 38%,#33373f 0 38%,#202329 39% 100%);
-    border:7px solid #44495a;box-shadow:0 8px 22px rgba(0,0,0,.55),inset 0 0 18px rgba(0,0,0,.5);
-    pointer-events:auto;touch-action:none;}
-  #wheelInner{position:absolute;inset:5%;border-radius:50%;}
-  #wheelInner svg{width:100%;height:100%;display:block;filter:drop-shadow(0 2px 3px rgba(0,0,0,.5));}
-  #pedals{position:absolute;right:20px;bottom:20px;display:flex;gap:16px;}
-  .pedal{width:62px;height:96px;border-radius:12px;pointer-events:auto;touch-action:none;
-    display:flex;align-items:flex-end;justify-content:center;padding-bottom:9px;
-    font-weight:900;letter-spacing:1px;color:#fff;font-size:11px;user-select:none;
-    border:2px solid rgba(255,255,255,.2);box-shadow:0 8px 22px rgba(0,0,0,.5);transition:filter .05s,transform .05s;}
-  #gasPedal{background:linear-gradient(#34883f,#1f5a2c);}
-  #brakePedal{background:linear-gradient(#a8332f,#6a1f1f);}
-  .pedal.on{filter:brightness(1.45);transform:translateY(4px);}
-  @media(max-width:600px){
-    #wheel{width:104px;height:104px;left:12px;bottom:12px;}
-    .pedal{width:50px;height:80px;font-size:10px;}#pedals{right:12px;bottom:12px;gap:10px;}
-  }
+  /* one floating stick (left thumb) + small round buttons (right thumb) */
+  html.touchui,html.touchui body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
+    -webkit-tap-highlight-color:transparent;overscroll-behavior:none;}
+  canvas,#ui,#touchControls{touch-action:none;}
+  #stickZone{position:absolute;left:0;bottom:0;width:45%;top:calc(var(--st) + 70px);pointer-events:auto;touch-action:none;}
+  #stickHint{position:absolute;left:calc(var(--sl) + 24px);bottom:calc(var(--sb) + 24px);width:104px;height:104px;
+    border-radius:50%;border:2px dashed rgba(255,240,220,.3);pointer-events:none;transition:opacity .2s;
+    background:radial-gradient(circle,rgba(255,240,220,.16) 0 20%,rgba(20,22,32,.12) 21% 100%);}
+  #stickBase{position:absolute;left:0;top:0;width:112px;height:112px;margin:-56px 0 0 -56px;border-radius:50%;
+    border:2px solid rgba(255,240,220,.42);pointer-events:none;display:none;
+    background:radial-gradient(circle,rgba(40,44,60,.26) 0 55%,rgba(20,22,32,.42) 56% 100%);}
+  #stickKnob{position:absolute;left:50%;top:50%;width:50px;height:50px;margin:-25px 0 0 -25px;border-radius:50%;
+    background:radial-gradient(circle at 40% 35%,#7a8196,#3a3f4c);border:2px solid rgba(255,240,220,.55);opacity:.88;}
+  .tb{position:absolute;display:none;align-items:center;justify-content:center;text-align:center;width:52px;height:52px;
+    border-radius:50%;pointer-events:auto;touch-action:none;color:#fff;font:900 9px/1.1 Futura,'Trebuchet MS','Segoe UI',sans-serif;
+    letter-spacing:.8px;text-transform:uppercase;background:rgba(26,22,38,.5);border:2px solid rgba(255,240,220,.5);
+    box-shadow:0 4px 12px rgba(0,0,0,.4);text-shadow:0 1px 0 rgba(0,0,0,.6);-webkit-user-select:none;user-select:none;
+    -webkit-touch-callout:none;cursor:pointer;}
+  .tb.on{background:rgba(255,215,106,.6);transform:scale(.93);}
+  .tb.lit{border-color:#ffd76a;color:#ffd76a;}
+  .tb.dim{opacity:.45;}
+  .tb[data-role=fire]{background:rgba(170,44,40,.55);}
+  .tb[data-role=fire].on{background:rgba(255,90,70,.8);}
+  .tb[data-role=horn].lit{border-color:#ff7ad9;color:#ffd6ee;background:rgba(216,49,127,.6);}
+  #tbA{right:calc(var(--sr) + 14px);bottom:calc(var(--sb) + 16px);width:66px;height:66px;font-size:10px;}
+  #tbB{right:calc(var(--sr) + 90px);bottom:calc(var(--sb) + 12px);}
+  #tbC{right:calc(var(--sr) + 14px);bottom:calc(var(--sb) + 92px);}
+  #tbD{right:calc(var(--sr) + 84px);bottom:calc(var(--sb) + 74px);}
+  /* the on-foot module's own pad / buttons and Sol's HONK pill are replaced by the unified set on touch */
+  html.touchui #footUI .fb,html.touchui #solHonk{display:none!important;}
+  #solPager{display:none!important;}   /* Sol's job rides in the top line (#obj2), her words in the ticker */
   #carselect{display:flex;gap:18px;margin:28px 0 4px;}
   .caropt{padding:18px 26px;border:2px solid rgba(255,220,180,.28);border-radius:10px;
     cursor:pointer;min-width:148px;text-align:center;transition:border-color .18s,background .18s;}
@@ -163,61 +176,101 @@
   #meout{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);width:min(760px,92vw);height:150px;
     display:none;background:#0c101c;color:#aef0c2;font:11px/1.4 monospace;border:1px solid rgba(160,255,190,.4);
     border-radius:8px;padding:10px;z-index:71;}
-  /* ---------- HUD layout: safe areas, no overlaps (desktop / phone portrait / phone landscape) ---------- */
+  /* ---------- HUD layout v2: slim top line + ticker, compact phone HUD, two-mode sat-nav ---------- */
   :root{--st:env(safe-area-inset-top,0px);--sr:env(safe-area-inset-right,0px);
     --sb:env(safe-area-inset-bottom,0px);--sl:env(safe-area-inset-left,0px);
-    --mm:156px;--side:calc(var(--mm) + 30px);--ctl:184px;}
-  #cash{top:calc(var(--st) + 14px);left:calc(var(--sl) + 16px);}
-  #speed{top:calc(var(--st) + 44px);left:calc(var(--sl) + 16px);}
-  #minimap{top:calc(var(--st) + 14px);right:calc(var(--sr) + 14px);width:var(--mm);height:var(--mm);}
-  #fcam{top:calc(var(--st) + var(--mm) + 26px);right:calc(var(--sr) + 14px);}
-  #mapbtn{top:calc(var(--st) + var(--mm) + 60px);right:calc(var(--sr) + 14px);}
-  #stubtn{top:calc(var(--st) + var(--mm) + 94px);right:calc(var(--sr) + 14px);}
-  #tripbtn{top:calc(var(--st) + var(--mm) + 128px);right:calc(var(--sr) + 14px);}
-  #topc{position:fixed;top:calc(var(--st) + 10px);left:calc(var(--sl) + var(--side));right:calc(var(--sr) + var(--side));
-    display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none;}
-  #hplabel{left:calc(var(--sl) + 16px);bottom:calc(var(--sb) + 52px);}
-  #hpwrap{left:calc(var(--sl) + 16px);bottom:calc(var(--sb) + 30px);}
-  #fuelwrap{left:calc(var(--sl) + 16px);bottom:calc(var(--sb) + 16px);}
-  #hint{bottom:calc(var(--sb) + 14px);white-space:normal;text-align:center;line-height:1.5;width:max-content;
+    --mm:156px;--mmb:300px;--mmc:var(--mm);--pad:14px;--lw:190px;--tb:0px;--ctl:184px;}
+  html.navbig{--mmc:var(--mmb);}
+  #cash{top:calc(var(--st) + var(--tb) + 12px);left:calc(var(--sl) + var(--pad) + 2px);}
+  #speed{top:calc(var(--st) + var(--tb) + 42px);left:calc(var(--sl) + var(--pad) + 2px);}
+  #minimap{top:calc(var(--st) + var(--tb) + var(--pad));right:calc(var(--sr) + var(--pad));width:var(--mmc);height:var(--mmc);
+    transition:width .28s ease,height .28s ease;cursor:pointer;touch-action:none;background:#2e2a44;box-sizing:content-box;}
+  #hudbtns{position:fixed;top:calc(var(--st) + var(--tb) + var(--mmc) + var(--pad) + 14px);right:calc(var(--sr) + var(--pad));
+    display:flex;flex-direction:column;align-items:flex-end;gap:8px;transition:top .28s ease;}
+  #hudbtns>div{position:static;}
+  #helpbtn{padding:6px 11px;border-radius:14px;font-size:10px;font-weight:700;color:#ffe6c8;background:rgba(24,28,52,.7);
+    border:1px solid rgba(255,240,220,.5);cursor:pointer;user-select:none;}
+  /* the objective: ONE slim line pinned to the very top edge; transient messages tick directly under it */
+  #topc{position:fixed;top:var(--st);left:calc(var(--sl) + var(--lw));right:calc(var(--sr) + var(--mmc) + var(--pad) * 2 + 8px);
+    display:flex;flex-direction:column;align-items:center;gap:3px;pointer-events:none;transition:right .28s ease;}
+  #objbar{display:flex;align-items:center;justify-content:center;gap:10px;max-width:100%;padding:3px 14px 4px;
+    border-radius:0 0 11px 11px;background:rgba(16,11,24,.56);font-size:12px;font-weight:800;letter-spacing:1.5px;
+    line-height:1.3;white-space:nowrap;overflow:hidden;font-variant:small-caps;}
+  #obj{order:1;flex:0 1 auto;min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;
+    font-size:inherit;background:none;padding:0;border-radius:0;text-shadow:0 1px 0 rgba(60,20,0,.6);}
+  #obj2{order:3;flex:0 1 auto;min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#ffb3e2;
+    text-shadow:0 1px 0 rgba(60,0,40,.6);position:relative;}
+  #obj2:empty{display:none;}
+  #obj2 b{color:#ff7ad9;}
+  #obj2n{position:absolute;left:0;bottom:0;height:2px;width:100%;background:linear-gradient(90deg,#ff3f7a,#ff9ad9);display:none;}
+  #wanted{order:-1;flex:none;transform:none;font-size:inherit;text-shadow:0 0 8px rgba(255,60,80,.7);}
+  #navchip{flex:none;display:none;align-items:center;gap:5px;color:#ffd76a;opacity:.92;font-variant:normal;}
+  #navarrow{width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:10px solid currentColor;
+    filter:drop-shadow(0 0 3px currentColor);}
+  #ticker{max-width:100%;padding:2px 11px 3px;border-radius:9px;background:rgba(16,11,24,.5);color:#ffd76a;font-size:11px;
+    font-weight:700;letter-spacing:1px;line-height:1.25;text-align:center;opacity:0;transition:opacity .3s;
+    display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;text-shadow:0 1px 0 rgba(0,0,0,.55);}
+  #ticker.show{opacity:.94;}
+  #float{display:none;}
+  /* event titles: brief, small, top third. Only WRECKED / WASTED / BUSTED keep the full-size centre treatment. */
+  #big{top:calc(var(--st) + 66px);transform:translateX(-50%) skewX(-8deg);font-size:min(4vw,30px);line-height:1.05;
+    max-width:min(70vw,calc(100vw - 2 * var(--lw)));white-space:normal;text-align:center;
+    text-shadow:0 0 14px rgba(0,0,0,.55),0 2px 0 rgba(20,0,10,.7);}
+  #big.show{animation:bpop2 1.5s ease-out;}
+  #big.final{top:42%;transform:translate(-50%,-50%) skewX(-8deg);font-size:min(6.4vw,54px);max-width:92vw;
+    text-shadow:0 0 24px rgba(255,60,80,.7),0 4px 0 rgba(40,0,10,.7);}
+  #big.final.show{animation:bpop 2.4s ease-out;}
+  @keyframes bpop2{0%{opacity:0;transform:translateX(-50%) skewX(-8deg) scale(.7)}
+    12%{opacity:.95;transform:translateX(-50%) skewX(-8deg) scale(1.04)}
+    62%{opacity:.95}100%{opacity:0;transform:translateX(-50%) skewX(-8deg) scale(1)}}
+  #hplabel{left:calc(var(--sl) + var(--pad) + 2px);bottom:calc(var(--sb) + 52px);}
+  #hpwrap{left:calc(var(--sl) + var(--pad) + 2px);bottom:calc(var(--sb) + 30px);}
+  #fuelwrap{left:calc(var(--sl) + var(--pad) + 2px);bottom:calc(var(--sb) + 16px);}
+  #hint{bottom:calc(var(--sb) + 12px);white-space:normal;text-align:center;line-height:1.5;width:max-content;pointer-events:none;
     max-width:calc(100vw - 2 * var(--ctl) - var(--sl) - var(--sr));}
-  #wheel{left:calc(var(--sl) + 20px);bottom:calc(var(--sb) + 20px);}
-  #pedals{right:calc(var(--sr) + 20px);bottom:calc(var(--sb) + 20px);}
   /* touch controls own the bottom corners: car name + bars move to the top-left stack */
-  html.touchui #hplabel{top:calc(var(--st) + 68px);bottom:auto;}
-  html.touchui #hpwrap{top:calc(var(--st) + 82px);bottom:auto;}
-  html.touchui #fuelwrap{top:calc(var(--st) + 98px);bottom:auto;}
+  html.touchui #hplabel{top:calc(var(--st) + var(--tb) + 66px);bottom:auto;}
+  html.touchui #hpwrap{top:calc(var(--st) + var(--tb) + 80px);bottom:auto;}
+  html.touchui #fuelwrap{top:calc(var(--st) + var(--tb) + 96px);bottom:auto;}
+  html.touchui #dlg{z-index:40;}
   /* developer tools (map editor, car studio) are keyboard/mouse only: V and U still open them */
-  @media (pointer:coarse){#mapbtn,#stubtn{display:none;}}
-  html.touchui #mapbtn,html.touchui #stubtn{display:none;}
-  @media (pointer:coarse){#tripbtn{top:calc(var(--st) + var(--mm) + 60px);}}
-  html.touchui #tripbtn{top:calc(var(--st) + var(--mm) + 60px);}
-  @media (max-width:600px){
-    :root{--mm:112px;--ctl:132px;}
-    #wanted{font-size:18px;}
-    #obj{font-size:12px;letter-spacing:1.5px;padding:5px 12px;}
-    #hint{font-size:10px;letter-spacing:1px;}
-    #topc{top:calc(var(--st) + 144px);left:calc(var(--sl) + 12px);right:calc(var(--sr) + 12px);}
-    #minimap{top:calc(var(--st) + 12px);right:calc(var(--sr) + 12px);}
-    #hplabel{top:calc(var(--st) + 68px);bottom:auto;}
-    #hpwrap{top:calc(var(--st) + 82px);bottom:auto;}
-    #fuelwrap{top:calc(var(--st) + 98px);bottom:auto;}
-    #fcam{top:calc(var(--st) + 112px);left:calc(var(--sl) + 14px);right:auto;}
-    #mapbtn{top:calc(var(--st) + 112px);left:calc(var(--sl) + 112px);right:auto;}
-    #stubtn{top:calc(var(--st) + 112px);left:calc(var(--sl) + 172px);right:auto;}
-    #tripbtn,html.touchui #tripbtn{top:calc(var(--st) + 112px);left:calc(var(--sl) + 232px);right:auto;}
-    html.touchui #tripbtn{left:calc(var(--sl) + 112px);}
-    #wheel{left:calc(var(--sl) + 12px);bottom:calc(var(--sb) + 12px);}
-    #pedals{right:calc(var(--sr) + 12px);bottom:calc(var(--sb) + 12px);}
+  @media (pointer:coarse){#hudbtns>#mapbtn,#hudbtns>#stubtn{display:none;}}
+  /* touch: the small HUD buttons sit in one row under the map; 30 px pills inside 44 px hit boxes */
+  html.touchui #hudbtns{flex-direction:row-reverse;align-items:center;gap:0;
+    top:calc(var(--st) + var(--tb) + var(--mmc) + var(--pad) + 3px);right:calc(var(--sr) + var(--pad) - 7px);}
+  html.touchui #hudbtns>div{box-sizing:border-box;min-width:44px;height:44px;display:flex;align-items:center;justify-content:center;
+    padding:0 8px;border:7px solid transparent;background-clip:padding-box;border-radius:22px;font-size:9px;letter-spacing:1px;
+    white-space:nowrap;box-shadow:inset 0 0 0 1px rgba(255,240,220,.45);touch-action:none;}
+  html.touchui #hudbtns>#mapbtn,html.touchui #hudbtns>#stubtn{display:none;}
+  /* phones (either way up): everything ~22% smaller, tighter margins */
+  @media (max-width:600px),(max-height:500px){
+    :root{--mm:86px;--mmb:196px;--pad:8px;--lw:124px;--ctl:166px;}
+    #cash{font-size:17px;letter-spacing:1.5px;top:calc(var(--st) + var(--tb) + 6px);}
+    #speed{font-size:11px;letter-spacing:1.5px;top:calc(var(--st) + var(--tb) + 28px);}
+    #hplabel,html.touchui #hplabel{font-size:8px;letter-spacing:1px;top:calc(var(--st) + var(--tb) + 44px);bottom:auto;}
+    #hpwrap,html.touchui #hpwrap{width:104px;height:10px;border-width:1.5px;top:calc(var(--st) + var(--tb) + 56px);bottom:auto;}
+    #fuelwrap,html.touchui #fuelwrap{width:104px;height:8px;border-width:1.5px;top:calc(var(--st) + var(--tb) + 69px);bottom:auto;}
+    #minimap{border-width:1.5px;border-radius:7px;}
+    #objbar{font-size:10px;letter-spacing:1.1px;padding:2px 10px 3px;gap:8px;}
+    #ticker{font-size:10px;letter-spacing:.8px;}
+    #hint{font-size:9px;letter-spacing:.8px;padding:5px 11px;}
+    #dlgtext{font-size:12px;}
   }
+  /* phone landscape */
   @media (max-height:500px){
-    :root{--mm:96px;--ctl:150px;}
-    #obj{font-size:12px;padding:4px 12px;}
-    #wanted{font-size:18px;}
-    #topc{gap:4px;}
-    #wheel{width:104px;height:104px;left:calc(var(--sl) + 14px);bottom:calc(var(--sb) + 12px);}
-    .pedal{width:50px;height:80px;font-size:10px;}
-    #pedals{right:calc(var(--sr) + 14px);bottom:calc(var(--sb) + 12px);gap:10px;}
+    :root{--mm:76px;--mmb:168px;}
+    #big{top:calc(var(--st) + 52px);font-size:min(4.2vw,20px);max-width:56vw;}
+    html.touchui #dlg{bottom:calc(var(--sb) + 8px);width:min(500px,calc(100vw - 2 * var(--ctl) - var(--sl) - var(--sr)));}
+  }
+  /* phone portrait: the line spans the full top edge (two lines at most); the HUD starts under it */
+  @media (max-width:600px){
+    :root{--tb:60px;--mmb:160px;}
+    #topc{left:var(--sl);right:var(--sr);align-items:stretch;}
+    #objbar{flex-wrap:wrap;gap:0 9px;border-radius:0;max-height:30px;padding:2px 8px 3px;}
+    #ticker{align-self:center;max-width:calc(100% - 16px);}
+    #big{top:calc(var(--st) + var(--tb) + var(--mmc) + var(--pad) + 50px);font-size:21px;max-width:88vw;}
+    #hint{bottom:calc(var(--sb) + 172px);max-width:92vw;}
+    html.touchui #dlg{bottom:calc(var(--sb) + 166px);}
   }
 </style>
 </head>
@@ -226,14 +279,17 @@
   <div id="cash">$0</div>
   <div id="speed">0 mph</div>
   <div id="topc">
-    <div id="wanted">★ WANTED ★</div>
-    <div id="obj">GET TO THE BANK</div>
+    <div id="objbar"><span id="navchip"><i id="navarrow"></i><span id="navdist"></span></span><span id="wanted">★ WANTED ★</span><span id="obj">GET TO THE BANK</span><span id="obj2"></span></div>
+    <div id="ticker"></div>
   </div>
   <canvas id="minimap" width="156" height="156"></canvas>
-  <div id="fcam">FREE CAM</div>
-  <div id="mapbtn">MAP</div>
-  <div id="stubtn">CAR</div>
-  <div id="tripbtn">LOOK</div>
+  <div id="hudbtns">
+    <div id="fcam">FREE CAM</div>
+    <div id="mapbtn">MAP</div>
+    <div id="stubtn">CAR</div>
+    <div id="tripbtn">LOOK</div>
+    <div id="helpbtn">?</div>
+  </div>
   <div id="dlg"><div id="dlgname"></div><div id="dlgtext"></div><div id="dlgopts"></div></div>
   <div id="hplabel">The Continental</div>
   <div id="hpwrap"><div id="hp"></div></div>
@@ -267,25 +323,13 @@
   </div>
 </div>
 <div id="touchControls">
-  <div id="wheel"><div id="wheelInner"><svg viewBox="0 0 100 100">
-    <circle cx="50" cy="50" r="43" fill="none" stroke="#1d2025" stroke-width="13"/>
-    <circle cx="50" cy="50" r="43" fill="none" stroke="#3a3f48" stroke-width="8.5"/>
-    <circle cx="50" cy="50" r="43" fill="none" stroke="#525a68" stroke-width="2"/>
-    <g stroke="#363b44" stroke-width="11" stroke-linecap="round">
-      <line x1="50" y1="50" x2="11" y2="50"/><line x1="50" y1="50" x2="89" y2="50"/><line x1="50" y1="50" x2="50" y2="89"/>
-    </g>
-    <g stroke="#4a515d" stroke-width="3.5" stroke-linecap="round">
-      <line x1="50" y1="50" x2="11" y2="50"/><line x1="50" y1="50" x2="89" y2="50"/><line x1="50" y1="50" x2="50" y2="89"/>
-    </g>
-    <circle cx="50" cy="50" r="14" fill="#5b626d"/>
-    <circle cx="50" cy="50" r="14" fill="none" stroke="#6e7783" stroke-width="1.6"/>
-    <circle cx="50" cy="50" r="5.5" fill="#454b54"/>
-    <rect x="47" y="2.5" width="6" height="10" rx="2.4" fill="#ffd76a"/>
-  </svg></div></div>
-  <div id="pedals">
-    <div id="brakePedal" class="pedal">BRAKE</div>
-    <div id="gasPedal" class="pedal">GAS</div>
-  </div>
+  <div id="stickZone"></div>
+  <div id="stickHint"></div>
+  <div id="stickBase"><div id="stickKnob"></div></div>
+  <div id="tbA" class="tb"></div>
+  <div id="tbB" class="tb"></div>
+  <div id="tbC" class="tb"></div>
+  <div id="tbD" class="tb"></div>
 </div>
 <div id="err"></div>
 <div id="debug"></div>
@@ -383,12 +427,13 @@ let touchUI=(()=>{
   if(t==='0'||t==='off'||t==='false') return false;
   return COARSE||(navigator.maxTouchPoints>0&&!mq('(any-pointer:fine)'));
 })();
+const HINT_TOUCH='Left thumb: stick \u2014 up gas · down brake / reverse · sides steer \u00a0\u2014\u00a0 right thumb: handbrake · horn · exit \u00a0\u2014\u00a0 tap the map: overview';
 function setTouchUI(on){
   touchUI=!!on;
   document.documentElement.classList.toggle('touchui',touchUI);
   const h=document.getElementById('hint');
-  if(h) h.textContent=touchUI?'Drag the wheel to steer · hold GAS / BRAKE · repair at the petrol station'
-    :'WASD drive · SPACE handbrake · X fire · N summon the star · C camera · F free cam · P look · M sound · R recover \u00a0\u2014\u00a0 repair at the petrol station';
+  if(h) h.textContent=touchUI?HINT_TOUCH
+    :'WASD drive · SPACE handbrake · X fire · N summon the star · C camera · F free cam · G get out & walk · P look · M sound · R recover \u00a0\u2014\u00a0 tap the map for the overview · repair at the petrol station';
 }
 setTouchUI(touchUI);
 // a real touch on a hybrid device switches the on-screen controls on (unless forced off)
@@ -9604,7 +9649,7 @@ function updateFootCamera(dt){
 if(typeof drawMinimap==='function'){
   const _footMM=drawMinimap;
   drawMinimap=function(t){
-    if(!onFoot) return _footMM(t);
+    return _footMM(t);                       // CTRL: drawMinimap follows navPose() and marks the parked car itself
     const sx=player.x,sz=player.z,sa=player.a;
     player.x=foot.x; player.z=foot.z; player.a=foot.a;
     try{ _footMM(t); } finally { player.x=sx; player.z=sz; player.a=sa; }
@@ -9700,9 +9745,11 @@ let _footHint0=null;
 function footHint(on){
   const h=document.getElementById('hint'); if(!h) return;
   if(_footHint0===null) _footHint0=h.innerHTML;
-  h.innerHTML=on?(FT.lastTouch?'STICK walk · FIRE auto-aims · JACK any car'
+  h.innerHTML=on?(FT.lastTouch?'STICK walk · FIRE auto-aims · RUN toggles · ENTER / JACK any car'
     :'WASD walk · SHIFT run · SPACE / CLICK fire (auto-aim) · G or E get in / jack a car'):_footHint0;
-  h.style.opacity=1; clearTimeout(footHint.t); footHint.t=setTimeout(()=>{ h.style.opacity=0; },7000);
+  if(!on||footHint.seen){ if(!on) h.style.opacity=0; return; }   // CTRL: the hint shows once; the "?" button brings it back
+  footHint.seen=true;
+  h.style.opacity=1; clearTimeout(footHint.t); footHint.t=setTimeout(()=>{ h.style.opacity=0; },6000);
 }
 { const h=document.getElementById('hint'); if(h&&!/get out/i.test(h.innerHTML)) h.innerHTML=h.innerHTML.replace(/ · M sound/,' · G get out &amp; walk · M sound'); }
 // ---- car model registry: build fn + physics + garage price ----
@@ -10415,7 +10462,7 @@ function updateGun(dt){
     const fwd=dx*fx+dz*fz, lat=Math.abs(dx*(-fz)+dz*fx);
     if(fwd>2&&fwd<44&&lat<2.8&&fwd<bd){bd=fwd;best=z;}
   }
-  const want=best||keys['x']||mouseDown;
+  const want=best||keys['x']||mouseDown||touchFire;
   if(want&&fireCool<=0){
     fireCool=0.13;
     blip('square',170,60,0.05,0.07);
@@ -11928,56 +11975,155 @@ renderer.domElement.addEventListener('pointermove',e=>{
 const endP=e=>{if(e.pointerType==='mouse')mouseDown=false;ptrs.delete(e.pointerId);updTouch();};
 renderer.domElement.addEventListener('pointerup',endP);
 renderer.domElement.addEventListener('pointercancel',endP);
-function updTouch(){}   // driving is handled by the on-screen wheel + pedals
+function updTouch(){}   // driving is handled by the on-screen stick + buttons
 
-// ---------------- on-screen driving controls ----------------
-let touchAccel=false, touchBrake=false, touchSteer=0;
-const gasPedalEl=document.getElementById('gasPedal'), brakePedalEl=document.getElementById('brakePedal');
-let wheelAngle=0, wheelHeld=false, wheelPid=null, wheelLastAng=0;
-const WHEEL_MAX=2.4;
+// ---------------- on-screen controls: ONE floating stick + round buttons ----------------
+// Driving: stick up = throttle, down = brake then reverse, sideways = steering, released = coast.
+// On foot the same stick walks. Every press is owned by one pointerId and is released by ANY of:
+// pointerup / pointercancel / lostpointercapture, the finger sliding off a held button, the last finger
+// leaving the glass (touchend / touchcancel), window blur, tab hide, rotation, and every change of
+// control set (car <-> foot, menus, free cam). Nothing can stay latched.
+let touchAccel=false, touchBrake=false, touchSteer=0, touchThr=0, touchBrk=0, touchHand=false, touchFire=false;
 const tcEl=document.getElementById('touchControls');
-const wheelEl=document.getElementById('wheel');
-const wheelInner=document.getElementById('wheelInner');
-function setWheel(){
-  wheelInner.style.transform='rotate('+wheelAngle+'rad)';
-  touchSteer=-clamp(wheelAngle/WHEEL_MAX,-1,1);   // turn right (clockwise) = steer right
+const CTL={pid:null,ox:0,oy:0,x:0,y:0,R:54,mode:'',fire:false,key:'',log:[],
+  zone:document.getElementById('stickZone'),hint:document.getElementById('stickHint'),
+  base:document.getElementById('stickBase'),knob:document.getElementById('stickKnob'),
+  btn:['tbA','tbB','tbC','tbD'].map(id=>document.getElementById(id))};
+function ctlLog(m){ CTL.log.push(m); if(CTL.log.length>60) CTL.log.shift(); }
+function ctlStickDraw(){
+  const on=CTL.pid!==null;
+  CTL.base.style.display=on?'block':'none'; CTL.hint.style.opacity=on?0:1;
+  if(on){ CTL.base.style.transform='translate('+CTL.ox.toFixed(1)+'px,'+CTL.oy.toFixed(1)+'px)';
+    CTL.knob.style.transform='translate('+(CTL.x*CTL.R).toFixed(1)+'px,'+(CTL.y*CTL.R).toFixed(1)+'px)'; }
 }
-function wheelAng(e){
-  const r=wheelEl.getBoundingClientRect();
-  return Math.atan2(e.clientY-(r.top+r.height/2), e.clientX-(r.left+r.width/2));
+function ctlStickMove(px,py){
+  const R=CTL.R; let dx=px-CTL.ox, dy=py-CTL.oy; const l=Math.hypot(dx,dy);
+  if(l>R){ const k=(l-R)/l; CTL.ox+=dx*k; CTL.oy+=dy*k; dx=px-CTL.ox; dy=py-CTL.oy; }   // the base trails a thumb that drags past the rim
+  CTL.x=dx/R; CTL.y=dy/R; ctlStickDraw();
 }
-wheelEl.addEventListener('pointerdown',e=>{
-  e.preventDefault(); wheelHeld=true; wheelPid=e.pointerId; wheelLastAng=wheelAng(e);
-  try{wheelEl.setPointerCapture(e.pointerId);}catch(_){}
+function ctlStickEnd(why){
+  if(CTL.pid===null&&CTL.x===0&&CTL.y===0) return;
+  const pid=CTL.pid; CTL.pid=null; CTL.x=CTL.y=0; ctlStickDraw(); ctlLog('stick-'+why);
+  touchAccel=touchBrake=false; touchThr=touchBrk=0;        // coast at once (steering eases back in ctlDrive)
+  try{ if(pid!==null&&CTL.zone.hasPointerCapture(pid)) CTL.zone.releasePointerCapture(pid); }catch(_){}
+}
+CTL.zone.addEventListener('pointerdown',e=>{
+  e.preventDefault(); e.stopPropagation();
+  if(CTL.pid!==null) ctlStickEnd('takeover');             // a stale owner can never block a fresh thumb
+  CTL.pid=e.pointerId; CTL.R=Math.min(innerWidth,innerHeight)<=500?50:56;
+  CTL.ox=clamp(e.clientX,CTL.R+6,innerWidth-CTL.R-6); CTL.oy=clamp(e.clientY,CTL.R+6,innerHeight-CTL.R-6);
+  try{ CTL.zone.setPointerCapture(e.pointerId); }catch(_){}
+  ctlStickMove(e.clientX,e.clientY); ctlLog('stick-down');
 });
-wheelEl.addEventListener('pointermove',e=>{
-  if(!wheelHeld||e.pointerId!==wheelPid) return;
-  const a=wheelAng(e); let d=a-wheelLastAng;
-  if(d>Math.PI)d-=2*Math.PI; else if(d<-Math.PI)d+=2*Math.PI;
-  wheelAngle=clamp(wheelAngle+d,-WHEEL_MAX,WHEEL_MAX); wheelLastAng=a; setWheel();
-});
-const wheelRelease=e=>{ if(e.pointerId===wheelPid){ wheelHeld=false; wheelPid=null; } };
-wheelEl.addEventListener('pointerup',wheelRelease);
-wheelEl.addEventListener('pointercancel',wheelRelease);
-function bindPedal(el,set){
-  const on=e=>{e.preventDefault(); set(true); el.classList.add('on'); try{el.setPointerCapture(e.pointerId);}catch(_){}};
-  const off=e=>{e.preventDefault(); set(false); el.classList.remove('on');};
-  el.addEventListener('pointerdown',on);
-  el.addEventListener('pointerup',off);
-  el.addEventListener('pointercancel',off);
+CTL.zone.addEventListener('pointermove',e=>{ if(e.pointerId!==CTL.pid) return; e.preventDefault(); ctlStickMove(e.clientX,e.clientY); });
+for(const ev of ['pointerup','pointercancel','lostpointercapture'])
+  CTL.zone.addEventListener(ev,e=>{ if(e.pointerId===CTL.pid) ctlStickEnd(ev); });
+// ---- buttons: four slots, a role per control set ----
+const CTL_ROLE={
+  hand:{hold:true,label:'HAND<br>BRAKE',down(){ touchHand=true; },up(){ touchHand=false; }},
+  fire:{hold:true,label:'FIRE',down(){ CTL.fire=true; },up(){ CTL.fire=false; }},
+  horn:{label:'HORN',down(){ if(!started||onFoot) return;
+    if(typeof SOL!=='undefined'&&SOL.near&&typeof solHonk==='function') solHonk(); else if(typeof sfxHornPlayer==='function') sfxHornPlayer(); }},
+  exit:{label:'EXIT<br>CAR',down(){ toggleFoot(); }},
+  car:{label:'CAR',down(){ toggleFoot(); }},
+  run:{label:'RUN',down(){ FT.sprint=!FT.sprint; }},
+  garage:{label:'GARAGE',down(){ toggleGarage(); }}
+};
+function ctlBtnUp(b,why){
+  if(b._pid==null) return;
+  const pid=b._pid; b._pid=null; b.classList.remove('on');
+  const r=CTL_ROLE[b._held]; b._held=null; if(r&&r.up) r.up(); ctlLog('btn-'+why);
+  try{ if(b.hasPointerCapture(pid)) b.releasePointerCapture(pid); }catch(_){}
 }
-bindPedal(document.getElementById('gasPedal'),  v=>touchAccel=v);
-bindPedal(document.getElementById('brakePedal'),v=>touchBrake=v);
-let tcShown=false;
+for(const b of CTL.btn){
+  b._pid=null; b._held=null;
+  b.addEventListener('pointerdown',e=>{
+    e.preventDefault(); e.stopPropagation();
+    if(b._pid!==null) ctlBtnUp(b,'takeover');
+    const role=b.dataset.role, r=CTL_ROLE[role]; if(!r) return;
+    b._pid=e.pointerId; b._held=role; b.classList.add('on');
+    try{ b.setPointerCapture(e.pointerId); }catch(_){}
+    r.down();
+  });
+  b.addEventListener('pointermove',e=>{                    // a held button lets go when the finger slides off it
+    if(e.pointerId!==b._pid) return; const r=b.getBoundingClientRect(), m=26;
+    if(e.clientX<r.left-m||e.clientX>r.right+m||e.clientY<r.top-m||e.clientY>r.bottom+m) ctlBtnUp(b,'left');
+  });
+  for(const ev of ['pointerup','pointercancel','lostpointercapture','pointerleave'])
+    b.addEventListener(ev,e=>{ if(e.pointerId===b._pid) ctlBtnUp(b,ev); });
+}
+function ctlReleaseAll(why){
+  ctlStickEnd(why); for(const b of CTL.btn) ctlBtnUp(b,why);
+  touchAccel=touchBrake=touchHand=touchFire=false; touchThr=touchBrk=0; touchSteer=0; CTL.fire=false;
+  if(typeof FT!=='undefined'){ FT.joyX=FT.joyY=0; FT.fire=false; }
+  ctlLog('release-all:'+why);
+}
+function ctlAnyHeld(){ return CTL.pid!==null||CTL.btn.some(b=>b._pid!==null); }
+// belt and braces: the pointer stream is not the only witness
+addEventListener('touchend',e=>{ if(e.touches.length===0&&ctlAnyHeld()) ctlReleaseAll('touchend'); },{passive:true,capture:true});
+addEventListener('touchcancel',e=>{ if(ctlAnyHeld()) ctlReleaseAll('touchcancel'); },{passive:true,capture:true});
+function ctlBlur(why){ ctlReleaseAll(why); for(const k in keys) keys[k]=false; mouseDown=false; }
+addEventListener('blur',()=>ctlBlur('blur'));
+addEventListener('pagehide',()=>ctlBlur('pagehide'));
+document.addEventListener('visibilitychange',()=>{ if(document.hidden) ctlBlur('hidden'); });
+addEventListener('orientationchange',()=>ctlReleaseAll('orientation'));
+{ let land=innerWidth>innerHeight;
+  addEventListener('resize',()=>{ const l=innerWidth>innerHeight; if(l!==land){ land=l; ctlReleaseAll('rotate'); } }); }
+// no scrolling, pinch zoom, long-press menu or text selection on the game surface (menus / dev panels still scroll)
+addEventListener('contextmenu',e=>{ if(touchUI&&!(e.target&&/^(TEXTAREA|INPUT)$/.test(e.target.tagName))) e.preventDefault(); });
+addEventListener('selectstart',e=>{ if(touchUI&&!(e.target&&/^(TEXTAREA|INPUT)$/.test(e.target.tagName))) e.preventDefault(); });
+for(const ev of ['gesturestart','gesturechange','gestureend']) addEventListener(ev,e=>e.preventDefault());
+document.addEventListener('touchmove',e=>{ if(!touchUI||!e.cancelable) return; const t=e.target;
+  if(t&&t.closest&&t.closest('#garageInner,#stuPanel,#dlg,textarea,input')) return; e.preventDefault(); },{passive:false});
+// per-frame: which control set is up, button roles + labels, stick -> walking input
 function updateTouchVis(){
-  const show = touchUI && started && !onFoot && !freeCam && !garageOpen && !studioOn && !meOn;
-  if(show!==tcShown){
-    tcShown=show; tcEl.style.display=show?'block':'none';
-    if(!show){ touchAccel=false; touchBrake=false;
-      document.getElementById('gasPedal').classList.remove('on');
-      document.getElementById('brakePedal').classList.remove('on'); }
+  const can=touchUI&&started&&!freeCam&&!garageOpen&&!studioOn&&!meOn;
+  const mode=!can?'':(onFoot?'foot':'car');
+  if(mode!==CTL.mode){                                     // control set swapped: nothing held survives it
+    ctlReleaseAll('mode:'+(CTL.mode||'none')+'>'+(mode||'none'));
+    CTL.mode=mode; CTL.key=''; tcEl.style.display=mode?'block':'none';
   }
+  if(!mode) return;
+  const carOK=!!pCar&&(onFoot||(!player.wreck&&!player.dyn));
+  let roles, labC='', dimC=false;
+  if(mode==='car'){
+    const gun=zombieMode&&!!gunG, gar=!gun&&typeof nearGarage==='function'&&nearGarage();
+    roles=['hand','horn',carOK?'exit':'',gun?'fire':(gar?'garage':'')];
+  } else {
+    const near=FT.near; dimC=!near;
+    labC=near?(near.own||near.v.parked?'ENTER<br>CAR':(near.v.kind==='cop'?'JACK<br>COP':'JACK<br>CAR')):'NO CAR<br>NEAR';
+    roles=['fire','run',carOK?'car':'',''];
+  }
+  const honk=mode==='car'&&typeof SOL!=='undefined'&&!!SOL.near;
+  const key=mode+'|'+roles.join(',')+'|'+labC+'|'+FT.sprint+'|'+honk;
+  if(key!==CTL.key){ CTL.key=key;
+    CTL.btn.forEach((b,i)=>{ const role=roles[i];
+      if(b._pid!==null&&b._held!==role) ctlBtnUp(b,'role');
+      b.dataset.role=role; b.style.display=role?'flex':'none'; if(!role) return;
+      b.innerHTML=role==='car'?labC:(role==='horn'&&honk?'HONK':CTL_ROLE[role].label);
+      b.classList.toggle('lit',(role==='run'&&FT.sprint)||(role==='horn'&&honk));
+      b.classList.toggle('dim',role==='car'&&dimC); });
+  }
+  if(mode==='foot'){ FT.joyX=CTL.x; FT.joyY=-CTL.y; FT.fire=CTL.fire; touchFire=false; }
+  else touchFire=CTL.fire;
 }
+// stick -> car inputs (called at the top of updatePlayer). Analogue: a small dead zone, then a soft curve;
+// steering is eased toward its target and trimmed a little at speed so it never twitches.
+function ctlDrive(dt){
+  if(CTL.mode!=='car'||CTL.pid===null){ touchAccel=touchBrake=false; touchThr=touchBrk=0;
+    touchSteer*=Math.max(0,1-12*dt); if(Math.abs(touchSteer)<0.01) touchSteer=0; return; }
+  const y=-CTL.y, ax=Math.abs(CTL.x);
+  touchThr=y>0.2?0.4+0.6*clamp((y-0.2)/0.45,0,1):0;
+  touchBrk=y<-0.25?0.4+0.6*clamp((-y-0.25)/0.4,0,1):0;
+  touchAccel=touchThr>0; touchBrake=touchBrk>0;
+  const dz=0.14, n=clamp((ax/0.82-dz)/(1-dz),0,1);
+  const spd=clamp(Math.hypot(player.vx,player.vz)/CFG.maxSpeed,0,1);
+  const tgt=-Math.sign(CTL.x)*Math.pow(n,1.6)*(1-0.35*spd);
+  touchSteer+=(tgt-touchSteer)*Math.min(1,13*dt);
+}
+window.__ctl=()=>({mode:CTL.mode,pid:CTL.pid,x:+CTL.x.toFixed(2),y:+CTL.y.toFixed(2),acc:touchAccel,brk:touchBrake,
+  thr:+touchThr.toFixed(2),steer:+touchSteer.toFixed(2),hand:touchHand,fire:touchFire||!!FT.fire,joy:[+FT.joyX.toFixed(2),+FT.joyY.toFixed(2)],
+  held:CTL.btn.filter(b=>b._pid!==null).map(b=>b._held),roles:CTL.btn.map(b=>b.dataset.role||''),log:CTL.log.slice(-8)});
 
 // ---------------- debug overlay (B) ----------------
 let debugOn=false, debugGroup=null, fpsS=60;
@@ -13104,104 +13250,236 @@ function clearWanted(){
 const cashEl=document.getElementById('cash'),speedEl=document.getElementById('speed'),
       objEl=document.getElementById('obj'),floatEl=document.getElementById('float'),
       bigEl=document.getElementById('big');
-function floatText(txt){
-  floatEl.textContent=txt; floatEl.classList.remove('pop');
-  void floatEl.offsetWidth; floatEl.classList.add('pop');
+// ---- on-screen text. The objective is one slim line on the top edge (#obj, plus Sol's job in #obj2 and
+// the wanted stars); every transient message queues through a one-at-a-time ticker right under it; event
+// titles are brief and sit in the top third. Only the end states (WRECKED / WASTED / BUSTED) take the centre.
+const HUD={lt:0,q:[],cur:null,ct:0,sol:'',say:'',call:'',chip:'',dist:'',hintT:0,
+  tick:document.getElementById('ticker'),obj2:document.getElementById('obj2'),chipEl:document.getElementById('navchip'),
+  arrow:document.getElementById('navarrow'),distEl:document.getElementById('navdist'),hint:document.getElementById('hint')};
+function tickerPush(txt,color){
+  txt=String(txt||'').trim(); if(!txt) return;
+  if((HUD.cur&&HUD.cur.txt===txt)||HUD.q.some(m=>m.txt===txt)) return;
+  if(HUD.q.length>=4) HUD.q.shift();
+  HUD.q.push({txt,color:color||'#ffd76a'});
 }
+function tickerTick(dt){
+  const el=HUD.tick;
+  if(HUD.cur){ HUD.ct+=dt;
+    const hold=(HUD.q.length?1.7:3.0)+Math.min(1.6,HUD.cur.txt.length*0.022);
+    if(HUD.ct>hold){ el.classList.remove('show'); if(HUD.ct>hold+0.32) HUD.cur=null; } }
+  else if(HUD.q.length){ HUD.cur=HUD.q.shift(); HUD.ct=0; el.textContent=HUD.cur.txt; el.style.color=HUD.cur.color; el.classList.add('show'); }
+}
+function floatText(txt){ tickerPush(txt,'#ffd76a'); }
 function bigText(txt,color){
+  txt=String(txt||''); const fin=/^(WRECKED|WASTED|BUSTED|OVERRUN)/.test(txt);
+  if(!fin&&txt.length>24){ tickerPush(txt,color||'#ff8d98'); return; }      // long lines read better in the ticker
   bigEl.textContent=txt; bigEl.style.color=color||'#ff4d5e';
-  bigEl.classList.remove('show'); void bigEl.offsetWidth; bigEl.classList.add('show');
+  bigEl.classList.remove('show'); bigEl.classList.toggle('final',fin); void bigEl.offsetWidth; bigEl.classList.add('show');
+}
+// the control hint: shown once at the start for a few seconds, again from the "?" button
+function hudHint(sec){
+  const h=HUD.hint; if(!h) return;
+  if(touchUI) h.textContent=onFoot?'Stick: walk · FIRE auto-aims · RUN toggles · ENTER / JACK any car':HINT_TOUCH;
+  else if(onFoot) h.textContent='WASD walk · SHIFT run · SPACE / CLICK fire (auto-aim) · G or E get in / jack a car';
+  else setTouchUI(false);
+  h.style.opacity=1; clearTimeout(HUD.hintT); if(typeof footHint==='function') clearTimeout(footHint.t);
+  HUD.hintT=setTimeout(()=>{ h.style.opacity=0; },(sec||6)*1000);
+}
+document.getElementById('helpbtn').addEventListener('pointerdown',e=>{ e.stopPropagation(); e.preventDefault();
+  if(HUD.hint.style.opacity==='1'){ HUD.hint.style.opacity=0; clearTimeout(HUD.hintT); } else hudHint(7); });
+function hudTick(t,P){
+  const dt=clamp(t-HUD.lt,0,0.1); HUD.lt=t;
+  tickerTick(dt);
+  // Sol's pager: her job rides in the top line, what she says goes through the ticker
+  if(typeof SOL!=='undefined'&&SOL.ui){
+    const U=SOL.ui, on=U.pager.style.display!=='none', v=SOL.venues[SOL.act];
+    let txt='', call='';
+    if(on&&v&&(SOL.state==='wait'||SOL.state==='greet'||SOL.state==='walk')){ txt='<b>SOL</b> pick up \u00b7 '+(v.short||v.name); call=SOL.act+':'+v.banner; }
+    else if(on&&SOL.state==='ride'&&SOL.dest) txt='<b>SOL</b> drop at '+SOL.dest.name+' \u00b7 nerve';
+    if(call&&SOL.state==='wait'&&call!==HUD.call) tickerPush('Sol calling \u2014 \u201c'+v.banner+'\u201d','#ffb3e2');   // the phone call, once per call
+    if(SOL.state==='wait'||SOL.state==='idle') HUD.call=call;
+    if(txt!==HUD.sol){ HUD.sol=txt; HUD.obj2.innerHTML=txt?txt+'<i id="obj2n"></i>':''; }
+    const nb=HUD.obj2.lastElementChild;
+    if(nb&&nb.id==='obj2n'){ const ride=SOL.state==='ride'; nb.style.display=ride?'block':'none'; if(ride) nb.style.width=Math.max(0,SOL.nerve).toFixed(0)+'%'; }
+    if(SOL.sayT>0&&SOL.say){ if(SOL.say!==HUD.say){ HUD.say=SOL.say; tickerPush('Sol: “'+SOL.say+'”','#ffb3e2'); } }
+    else HUD.say='';
+  }
+  // compass chip at the top edge: a chevron that turns toward the active objective, with the distance
+  const a=NAV.act, key=a?a.type:'';
+  if(key!==HUD.chip){ HUD.chip=key; HUD.dist=''; HUD.chipEl.style.display=a?'flex':'none';
+    if(a){ HUD.chipEl.style.color=NAV.COL[a.type]; HUD.chipEl.style.order=a.type==='sol'?2:0; } }   // the chip sits beside the line it measures
+  if(a){ const rel=Math.atan2(a.x-P.x,a.z-P.z)-P.h;
+    HUD.arrow.style.transform='rotate('+rel.toFixed(2)+'rad)';
+    const d=({fuel:'FUEL ',meteor:'CRATER ',garage:'GARAGE '}[a.type]||'')+(a.d<1000?Math.round(a.d/5)*5+' M':(a.d/1000).toFixed(1)+' KM');
+    if(d!==HUD.dist){ HUD.dist=d; HUD.distEl.textContent=d; } }
 }
 
-// minimap with full network
-// player-centred minimap (the world is far too large for a fixed view)
+// ---------------- sat-nav (the minimap) ----------------
+// Two modes, tap the map to switch (animated):
+//   FOLLOW   - you are fixed at the centre, the map turns heading-up around you, zoomed in to street level
+//   OVERVIEW - north-up map of the whole city area, you are the moving arrow, the map is larger
+// Every active objective is a glowing dot with expanding rings in its own colour (pink: Sol / the women,
+// gold: jobs, green: the meteor, amber: fuel, blue: garage). Off the map it becomes an arrow pinned to
+// the edge with the distance in metres.
 const mm=document.getElementById('minimap'),mx=mm.getContext('2d');
-const MMW=156, MMVIEW=560, MMSCALE=MMW/(2*MMVIEW);
+const MMW=156, MMVIEW=560, MMSCALE=MMW/(2*MMVIEW);     // legacy constants (older marker code still names them)
+const NAV={mode:0,k:0,lt:0,VIEW:118,ocx:-30,ocz:-40,oext:330,objs:[],act:null,garT:0,garOn:false,
+  COL:{sol:'#ff5ab4',job:'#ffd76a',meteor:'#52e88a',fuel:'#ffa53a',garage:'#7db4ff'},
+  PRI:{sol:5,job:4,meteor:3,fuel:2,garage:1}};
+function navToggle(){ NAV.mode=1-NAV.mode; document.documentElement.classList.toggle('navbig',NAV.mode===1); }
+mm.addEventListener('pointerdown',e=>{ e.preventDefault(); e.stopPropagation(); navToggle(); });
+// who the map follows: the car, or the man on foot (heading-up = the way the camera looks)
+function navPose(){
+  if(onFoot&&typeof foot!=='undefined') return {x:foot.x,z:foot.z,a:foot.a,h:FT.camYaw};
+  return {x:player.x,z:player.z,a:player.a,h:player.a};
+}
+function navObjectives(P,t){
+  const o=[], add=(x,z,type)=>o.push({x,z,type,d:Math.hypot(x-P.x,z-P.z),pri:NAV.PRI[type]});
+  if(typeof SOL!=='undefined'&&!SOL.paused){
+    if(SOL.state==='wait'||SOL.state==='greet'||SOL.state==='walk'){ const v=SOL.venues[SOL.act]; if(v&&v.kerb) add(v.kerb.x,v.kerb.z,'sol'); }
+    else if(SOL.state==='ride'&&SOL.dest) add(SOL.dest.x,SOL.dest.z,'sol');
+  }
+  const ph=mission.phase;
+  if((ph==='drive'||ph==='heist')&&banks[mission.bankIdx]) add(banks[mission.bankIdx].x,banks[mission.bankIdx].z,'job');
+  if(ph==='escape'&&mission.drop) add(mission.drop.x,mission.drop.z,'job');
+  if((ph==='story_drive'||ph==='deliver_pick'||ph==='deliver_run')&&mission.storyTarget) add(mission.storyTarget.x,mission.storyTarget.z,'job');
+  if(ph==='tail'&&st.tail) add(st.tail.x,st.tail.z,'job');
+  if(zombieMode) add(CRASH.x,CRASH.z,'meteor');
+  if(fuel<22){ let b=null,bd=1e9; for(const s of STATIONS){ const d=Math.hypot(s.x-P.x,s.z-P.z); if(d<bd){ bd=d; b=s; } }
+    if(b){ add(b.x,b.z,'fuel'); if(fuel<10) o[o.length-1].pri=6; } }
+  if(t-NAV.garT>1.5||t<NAV.garT){ NAV.garT=t; NAV.garOn=false;            // the garage matters when there is a car you can afford
+    for(const id in MODELS){ const m=MODELS[id]; if(m.garage&&!owned.has(id)&&cash>=m.price){ NAV.garOn=true; break; } } }
+  if(NAV.garOn) add(GARAGE.x,GARAGE.z,'garage');
+  return o;
+}
 function drawMinimap(t){
-  const px=player.x, pz=player.z, cxp=MMW/2, czp=MMW/2;
-  const sx=v=>cxp+(v-px)*MMSCALE, sz=v=>czp+(pz-v)*MMSCALE;   // north-up
-  mx.fillStyle='#2e2a44'; mx.fillRect(0,0,MMW,MMW);
-  // ocean to the west
-  const waterX=sx(shoreX(pz));
-  if(waterX>0){ mx.fillStyle='#27506b'; mx.fillRect(0,0,Math.min(MMW,waterX),MMW); }
+  const P=navPose(), c=mx;
+  const L=mm.clientWidth||MMW, dpr=Math.min(window.devicePixelRatio||1,2.5), bw=Math.max(32,Math.round(L*dpr));
+  if(mm.width!==bw||mm.height!==bw){ mm.width=bw; mm.height=bw; }
+  const dtm=clamp(t-NAV.lt,0,0.1); NAV.lt=t;
+  NAV.k=clamp(NAV.k+(NAV.mode?1:-1)*dtm/0.32,0,1);
+  const e=NAV.k*NAV.k*(3-2*NAV.k);
+  const objs=NAV.objs=navObjectives(P,t);
+  let act=null; for(const o of objs) if(!act||o.pri>act.pri) act=o; NAV.act=act;
+  // overview frame: the city area, widened to keep you and every objective on the sheet
+  { let x0=-360,x1=300,z0=-370,z1=290;
+    const inc=(x,z,m)=>{ if(x-m<x0)x0=x-m; if(x+m>x1)x1=x+m; if(z-m<z0)z0=z-m; if(z+m>z1)z1=z+m; };
+    inc(P.x,P.z,60); for(const o of objs) inc(o.x,o.z,60);
+    const tx=(x0+x1)/2, tz=(z0+z1)/2, te=Math.max(x1-x0,z1-z0)/2, kk=Math.min(1,dtm*4);
+    NAV.ocx+=(tx-NAV.ocx)*kk; NAV.ocz+=(tz-NAV.ocz)*kk; NAV.oext+=(te-NAV.oext)*kk; }
+  const hN=Math.atan2(Math.sin(P.h),Math.cos(P.h));
+  const cx=P.x+(NAV.ocx-P.x)*e, cz=P.z+(NAV.ocz-P.z)*e;
+  const half=Math.exp(Math.log(NAV.VIEW)*(1-e)+Math.log(NAV.oext)*e), S=L/(2*half), rot=-hN*(1-e);
+  const cr=Math.cos(rot), sr=Math.sin(rot), VR=half*1.45;
+  const W2S=(x,z)=>{ const dx=(x-cx)*S, dy=-(z-cz)*S; return [L/2+dx*cr-dy*sr, L/2+dx*sr+dy*cr]; };
+  c.setTransform(dpr,0,0,dpr,0,0);
+  c.fillStyle='#2b2740'; c.fillRect(0,0,L,L);
+  // ---- the world layer (drawn in metres, turned and scaled as one) ----
+  c.save(); c.translate(L/2,L/2); c.rotate(rot); c.scale(S,-S); c.translate(-cx,-cz);
+  const px=1/S;                                            // one screen pixel, in metres
+  // sea + beach along the shore curve
+  { const zA=cz-VR, zB=cz+VR, n=16;
+    c.fillStyle='#235a78'; c.beginPath(); c.moveTo(cx-VR*3-400,zA);
+    for(let i=0;i<=n;i++){ const z=zA+(zB-zA)*i/n; c.lineTo(shoreX(z),z); }
+    c.lineTo(cx-VR*3-400,zB); c.closePath(); c.fill();
+    c.strokeStyle='#d8b27c'; c.lineWidth=Math.max(16,2.2*px); c.lineCap='butt'; c.beginPath();
+    for(let i=0;i<=n;i++){ const z=zA+(zB-zA)*i/n; i?c.lineTo(shoreX(z)+10,z):c.moveTo(shoreX(z)+10,z); }
+    c.stroke(); }
   // city footprint
-  mx.fillStyle='#4a4366';
-  mx.fillRect(sx(-HALF-RW/2),sz(HALF+RW/2),(2*HALF+RW)*MMSCALE,(2*HALF+RW)*MMSCALE);
-  // roads (culled to the view)
-  mx.strokeStyle='#6b6480'; mx.lineCap='round'; mx.lineWidth=Math.max(1.4,RW*MMSCALE);
-  for(const e of edges){
-    const ax=sx(e.ax),az=sz(e.az),bx=sx(e.bx),bz=sz(e.bz);
-    if((ax<-12&&bx<-12)||(ax>MMW+12&&bx>MMW+12)||(az<-12&&bz<-12)||(az>MMW+12&&bz>MMW+12)) continue;
-    mx.strokeStyle=e.rural?'#5c5572':'#6b6480';
-    mx.beginPath(); mx.moveTo(ax,az); mx.lineTo(bx,bz); mx.stroke();
-  }
-  mwMapDraw(mx,sx,sz,MMSCALE,MMW);        // ROADS: motorway + slips
-  // station + banks
-  mx.fillStyle='#ffb060';
-  for(const s of STATIONS) mx.fillRect(sx(s.x)-2.5,sz(s.z)-2.5,5,5);
-  mx.fillStyle='#9be58a';
-  for(const b of banks) mx.fillRect(sx(b.x)-2,sz(b.z)-2,4,4);
-  // objective blip (clamped to the rim if off-screen)
-  let tx=null,tz=null;
-  if(mission.phase==='drive'||mission.phase==='heist'){tx=banks[mission.bankIdx].x;tz=banks[mission.bankIdx].z;}
-  if(mission.phase==='escape'&&mission.drop){tx=mission.drop.x;tz=mission.drop.z;}
-  if((mission.phase==='story_drive'||mission.phase==='deliver_pick'||mission.phase==='deliver_run')&&mission.storyTarget){
-    tx=mission.storyTarget.x;tz=mission.storyTarget.z;}
-  if(mission.phase==='tail'&&st.tail){tx=st.tail.x;tz=st.tail.z;}
-  if(tx!==null){
-    let gx=sx(tx),gz=sz(tz);
-    gx=clamp(gx,6,MMW-6); gz=clamp(gz,6,MMW-6);
-    mx.fillStyle='#ffd76a';
-    const r=3+Math.sin(t*5)*1.4;
-    mx.beginPath(); mx.arc(gx,gz,Math.max(2,r),0,7); mx.fill();
-  }
-  // traffic in view
+  c.fillStyle='#463f63'; c.fillRect(-HALF-RW/2,-HALF-RW/2,2*HALF+RW,2*HALF+RW);
+  // roads, three classes batched: country / suburb, city streets, boulevards
+  { const far=e2=>{ const hx=(e2.ax+e2.bx)/2-cx, hz=(e2.az+e2.bz)/2-cz, r=VR+(e2.len||0)/2; return hx>r||hx<-r||hz>r||hz<-r; };
+    const pass=(test,col,w)=>{ c.strokeStyle=col; c.lineWidth=w; c.beginPath();
+      for(const e2 of edges){ if(e2.mw||!test(e2)||far(e2)) continue; c.moveTo(e2.ax,e2.az); c.lineTo(e2.bx,e2.bz); } c.stroke(); };
+    c.lineCap='round';
+    pass(e2=>e2.rural||e2.sub,'#7a7392',Math.max(RW*0.6,1.2*px));
+    pass(e2=>!e2.rural&&!e2.sub&&!e2.blvd&&!e2.main,'#a59dbd',Math.max(RW*0.8,1.7*px));
+    pass(e2=>!e2.rural&&!e2.sub&&(e2.blvd||e2.main),'#d2cbe6',Math.max(RW,2.3*px)); }
+  // the motorway: dark casing, bright blue carriageway, pale centre line (slips thinner)
+  if(typeof MW!=='undefined'&&MW.all){ c.lineCap='butt';
+    for(let p=0;p<3;p++){ for(const m of MW.all){
+        const hx=(m.ax+m.bx)/2-cx, hz=(m.az+m.bz)/2-cz, r=VR+(m.len||0)/2; if(hx>r||hx<-r||hz>r||hz<-r) continue;
+        if(p===2&&m.slip) continue;
+        const w=m.slip?Math.max(m.hw*1.6,1.6*px):Math.max(m.hw*2+2,3.4*px);
+        c.strokeStyle=p===0?'#141126':(p===1?(m.slip?'#6f8be0':'#5f8dff'):'#e6eeff');
+        c.lineWidth=p===0?w+2.2*px:(p===1?w:Math.max(0.8*px,w*0.16));
+        c.beginPath(); c.moveTo(m.ax,m.az); c.lineTo(m.bx,m.bz); c.stroke(); } }
+    c.lineCap='round'; }
+  c.restore();
+  // ---- markers (screen space, always upright) ----
+  const inMap=(q,m)=>q[0]>m&&q[0]<L-m&&q[1]>m&&q[1]<L-m;
+  const sq=(x,z,col,r,ch)=>{ const q=W2S(x,z); if(!inMap(q,-2)) return;
+    c.fillStyle='#17132a'; c.fillRect(q[0]-r-1,q[1]-r-1,2*r+2,2*r+2); c.fillStyle=col; c.fillRect(q[0]-r,q[1]-r,2*r,2*r);
+    if(ch&&r>=3.5){ c.fillStyle='#17132a'; c.font='bold '+(r*2-1)+'px Arial'; c.textAlign='center'; c.textBaseline='middle'; c.fillText(ch,q[0],q[1]+0.5); } };
+  const big=L>=120, pr=big?4:3;
+  for(const s of STATIONS) sq(s.x,s.z,'#ffb060',pr,'F');
+  for(const b of banks) sq(b.x,b.z,'#9be58a',pr,'$');
+  sq(GARAGE.x,GARAGE.z,'#7db4ff',pr,'G');
+  // traffic (cops always, the rest only at street scale)
   for(const v of traffic){
-    const vx=sx(v.x),vz=sz(v.z);
-    if(vx<0||vx>MMW||vz<0||vz>MMW) continue;
-    if(v.kind==='cop') mx.fillStyle=(wanted&&Math.floor(t*6)%2)?'#ff4d5e':'#7db4ff';
-    else if(v.kind==='bus') mx.fillStyle='#3fbac2';
-    else mx.fillStyle='#d9d2c6';
-    mx.fillRect(vx-1.5,vz-1.5,3,3);
+    const cop=v.kind==='cop'; if(!cop&&e>0.5) continue;
+    const q=W2S(v.x,v.z); if(!inMap(q,0)) continue;
+    c.fillStyle=cop?((wanted&&Math.floor(t*6)%2)?'#ff4d5e':'#7db4ff'):(v.kind==='bus'?'#3fbac2':'#e4ddd0');
+    const r=cop?2:1.5; c.fillRect(q[0]-r,q[1]-r,2*r,2*r);
   }
-  // the outbreak: crater pulse + zombie blips (clamped crater marker when far)
-  if(zombieMode){
-    let gx=clamp(sx(CRASH.x),6,MMW-6), gz=clamp(sz(CRASH.z),6,MMW-6);
-    mx.fillStyle='#52e88a';
-    const cr=2.6+Math.sin(t*4)*1.2;
-    mx.beginPath(); mx.arc(gx,gz,Math.max(2,cr),0,7); mx.fill();
-    mx.fillStyle='#8fdc6a';
-    for(const z of zombies){
-      if(z.dead) continue;
-      const zx=sx(z.x),zz=sz(z.z);
-      if(zx<0||zx>MMW||zz<0||zz>MMW) continue;
-      mx.fillRect(zx-1,zz-1,2,2);
+  if(zombieMode){ c.fillStyle='#8fdc6a';
+    for(const z of zombies){ if(z.dead) continue; const q=W2S(z.x,z.z); if(inMap(q,0)) c.fillRect(q[0]-1,q[1]-1,2,2); } }
+  // your parked car while you walk
+  if(onFoot&&pCar&&!player.wreck){ const q=W2S(player.x,player.z);
+    if(inMap(q,3)){ c.fillStyle='#ffd76a'; c.strokeStyle='#221a30'; c.lineWidth=1.5; c.beginPath(); c.arc(q[0],q[1],3.4,0,7); c.fill(); c.stroke(); } }
+  // objectives: glow dot + expanding rings, or an edge arrow with the distance
+  c.font='bold '+(big?10:9)+'px Arial'; c.textAlign='center'; c.textBaseline='middle';
+  for(let i=0;i<objs.length;i++){
+    const o=objs[i], col=NAV.COL[o.type], q=W2S(o.x,o.z), m=8, isAct=o===act;
+    if(inMap(q,m)){
+      const span=big?17:12;
+      for(let r=0;r<2;r++){ const ph=(t*0.85+r*0.5+i*0.23)%1;
+        c.globalAlpha=(1-ph)*0.95; c.strokeStyle=col; c.lineWidth=(big?2.6:2.1)-ph; c.beginPath(); c.arc(q[0],q[1],3.5+ph*span,0,7); c.stroke(); }
+      c.globalAlpha=1; c.shadowColor=col; c.shadowBlur=9; c.fillStyle=col; c.beginPath(); c.arc(q[0],q[1],4.2+Math.sin(t*6)*0.6,0,7); c.fill();
+      c.shadowBlur=0; c.fillStyle='#fff'; c.beginPath(); c.arc(q[0],q[1],1.7,0,7); c.fill();
+    } else {
+      const dx=q[0]-L/2, dy=q[1]-L/2, kk=Math.min((L/2-m)/Math.max(1e-6,Math.abs(dx)),(L/2-m)/Math.max(1e-6,Math.abs(dy)));
+      const ex=L/2+dx*kk, ey=L/2+dy*kk, ang=Math.atan2(dy,dx), ph=(t*0.85+i*0.23)%1;
+      c.globalAlpha=(1-ph)*0.85; c.strokeStyle=col; c.lineWidth=1.6; c.beginPath(); c.arc(ex,ey,3+ph*9,0,7); c.stroke(); c.globalAlpha=1;
+      c.save(); c.translate(ex,ey); c.rotate(ang); const sc=(big?1.3:1)*(1+Math.sin(t*6)*0.12); c.scale(sc,sc);
+      c.shadowColor=col; c.shadowBlur=7; c.fillStyle=col; c.strokeStyle='#17132a'; c.lineWidth=1.2;
+      c.beginPath(); c.moveTo(7,0); c.lineTo(-4,-5.5); c.lineTo(-1.5,0); c.lineTo(-4,5.5); c.closePath(); c.fill(); c.shadowBlur=0; c.stroke(); c.restore();
+      if(isAct||big){ const lab=o.d<1000?Math.round(o.d)+'m':(o.d/1000).toFixed(1)+'km';
+        const lx=clamp(ex-Math.cos(ang)*19,15,L-15), ly=clamp(ey-Math.sin(ang)*15,8,L-8);
+        c.lineWidth=3; c.strokeStyle='rgba(18,13,30,.9)'; c.strokeText(lab,lx,ly); c.fillStyle=col; c.fillText(lab,lx,ly); }
     }
   }
-  // player at centre
-  mx.save(); mx.translate(cxp,czp); mx.rotate(player.a);
-  mx.fillStyle='#ffd76a';
-  mx.beginPath(); mx.moveTo(0,-4.4); mx.lineTo(3,3.4); mx.lineTo(-3,3.4); mx.closePath(); mx.fill();
-  mx.restore();
+  // north tick while the map is turning with you
+  if(e<0.9){ const nx=L/2+sr*(L/2-7), ny=L/2-cr*(L/2-7);
+    c.globalAlpha=(1-e)*0.85; c.fillStyle='#17132a'; c.beginPath(); c.arc(nx,ny,5.5,0,7); c.fill();
+    c.fillStyle='#ffe6c8'; c.font='bold 8px Arial'; c.fillText('N',nx,ny+0.5); c.globalAlpha=1; }
+  // you: fixed at the centre pointing up (follow), a moving, turning arrow with a halo (overview)
+  { const q=W2S(P.x,P.z), ha=Math.atan2(Math.sin(P.a),Math.cos(P.a))+rot, sz=(big?1.35:1)*(1+0.25*e);
+    if(e>0.05){ const ph=(t*1.1)%1; c.globalAlpha=e*(1-ph)*0.8; c.strokeStyle='#fff'; c.lineWidth=1.4; c.beginPath(); c.arc(q[0],q[1],4+ph*10,0,7); c.stroke(); c.globalAlpha=1; }
+    c.save(); c.translate(q[0],q[1]); c.rotate(ha); c.scale(sz,sz);
+    c.fillStyle='#fff7df'; c.strokeStyle='#17132a'; c.lineWidth=1.3;
+    c.beginPath(); c.moveTo(0,-5.6); c.lineTo(4,4.2); c.lineTo(0,2.2); c.lineTo(-4,4.2); c.closePath(); c.fill(); c.stroke(); c.restore(); }
+  // corner glyph: what a tap does (expand / shrink)
+  { const g=5, x=5, y=L-5; c.strokeStyle='rgba(255,240,220,.6)'; c.lineWidth=1.3; c.beginPath();
+    if(NAV.mode){ c.moveTo(x+g,y-g-3); c.lineTo(x+g,y-g); c.lineTo(x+g+3,y-g); c.moveTo(x+g,y-g); c.lineTo(x+g+4,y-g-4); }
+    else { c.moveTo(x,y-3.5); c.lineTo(x,y); c.lineTo(x+3.5,y); c.moveTo(x,y); c.lineTo(x+g,y-g); }
+    c.stroke(); }
+  hudTick(t,P);
 }
 
 // ---------------- player ----------------
 function updatePlayer(dt,t){
+  ctlDrive(dt);                                 // CTRL: on-screen stick -> touchAccel / touchBrake / touchSteer
   if(player.dyn) return dmgPlayerDyn(dt,t);     // DAMAGE: airborne / rolling / wrecked
-  if(!wheelHeld && wheelAngle!==0){            // wheel springs back to centre
-    wheelAngle*=Math.max(0,1-7*dt);
-    if(Math.abs(wheelAngle)<0.01) wheelAngle=0;
-    setWheel();
-  }
-  const up=keys['w']||keys['arrowup']||touchAccel;
-  const dn=keys['s']||keys['arrowdown']||touchBrake;
-  if(gasPedalEl) gasPedalEl.classList.toggle('on',!!up);
-  if(brakePedalEl) brakePedalEl.classList.toggle('on',!!dn);
+  const kUp=keys['w']||keys['arrowup'], kDn=keys['s']||keys['arrowdown'];
+  const up=kUp||touchAccel;
+  const dn=kDn||touchBrake;
+  const thrK=kUp?1:(touchAccel?touchThr:1), brkK=kDn?1:(touchBrake?touchBrk:1);   // analogue stick; keys are all-or-nothing
   const lf=keys['a']||keys['arrowleft'];
   const rt=keys['d']||keys['arrowright'];
-  const hb=keys[' '];
+  const hb=keys[' ']||touchHand;
   let steer=(lf?1:0)-(rt?1:0);
-  if(steer===0) steer=touchSteer;             // keyboard overrides the wheel
+  if(steer===0) steer=touchSteer;             // keyboard overrides the stick
 
   const fx=Math.sin(player.a),fz=Math.cos(player.a);
   const rx=-fz,rz=fx;
@@ -13217,8 +13495,8 @@ function updatePlayer(dt,t){
   else if(fuel<10&&fuelWarned<2){ fuelWarned=2; floatText('FUEL CRITICAL'); blip('square',220,140,0.3,0.08); }
   else if(fuel<22&&fuelWarned<1){ fuelWarned=1; floatText('LOW FUEL — FIND A STATION'); }
   const engine=(fuel>0?1:0)*(inWater?0.25:1);
-  if(up) vf+=CFG.accel*dt*(1-clamp(vf/CFG.maxSpeed,0,1)*0.55)*(onHard?1:0.6)*engine;
-  if(dn){ if(vf>0.5)vf-=CFG.brake*dt; else vf=Math.max(vf-CFG.accel*0.55*dt,-CFG.revMax); }
+  if(up) vf+=CFG.accel*dt*(1-clamp(vf/CFG.maxSpeed,0,1)*0.55)*(onHard?1:0.6)*engine*thrK;
+  if(dn){ if(vf>0.5)vf-=CFG.brake*dt*brkK; else vf=Math.max(vf-CFG.accel*0.55*dt*brkK,-CFG.revMax); }
   // Rolling resistance + v-squared aerodynamic drag replace the old flat coast damping.
   // The car coasts a long way on tarmac, scrubs speed hard at the top end,
   // and bogs down properly in the dirt. Top speeds are unchanged.
@@ -14667,6 +14945,7 @@ function solUI(dt){
   const hk=(SOL.near&&!dlgOpen&&!onFoot)?'block':'none'; if(hk!==U.hk){ U.hk=hk; U.honk.style.display=hk; U.honk.textContent=FT.lastTouch?'HONK':'HONK (H)'; }
 }
 function solMinimap(t){
+  if(typeof navObjectives==='function') return;   // CTRL: drawMinimap pulses Sol's pickup / drop itself
   if(SOL.paused) return;
   const sx=x=>MMW/2+(x-player.x)*MMSCALE, sz=z=>MMW/2+(player.z-z)*MMSCALE;
   let p=null, heart=true;
@@ -16629,7 +16908,7 @@ document.getElementById('start').addEventListener('pointerdown',e=>{
   initPlayerCar(_selCar);
   started=true; initAudio();
   if(AC&&AC.state==='suspended') AC.resume();
-  setTimeout(()=>{document.getElementById('hint').style.opacity=0;},9000);
+  hudHint(6.5);
 });
 addEventListener('resize',()=>{
   camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();
@@ -16637,6 +16916,6 @@ addEventListener('resize',()=>{
   if(meOn){ mecv.width=innerWidth; mecv.height=innerHeight; }
 });
 </script>
-<div id="buildver" style="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(2px + env(safe-area-inset-bottom));font:600 10px/1.2 ui-monospace,Menlo,monospace;color:#fff;opacity:.6;letter-spacing:.06em;pointer-events:none;z-index:2147483000;text-shadow:0 1px 2px #000">v0.27 · 10 Nov 13:21</div>
+<div id="buildver" style="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(2px + env(safe-area-inset-bottom));font:600 10px/1.2 ui-monospace,Menlo,monospace;color:#fff;opacity:.6;letter-spacing:.06em;pointer-events:none;z-index:2147483000;text-shadow:0 1px 2px #000">v0.28 · 10 Nov 17:56</div>
 </body>
 </html>
