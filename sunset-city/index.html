@@ -14,7 +14,7 @@
 <meta name="twitter:card" content="summary_large_image"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <link rel="apple-touch-icon" href="/sunset-city/square.png"/>
-<meta name="build-version" content="v0.26"/>
+<meta name="build-version" content="v0.27"/>
 <style>
   html,body{margin:0;padding:0;overflow:hidden;background:#1a1420;height:100%;touch-action:none;}
   canvas{display:block;}
@@ -133,6 +133,9 @@
     display:none;z-index:40;pointer-events:none;}
   #stubtn{position:fixed;top:250px;right:14px;padding:6px 10px;border-radius:14px;font-size:10px;font-weight:700;
     color:#ffe6c8;background:rgba(24,28,52,.7);border:1px solid rgba(255,240,220,.5);cursor:pointer;user-select:none;}
+  #tripbtn{position:fixed;top:284px;right:14px;padding:6px 10px;border-radius:14px;font-size:10px;font-weight:700;
+    color:#ffe6c8;background:rgba(24,28,52,.7);border:1px solid rgba(255,240,220,.5);cursor:pointer;user-select:none;}
+  #tripbtn.on{border-color:#ff7aa8;color:#ffd0e0;}
   #studio{position:fixed;inset:0;display:none;z-index:66;}
   #stuOrbit{position:absolute;inset:0;touch-action:none;cursor:grab;}
   #stuPanel{position:absolute;top:0;right:0;bottom:0;width:min(272px,72vw);background:rgba(13,16,28,.92);
@@ -170,6 +173,7 @@
   #fcam{top:calc(var(--st) + var(--mm) + 26px);right:calc(var(--sr) + 14px);}
   #mapbtn{top:calc(var(--st) + var(--mm) + 60px);right:calc(var(--sr) + 14px);}
   #stubtn{top:calc(var(--st) + var(--mm) + 94px);right:calc(var(--sr) + 14px);}
+  #tripbtn{top:calc(var(--st) + var(--mm) + 128px);right:calc(var(--sr) + 14px);}
   #topc{position:fixed;top:calc(var(--st) + 10px);left:calc(var(--sl) + var(--side));right:calc(var(--sr) + var(--side));
     display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none;}
   #hplabel{left:calc(var(--sl) + 16px);bottom:calc(var(--sb) + 52px);}
@@ -186,6 +190,8 @@
   /* developer tools (map editor, car studio) are keyboard/mouse only: V and U still open them */
   @media (pointer:coarse){#mapbtn,#stubtn{display:none;}}
   html.touchui #mapbtn,html.touchui #stubtn{display:none;}
+  @media (pointer:coarse){#tripbtn{top:calc(var(--st) + var(--mm) + 60px);}}
+  html.touchui #tripbtn{top:calc(var(--st) + var(--mm) + 60px);}
   @media (max-width:600px){
     :root{--mm:112px;--ctl:132px;}
     #wanted{font-size:18px;}
@@ -199,6 +205,8 @@
     #fcam{top:calc(var(--st) + 112px);left:calc(var(--sl) + 14px);right:auto;}
     #mapbtn{top:calc(var(--st) + 112px);left:calc(var(--sl) + 112px);right:auto;}
     #stubtn{top:calc(var(--st) + 112px);left:calc(var(--sl) + 172px);right:auto;}
+    #tripbtn,html.touchui #tripbtn{top:calc(var(--st) + 112px);left:calc(var(--sl) + 232px);right:auto;}
+    html.touchui #tripbtn{left:calc(var(--sl) + 112px);}
     #wheel{left:calc(var(--sl) + 12px);bottom:calc(var(--sb) + 12px);}
     #pedals{right:calc(var(--sr) + 12px);bottom:calc(var(--sb) + 12px);}
   }
@@ -225,12 +233,13 @@
   <div id="fcam">FREE CAM</div>
   <div id="mapbtn">MAP</div>
   <div id="stubtn">CAR</div>
+  <div id="tripbtn">LOOK</div>
   <div id="dlg"><div id="dlgname"></div><div id="dlgtext"></div><div id="dlgopts"></div></div>
   <div id="hplabel">The Continental</div>
   <div id="hpwrap"><div id="hp"></div></div>
   <div id="fuelwrap"><div id="fuel"></div></div>
   <div id="wateroverlay"></div>
-  <div id="hint">WASD drive · SPACE handbrake · X fire · N summon the star · C camera · F free cam · M sound · R recover &nbsp;—&nbsp; repair at the petrol station</div>
+  <div id="hint">WASD drive · SPACE handbrake · X fire · N summon the star · C camera · F free cam · P look · M sound · R recover &nbsp;—&nbsp; repair at the petrol station</div>
   <div id="float"></div>
   <div id="big"></div>
   <div id="vignette"></div>
@@ -358,6 +367,7 @@ function lerpAngle(a,b,t){ let d=(b-a)%(Math.PI*2);
 // ?q=low|high forces the tier; otherwise phones / tablets / small screens get LOW.
 // ?touch=1|0 (or the T key) forces the on-screen wheel + pedals on or off.
 const URLQ=new URLSearchParams(location.search);
+const tripAlleyP=[];   // TRIP: alley puddle spots, noted as the alleys are dressed (wet-look puddles reuse them)
 const mq=q=>{ try{ return matchMedia(q).matches; }catch(_){ return false; } };
 const COARSE=mq('(pointer:coarse)');
 const QUALITY=(()=>{
@@ -378,7 +388,7 @@ function setTouchUI(on){
   document.documentElement.classList.toggle('touchui',touchUI);
   const h=document.getElementById('hint');
   if(h) h.textContent=touchUI?'Drag the wheel to steer · hold GAS / BRAKE · repair at the petrol station'
-    :'WASD drive · SPACE handbrake · X fire · N summon the star · C camera · F free cam · M sound · R recover \u00a0\u2014\u00a0 repair at the petrol station';
+    :'WASD drive · SPACE handbrake · X fire · N summon the star · C camera · F free cam · P look · M sound · R recover \u00a0\u2014\u00a0 repair at the petrol station';
 }
 setTouchUI(touchUI);
 // a real touch on a hybrid device switches the on-screen controls on (unless forced off)
@@ -1965,6 +1975,7 @@ function cdDressLots(api){
   function dressAlley(A){
     const R=Math.random, P2=(u,c)=>{ const nc=A.FR-u, cr=A.a0+c; return [A.cx+(A.ax?A.ax*nc:cr), A.cz+(A.az?A.az*nc:cr)]; }, X=A.ax!==0;
     for(let k=0;k<1+(R()<0.6?1:0);k++){ const u=rand(0.8,A.dep-0.8), c=rand(1.0,A.aw-1.0), [x,z]=P2(u,c), a=rand(0.6,1.4), b=rand(0.4,0.9);   // puddles
+      tripAlleyP.push([x,z,a,b,G0]);
       flat('vc',x-a/2,z-b/2,x+a/2,z+b/2,G0+0.012,C3('#262c3e')); flat('vc',x-a*0.3+0.2,z-b*0.8,x+a*0.35,z+b*0.6,G0+0.014,C3('#2e3650'));
       if(R()<0.5) pools.push({x,z,ry:0,len:a*1.6,dep:b*1.8,col:PK(['#ff5ab4','#3ff2ff','#b45cff'])}); }
     { const u=rand(1.2,Math.max(1.3,A.dep*0.5)), [dx,dz]=P2(u,0.03), [lx,lz]=P2(u,0.22), [px,pz]=P2(u,1.3);          // back door + lamp
@@ -15872,6 +15883,665 @@ function updateRuralAnim(dt,t){
     if(crowTimer<=0){ crowTimer=rand(15,42); if(rural>0.22&&Math.random()<0.72) crowCaw(); }
   } else if(windGain){ windGain.gain.value*=0.9; if(droneGain)droneGain.gain.value*=0.9; }
 }
+// ================= TRIP: the surreal look (post-process pass + living sky) =================
+// Levels (P key / LOOK button / ?trip=0..3, remembered in localStorage):
+//   0 OFF     - exactly the plain renderer: nothing below is built, drawn or ticked
+//   1 NOIR    - Sin City grade (selective colour), ink edges, film grain / vignette / weave, light streaks,
+//               and the sky set: sliced sun, big moon, banded dome, under-lit clouds
+//   2 DREAM   - NOIR + breathing lens, chromatic fringe, horizon haze, afterimage trails, hatching, iridescence
+//   3 SHROOMS - DREAM pushed: sky kaleidoscope, dripping sun, rippling clouds, world wobble in the distance
+// Intensity also rides the story: TRIP.S climbs with duskK and jumps after the meteor (TRIP.z).
+// One scene render into a target (+24-bit depth texture), one quarter-res glow/trail pass, one full-screen pass.
+// Any failure (no target, bad shader) sets TRIP.dead and the game renders directly, as before.
+const TRIP_NAMES=['LOOK: OFF','LOOK: NOIR','LOOK: DREAM','LOOK: SHROOMS'];
+const TRIP=(()=>{ let lv=2;
+  try{ const s=localStorage.getItem('sunsetTrip'); if(s!==null&&/^[0-3]$/.test(s)) lv=+s; }catch(_){}
+  try{ const u=URLQ.get('trip'); if(u!==null&&/^[0-3]$/.test(u)) lv=+u; }catch(_){}
+  let scale=LOWQ?0.7:1;
+  try{ const r=parseFloat(URLQ.get('tripres')); if(r>=0.25&&r<=1) scale=r; }catch(_){}
+  return {lv,dead:false,rt:null,tr:[null,null],ti:0,mat:null,tmat:null,scn:null,cam:null,quad:null,
+    w:0,h:0,scale,msWant:!LOWQ,ms:false,hasDepth:false,chk:false,first:true,
+    S:0,z:0,ks:-1,pulse:0,pT:0,love:0,loveT:0,speed:0,shP:0,solP:'',
+    sky:null,skyOn:false,moonDir0:null,pud:null,sw:null};
+})();
+const _tqV=new THREE.Vector3(), _tqV2=new THREE.Vector2(), _tqM=new THREE.Matrix4();
+const tripSm=(a,b,x)=>{ x=clamp((x-a)/(b-a),0,1); return x*x*(3-2*x); };
+
+const TRIP_QUAD_VS=`varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.0,1.0); }`;
+// quarter-res glow buffer: horizontal (anamorphic) smear of the hottest pixels, max-blended with the faded previous frame
+const TRIP_TRAIL_FS=`
+uniform sampler2D tScene; uniform sampler2D tDepth; uniform sampler2D tPrev;
+uniform vec2 uStep; uniform float uDecay,uDepth,uNear,uFar,uNight,uStepY;
+varying vec2 vUv;
+vec3 tBright(vec2 p){ vec3 s=texture2D(tScene,p).rgb;
+  float m=max(s.r,max(s.g,s.b)), n=min(s.r,min(s.g,s.b)), sat=(m-n)/(m+0.001);
+  float b=max(smoothstep(0.50,0.85,m)*smoothstep(0.25,0.55,sat)*uNight,smoothstep(0.86,1.0,m)*(0.25+0.4*sat));
+  if(uDepth>0.5){ float d=texture2D(tDepth,p).x; float z=uNear*uFar/(uFar-d*(uFar-uNear)); b*=1.0-smoothstep(230.0,320.0,z); }
+  return s*b; }
+void main(){
+  vec3 acc=vec3(0.0); float ws=0.0;
+  for(int i=-4;i<=4;i++){ float fi=float(i); float w=1.0-abs(fi)/5.0; acc+=tBright(vUv+uStep*fi)*w; ws+=w; }
+  for(int j=-2;j<=2;j++){ if(j==0) continue; float fj=float(j); float w=0.55/abs(fj); acc+=tBright(vUv+vec2(0.0,uStepY*fj))*w; ws+=w*0.5; }
+  acc/=ws;
+  vec3 prev=texture2D(tPrev,vUv).rgb*uDecay;
+  gl_FragColor=vec4(max(acc,prev),1.0);
+}`;
+const TRIP_FS=`
+uniform sampler2D tScene; uniform sampler2D tDepth; uniform sampler2D tTrail;
+uniform vec2 uRes; uniform vec2 uPx; uniform vec2 uWeave; uniform vec2 uSunUV; uniform vec2 uSeed; uniform vec2 uKc; uniform vec3 uBodyA; uniform vec3 uBodyB;
+uniform float uT,uMono,uInk,uInkW,uHatch,uHatchS,uGrain,uVig,uDream,uShroom,uPulse,uLove,uSpeed,uZ,uK,uNear,uFar,uHor,uDepth,uGlow,uSunOn,uSunR,uPud;
+varying vec2 vUv;
+float tLin(float d){ return uNear*uFar/(uFar-d*(uFar-uNear)); }
+float tHash(vec2 p){ vec3 q=fract(vec3(p.xyx)*0.1031); q+=dot(q,q.yzx+33.33); return fract((q.x+q.y)*q.z); }
+float tHd(float h,float c){ return abs(mod(h-c+3.0,6.0)-3.0); }
+void main(){
+  vec2 c=vUv-0.5; float asp=uRes.x/uRes.y; float r2=dot(c,c)*2.0;
+  // ---- lens: breathing barrel (corners pinned, centre breathes), gate weave
+  float bar=uDream*(0.014+0.012*sin(uT*0.52))+uPulse*0.02;
+  vec2 uv=0.5+c*(1.0+bar*(r2-1.0))+uWeave;
+  float z0=120.0;
+  if(uDepth>0.5) z0=tLin(texture2D(tDepth,uv).x);
+  // ---- heat haze on the far horizon; at SHROOMS the distance sways (near road and hazards stay put)
+  float hb=exp(-pow((uv.y-uHor)/0.06,2.0));
+  vec2 wob=vec2(sin(uv.y*230.0+uT*2.3),sin(uv.x*70.0-uT*1.4))*vec2(0.0016,0.0009)*uDream*hb*smoothstep(70.0,240.0,z0);
+  wob+=uShroom*smoothstep(25.0,160.0,z0)*0.0045*vec2(sin(uv.y*9.0+uT*0.7),cos(uv.x*7.0+uT*0.55));
+  uv+=wob;
+  // ---- chromatic fringe: grows to the edges, with speed and with event pulses
+  float cab=(0.0007+uDream*(0.0016+0.005*uSpeed)+uPulse*0.007)*r2;
+  vec2 cv=c*cab*2.0;
+  vec4 sg=texture2D(tScene,uv);
+  vec3 col=vec3(texture2D(tScene,uv+cv).r,sg.g,texture2D(tScene,uv-cv).b);
+  // ---- puddles: their material leaves a mask in the target's alpha; reflect the scene mirrored about the horizon,
+  //      smeared downward and rippled (sky, sun, moon, neon, windows and headlights all come for free)
+  float pm=(1.0-sg.a)*uPud;
+  if(pm>0.02&&uHor>-1.0&&uv.y<uHor){
+    vec2 ru=vec2(uv.x+sin(uv.y*260.0+uT*1.7)*0.0018,2.0*uHor-uv.y+0.004*sin(uv.x*90.0+uT*1.3));
+    vec3 rf=texture2D(tScene,ru).rgb*0.5+texture2D(tScene,ru+vec2(0.0,0.025)).rgb*0.3+texture2D(tScene,ru+vec2(0.0,0.06)).rgb*0.2;
+    rf=rf*0.4+texture2D(tScene,ru+vec2(0.0,0.11)).rgb*0.12+texture2D(tScene,ru+vec2(0.0,-0.02)).rgb*0.48;
+    float rm=max(rf.r,max(rf.g,rf.b));                 // wet tarmac is dark: only real lights come back out of it
+    col=mix(col,col*0.50+rf*(0.16+0.50*smoothstep(0.30,0.85,rm)),pm*smoothstep(1.0,0.90,ru.y));
+  }
+  // ---- ink: Laplacian of the raw depth (zero on any flat plane, so roads never hatch) scaled to a relative depth step
+  float ink=0.0, sky=0.0, dc=0.5;
+  if(uDepth>0.5){
+    dc=texture2D(tDepth,uv).x; vec2 o=uPx*uInkW;
+    float dl=texture2D(tDepth,uv-vec2(o.x,0.0)).x, dr=texture2D(tDepth,uv+vec2(o.x,0.0)).x;
+    float du=texture2D(tDepth,uv+vec2(0.0,o.y)).x, dd=texture2D(tDepth,uv-vec2(0.0,o.y)).x;
+    float zm=tLin(min(dc,min(min(dl,dr),min(du,dd))));
+    float e=(abs(dl+dr-2.0*dc)+abs(du+dd-2.0*dc))*zm*(uFar-uNear)/(uFar*uNear);
+    ink=smoothstep(0.035,0.12,e)*(1.0-smoothstep(80.0,250.0,zm))*uInk;
+    sky=smoothstep(300.0,420.0,tLin(dc));
+    // ---- SHROOMS: a soft six-fold mirror, only where both ends are open sky
+    if(uShroom>0.01&&dc>0.99997){
+      vec2 av=vec2(asp,1.0); vec2 q=(uv-uKc)*av;
+      float a=atan(q.y,q.x)+uT*0.015, r=length(q), seg=1.0472;
+      a=1.5708+abs(mod(a-1.5708+seg*0.5,seg)-seg*0.5);
+      vec2 uk=uKc+r*vec2(cos(a),sin(a))/av;
+      float ok=step(0.99997,texture2D(tDepth,uk).x);
+      ok*=smoothstep(0.0,0.06,uk.x)*smoothstep(1.0,0.94,uk.x)*smoothstep(1.0,0.94,uk.y)*smoothstep(uHor+0.02,uHor+0.14,uk.y);
+      // never copy the sun or the moon, and never paint over them
+      ok*=smoothstep(uBodyA.z*1.05,uBodyA.z*1.5,length((uk-uBodyA.xy)*av))*smoothstep(uBodyB.z*1.05,uBodyB.z*1.7,length((uk-uBodyB.xy)*av));
+      ok*=smoothstep(uBodyA.z*1.05,uBodyA.z*1.5,length((uv-uBodyA.xy)*av))*smoothstep(uBodyB.z*1.05,uBodyB.z*1.7,length((uv-uBodyB.xy)*av));
+      col=mix(col,texture2D(tScene,uk).rgb,0.40*uShroom*ok*smoothstep(uHor+0.05,uHor+0.22,uv.y));
+    }
+  }
+  // ---- Sin City grade: cool monochrome with selective colour kept by hue + saturation + brightness masks
+  float l=dot(col,vec3(0.299,0.587,0.114));
+  float mx=max(col.r,max(col.g,col.b)), mn=min(col.r,min(col.g,col.b)), ch=mx-mn;
+  float sat=ch/(mx+0.0001);
+  float h=0.0;
+  if(ch>0.0001){ if(mx==col.r) h=mod((col.g-col.b)/ch,6.0); else if(mx==col.g) h=(col.b-col.r)/ch+2.0; else h=(col.r-col.g)/ch+4.0; }
+  float wR=1.0-smoothstep(0.50,0.75,tHd(h,5.45));      // blood red .. hot pink .. magenta (stops short of orange)
+  float wO=1.0-smoothstep(0.30,0.60,tHd(h,0.35));      // orange (sky only)
+  float wY=1.0-smoothstep(0.22,0.50,tHd(h,0.80));      // sodium yellow
+  float wG=1.0-smoothstep(0.45,0.80,tHd(h,2.20));      // signal green / the meteor's green
+  float wB=1.0-smoothstep(0.50,0.90,tHd(h,3.60));      // cyan-blue neon
+  float wW=1.0-smoothstep(0.55,0.95,tHd(h,0.75));      // warm whites (lamp light)
+  float hot=smoothstep(0.70,0.95,mx);                  // glowing things read paler on screen: give them a lower bar
+  float night=smoothstep(0.30,0.85,uK);
+  float kR=wR*mix(mix(smoothstep(0.42,0.72,sat),smoothstep(0.16,0.36,sat),hot),smoothstep(0.05,0.18,sat),hot*night)*smoothstep(0.12,0.30,mx);
+  float kY=wY*mix(smoothstep(0.28,0.55,sat),smoothstep(0.10,0.28,sat),hot)*smoothstep(mix(0.50,0.26,night),mix(0.75,0.46,night),mx);
+  float kG=wG*smoothstep(mix(0.50,0.28,uZ),mix(0.75,0.52,uZ),sat)*smoothstep(mix(0.40,0.22,uZ),mix(0.65,0.45,uZ),mx);
+  float kB=wB*smoothstep(0.55,0.80,sat)*smoothstep(0.55,0.85,mx)*mix(0.40,1.0,night);
+  // light sources are keyed on the source pixel itself: bright AND saturated keeps its colour whatever the hue
+  // (neon, tail lights, signals, shop signs); all of it by night, a third of it by day
+  float emis=smoothstep(0.50,0.80,mx)*smoothstep(0.22,0.50,sat);
+  float kE=emis*mix(0.30,1.0,night);
+  float kSkin=wO*smoothstep(0.22,0.45,sat)*smoothstep(0.20,0.45,mx)*0.38;      // faces and hands stay a little warm
+  float keep=max(max(max(kR,kY),max(kG,kB)),max(kE,kSkin));
+  // lamp light: bright, barely-tinted warm whites turn sodium at night (deeper amber where dimmer, so windows vary)
+  float lamp=wW*smoothstep(0.02,0.08,sat)*(1.0-smoothstep(0.30,0.50,sat))*smoothstep(0.58,0.85,mx)*night*(1.0-sky)*(1.0-wR);
+  float x=clamp(l*(1.30+0.40*uK),0.0,1.0);
+  float lc=mix(x,x*x*(3.0-2.0*x),0.45);
+  vec3 lo=vec3(0.028,0.040,0.085), mid=vec3(0.47,0.50,0.60), hi=vec3(1.0,0.955,0.87);
+  vec3 mono=lc<0.5?mix(lo,mid,lc*2.0):mix(mid,hi,lc*2.0-1.0);
+  vec3 kc2=clamp(mix(vec3(l),col,clamp(0.85/max(sat,0.05),1.2,2.8)+0.3*night+0.45*uShroom)*(1.0+0.2*uK+0.35*night*emis),0.0,1.0);
+  // tail and brake lights: hot pixels of true-red hue are driven to a deep signal red at night
+  kc2=mix(kc2,vec3(1.0,0.10,0.14)*(0.55+0.5*l),(1.0-smoothstep(0.12,0.30,tHd(h,0.0)))*hot*smoothstep(0.05,0.18,sat)*night*0.75);
+  vec3 g=mix(mono,kc2,keep);
+  g=mix(g,mix(vec3(1.0,0.64,0.24),vec3(1.0,0.86,0.50),smoothstep(0.72,1.0,l))*(0.50+0.55*l),lamp*0.85);
+  // the sky is a set piece, not a casualty: it keeps its own dusk colours (pushed), goes indigo overhead and
+  // gets a hot pink band hugging the horizon; the sun and moon stay pale and bright
+  float up=clamp(uv.y-uHor,0.0,1.0), bright=smoothstep(0.70,0.95,l);
+  vec3 sc=clamp(mix(vec3(l),col,1.35),0.0,1.0);
+  sc*=mix(vec3(1.0),mix(vec3(0.46,0.42,0.66),vec3(1.0),bright),smoothstep(0.10,0.65,up));
+  sc=mix(sc,sc*vec3(1.12,0.72,0.84)+vec3(0.06,0.0,0.03),exp(-pow(up/0.17,2.0))*0.6*(1.0-bright));
+  sc=mix(sc,sc*vec3(0.72,1.08,0.80),uZ*0.55);
+  g=mix(g,sc,sky);
+  col=mix(col,g,uMono);
+  // ink: black lines on lit surfaces, a pale cool rim where dark meets dark (the black coupe never melts into the road)
+  float dk=1.0-smoothstep(0.06,0.22,lc);
+  col=mix(col,mix(vec3(0.018,0.022,0.05),vec3(0.40,0.46,0.60),dk),ink*mix(0.88,0.50,dk));
+  // ---- hatching in the deepest shadows (DREAM+)
+  float hl=(1.0-smoothstep(0.03,0.20,lc))*(1.0-sky);
+  col+=vec3(0.045,0.055,0.085)*hl*uHatch*step(0.6,fract((gl_FragCoord.x+gl_FragCoord.y)*uHatchS));
+  // ---- oil-slick drift in the pale highlights only (kept colours and hazards are never hue-shifted)
+  float ia=uT*0.22+uv.x*3.0+uv.y*2.0+l*5.0;
+  col+=smoothstep(0.62,0.95,lc)*(1.0-keep)*uDream*0.07*vec3(sin(ia),sin(ia+2.094),sin(ia+4.189));
+  // ---- light streaks + afterimages, a long anamorphic flare through the sun
+  col+=texture2D(tTrail,uv).rgb*uGlow;
+  if(uSunOn>0.01){ vec2 ds=uv-uSunUV; float occ=1.0;
+    if(uDepth>0.5) occ=(step(0.9999,texture2D(tDepth,uSunUV).x)+step(0.9999,texture2D(tDepth,uSunUV+vec2(uSunR*0.6,0.0)).x)+step(0.9999,texture2D(tDepth,uSunUV-vec2(uSunR*0.6,0.0)).x))/3.0;
+    col+=vec3(1.0,0.60,0.76)*0.40*uSunOn*occ*exp(-abs(ds.y)*70.0)/(1.0+pow(abs(ds.x)*4.5,2.0)); }
+  col+=vec3(0.90,0.20,0.45)*uLove*0.22*r2;
+  col*=1.0+0.05*uPulse;
+  // ---- film: vignette, lifted blacks, grain
+  col*=1.0-uVig*0.55*smoothstep(0.25,1.10,r2);
+  col=col*0.965+vec3(0.018,0.020,0.032);
+  col+=(tHash(gl_FragCoord.xy+uSeed)-0.5)*0.07*uGrain*(1.0-0.5*l);
+  gl_FragColor=vec4(col,1.0);
+}`;
+
+function tripBuild(){
+  const T=TRIP;
+  T.cam=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
+  T.scn=new THREE.Scene();
+  const U=o=>{ const u={}; for(const k in o) u[k]={value:o[k]}; return u; };
+  T.mat=new THREE.ShaderMaterial({vertexShader:TRIP_QUAD_VS,fragmentShader:TRIP_FS,depthTest:false,depthWrite:false,fog:false,
+    uniforms:U({tScene:null,tDepth:null,tTrail:null,uRes:new THREE.Vector2(1,1),uPx:new THREE.Vector2(),uWeave:new THREE.Vector2(),
+      uSunUV:new THREE.Vector2(),uSeed:new THREE.Vector2(),uT:0,uMono:0,uInk:0,uInkW:1,uHatch:0,uHatchS:0.2,uGrain:0,uVig:0,uDream:0,uShroom:0,
+      uPulse:0,uLove:0,uSpeed:0,uZ:0,uK:0,uNear:0.1,uFar:800,uHor:0.5,uDepth:0,uGlow:0,uSunOn:0,uSunR:0.1,uPud:0,
+      uKc:new THREE.Vector2(0.5,0.9),uBodyA:new THREE.Vector3(-9,-9,0.01),uBodyB:new THREE.Vector3(-9,-9,0.01)})});
+  T.tmat=new THREE.ShaderMaterial({vertexShader:TRIP_QUAD_VS,fragmentShader:TRIP_TRAIL_FS,depthTest:false,depthWrite:false,fog:false,
+    uniforms:U({tScene:null,tDepth:null,tPrev:null,uStep:new THREE.Vector2(),uDecay:0,uDepth:0,uNear:0.1,uFar:800,uNight:0,uStepY:0})});
+  T.quad=new THREE.Mesh(new THREE.PlaneGeometry(2,2),T.mat); T.quad.frustumCulled=false; T.scn.add(T.quad);
+}
+function tripDisposeTargets(){
+  const T=TRIP;
+  if(T.rt){ if(T.rt.depthTexture) T.rt.depthTexture.dispose(); T.rt.dispose(); T.rt=null; }
+  for(let i=0;i<2;i++) if(T.tr[i]){ T.tr[i].dispose(); T.tr[i]=null; }
+  T.w=T.h=0;
+}
+function tripTargets(){
+  const T=TRIP, g=renderer.getDrawingBufferSize(_tqV2);
+  const w=Math.max(8,Math.round(g.x*T.scale)), h=Math.max(8,Math.round(g.y*T.scale));
+  if(T.rt&&T.w===w&&T.h===h) return;
+  tripDisposeTargets();
+  T.w=w; T.h=h;
+  const caps=renderer.capabilities, depthOK=caps.isWebGL2||!!renderer.extensions.get('WEBGL_depth_texture');
+  const opt={minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter,format:THREE.RGBAFormat,depthBuffer:true,stencilBuffer:false};
+  T.ms=!!(T.msWant&&caps.isWebGL2&&THREE.WebGLMultisampleRenderTarget);
+  T.rt=T.ms?new THREE.WebGLMultisampleRenderTarget(w,h,opt):new THREE.WebGLRenderTarget(w,h,opt);
+  if(T.ms) T.rt.samples=4;
+  T.rt.texture.encoding=THREE.sRGBEncoding;       // the scene lands in the target exactly as it would on screen
+  T.rt.texture.generateMipmaps=false;
+  if(depthOK){ const d=new THREE.DepthTexture(w,h); d.type=THREE.UnsignedIntType; d.format=THREE.DepthFormat;
+    d.minFilter=d.magFilter=THREE.NearestFilter; T.rt.depthTexture=d; }
+  T.hasDepth=depthOK;
+  const tw=Math.max(4,w>>2), th=Math.max(4,h>>2);
+  for(let i=0;i<2;i++){ T.tr[i]=new THREE.WebGLRenderTarget(tw,th,{minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter,
+    format:THREE.RGBAFormat,depthBuffer:false,stencilBuffer:false}); T.tr[i].texture.generateMipmaps=false; }
+  T.chk=true;
+}
+function tripSet(n){
+  const T=TRIP; T.lv=((n|0)%4+4)%4;
+  try{ localStorage.setItem('sunsetTrip',''+T.lv); }catch(_){}
+  const b=document.getElementById('tripbtn');
+  if(b){ b.textContent=TRIP_NAMES[T.lv]; b.classList.toggle('on',T.lv>0); }
+  if(T.lv===0) tripDisposeTargets();
+}
+(function tripUI(){
+  const b=document.getElementById('tripbtn'); if(!b) return;
+  b.textContent=TRIP_NAMES[TRIP.lv]; b.classList.toggle('on',TRIP.lv>0);
+  b.addEventListener('pointerdown',e=>{ e.stopPropagation(); e.preventDefault(); tripSet(TRIP.lv+1); });
+  addEventListener('keydown',e=>{ if(e.target&&e.target.tagName==='TEXTAREA') return;
+    if(e.key&&e.key.toLowerCase()==='p'&&!e.repeat&&!e.ctrlKey&&!e.metaKey) tripSet(TRIP.lv+1); });
+})();
+
+// ---------------- the sky set (built on first use, hidden again at level 0) ----------------
+const TRIP_NOISE=`
+float tN1(float n){ return fract(sin(n*127.1)*43758.5453); }
+float tN2(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
+  float a=tN1(i.x+i.y*57.0), b=tN1(i.x+1.0+i.y*57.0), c=tN1(i.x+(i.y+1.0)*57.0), d=tN1(i.x+1.0+(i.y+1.0)*57.0);
+  return mix(mix(a,b,f.x),mix(c,d,f.x),f.y); }`;
+const TRIP_BB_VS=`varying vec2 vUv; varying float vWy;
+void main(){ vUv=uv; vec4 w=modelMatrix*vec4(position,1.0); vWy=w.y; gl_Position=projectionMatrix*viewMatrix*w; }`;
+// the sun: pale top melting to hot pink, soft irregular blind-slices in the lower half, breathing corona rings,
+// a cold ghost sun riding its shoulder, slow surface turbulence, drips at SHROOMS. Premultiplied output.
+const TRIP_SUN_FS=TRIP_NOISE+`
+uniform float uT,uVis,uMelt,uK,uZ,uR;
+varying vec2 vUv; varying float vWy;
+void main(){
+  vec2 p=(vUv-0.5)*5.0; float d=length(p), th=atan(p.y,p.x);
+  float edge=1.0+0.010*sin(th*5.0+uT*0.5)+0.007*sin(th*11.0-uT*0.8)+0.02*uMelt*sin(th*3.0+uT*0.3);
+  float disc=1.0-smoothstep(edge-0.02,edge,d);
+  float gy=clamp(p.y*0.5+0.5,0.0,1.0);
+  vec3 top=vec3(1.0,0.97,0.93), mid=vec3(1.0,0.87,0.80), bot=vec3(1.0,0.36,0.55);
+  vec3 col=gy>0.5?mix(mid,top,(gy-0.5)*2.0):mix(bot,mid,gy*2.0);
+  col=mix(col,vec3(1.0,0.30,0.42),uK*(0.12+0.50*(1.0-gy)));
+  float tb=tN2(p*3.0+vec2(uT*0.05,-uT*0.03))*0.6+tN2(p*7.0-vec2(uT*0.07,0.0))*0.4;
+  col*=0.94+0.10*tb;
+  float yy=p.y+0.025*sin(p.x*4.0+uT*0.25)+0.012*sin(p.x*11.0-uT*0.4);
+  float yh=vWy/uR;                                     // height above the horizon in sun radii: the blinds ride the waterline
+  float low=max(smoothstep(0.20,-0.90,yy),1.0-smoothstep(0.04,0.70,yh+0.03*sin(p.x*5.0+uT*0.2)));
+  float f=(0.2-yy)*6.5+uT*0.05, id=floor(f), fr=fract(f);
+  float gap=low*(0.16+0.50*low)*(0.65+0.7*tN1(id));
+  float m=smoothstep(gap,gap+0.10,fr)*(1.0-smoothstep(0.93,1.0,fr));
+  m=mix(1.0,m,smoothstep(0.0,0.05,gap));
+  float A=disc*mix(0.07,1.0,m);
+  // drips
+  float cx=p.x*7.0, cid=floor(cx), cf=abs(fract(cx)-0.5);
+  float ybot=-sqrt(max(1.0-p.x*p.x,0.0));
+  float len=uMelt*(0.12+0.75*tN1(cid+3.7))*(0.6+0.4*sin(uT*0.23+cid*1.7));
+  float tip=ybot-len, wd=(0.18+0.14*tN1(cid+9.1))*(0.45+0.55*clamp((p.y-tip)/(len+0.001),0.0,1.0));
+  float dr=step(abs(p.x),0.96)*step(0.001,uMelt)*smoothstep(wd,wd-0.07,cf)*step(p.y,ybot+0.06)*smoothstep(tip,tip+0.05,p.y);
+  // corona rings
+  float rr=d-edge;
+  float rings=pow(0.5+0.5*sin(rr*30.0-uT*0.9),3.0);
+  float cor=step(0.0,rr)*exp(-rr*2.2)*(0.07+0.17*rings*(0.6+0.4*sin(uT*0.35)))*smoothstep(2.5,1.9,d);
+  vec3 corC=mix(vec3(1.0,0.58,0.62),vec3(1.0,0.30,0.72),clamp(rr,0.0,1.0));
+  // ghost sun
+  vec2 gp=p-vec2(0.62+0.05*sin(uT*0.21),0.30+0.04*cos(uT*0.17));
+  float gh=(1.0-smoothstep(0.84,0.87,length(gp)))*0.15;
+  vec3 gC=mix(vec3(0.45,0.85,1.0),vec3(0.45,1.0,0.55),uZ);
+  vec3 rgb=corC*cor+gC*gh; float a=gh*0.4;
+  float AA=max(A,dr*0.92);
+  rgb=rgb*(1.0-AA)+mix(col,vec3(1.0,0.22,0.42),dr*(1.0-disc))*AA; a=a*(1.0-AA)+AA;
+  float hz=smoothstep(-2.0,2.0,vWy+uMelt*3.0*sin(p.x*9.0+uT*0.4));
+  gl_FragColor=vec4(rgb,a)*uVis*hz;
+}`;
+// the moon: too big, too close; slow turn, limb + terminator shading, a thin halo ring; green tint and a crack after the meteor
+const TRIP_MOON_FS=TRIP_NOISE+`
+uniform float uT,uVis,uZ,uRot;
+varying vec2 vUv;
+void main(){
+  vec2 p=(vUv-0.5)*4.0; float d=length(p);
+  float ca=cos(uRot), sa=sin(uRot); vec2 q=vec2(ca*p.x-sa*p.y,sa*p.x+ca*p.y);
+  float disc=1.0-smoothstep(0.975,1.0,d);
+  float cr=0.0;
+  cr+=(1.0-smoothstep(0.26,0.33,length(q-vec2(-0.30,0.32))))*0.16;
+  cr+=(1.0-smoothstep(0.15,0.20,length(q-vec2(0.28,0.48))))*0.13;
+  cr+=(1.0-smoothstep(0.20,0.26,length(q-vec2(0.36,-0.22))))*0.15;
+  cr+=(1.0-smoothstep(0.09,0.12,length(q-vec2(-0.10,-0.45))))*0.12;
+  cr+=(1.0-smoothstep(0.07,0.10,length(q-vec2(-0.55,-0.20))))*0.12;
+  cr+=(1.0-smoothstep(0.05,0.07,length(q-vec2(0.05,0.05))))*0.10;
+  cr+=(tN2(q*3.0+7.0)-0.5)*0.16;
+  float lit=mix(0.30,1.0,smoothstep(-0.45,0.50,dot(p,vec2(-0.87,0.49))+0.25*sqrt(max(1.0-d*d,0.0))));
+  vec3 col=vec3(1.0,0.95,0.86)*(1.0-cr)*mix(1.0,0.74,smoothstep(0.5,1.0,d))*lit;
+  col=mix(col,col*vec3(0.60,1.0,0.64)+vec3(0.0,0.05,0.01),uZ*0.6);
+  float cx=q.x-0.12-(0.10*sin(q.y*4.0+1.0)+0.05*sin(q.y*13.0)+0.02*sin(q.y*31.0));
+  float grow=step(1.0-2.1*uZ,q.y);
+  float core=(1.0-smoothstep(0.006,0.022,abs(cx)))*grow;
+  float glow=(1.0-smoothstep(0.02,0.11,abs(cx)))*grow;
+  float bx=q.y-(0.22+0.55*(q.x-0.12)+0.035*sin(q.x*23.0));
+  float br=(1.0-smoothstep(0.005,0.018,abs(bx)))*step(0.14,q.x)*step(q.x,0.62)*step(0.5,uZ);
+  col+=vec3(0.30,0.95,0.45)*glow*0.35*uZ;
+  col=mix(col,vec3(0.02,0.07,0.04),max(core,br)*0.9*uZ);
+  float halo=exp(-pow((d-1.55)/0.035,2.0))*(0.22+0.06*sin(uT*0.4))+step(1.0,d)*exp(-(d-1.0)*3.2)*0.20;
+  vec3 hc=mix(vec3(0.75,0.82,1.0),vec3(0.50,1.0,0.65),uZ*0.7);
+  vec3 rgb=hc*halo*(1.0-disc)*smoothstep(2.0,1.75,d)+col*disc;
+  gl_FragColor=vec4(rgb,disc)*uVis;
+}`;
+// dome overlay: slow colour bands near the horizon, an aurora ribbon and the meteor's scar after the fall
+const TRIP_DOME_VS=`varying vec3 vDir; void main(){ vDir=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`;
+const TRIP_DOME_FS=`
+uniform float uT,uK,uZ,uBand,uScarAz,uScarS;
+varying vec3 vDir;
+void main(){
+  vec3 dir=normalize(vDir); float h=dir.y, az=atan(dir.x,dir.z);
+  vec3 add=vec3(0.0); float dark=0.0;
+  float up=smoothstep(-0.02,0.02,h);
+  float s=sin(h*95.0+1.6*sin(az*3.0+uT*0.03)+0.8*sin(az*7.0-uT*0.021)-uT*0.05), sb=smoothstep(-0.35,0.35,s);
+  float bw=up*(1.0-smoothstep(0.22,0.60,h))*uBand;
+  add+=mix(vec3(1.0,0.42,0.68),vec3(0.36,0.30,0.85),uK)*0.035*sb*bw;
+  dark+=0.035*(1.0-sb)*bw;
+  float h0=0.30+0.07*sin(az*2.0+uT*0.07)+0.03*sin(az*5.0-uT*0.11);
+  float dh=h-h0; float prof=dh>0.0?exp(-dh*dh/0.022):exp(-dh*dh/0.0012);
+  float curt=0.55+0.45*sin(az*36.0+uT*0.6+3.0*sin(az*7.0+uT*0.2));
+  vec3 ac=mix(vec3(0.25,1.0,0.50),vec3(0.80,0.30,0.90),smoothstep(0.0,0.25,dh));
+  add+=ac*prof*curt*0.40*uZ*(0.55+0.45*sin(az+1.0+uT*0.013));
+  float da=atan(sin(az-uScarAz),cos(az-uScarAz));
+  add+=vec3(0.30,1.0,0.50)*exp(-da*da/0.035)*exp(-max(h,0.0)/0.10)*0.55*uScarS*up;
+  float ln=da+h*0.9;
+  add+=vec3(0.50,1.0,0.70)*exp(-ln*ln/0.0007)*smoothstep(0.60,0.05,h)*up*0.32*uScarS;
+  gl_FragColor=vec4(add,dark);
+}`;
+const TRIP_CLOUD_VS=`uniform float uT,uRip; varying vec3 vC; varying float vU;
+void main(){ vec3 p=position;
+  p.y+=sin(p.x*0.13+uT*0.35+p.z*0.2)*2.6*uRip; p.x+=sin(p.y*0.22+uT*0.27)*2.2*uRip; p.z+=cos(p.x*0.11-uT*0.2)*1.6*uRip;
+  vC=color; vU=1.0-smoothstep(-6.0,10.0,position.y);
+  gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.0); }`;
+const TRIP_CLOUD_FS=`uniform vec3 uTint; uniform vec3 uPinkC; uniform float uPink; varying vec3 vC; varying float vU;
+void main(){ vec3 c=vC*uTint; c=mix(c,uPinkC*(0.35+0.65*uTint),vU*uPink); gl_FragColor=linearToOutputTexel(vec4(c,1.0)); }`;
+
+function tripSkyBuild(){
+  const K={}; TRIP.sky=K;
+  const pre={transparent:true,depthWrite:false,fog:false,blending:THREE.CustomBlending,blendSrc:THREE.OneFactor,blendDst:THREE.OneMinusSrcAlphaFactor,
+    blendSrcAlpha:THREE.OneFactor,blendDstAlpha:THREE.OneMinusSrcAlphaFactor};
+  const pg=new THREE.PlaneGeometry(1,1);
+  K.sun=new THREE.Mesh(pg,new THREE.ShaderMaterial(Object.assign({vertexShader:TRIP_BB_VS,fragmentShader:TRIP_SUN_FS,
+    uniforms:{uT:{value:0},uVis:{value:1},uMelt:{value:0},uK:{value:0},uZ:{value:0},uR:{value:100}}},pre)));
+  K.sun.renderOrder=-1; K.sun.frustumCulled=false; K.sun.visible=false; scene.add(K.sun);
+  K.moon=new THREE.Mesh(pg,new THREE.ShaderMaterial(Object.assign({vertexShader:TRIP_BB_VS,fragmentShader:TRIP_MOON_FS,
+    uniforms:{uT:{value:0},uVis:{value:0},uZ:{value:0},uRot:{value:0}}},pre)));
+  K.moon.renderOrder=-1; K.moon.frustumCulled=false; K.moon.visible=false; scene.add(K.moon);
+  K.dome=new THREE.Mesh(new THREE.SphereGeometry(555,36,14,0,Math.PI*2,0,Math.PI*0.56),new THREE.ShaderMaterial(Object.assign({vertexShader:TRIP_DOME_VS,fragmentShader:TRIP_DOME_FS,
+    side:THREE.BackSide,uniforms:{uT:{value:0},uK:{value:0},uZ:{value:0},uBand:{value:1},uScarAz:{value:0},uScarS:{value:0}}},pre)));
+  K.dome.renderOrder=-1.9; K.dome.frustumCulled=false; K.dome.visible=false; scene.add(K.dome);
+  // clouds: one shared material; .color is the same object updateDusk tints every frame
+  K.cloudMat=new THREE.ShaderMaterial({vertexShader:TRIP_CLOUD_VS,fragmentShader:TRIP_CLOUD_FS,vertexColors:true,fog:false,
+    uniforms:{uT:{value:0},uRip:{value:0},uTint:{value:new THREE.Color(1,1,1)},uPinkC:{value:new THREE.Color(1,0.18,0.42)},uPink:{value:0}}});
+  K.cloudMat.color=K.cloudMat.uniforms.uTint.value;
+  K.cloudOrig=clouds.children.map(m=>m.material);
+  K.stars=nightGroup.children.find(o=>o.isPoints)||null;
+  // zombie eyes: two additive points per head
+  const eg=new THREE.BufferGeometry(); eg.setAttribute('position',new THREE.BufferAttribute(new Float32Array(ZMAX*6),3).setUsage(THREE.DynamicDrawUsage));
+  eg.setDrawRange(0,0);
+  K.eyes=new THREE.Points(eg,new THREE.PointsMaterial({color:0xb4ff7a,size:0.12,sizeAttenuation:true,transparent:true,opacity:0.95,
+    blending:THREE.AdditiveBlending,depthWrite:false}));
+  K.eyes.frustumCulled=false; K.eyes.visible=false; scene.add(K.eyes);
+  if(typeof coastU!=='undefined'&&coastU) TRIP.moonDir0=coastU.uMoonDir.value.clone();
+}
+function tripSkyOff(){
+  const T=TRIP, K=T.sky; if(!K||!T.skyOn) return;
+  T.skyOn=false;
+  K.sun.visible=K.moon.visible=K.dome.visible=K.eyes.visible=false;
+  sunDisc.visible=true; moonSpr.visible=true;
+  tripWorldOff();
+  clouds.children.forEach((m,i)=>{ if(m.material===K.cloudMat){ K.cloudOrig[i].color.copy(K.cloudMat.color); m.material=K.cloudOrig[i]; } });
+  if(K.stars) K.stars.rotation.set(0,0,0);
+  if(T.moonDir0&&coastU) coastU.uMoonDir.value.copy(T.moonDir0);
+}
+// runs after updateDusk every frame while the level is 1+; everything updateDusk owns is re-set by it each frame,
+// so switching the level off needs no bookkeeping beyond tripSkyOff
+function tripSkyTick(dt){
+  const T=TRIP, lv=T.lv, k=duskK, t=elapsed, S=T.S;
+  if(!T.sky) tripSkyBuild();
+  const K=T.sky, cam=camera.position;
+  if(!T.skyOn){ T.skyOn=true; K.sun.visible=K.moon.visible=K.dome.visible=true; sunDisc.visible=false; moonSpr.visible=false;
+    for(const m of clouds.children){ K.cloudMat.color.copy(m.material.color); m.material=K.cloudMat; } }
+  // ---- sun: really sets now (centre crosses the horizon around k=0.53, gone by night)
+  // The disc is the size of the old halo circle (the "huge pale sun"); the additive halo itself is switched off.
+  const sunDist=camera.far*0.6, sunK=sunDist/800, R=250*sunK;
+  const ry=SUN_DIRN.y*(1-2.2*T.ks-1.8*T.ks*T.ks*T.ks), sy=ry*sunDist;
+  const vis=clamp((sy+R)/(R*0.3),0,1);
+  K.sun.position.set(cam.x+SUN_DIRN.x*sunDist,sy,cam.z+SUN_DIRN.z*sunDist);
+  K.sun.scale.setScalar(R*5); K.sun.lookAt(cam);
+  const su=K.sun.material.uniforms; su.uT.value=t; su.uVis.value=0.97*vis; su.uK.value=clamp(T.ks*2.2,0,1); su.uZ.value=T.z; su.uR.value=R;
+  su.uMelt.value=lv>=3?(0.55+0.45*S):(lv>=2?0.12*S:0);
+  K.sun.visible=vis>0.001;
+  sunHalo.material.opacity=0;
+  T.sunVis=vis; T.sunR=R;
+  if(coastU){                                       // the sea's own glitter path follows the sinking disc and stretches
+    coastU.uSunDir.value.set(SUN_DIRN.x,Math.max((sy+R)*0.35/sunDist,0.006),SUN_DIRN.z).normalize();
+    coastU.uSunVis.value=clamp(vis*1.5,0,1.35);
+  }
+  // ---- moon: opposite the sun, low and oversized
+  const ml=Math.hypot(SUN_DIRN.x,SUN_DIRN.z)||1, mx=-SUN_DIRN.x/ml, mz=-SUN_DIRN.z/ml;
+  K.moon.position.set(cam.x+mx*430,128,cam.z+mz*430);
+  K.moon.scale.setScalar(46*4); K.moon.lookAt(cam);
+  const mu=K.moon.material.uniforms; mu.uT.value=t; mu.uVis.value=tripSm(0.3,0.8,k); mu.uZ.value=T.z; mu.uRot.value=t*0.012;
+  K.moon.visible=mu.uVis.value>0.001;
+  if(coastU&&T.moonDir0) coastU.uMoonDir.value.set(mx*430,128,mz*430).normalize();
+  // ---- dome overlay
+  K.dome.position.copy(sky.position);
+  const du=K.dome.material.uniforms; du.uT.value=t; du.uK.value=k; du.uZ.value=T.z; du.uBand.value=lv>=3?1.6:(lv>=2?1.0:0.6);
+  const cdx=CRASH.x-cam.x, cdz=CRASH.z-cam.z;
+  du.uScarAz.value=Math.atan2(cdx,cdz); du.uScarS.value=T.z*clamp((Math.hypot(cdx,cdz)-40)/120,0,1);
+  // ---- clouds: hot pink from below while the sun is up, a sick green after the fall; ripple at SHROOMS
+  const cu=K.cloudMat.uniforms; cu.uT.value=t; cu.uRip.value=lv>=3?(0.5+0.5*S):0;
+  cu.uPink.value=clamp(0.85*(1-tripSm(0.55,0.95,k))+0.4*T.z,0,1);
+  cu.uPinkC.value.setRGB(1-0.7*T.z,0.18+0.72*T.z,0.42-0.1*T.z);
+  // ---- stars drift; more of them fall at DREAM+
+  if(K.stars) K.stars.rotation.set(0.05*Math.sin(t*0.011),t*0.004,0);
+  if(lv>=2&&k>0.5&&Math.random()<dt*(lv>=3?0.5:0.2)) spawnStreak(false);
+  // ---- world touches (all cheap scalar pokes on things updateDusk re-sets each frame)
+  const br=Math.sin(t*0.8);
+  if(neonFX.halo) neonFX.halo.opacity=Math.min(1,neonFX.halo.opacity*(1.1+0.22*br));
+  if(neonFX.pool&&lv>=2) neonFX.pool.opacity=Math.min(1,neonFX.pool.opacity*(1.5+0.4*br));
+  if(lv>=2){ let i=0; for(const h in sideMats) sideMats[h].emissiveIntensity*=1+0.16*Math.sin(t*0.45+(i++)*1.7); }
+  if(craterLight) craterLight.intensity*=1+0.25*Math.sin(t*1.7);
+  // ---- zombie eyes
+  let n=0;
+  if(zombieMode&&zombies.length&&zIM.head){
+    const a=K.eyes.geometry.attributes.position.array;
+    for(const z of zombies){ if(z.dead||z.gone||n>=ZMAX*2) continue;
+      zIM.head.getMatrixAt(z.i,_tqM);
+      for(let e=-1;e<=1;e+=2){ _tqV.set(0.066*e,0.195,0.155).applyMatrix4(_tqM); a[n*3]=_tqV.x; a[n*3+1]=_tqV.y; a[n*3+2]=_tqV.z; n++; } }
+    K.eyes.geometry.attributes.position.needsUpdate=true;
+  }
+  K.eyes.geometry.setDrawRange(0,n); K.eyes.visible=n>0;
+  K.eyes.material.opacity=0.8+0.2*Math.sin(t*3.1);
+  tripWorldTick(dt,ry,sy,R,sunDist,vis,mx,mz);
+}
+// story + event drive, then the pass uniforms
+function tripTick(dt){
+  const T=TRIP, lv=T.lv, k=duskK, t=elapsed;
+  T.z+=((zombieMode?1:0)-T.z)*Math.min(1,dt*0.4);
+  if(T.ks<0) T.ks=k; else T.ks+=clamp(k-T.ks,-dt*0.25,dt*0.25);
+  const S=T.S=clamp(0.35+0.30*tripSm(0.12,0.5,k)+0.15*tripSm(0.5,0.95,k)+0.2*T.z,0,1);
+  // events are read off state the game already keeps, so nothing else in the file needs a hook:
+  // any jolt (crash, explosion, the impact) raises player.shake; guns show their muzzle flash; Sol's state flips to 'ride'
+  let hit=0;
+  const sh=player.shake||0; if(sh>T.shP+0.08) hit=Math.max(hit,clamp(sh,0.25,1)); T.shP=sh;
+  if(muzzle&&muzzle.visible&&zombieMode) hit=Math.max(hit,0.3);
+  if(onFoot&&avatar&&avatar.muz&&avatar.muz.visible) hit=Math.max(hit,0.4);
+  const ss=SOL.state; if(ss==='ride'&&T.solP&&T.solP!=='ride') T.loveT=1; T.solP=ss;
+  T.pT=Math.max(T.pT*Math.exp(-dt*2.4),hit);
+  T.pulse+=(T.pT-T.pulse)*Math.min(1,dt*8);          // ~120 ms soft attack, ~0.4 s tail: never a hard flash
+  T.loveT*=Math.exp(-dt*0.45); T.love+=(T.loveT-T.love)*Math.min(1,dt*1.5);
+  const sp=(started&&!onFoot&&!freeCam)?Math.hypot(player.vx,player.vz)/(CFG.maxSpeed||31):0;
+  T.speed+=(clamp((sp-0.6)/0.38,0,1)-T.speed)*Math.min(1,dt*2);
+}
+function tripUniforms(dt){
+  const T=TRIP, lv=T.lv, S=T.S, t=elapsed, u=T.mat.uniforms, tu=T.tmat.uniforms;
+  const dpr=renderer.getPixelRatio()*T.scale;
+  u.tScene.value=T.rt.texture; u.tDepth.value=T.hasDepth?T.rt.depthTexture:null; u.uDepth.value=T.hasDepth?1:0;
+  u.uRes.value.set(T.w,T.h); u.uPx.value.set(1/T.w,1/T.h); u.uInkW.value=dpr>=1.5?1.5:1; u.uHatchS.value=1/(5*Math.max(1,renderer.getPixelRatio()));
+  u.uNear.value=camera.near; u.uFar.value=camera.far; u.uT.value=t; u.uK.value=duskK; u.uZ.value=T.z;
+  u.uMono.value=(0.52+0.36*S)*(lv>=3?0.92:1);
+  u.uInk.value=0.8; u.uHatch.value=lv>=2?0.7:0;
+  u.uGrain.value=0.55+0.45*S; u.uVig.value=0.5;
+  const night=tripSm(0.30,0.85,duskK);
+  u.uDream.value=lv>=2?(0.35+0.65*S)*(lv>=3?1.5:1)+0.6*T.love:0;
+  u.uShroom.value=lv>=3?0.45+0.55*S:0;
+  u.uPulse.value=T.pulse*(lv>=2?1:0.5); u.uLove.value=T.love; u.uSpeed.value=lv>=2?T.speed:0;
+  u.uGlow.value=(lv>=3?0.75:(lv>=2?0.6:0.45))*(1+0.7*night);
+  u.uPud.value=(T.pud&&T.pud.mesh.visible)?1:0;
+  // gate weave: a slow two-sine drift well under a pixel-and-a-half
+  u.uWeave.value.set(Math.sin(t*7.3)*0.00035+Math.sin(t*1.9)*0.0004,Math.sin(t*5.1)*0.0003+Math.sin(t*2.7)*0.0004);
+  const fr=Math.floor(t*24); u.uSeed.value.set((fr*37)%251,(fr*91)%241);
+  // horizon line and sun centre in screen uv
+  _tqV.set(0,0,-1).applyQuaternion(camera.quaternion); _tqV.y=0;
+  if(_tqV.lengthSq()<1e-4) u.uHor.value=-9;
+  else { _tqV.normalize().multiplyScalar(4000).add(camera.position); _tqV.y=0; _tqV.project(camera); u.uHor.value=_tqV.z<1?_tqV.y*0.5+0.5:-9; }
+  let son=0;
+  if(T.sky&&T.sky.sun.visible){
+    _tqV.copy(T.sky.sun.position); _tqV.y=Math.max(_tqV.y,4); _tqV.project(camera);
+    if(_tqV.z<1&&Math.abs(_tqV.x)<1.25&&Math.abs(_tqV.y)<1.25){ u.uSunUV.value.set(_tqV.x*0.5+0.5,_tqV.y*0.5+0.5); son=T.sunVis*(lv>=2?1:0.6);
+      u.uSunR.value=T.sunR/Math.max(1,T.sky.sun.position.distanceTo(camera.position))*camera.projectionMatrix.elements[0]*0.5; }
+  }
+  u.uSunOn.value=son;
+  // SHROOMS mirror: centred on the sun (else the moon), and both discs are masked out of it
+  const P5=camera.projectionMatrix.elements[5]*0.5, bA=u.uBodyA.value, bB=u.uBodyB.value;
+  bA.set(-9,-9,0.01); bB.set(-9,-9,0.01); u.uKc.value.set(0.5,clamp(u.uHor.value,0,0.6)+0.42);
+  if(T.sky){ let ctr=0;
+    if(T.sky.moon.visible){ _tqV.copy(T.sky.moon.position).project(camera);
+      if(_tqV.z<1){ bB.set(_tqV.x*0.5+0.5,_tqV.y*0.5+0.5,46*1.7/Math.max(1,T.sky.moon.position.distanceTo(camera.position))*P5);
+        if(Math.abs(_tqV.x)<1&&Math.abs(_tqV.y)<1){ u.uKc.value.set(bB.x,bB.y); ctr=1; } } }
+    if(T.sky.sun.visible){ _tqV.copy(T.sky.sun.position).project(camera);
+      if(_tqV.z<1){ bA.set(_tqV.x*0.5+0.5,_tqV.y*0.5+0.5,T.sunR/Math.max(1,T.sky.sun.position.distanceTo(camera.position))*P5);
+        if(Math.abs(_tqV.x)<1.1&&_tqV.y<1) u.uKc.value.set(bA.x,Math.max(bA.y,u.uHor.value+0.05)); } }
+  }
+  tu.tScene.value=T.rt.texture; tu.tDepth.value=u.tDepth.value; tu.uDepth.value=u.uDepth.value; tu.uNear.value=camera.near; tu.uFar.value=camera.far;
+  tu.uStep.value.set(10/T.w*Math.max(1,dpr),0); tu.uStepY.value=6/T.h*Math.max(1,dpr); tu.uNight.value=0.35+0.65*night;
+  tu.uDecay.value=lv>=2?Math.pow(lv>=3?0.93:0.85,clamp(dt,0.001,0.05)*60):0;
+}
+// the one entry point the main loop calls instead of renderer.render(scene,camera)
+function tripRender(dt){
+  const T=TRIP;
+  if(T.lv<=0){ if(T.skyOn) tripSkyOff(); renderer.render(scene,camera); return; }
+  try{ tripTick(dt); tripSkyTick(dt); }catch(e){ console.warn('trip sky off',e); T.lv=0; try{ tripSkyOff(); }catch(_){} renderer.render(scene,camera); return; }
+  if(T.dead){ renderer.render(scene,camera); return; }
+  try{
+    if(!T.mat) tripBuild();
+    tripTargets();
+    tripUniforms(dt);
+    renderer.info.autoReset=false; renderer.info.reset();
+    renderer.setRenderTarget(T.rt);
+    if(T.chk){ T.chk=false; const gl=renderer.getContext();
+      if(gl.checkFramebufferStatus(gl.FRAMEBUFFER)!==gl.FRAMEBUFFER_COMPLETE){
+        if(T.ms){ T.msWant=false; renderer.setRenderTarget(null); tripDisposeTargets(); tripTargets(); tripUniforms(dt); renderer.setRenderTarget(T.rt);
+          T.chk=false; if(gl.checkFramebufferStatus(gl.FRAMEBUFFER)!==gl.FRAMEBUFFER_COMPLETE) throw new Error('trip target incomplete'); }
+        else throw new Error('trip target incomplete'); } }
+    renderer.render(scene,camera);
+    const a=T.tr[T.ti], b=T.tr[1-T.ti];
+    T.tmat.uniforms.tPrev.value=b.texture; T.quad.material=T.tmat;
+    renderer.setRenderTarget(a); renderer.render(T.scn,T.cam);
+    T.mat.uniforms.tTrail.value=a.texture; T.ti=1-T.ti; T.quad.material=T.mat;
+    renderer.setRenderTarget(null); renderer.render(T.scn,T.cam);
+    renderer.info.autoReset=true;
+    if(T.first){ T.first=false;
+      const bad=m=>{ const p=renderer.properties.get(m), pr=p&&(p.program||p.currentProgram); return !!(pr&&pr.diagnostics&&pr.diagnostics.runnable===false); };
+      if(bad(T.mat)||bad(T.tmat)) throw new Error('trip shader'); }
+  }catch(e){
+    T.dead=true; console.warn('trip pass off',e);
+    try{ renderer.setRenderTarget(null); renderer.info.autoReset=true; tripDisposeTargets(); }catch(_){}
+    renderer.render(scene,camera);
+  }
+}
+// ---------------- TRIP world layer: palm sway + puddles (look levels 1+, nothing at level 0) ----------------
+// Sway: the tree/palm InstancedMeshes (and the breakables' per-tree clones, which share their rest matrix, so the phase
+// matches and a hit tree does not pop) are switched to one clone of MAT.vc with a vertex-shader sway. Level 0 switches
+// them straight back to MAT.vc. LOW quality: no sway.
+function tripRng(seed){ let s=seed>>>0; return ()=>{ s=(s+0x6D2B79F5)>>>0; let t=s; t=Math.imul(t^(t>>>15),t|1); t^=t+Math.imul(t^(t>>>7),t|61); return ((t^(t>>>14))>>>0)/4294967296; }; }
+function tripSwayBuild(){
+  const W=TRIP.sw={ims:[],geos:new Set(),mat:null,on:false,t:{value:0},a:{value:0}};
+  if(LOWQ) return;
+  const seen=new Set();
+  for(const c of world.circles){ const b=c.br;
+    if(b&&(b.k==='palm'||b.k==='tree')&&b.im&&b.im.isInstancedMesh&&b.im.material===MAT.vc&&!seen.has(b.im)){ seen.add(b.im); W.ims.push(b.im); W.geos.add(b.im.geometry); } }
+  if(!W.ims.length) return;
+  const m=MAT.vc.clone();
+  m.onBeforeCompile=sh=>{ sh.uniforms.uSwT=W.t; sh.uniforms.uSwA=W.a;
+    sh.vertexShader='uniform float uSwT,uSwA;\n'+sh.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
+#ifdef USE_INSTANCING
+  vec3 swB=(modelMatrix*instanceMatrix*vec4(0.0,0.0,0.0,1.0)).xyz;
+#else
+  vec3 swB=(modelMatrix*vec4(0.0,0.0,0.0,1.0)).xyz;
+#endif
+  float swPh=swB.x*0.37+swB.z*0.53;
+  float swH=clamp(position.y/9.0,0.0,1.3), swBend=swH*swH;                 // the trunk barely moves, the crown leads
+  float swR=clamp(length(position.xz)-0.5,0.0,3.0)*step(2.0,position.y);    // out along a frond / into the canopy
+  float swG=0.55+0.45*sin(uSwT*0.23+swB.x*0.021+swB.z*0.017)+0.30*sin(uSwT*0.61+swPh);   // slow gusts rolling across town
+  transformed.x+=uSwA*swG*(swBend*0.42*(sin(uSwT*0.9+swPh)*0.6+sin(uSwT*1.7+swPh*1.7)*0.25)+swR*0.10*sin(uSwT*2.3+swPh+position.y*0.8+position.x));
+  transformed.z+=uSwA*swG*(swBend*0.42*cos(uSwT*0.7+swPh*1.3)*0.45+swR*0.10*cos(uSwT*2.0+swPh+position.z));
+  transformed.y+=uSwA*swG*swR*0.07*sin(uSwT*2.6+swPh+position.x*1.3);
+`); };
+  W.mat=m;
+}
+const TRIP_PUD_VS=`attribute float aSd; varying vec2 vUv; varying vec3 vW; varying float vSd;
+void main(){ vUv=uv; vSd=aSd; vec4 w=modelMatrix*vec4(position,1.0); vW=w.xyz; gl_Position=projectionMatrix*viewMatrix*w; }`;
+// puddle: a soft-edged wet patch that mirrors the sky gradient by view reflection, with sun / moon glints and ripple
+// rings. Its alpha blend leaves (1 - coverage) in the render target's alpha: that is the mask the post pass reflects into.
+const TRIP_PUD_FS=`
+uniform vec3 uSky1,uSky2,uSky3,uSunDir,uSunC,uMoonDir,uFogC; uniform float uT,uK,uAmt,uSunVis,uFogN,uFogF; uniform vec4 uRip[4];
+varying vec2 vUv; varying vec3 vW; varying float vSd;
+void main(){
+  vec2 p=vUv*2.0-1.0; float r=length(p), an=atan(p.y,p.x);
+  float e=0.84+0.07*sin(an*2.0+vSd*40.0)+0.04*sin(an*5.0+vSd*70.0);
+  float a=1.0-smoothstep(e-0.55,e,r);
+  vec3 Vv=cameraPosition-vW; float dist=length(Vv); Vv/=dist;
+  vec2 nx=0.012*vec2(sin(vW.x*5.0+uT*1.1),cos(vW.z*4.0-uT*0.9));
+  for(int i=0;i<4;i++){ vec2 d=vW.xz-uRip[i].xy; float dl=length(d)+0.001, age=uT-uRip[i].z;
+    float ring=sin((dl-age*2.4)*9.0)*exp(-dl*0.5)*clamp(1.0-age/2.2,0.0,1.0)*step(dl,age*2.4+0.4)*step(0.0,age);
+    nx+=d/dl*ring*0.22*uRip[i].w; }
+  vec3 N=normalize(vec3(nx.x,1.0,nx.y)); vec3 Rr=reflect(-Vv,N);
+  float el=clamp(Rr.y,0.0,1.0);
+  vec3 sk=el<0.18?mix(uSky3,uSky2,el/0.18):mix(uSky2,uSky1,min(1.0,(el-0.18)/0.4));
+  float fres=0.22+0.78*pow(1.0-max(dot(Vv,N),0.0),3.0);
+  float sd=max(dot(Rr,uSunDir),0.0), md=max(dot(Rr,uMoonDir),0.0);
+  vec3 c=mix(vec3(0.020,0.024,0.045),sk,fres*0.55);
+  c+=uSunC*(pow(sd,180.0)*3.0+pow(sd,22.0)*0.35)*uSunVis+vec3(0.7,0.78,1.0)*(pow(md,140.0)*2.0+pow(md,18.0)*0.15)*uK;
+  c=mix(c,uFogC,smoothstep(uFogN,uFogF,dist));
+  float al=a*(0.42+0.40*fres)*uAmt*(1.0-smoothstep(110.0,170.0,dist));
+  gl_FragColor=vec4(linearToOutputTexel(vec4(c,1.0)).rgb,al);
+}`;
+function tripPudBuild(){
+  const P=TRIP.pud={list:[],mesh:null,ri:0,cool:0};
+  const R=tripRng(0x51ed270b);
+  const add=(x,z,lx,lz,y)=>{ if(P.list.length<260) P.list.push({x,z,lx,lz,y,sd:R()}); };
+  const road=(x,z)=>{ const h=groundHeight(x,z,0); return h<0.2?h:-1; };
+  const B=world.blocks.slice().sort((a,b)=>Math.hypot(a.cx,a.cz)-Math.hypot(b.cx,b.cz));
+  for(const b of B){
+    for(let k=0;k<2;k++){                                              // gutters, hard against the kerb
+      const side=Math.floor(R()*4), sg=(side&1)?1:-1, u=R()*2-1, across=0.9+R()*0.7, along=3+R()*3.5;
+      let x,z,lx,lz;
+      if(side<2){ x=b.cx+sg*(b.hx+0.55+across/2); z=b.cz+u*Math.max(1,b.hz-4); lx=across; lz=along; }
+      else { z=b.cz+sg*(b.hz+0.55+across/2); x=b.cx+u*Math.max(1,b.hx-4); lz=across; lx=along; }
+      const h=road(x,z); if(h>=0) add(x,z,lx,lz,h+0.05);
+    }
+    if(R()<0.6){ const sx=R()<0.5?-1:1, sz=R()<0.5?-1:1, x=b.cx+sx*(b.hx+2.6), z=b.cz+sz*(b.hz+2.6), h=road(x,z);   // junction corner
+      if(h>=0) add(x,z,3+R()*1.2,2.4+R()*1.2,h+0.05); }
+    if(!b.park&&R()<0.5){ const side=Math.floor(R()*4), sg=(side&1)?1:-1, u=R()*2-1;                                   // on the pavement
+      const x=side<2?b.cx+sg*(b.hx-1.3):b.cx+u*(b.hx-3), z=side<2?b.cz+u*(b.hz-3):b.cz+sg*(b.hz-1.3);
+      add(x,z,1.4+R()*1.2,1.0+R()*0.8,groundHeight(x,z,0)+0.03); }
+  }
+  for(const a of tripAlleyP) add(a[0],a[1],a[2]*1.7+0.4,a[3]*1.7+0.4,a[4]+0.022);   // the alley puddles get the wet look too
+  const n=P.list.length, pos=new Float32Array(n*12), uv=new Float32Array(n*8), sd=new Float32Array(n*4), idx=[];
+  P.list.forEach((q,i)=>{ const x0=q.x-q.lx/2,x1=q.x+q.lx/2,z0=q.z-q.lz/2,z1=q.z+q.lz/2;
+    pos.set([x0,q.y,z0, x1,q.y,z0, x1,q.y,z1, x0,q.y,z1],i*12); uv.set([0,0,1,0,1,1,0,1],i*8); sd.fill(q.sd,i*4,i*4+4);
+    idx.push(i*4,i*4+2,i*4+1,i*4,i*4+3,i*4+2); });
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.BufferAttribute(pos,3)); g.setAttribute('uv',new THREE.BufferAttribute(uv,2)); g.setAttribute('aSd',new THREE.BufferAttribute(sd,1));
+  g.setIndex(idx);
+  const m=new THREE.ShaderMaterial({vertexShader:TRIP_PUD_VS,fragmentShader:TRIP_PUD_FS,transparent:true,depthWrite:false,fog:false,
+    polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-4,
+    blending:THREE.CustomBlending,blendSrc:THREE.SrcAlphaFactor,blendDst:THREE.OneMinusSrcAlphaFactor,blendSrcAlpha:THREE.ZeroFactor,blendDstAlpha:THREE.OneMinusSrcAlphaFactor,
+    uniforms:{uSky1:{value:skc1},uSky2:{value:skc2},uSky3:{value:skc3},uSunDir:{value:new THREE.Vector3(0,1,0)},uSunC:{value:new THREE.Color()},
+      uMoonDir:{value:new THREE.Vector3(0,1,0)},uFogC:{value:scene.fog.color},uT:{value:0},uK:{value:0},uAmt:{value:1},uSunVis:{value:0},
+      uFogN:{value:85},uFogF:{value:320},uRip:{value:[0,1,2,3].map(()=>new THREE.Vector4(0,0,-99,0))}}});
+  P.mesh=new THREE.Mesh(g,m); P.mesh.frustumCulled=false; P.mesh.renderOrder=1; P.mesh.visible=false; scene.add(P.mesh);
+}
+function tripWorldTick(dt,ry,sy,R,sunDist,vis,mx,mz){
+  const T=TRIP, lv=T.lv, t=elapsed;
+  if(!T.sw) tripSwayBuild();
+  const W=T.sw;
+  if(W.mat){ W.t.value=t; W.a.value=lv>=3?1.3:(lv>=2?0.9:0.5);
+    if(!W.on){ W.on=true; for(const im of W.ims) im.material=W.mat; }
+    for(const g of W.geos){ const L=BRK.cl.get(g); if(L) for(const o of L) if(o.m.material!==W.mat) o.m.material=W.mat; } }
+  if(!T.pud) tripPudBuild();
+  const P=T.pud, u=P.mesh.material.uniforms;
+  P.mesh.visible=P.list.length>0;
+  u.uT.value=t; u.uK.value=duskK; u.uAmt.value=lv>=2?1:0.75; u.uSunVis.value=vis;
+  u.uSunDir.value.set(SUN_DIRN.x,Math.max((sy+R*0.5)/sunDist,0.03),SUN_DIRN.z).normalize();
+  u.uSunC.value.copy(sun.color).multiplyScalar(0.6+0.4*sun.intensity);
+  u.uMoonDir.value.set(mx*430,128,mz*430).normalize();
+  u.uFogN.value=scene.fog.near; u.uFogF.value=scene.fog.far;
+  // the car through a puddle: ripple rings (4 pooled) and a splash puff
+  P.cool-=dt;
+  if(started&&!onFoot&&!freeCam&&P.cool<=0){ const sp=Math.hypot(player.vx,player.vz);
+    if(sp>2.5) for(const q of P.list){ const dx=(player.x-q.x)/(q.lx*0.5+0.9), dz=(player.z-q.z)/(q.lz*0.5+0.9);
+      if(dx*dx+dz*dz<1){ u.uRip.value[P.ri].set(player.x,player.z,t,clamp(sp/14,0.4,1.3)); P.ri=(P.ri+1)%4; P.cool=0.16;
+        if(sp>6){ const bx=player.x-Math.sin(player.a)*1.6, bz=player.z-Math.cos(player.a)*1.6; puff(bx,0.25,bz,0xb8c4dc); puff(bx,0.35,bz,0x8e9ab8); }
+        break; } } }
+}
+function tripWorldOff(){
+  const T=TRIP, W=T.sw;
+  if(W&&W.mat&&W.on){ W.on=false; for(const im of W.ims) im.material=MAT.vc;
+    for(const g of W.geos){ const L=BRK.cl.get(g); if(L) for(const o of L) if(o.m.material===W.mat) o.m.material=MAT.vc; } }
+  if(T.pud) T.pud.mesh.visible=false;
+}
 function loop(){
   requestAnimationFrame(loop);
   const dt=Math.min(clock.getDelta(),0.05);
@@ -15936,7 +16606,7 @@ function loop(){
   updateRuralAnim(dt,elapsed);
   birdUpdate(dt,elapsed);                // BIRDS: pigeons, wire rows, flocks, gulls, carrion
   if(debugOn) updateDebugReadout(dt);
-  renderer.render(scene,camera);
+  tripRender(dt);                        // TRIP: post-process look (plain renderer.render at level 0)
 }
 solInit();                              // SOL: pick her venues from the finished world
 birdInit();                             // BIRDS: sites from the finished world (pavements, wires, fences, coast)
@@ -15967,6 +16637,6 @@ addEventListener('resize',()=>{
   if(meOn){ mecv.width=innerWidth; mecv.height=innerHeight; }
 });
 </script>
-<div id="buildver" style="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(2px + env(safe-area-inset-bottom));font:600 10px/1.2 ui-monospace,Menlo,monospace;color:#fff;opacity:.6;letter-spacing:.06em;pointer-events:none;z-index:2147483000;text-shadow:0 1px 2px #000">v0.26 · 10 Nov 11:55</div>
+<div id="buildver" style="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(2px + env(safe-area-inset-bottom));font:600 10px/1.2 ui-monospace,Menlo,monospace;color:#fff;opacity:.6;letter-spacing:.06em;pointer-events:none;z-index:2147483000;text-shadow:0 1px 2px #000">v0.27 · 10 Nov 13:21</div>
 </body>
 </html>
