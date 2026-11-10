@@ -14,7 +14,7 @@
 <meta name="twitter:card" content="summary_large_image"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <link rel="apple-touch-icon" href="/sunset-city/square.png"/>
-<meta name="build-version" content="v0.24"/>
+<meta name="build-version" content="v0.25"/>
 <style>
   html,body{margin:0;padding:0;overflow:hidden;background:#1a1420;height:100%;touch-action:none;}
   canvas{display:block;}
@@ -15201,6 +15201,656 @@ function cullInstanced(){
   if(dead) IC.list=IC.list.filter(e=>!e.dead);
 }
 
+// ---------------- birds (bird*) ----------------
+// One InstancedMesh holds every bird (26-triangle body + two hinged wings; the wing angle and the folded
+// pose are per-instance attributes applied in the vertex shader), a second small one the feather puffs.
+// Perched/ground birds live at deterministic "sites" (pavement pigeon groups, roof edges, wire rows,
+// fence posts, scarecrows, beach/pier gulls, owls) that are streamed in round the camera from a fixed pool;
+// murmurations, V-formations, soaring gulls and the carrion birds are fixed sets on parametric paths.
+// No colliders anywhere: birds never block or damage a car.
+const BIRD={on:false,b:[],free:[],sites:[],act:[],im:null,aW:null,cap:0,fl:[],vee:null,gulls:[],car:null,fe:null,
+  th:{on:false,x:0,y:0,z:0,sp:0,foot:false},scanT:0,lastFlash:0,lastFC:0,lastFFC:0,vis:0,
+  bus:null,voices:0,noise:null,noiseAC:null,sT:{coo:5,chirp:3,gull:4,caw:9,owl:10},ray:null,rayM:null,
+  stats:{sites:0,active:0,on:0,vis:0,hits:0,rays:0,rayMs:0,scares:0,snd:0}};
+const BIRD_SP={
+  pg:{s:0.45,wx:1.0,c:[0.44,0.48,0.60],ff:46,fc:34,amp:0.95,spd:10,acc:3.4},     // town pigeon
+  sw:{s:0.33,wx:0.9,c:[0.55,0.42,0.28],ff:72,fc:60,amp:1.0,spd:9,acc:4.2},       // sparrow
+  st:{s:0.42,wx:0.92,c:[0.11,0.11,0.14],ff:66,fc:56,amp:0.95,spd:11,acc:4.0},    // starling
+  cr:{s:0.76,wx:1.05,c:[0.07,0.07,0.09],ff:30,fc:22,amp:0.85,spd:9,acc:2.6},     // crow
+  gu:{s:0.84,wx:1.22,c:[0.97,0.97,0.95],ff:24,fc:15,amp:0.7,spd:9,acc:2.2},      // gull
+  vu:{s:1.15,wx:1.3,c:[0.10,0.08,0.08],ff:20,fc:10,amp:0.55,spd:8,acc:1.8},      // vulture
+  go:{s:0.95,wx:1.15,c:[0.34,0.31,0.29],ff:22,fc:20,amp:0.7,spd:15,acc:2.0},     // goose
+  ow:{s:0.9,wx:1.0,c:[0.50,0.43,0.34],ff:18,fc:14,amp:0.8,spd:7,acc:2.0}};       // owl
+const _bdE=new THREE.Euler(0,0,0,'YXZ'), _bdQ=new THREE.Quaternion(), _bdM=new THREE.Matrix4(), _bdV=new THREE.Vector3(), _bdS=new THREE.Vector3();
+function birdRng(seed){ let a=seed>>>0; return ()=>{ a=(a+0x6D2B79F5)|0; let t=Math.imul(a^(a>>>15),1|a); t=(t+Math.imul(t^(t>>>7),61|t))^t; return ((t^(t>>>14))>>>0)/4294967296; }; }
+function birdHash(n){ const v=Math.sin(n*127.1+311.7)*43758.5453; return v-Math.floor(v); }
+function birdSmooth(a,b,x){ const t=clamp((x-a)/(b-a),0,1); return t*t*(3-2*t); }
+
+// ---- the shared mesh: nose +z, up +y, 1 unit long, 2 units of wingspan; aSide marks wing vertices (+-1 inner, +-2 tip)
+function birdGeo(){
+  const P=[],C=[],S=[],F=[];
+  const tri=(vs,cols,side,folds)=>{ for(let i=0;i<3;i++){ const v=vs[i], c=Array.isArray(cols[0])?cols[i]:cols, f=folds?folds[i]:v;
+    P.push(v[0],v[1],v[2]); C.push(c[0],c[1],c[2]); S.push(side?side[i]:0); F.push(f[0],f[1],f[2]); } };
+  const g=v=>[v,v,v];
+  const oct=(N,T,U,D,Lf,Rt,ct,cb)=>{ tri([N,U,Lf],ct); tri([N,Lf,D],cb); tri([N,D,Rt],cb); tri([N,Rt,U],ct); tri([T,Lf,U],ct); tri([T,D,Lf],cb); tri([T,Rt,D],cb); tri([T,U,Rt],ct); };
+  oct([0,0.06,0.3],[0,0.02,-0.4],[0,0.24,-0.02],[0,-0.2,0.0],[0.23,0.01,0.0],[-0.23,0.01,0.0],g(0.8),g(1.0));          // body
+  oct([0,0.3,0.42],[0,0.26,0.14],[0,0.43,0.27],[0,0.17,0.27],[0.12,0.3,0.27],[-0.12,0.3,0.27],g(0.86),g(0.95));  // head
+  const bk=[1.0,0.62,0.2], bt=[0,0.27,0.58], b1=[0.04,0.31,0.4], b2=[-0.04,0.31,0.4], b3=[0,0.25,0.4];
+  tri([bt,b1,b2],bk); tri([bt,b2,b3],bk); tri([bt,b3,b1],bk);                                                          // beak
+  tri([[0.09,0.04,-0.3],[-0.09,0.04,-0.3],[0.14,0,-0.6]],g(0.6)); tri([[-0.09,0.04,-0.3],[-0.14,0,-0.6],[0.14,0,-0.6]],g(0.55));   // tail
+  for(const d of [1,-1]){
+    const SF=[d*0.19,0.12,0.2], SB=[d*0.19,0.1,-0.18], W=[d*0.6,0.12,0.26], MB=[d*0.57,0.1,-0.2], TP=[d*1.05,0.1,-0.05];
+    const fSF=[d*0.2,0.13,0.14], fSB=[d*0.21,0.02,-0.1], fW=[d*0.225,0.19,-0.02], fMB=[d*0.13,0.02,-0.3], fTP=[d*0.04,0.09,-0.52];
+    tri([SF,W,MB],[g(0.84),g(0.78),g(0.74)],[d,d,d],[fSF,fW,fMB]);
+    tri([SF,MB,SB],g(0.84),[d,d,d],[fSF,fMB,fSB]);
+    tri([W,TP,MB],[g(0.72),g(0.3),g(0.6)],[d,d*2,d],[fW,fTP,fMB]);
+  }
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position',new THREE.Float32BufferAttribute(P,3));
+  geo.setAttribute('color',new THREE.Float32BufferAttribute(C,3));
+  geo.setAttribute('aSide',new THREE.Float32BufferAttribute(S,1));
+  geo.setAttribute('aFold',new THREE.Float32BufferAttribute(F,3));
+  geo.computeVertexNormals();
+  return geo;
+}
+function birdMat(){
+  const m=new THREE.MeshLambertMaterial({vertexColors:true,side:THREE.DoubleSide});
+  m.onBeforeCompile=sh=>{
+    sh.vertexShader='attribute float aSide;\nattribute vec3 aFold;\nattribute vec2 aWing;\n'+sh.vertexShader
+      .replace('#include <beginnormal_vertex>','#include <beginnormal_vertex>\n  float bSg=sign(aSide);\n  float bAn=aWing.x*bSg*(abs(aSide)>1.5?1.45:1.0)*(1.0-aWing.y);\n  float bC=cos(bAn), bS=sin(bAn);\n  if(aSide!=0.0){ objectNormal.xy=vec2(bC*objectNormal.x-bS*objectNormal.y,bS*objectNormal.x+bC*objectNormal.y); }')
+      .replace('#include <begin_vertex>','#include <begin_vertex>\n  if(aSide!=0.0){ vec2 bP=transformed.xy-vec2(bSg*0.19,0.11);\n    transformed.xy=vec2(bC*bP.x-bS*bP.y,bS*bP.x+bC*bP.y)+vec2(bSg*0.19,0.11);\n    transformed=mix(transformed,aFold,aWing.y); }');
+  };
+  return m;
+}
+function birdNew(i){ return {i,on:false,hit:false,sp:BIRD_SP.pg,s:0.5,wx:1,sy:1,cr:1,cg:1,cb:1,x:0,y:-50,z:0,vx:0,vy:0,vz:0,hd:0,pit:0,bank:0,
+  wing:0.2,fold:0,wp:0,st:0,tm:0,dl:0,ph:0,hx:0,hy:0,hz:0,hh:0,pp:0.5,yo:0.1,tx:0,ty:0,tz:0,gx:0,gz:0,gt:0,pk:0,alt:0,wpd:0,ux:0,uy:0,uz:0}; }
+function birdDress(b,spk,R){            // species, size and colour variation
+  const sp=BIRD_SP[spk]; b.sp=sp; b.ph=R(); const v=0.86+R()*0.26;
+  b.s=sp.s*(0.9+R()*0.2); b.wx=sp.wx; b.sy=1; let c=sp.c;
+  if(spk==='pg'){ const q=R(); if(q<0.12) c=[0.86,0.86,0.84]; else if(q<0.27) c=[0.5,0.36,0.28]; else if(q<0.45) c=[0.24,0.26,0.32]; }
+  if(spk==='ow') b.sy=1.25;
+  b.cr=c[0]*v; b.cg=c[1]*v; b.cb=c[2]*v;
+  b.yo=b.s*0.22; b.vx=b.vy=b.vz=0; b.bank=0; b.wp=R()*6.283; b.alt=0; b.wpd=0; b.gt=R()*3; b.pk=0; b.dl=0; b.tm=0;
+}
+
+// ---- flight helpers ----
+function birdSteer(b,dt,tx,ty,tz,spd,acc){
+  const dx=tx-b.x, dy=ty-b.y, dz=tz-b.z, d=Math.hypot(dx,dy,dz)||1e-3, k=spd/d, f=Math.min(1,acc*dt);
+  b.vx+=(dx*k-b.vx)*f; b.vy+=(dy*k-b.vy)*f; b.vz+=(dz*k-b.vz)*f;
+  b.x+=b.vx*dt; b.y+=b.vy*dt; b.z+=b.vz*dt;
+  const h=Math.hypot(b.vx,b.vz);
+  if(h>0.3&&dt>0){ const nh=Math.atan2(b.vx,b.vz); let dh=nh-b.hd; dh=((dh+Math.PI)%6.2832+6.2832)%6.2832-Math.PI;
+    const st=clamp(dh,-9*dt,9*dt); b.hd+=st;
+    b.bank+=(clamp(-st/dt*0.3,-1,1)-b.bank)*Math.min(1,dt*5); }
+  b.pit+=(clamp(Math.atan2(b.vy,h+0.5)*0.8,-0.9,1)-b.pit)*Math.min(1,dt*6);
+  return d;
+}
+function birdFlap(b,dt,f,amp){ b.wp+=dt*f; b.wing=0.12+amp*Math.sin(b.wp); b.fold+=(0-b.fold)*Math.min(1,dt*12); }
+function birdLand(b,dt,tx,ty,tz){       // true once it has touched down on (tx,ty,tz)
+  const sp=b.sp, d=Math.hypot(tx-b.x,ty-b.y,tz-b.z);
+  if(d<0.3){ b.x=tx; b.y=ty; b.z=tz; b.vx=b.vy=b.vz=0; b.bank=0; return true; }
+  birdSteer(b,dt,tx,ty+(d>3?Math.min(2.5,d*0.2):0),tz,Math.min(sp.spd,1.2+d*1.5),sp.acc*(d<4?3:1.3));
+  birdFlap(b,dt,d<3?sp.ff:sp.fc,sp.amp*(d<3?1.15:1));
+  if(d<2) b.pit+=(0.6-b.pit)*Math.min(1,dt*6);
+  return false;
+}
+function birdParam(b,nx,ny,nz,dt){      // a bird on a parametric path: pose from its own motion
+  const dx=nx-b.x, dy=ny-b.y, dz=nz-b.z; b.x=nx; b.y=ny; b.z=nz;
+  const h=Math.hypot(dx,dz);
+  if(dt>0&&h>1e-4&&h<12){ const nh=Math.atan2(dx,dz); let dh=nh-b.hd; dh=((dh+Math.PI)%6.2832+6.2832)%6.2832-Math.PI;
+    const st=dh*Math.min(1,dt*7); b.hd+=st;
+    b.bank+=(clamp(-st/dt*0.32,-0.95,0.95)-b.bank)*Math.min(1,dt*3.5);
+    b.pit+=(clamp(Math.atan2(dy,h)*0.8,-0.8,0.8)-b.pit)*Math.min(1,dt*5); }
+}
+function birdWalk(b,cx,cz,rad,gy,dt,t,beach){   // pecking about on the ground inside a small disc
+  b.gt-=dt;
+  if(b.gt<=0){ if(Math.random()<0.6){ const a=rand(0,6.283), r=Math.sqrt(Math.random())*rad; b.gx=cx+Math.cos(a)*r; b.gz=cz+Math.sin(a)*r; b.gt=rand(1.5,4); b.pk=0; }
+    else { b.gx=b.x; b.gz=b.z; b.pk=rand(0.7,1.6); b.gt=b.pk+rand(0.4,1.8); } }
+  const dx=b.gx-b.x, dz=b.gz-b.z, d=Math.hypot(dx,dz), cad=t*11+b.ph*40; let bob=0;
+  if(d>0.06){ b.hd=lerpAngle(b.hd,Math.atan2(dx,dz),Math.min(1,dt*6));
+    const v=Math.min(0.42*(b.s/0.5),d/Math.max(dt,1e-3)); b.x+=Math.sin(b.hd)*v*dt; b.z+=Math.cos(b.hd)*v*dt;
+    b.pit=0.34+0.09*Math.sin(cad); bob=Math.abs(Math.sin(cad*0.5))*0.014; }
+  else if(b.pk>0){ b.pk-=dt; b.pit=0.34-0.5*Math.max(0,Math.sin(t*8.5+b.ph*30)); }
+  else b.pit+=(0.38-b.pit)*Math.min(1,dt*5);
+  b.y=(beach?coastGroundY(b.x,b.z):gy)+b.s*0.3+bob; b.bank=0;
+}
+
+// ---- placement helpers ----
+function birdSpotOK(x,z,r,noRoad){
+  if(!noRoad&&(overpassHeight(x,z)>=0||!clearOfCarriageways(x,z,r+0.4))) return false;
+  for(const b of world.boxes) if(x>b.x0-r&&x<b.x1+r&&z>b.z0-r&&z<b.z1+r) return false;
+  for(const c of world.circles){ const q=c.r+r*0.7; if(Math.abs(x-c.x)<q&&Math.abs(z-c.z)<q) return false; }
+  return true;
+}
+function birdSite(k,x,y,z,n,seed,sp){
+  const S={k,x,y,z,gy:y,n,h:birdHash(seed*1.618+7.7),seed,sp,active:false,dead:false,cool:0,b:[],pts:null,walk:false,rad:0.5,
+    calm:true,mode:0,thNear:false,waitT:0,wheelT:6,wa:birdHash(seed+3)*6.28,ww:(0.75+birdHash(seed+9)*0.4)*(birdHash(seed+5)<0.5?1:-1),
+    wx:x,wy:y+9,wz:z,wr:8,bx:0,bz:0,lx:x,lz:z,dx:0,dz:0,alt:undefined,vo:-1,vy:0,rin:95,rout:118,chT:0};
+  BIRD.sites.push(S); return S;
+}
+function birdSitesCity(R){
+  for(const b of world.blocks){
+    const cnt=b.park?(b.plaza?4:2):3;
+    for(let c=0;c<cnt;c++) for(let tr=0;tr<16;tr++){
+      let x,z;
+      if(b.park){ x=b.cx+(R()*2-1)*(b.hx-2.4); z=b.cz+(R()*2-1)*(b.hz-2.4); }
+      else { const sd=Math.floor(R()*4), u=(R()*2-1)*(b.hx-3), ins=b.hx-(2.0+R()*0.7);
+        x=b.cx+(sd===0?ins:sd===1?-ins:u); z=b.cz+(sd===2?ins:sd===3?-ins:u); }
+      if(!birdSpotOK(x,z,2.0)||BIRD.sites.some(S=>Math.abs(S.x-x)<11&&Math.abs(S.z-z)<11)) continue;
+      const S=birdSite('pg',x,groundHeight(x,z,0),z,4+Math.floor(R()*5),BIRD.sites.length+100,'pg');
+      S.walk=true; S.rad=1.8; S.rin=85; S.rout=105;
+      const ne=nearestEdge(x,z);
+      if(ne.e&&ne.d<16){ S.dx=ne.e.dx; S.dz=ne.e.dz; S.wx=ne.e.ax+ne.e.dx*ne.t; S.wz=ne.e.az+ne.e.dz*ne.t; S.wr=6.2; }
+      else S.wr=6.5;
+      S.wy=S.y+9+S.h*4;
+      break;
+    }
+  }
+  // roof-edge rows: a street-facing parapet of some buildings (height found by a lazy ray when first streamed in)
+  for(let i=0;i<world.boxes.length;i++){ const b=world.boxes[i], w=b.x1-b.x0, d=b.z1-b.z0;
+    if(w<9||d<9||w>40||d>40) continue; const cx=(b.x0+b.x1)/2, cz=(b.z0+b.z1)/2;
+    if(!inCityRect(cx,cz)||birdHash(i*5.3+1)>0.34) continue;
+    const ne=nearestEdge(cx,cz); if(!ne.e||ne.d>40) continue;
+    const rx=ne.e.ax+ne.e.dx*ne.t-cx, rz=ne.e.az+ne.e.dz*ne.t-cz; let nx=0,nz=0;
+    if(Math.abs(rx)>Math.abs(rz)) nx=Math.sign(rx); else nz=Math.sign(rz);
+    const u=(R()*2-1)*0.3, ex=cx+nx*(w/2-0.95)-nz*u*w, ez=cz+nz*(d/2-0.95)+nx*u*d;
+    const S=birdSite('rf',ex,12,ez,3+Math.floor(R()*4),i+5000,'pg'); S.dx=nx; S.dz=nz; S.box=b; S.rin=110; S.rout=132;
+    S.wx=cx+nx*(w/2+7); S.wz=cz+nz*(d/2+7); S.wr=6; S.gy=0;
+  }
+}
+function birdSitesWires(){
+  const W=BRK.wires; if(!W) return;
+  const a=W.geometry.attributes.position.array, n=Math.floor(a.length/6);
+  let hi=0; for(let i=0;i<n;i++) if((a[i*6+1]+a[i*6+4])/2>4.6) hi++;
+  const P=clamp(950/Math.max(1,hi),0.02,0.14), poles=new Map();
+  for(let i=0;i<n;i++){ const o=i*6, ax=a[o],ay=a[o+1],az=a[o+2],bx=a[o+3],by=a[o+4],bz=a[o+5];
+    if(Math.abs(ay-7)<1e-3) poles.set(Math.round(ax*2)+','+Math.round(az*2),[ax,az]);
+    if((ay+by)/2<4.6) continue;
+    const len=Math.hypot(bx-ax,by-ay,bz-az); if(len<2.4||birdHash(i*1.37+5)>P) continue;
+    const mx=(ax+bx)/2, mz=(az+bz)/2, sub=inSuburb(mx,mz,14), h2=birdHash(i*2.71+3);
+    const sp=sub?(h2<0.62?'sw':h2<0.85?'st':'pg'):(h2<0.5?'cr':h2<0.85?'st':'sw');
+    const gap=BIRD_SP[sp].s*(sp==='cr'?0.75:0.95), nb=Math.max(2,Math.min(sp==='cr'?5:8,Math.floor((len-0.6)/gap*(0.45+0.55*birdHash(i+0.5)))));
+    const S=birdSite('wr',mx,(ay+by)/2,mz,nb,i+20000,sp); S.seg=[ax,ay,az,bx,by,bz]; S.gap=gap; S.vo=o; S.vy=ay; S.gy=0;
+    const hl=Math.hypot(bx-ax,bz-az)||1, sg=birdHash(i+0.9)<0.5?1:-1; S.dx=-(bz-az)/hl*sg; S.dz=(bx-ax)/hl*sg;
+    S.wx=mx+S.dx*7; S.wz=mz+S.dz*7; S.wy=S.y+4.5; S.wr=8; S.rin=150; S.rout=178;
+  }
+  // an owl on a rural pole top now and then (night only)
+  let k=0; for(const p of poles.values()){ k++; if(inSuburb(p[0],p[1],20)||birdHash(k*9.1+2)>0.07) continue;
+    const S=birdSite('ow',p[0],8.1,p[1],1,k+40000,'ow'); S.pts=[[p[0],8.1,p[1],birdHash(k)*6.28]]; S.gy=0; S.rin=120; S.rout=150; S.wy=14; }
+}
+function birdSitesRural(R){
+  let posts=null, scare=null;
+  for(const o of scene.children){ if(!o.isInstancedMesh) continue; const g=o.geometry, q=g.parameters;
+    if(q&&q.height===1.25&&q.width===0.12&&q.depth===0.12) posts=o;
+    else if(!q&&o.count<=80&&g.attributes.position&&g.attributes.position.count<400){ if(!g.boundingBox) g.computeBoundingBox(); const bb=g.boundingBox;
+      if(bb.max.y>2.7&&bb.max.y<2.95&&Math.abs(bb.min.y)<0.05&&Math.abs(bb.max.x-bb.min.x-1.7)<0.12) scare=o; } }
+  if(posts){ const a=posts.instanceMatrix.array, n=posts.count;
+    for(let i=0;i<n;i++){ if(birdHash(i*2.13+0.7)>0.09) continue; const pts=[]; let m=1+Math.floor(birdHash(i+4)*3);
+      for(let j=i;j<n&&pts.length<m;j++){ const x=a[j*16+12], z=a[j*16+14]; if(j>i&&Math.hypot(x-a[(j-1)*16+12],z-a[(j-1)*16+14])>3.2) break;
+        pts.push([x,1.245,z,birdHash(j*3.1)*6.28]); }
+      const S=birdSite('fc',pts[0][0],1.245,pts[0][2],pts.length,i+60000,'cr'); S.pts=pts; S.gy=0; S.rin=135; S.rout=160; S.wy=9; S.wr=9; } }
+  if(scare){ const a=scare.instanceMatrix.array;
+    for(let i=0;i<scare.count;i++){ if(birdHash(i*4.7+1.3)>0.78) continue; const o=i*16, px=a[o+12], pz=a[o+14], sd=birdHash(i+2)<0.5?1:-1, lx=0.76*sd;
+      const pts=[[px+a[o]*lx,1.835,pz+a[o+2]*lx,Math.atan2(a[o+8],a[o+10])+rand(-0.4,0.4)]]; if(birdHash(i+6)<0.45) pts.push([px,2.83,pz,birdHash(i)*6.28]);
+      const S=birdSite('fc',px,1.84,pz,pts.length,i+70000,'cr'); S.pts=pts; S.gy=0; S.rin=135; S.rout=160; S.wy=9; S.wr=9; } }
+  BIRD.stats.posts=posts?posts.count:0; BIRD.stats.scare=scare?scare.count:0;
+}
+function birdSitesCoast(R){
+  const PZ=COAST.PZ, x0=COAST.PROM, x1=shoreX(PZ)-62;
+  for(let z=-330;z<=330;z+=20){ if(R()>0.6||Math.abs(z-PZ)<7||coastBeachW(z)<15) continue;
+    const zz=z+(R()*2-1)*7, x=shoreX(zz)+5.5+R()*5; if(x>x0-3||!birdSpotOK(x,zz,2.4,true)) continue;
+    const S=birdSite('gl',x,coastGroundY(x,zz),zz,2+Math.floor(R()*3),BIRD.sites.length+80000,'gu'); S.walk=true; S.rad=3.2; S.wy=S.y+9; S.wr=11; S.rin=140; S.rout=165; }
+  for(let x=x0-17;x>x1+3;x-=6) for(const sz of [-2.5,2.5]){ if(R()>0.42) continue;
+    const S=birdSite('gl',x,3.66,PZ+sz,1,BIRD.sites.length+80000,'gu'); S.pts=[[x,3.66,PZ+sz,sz>0?0:Math.PI]]; S.gy=2.6; S.wy=10; S.wz=PZ+sz*5; S.wr=9; S.rin=150; S.rout=175; }
+  for(const c of world.circles){ if(c.r!==1.8||c.x>x0||c.x<x0-60) continue;
+    const y=coastGroundY(c.x,c.z)+4.36, S=birdSite('gl',c.x,y,c.z,2,BIRD.sites.length+80000,'gu'); S.pts=[[c.x-0.5,y,c.z-0.6,-Math.PI/2],[c.x+0.3,y,c.z+0.7,-1.2]];
+    S.gy=y-4.36; S.wy=y+6; S.wr=10; S.rin=150; S.rout=175; BIRD.stats.towers=(BIRD.stats.towers||0)+1; }
+}
+// a downward ray against the big static meshes: the height of whatever roof/parapet sits under (x,z)
+function birdRoofY(x,z){
+  const B=BIRD, t0=performance.now();
+  if(!B.rayM){ B.rayM=[]; B.ray=new THREE.Raycaster(); B.ray.far=130;
+    for(const o of scene.children){ if(!o.isMesh||o.isInstancedMesh||o.isSkinnedMesh||!o.visible||o===sky) continue;
+      const g=o.geometry, m=o.material; if(!g||!g.attributes||!g.attributes.position||g.attributes.position.count<900) continue;
+      if(Array.isArray(m)?m.every(q=>q.transparent):(m.transparent||m.side===THREE.BackSide)) continue;
+      if(!g.boundingBox) g.computeBoundingBox(); const bb=g.boundingBox; if(bb.max.y<4||bb.min.x>HALF||bb.max.x<-HALF||bb.min.z>HALF||bb.max.z<-HALF) continue;
+      B.rayM.push(o); } }
+  B.ray.set(_bdV.set(x,120,z),_bdS.set(0,-1,0)); let y=-1;
+  for(const o of B.rayM){ const bb=o.geometry.boundingBox, p=o.position; if(x<bb.min.x+p.x||x>bb.max.x+p.x||z<bb.min.z+p.z||z>bb.max.z+p.z) continue;
+    const hits=B.ray.intersectObject(o,false); if(hits.length&&hits[0].point.y>y) y=hits[0].point.y; }
+  B.stats.rays++; B.stats.rayMs+=performance.now()-t0;
+  return y;
+}
+function birdAlt(S){                    // where a scattered pigeon group settles for a while: a roof edge, else lamp heads
+  S.alt=null;
+  let best=null,bd=20;
+  for(const b of world.boxes){ if(b.x1-b.x0<7||b.z1-b.z0<7) continue; const d=Math.hypot(S.x-clamp(S.x,b.x0,b.x1),S.z-clamp(S.z,b.z0,b.z1)); if(d<bd&&d>0.01){ bd=d; best=b; } }
+  if(best){ const b=best, cx=clamp(S.x,b.x0,b.x1), cz=clamp(S.z,b.z0,b.z1); let nx=S.x-cx, nz=S.z-cz;
+    if(Math.abs(nx)>Math.abs(nz)){ nx=Math.sign(nx); nz=0; } else { nz=Math.sign(nz); nx=0; }
+    const ex=cx-nx*0.95, ez=cz-nz*0.95, y=birdRoofY(ex,ez);
+    if(y>3&&y<24){ const pts=[];
+      for(let i=0;i<S.n;i++){ const o=(i-(S.n-1)/2)*0.62; pts.push([clamp(ex-nz*o,b.x0+1,b.x1-1),y,clamp(ez+nx*o,b.z0+1,b.z1-1),Math.atan2(nx,nz)+(birdHash(S.seed+i)-0.5)*0.9]); }
+      S.alt={pts,nx,nz}; return; } }
+  const L=[]; for(const h of world.lamps){ const d=Math.hypot(h[0]-S.x,h[1]-S.z); if(d<28) L.push([d,h]); }
+  if(!L.length) return; L.sort((p,q)=>p[0]-q[0]); const pts=[];
+  for(let i=0;i<S.n&&i<Math.min(3,L.length)*2;i++){ const h=L[i%Math.min(3,L.length)][1], o=i<Math.min(3,L.length)?-0.1:0.1; pts.push([h[0]+o,4.975,h[1]+o,birdHash(S.seed+i)*6.28]); }
+  S.alt={pts,nx:0,nz:0};
+}
+function birdSitePts(S){
+  if(S.pts) return S.pts;
+  const R=birdRng(S.seed*7919+13), pts=[];
+  if(S.k==='pg'||(S.k==='gl'&&S.walk)){ for(let i=0;i<S.n;i++){ let x=S.x,z=S.z; for(let tr=0;tr<14;tr++){ const a=R()*6.283, r=Math.sqrt(R())*S.rad; x=S.x+Math.cos(a)*r; z=S.z+Math.sin(a)*r;
+        if(!pts.some(p=>Math.abs(p[0]-x)<0.62&&Math.abs(p[2]-z)<0.62)) break; }
+      pts.push([x,S.k==='gl'?coastGroundY(x,z):S.y,z,R()*6.283]); } }
+  else if(S.k==='rf'){ if(BIRD.rayB<=0) return undefined; BIRD.rayB--; const y=birdRoofY(S.x,S.z); if(!(y>3&&y<34)) return null; S.y=y; S.wy=y+4; const b=S.box;
+    for(let i=0;i<S.n;i++){ const o=(i-(S.n-1)/2)*(0.5+R()*0.25); pts.push([clamp(S.x-S.dz*o,b.x0+1,b.x1-1),y,clamp(S.z+S.dx*o,b.z0+1,b.z1-1),Math.atan2(S.dx,S.dz)+(R()-0.5)*1.0]); } }
+  else if(S.k==='wr'){ const g=S.seg, len=Math.hypot(g[3]-g[0],g[4]-g[1],g[5]-g[2]), span=(S.n-1)*S.gap, t0=(0.5-span/len/2)+(R()-0.5)*Math.max(0,1-span/len)*0.8, hd=Math.atan2(S.dx,S.dz);
+    for(let i=0;i<S.n;i++){ const f=clamp(t0+i*S.gap/len+(R()-0.5)*0.03,0.02,0.98);
+      pts.push([g[0]+(g[3]-g[0])*f,g[1]+(g[4]-g[1])*f,g[2]+(g[5]-g[2])*f,hd+(R()<0.15?Math.PI:0)+(R()-0.5)*0.3]); } }
+  S.pts=pts; return pts;
+}
+
+// ---- streaming: sites near the camera borrow birds from the pool ----
+function birdKeep(S){ const k=duskK; if(S.k==='ow') return k>0.75; if(S.k==='fc') return true; return S.h<1-0.6*birdSmooth(0.7,0.95,k); }
+function birdSiteOn(S,t){
+  const B=BIRD, pts=birdSitePts(S); if(pts===undefined) return; if(!pts||!pts.length){ S.dead=true; return; }
+  const R=birdRng(S.seed*31+7), n=Math.min(S.n,pts.length);
+  for(let i=0;i<n;i++){ const b=B.free.pop(), p=pts[i]; birdDress(b,S.sp,R);
+    b.on=true; b.hit=true; b.st=0; b.i=i; b.yo=S.walk?b.s*0.3:b.s*0.22; b.hx=b.x=p[0]; b.hy=b.y=p[1]+b.yo; b.hz=b.z=p[2]; b.hh=b.hd=p[3];
+    b.pp=S.sp==='ow'?0.78:(S.sp==='gu'?0.3:0.5); b.pit=S.walk?0.35:b.pp; b.fold=1; b.gx=b.x; b.gz=b.z; S.b.push(b); }
+  S.active=true; S.calm=true; S.mode=0; S.waitT=0; B.act.push(S);
+}
+function birdSiteOff(S,t,cool){
+  const B=BIRD; for(const b of S.b){ b.on=false; b.hit=false; B.free.push(b); } S.b.length=0; S.active=false; S.cool=t+(cool||0);
+  const i=B.act.indexOf(S); if(i>=0) B.act.splice(i,1);
+}
+function birdScan(t){
+  const B=BIRD, c=camera.position; B.rayB=1;
+  for(const S of B.sites){ if(S.dead) continue; const d=Math.hypot(S.x-c.x,S.z-c.z);
+    if(S.active){
+      if(d>S.rout||S.alive===0) birdSiteOff(S,t,S.alive===0?50:0);
+      else if(S.mode===0&&S.calm&&!birdKeep(S)) birdScare(S,S.x+rand(-9,9),S.z+rand(-9,9),1,t,false,true);     // night falls: off to roost
+      else if(S.vo>=0&&S.mode===0&&Math.abs(BRK.wires.geometry.attributes.position.array[S.vo+1]-S.vy)>0.25) birdScare(S,S.x,S.z,1,t);   // their wire has come down
+    } else if(d<S.rin&&t>=S.cool&&B.free.length>=S.n&&birdKeep(S)){
+      if(S.vo>=0&&Math.abs(BRK.wires.geometry.attributes.position.array[S.vo+1]-S.vy)>0.25) continue;
+      birdSiteOn(S,t); }
+  }
+}
+function birdThreatR(S,T){
+  if(S.k==='wr') return (!T.foot&&T.sp>13&&T.y<S.y-2.5)?11:0;
+  if(Math.abs(T.y-S.gy)>3.5) return 0;
+  if(S.k==='pg') return T.foot?2.6+T.sp*0.5:(T.sp>1?4.2+T.sp*0.3:0);
+  if(S.k==='fc') return T.foot?6:(T.sp>1?9+T.sp*0.3:0);
+  if(S.k==='gl') return T.foot?5:(T.sp>1?8+T.sp*0.3:0);
+  return 0;
+}
+// mode 0: scatter, wheel, settle somewhere near, come back; mode 1: leave (until the site is streamed in again)
+function birdScare(S,tx,tz,mode,t,prox,quiet){
+  if(S.mode===1) return;
+  let ax=S.x-tx, az=S.z-tz, l=Math.hypot(ax,az); if(l<0.5){ const a=rand(0,6.283); ax=Math.cos(a); az=Math.sin(a); l=1; } ax/=l; az/=l;
+  let any=0;
+  for(const b of S.b){ if(!b.on) continue;
+    if(b.st===0||(b.st===5&&!prox)){ b.st=1; b.dl=Math.min(0.5,0.02+Math.hypot(b.x-tx,b.z-tz)*0.011*rand(0.5,1.5)+rand(0,0.14)); any++; }
+    else if(!prox&&(b.st===4||b.st===6)){ b.st=3; b.tm=rand(3,5); } }
+  if(!any&&mode!==1) return;
+  S.mode=mode; S.calm=false; S.waitT=0; S.wheelT=rand(5,9);
+  if(S.k==='pg'&&(S.dx||S.dz)){ const al=(ax*S.dx+az*S.dz)<0?-1:1, rx=S.wx-S.x, rz=S.wz-S.z, rl=Math.hypot(rx,rz)||1; S.bx=S.dx*al*7+rx/rl*2.2; S.bz=S.dz*al*7+rz/rl*2.2; }
+  else if(S.k==='rf'||S.k==='wr'){ S.bx=S.dx*6+ax*2; S.bz=S.dz*6+az*2; }
+  else { S.bx=ax*8; S.bz=az*8; }
+  S.lx=S.x+ax*240; S.lz=S.z+az*240;
+  if(S.k==='pg'&&S.alt===undefined&&mode===0) birdAlt(S);
+  BIRD.stats.scares++;
+  if(!quiet&&any){ if(S.sp==='cr'){ birdCaw(S.x,S.z); birdClap(S.x,S.z,3,0.07); } else if(S.sp==='gu'){ birdGullCry(S.x,S.z); birdClap(S.x,S.z,4,0.08); }
+    else if(S.sp==='pg') birdClap(S.x,S.z,5+any,0.16); else birdClap(S.x,S.z,3,0.05); }
+}
+function birdTick(b,S,dt,t){
+  const sp=b.sp;
+  switch(b.st){
+  case 0:
+    if(S.walk&&duskK<0.86) birdWalk(b,S.x,S.z,S.rad,S.y,dt,t,S.k==='gl');
+    else { b.hd=b.hh+0.45*Math.sin(t*0.6+b.ph*40)*(Math.sin(t*0.23+b.ph*17)>0.3?1:0.15); b.pit+=((S.walk?0.42:b.pp)-b.pit)*Math.min(1,dt*6); b.y=b.hy+Math.abs(Math.sin(t*1.3+b.ph*30))*0.006; b.bank=0; }
+    b.fold+=(1-b.fold)*Math.min(1,dt*8); break;
+  case 1:
+    b.dl-=dt; b.pit+=(0.7-b.pit)*Math.min(1,dt*14);
+    if(b.dl<=0){ b.st=2; b.tm=rand(0.75,1.15); const a=rand(0,6.283), k=rand(1.2,3);
+      b.vx=Math.cos(a)*k+S.bx*0.3; b.vz=Math.sin(a)*k+S.bz*0.3; b.vy=rand(3.5,5.5); b.hd=Math.atan2(b.vx,b.vz);
+      b.tx=b.x+S.bx+rand(-2.5,2.5); b.tz=b.z+S.bz+rand(-2.5,2.5); b.ty=b.y+rand(6,9); }
+    break;
+  case 2:
+    birdSteer(b,dt,b.tx,b.ty,b.tz,sp.spd*1.05,sp.acc*1.5); birdFlap(b,dt,sp.ff,sp.amp*1.1); b.tm-=dt;
+    if(b.tm<=0){ if(S.mode===1){ b.st=7; b.tm=rand(6,9); } else { b.st=3; b.tm=S.wheelT+b.ph*2.5; } }
+    break;
+  case 3: {
+    const a=S.wa+b.ph*2.2+b.i*0.22, r=S.wr*(0.75+0.5*b.ph);
+    birdSteer(b,dt,S.wx+Math.cos(a)*r,S.wy+Math.sin(a*2+b.ph*9)*1.4+b.ph*2,S.wz+Math.sin(a)*r,sp.spd,sp.acc); birdFlap(b,dt,sp.fc,sp.amp);
+    b.tm-=dt;
+    if(b.tm<=0){
+      if(S.mode===1){ b.st=7; b.tm=rand(6,9); }
+      else if(S.alt&&!b.alt&&S.alt.pts[b.i]){ b.alt=1; b.st=4; b.wpd=0; b.tm=15; }
+      else if(S.thNear&&S.waitT<22) b.tm=1.5;
+      else { b.st=6; b.tm=15; } }
+    break; }
+  case 4: {
+    const A=S.alt, p=A.pts[b.i]; b.tm-=dt;
+    if(!b.wpd){ if(birdSteer(b,dt,p[0]+A.nx*2.6,p[1]+1.7,p[2]+A.nz*2.6,sp.spd,sp.acc*1.4)<1.7) b.wpd=1; birdFlap(b,dt,sp.fc,sp.amp); }
+    else if(birdLand(b,dt,p[0],p[1]+b.yo,p[2])||b.tm<=0){ b.x=p[0]; b.y=p[1]+b.yo; b.z=p[2]; b.vx=b.vy=b.vz=0; b.st=5; b.tm=rand(8,18); b.hd=p[3]; b.bank=0; }
+    break; }
+  case 5: {
+    const p=S.alt.pts[b.i]; b.fold+=(1-b.fold)*Math.min(1,dt*8); b.pit+=(b.pp-b.pit)*Math.min(1,dt*6);
+    b.hd=p[3]+0.45*Math.sin(t*0.6+b.ph*40)*(Math.sin(t*0.23+b.ph*17)>0.3?1:0.15); b.tm-=dt;
+    if(b.tm<=0&&!S.thNear){ b.st=6; b.tm=15; b.vx=S.alt.nx*3+rand(-1,1); b.vz=S.alt.nz*3+rand(-1,1); b.vy=2.5; }
+    break; }
+  case 6:
+    b.tm-=dt;
+    if(birdLand(b,dt,b.hx,b.hy,b.hz)||b.tm<=0){ b.x=b.hx; b.y=b.hy; b.z=b.hz; b.vx=b.vy=b.vz=0; b.st=0; b.hd=b.hh; b.alt=0; b.bank=0; b.gx=b.x; b.gz=b.z; b.gt=rand(0.5,2); }
+    break;
+  case 7:
+    birdSteer(b,dt,S.lx,b.y+10,S.lz,sp.spd*1.1,sp.acc); birdFlap(b,dt,sp.fc,sp.amp); b.tm-=dt;
+    if(b.tm<=0){ b.on=false; b.hit=false; b.st=8; }
+    break;
+  }
+}
+function birdSiteTick(S,dt,t){
+  const T=BIRD.th; S.thNear=false;
+  if(T.on){ const d=Math.hypot(T.x-S.x,T.z-S.z), R=birdThreatR(S,T);
+    S.thNear=S.k!=='wr'&&S.k!=='rf'&&S.k!=='ow'&&Math.abs(T.y-S.gy)<3.5&&d<13;
+    if(R>0&&d<R+S.rad) birdScare(S,T.x,T.z,0,t,true); }
+  if(!S.calm) S.waitT+=dt;
+  S.wa+=S.ww*dt;
+  let idle=0,alive=0;
+  for(const b of S.b){ if(!b.on) continue; alive++; birdTick(b,S,dt,t); if(b.st===0) idle++; }
+  S.alive=alive; S.calm=idle===alive; if(S.calm&&S.mode===0) S.waitT=0;
+}
+// gunfire / explosions, read from the game's own state (no hooks in the gun code)
+function birdBangs(t){
+  const B=BIRD; let bx=0,bz=0,br=0;
+  if(fireCool>B.lastFC+0.05){ bx=player.x; bz=player.z; br=55; } B.lastFC=fireCool;
+  if(footFireCool>B.lastFFC+0.05){ bx=foot.x; bz=foot.z; br=55; } B.lastFFC=footFireCool;
+  if(typeof CFX!=='undefined'){ if(CFX.flash>0.85&&CFX.flash>B.lastFlash+0.2){ bx=CFX.flashP.x; bz=CFX.flashP.z; br=85; } B.lastFlash=CFX.flash; }
+  if(br>0) birdBang(bx,bz,br,t);
+}
+function birdBang(bx,bz,br,t){
+  const B=BIRD;
+  for(const S of B.act.slice()) if(Math.hypot(S.x-bx,S.z-bz)<br) birdScare(S,bx,bz,S.k==='ow'?1:0,t);
+  const C=B.car; if(C&&C.tgt&&Math.hypot(C.tgt.x-bx,C.tgt.z-bz)<br) for(const b of C.b) if(b.on&&(b.st===2||b.st===3)){ b.st=1; b.gt=rand(8,16); b.vy=4.5; b.wp=0; }
+}
+
+// ---- murmurations: one smooth centre path per flock, every bird a fixed offset in a stretching, rippling blob ----
+function birdFlocks(dt,t){
+  const B=BIRD, cam=camera.position, k=duskK;
+  for(const F of B.fl){
+    F.pres+=clamp((k<0.8?1:0)-F.pres,-dt*0.14,dt*0.14);
+    const nAct=Math.floor(F.n*F.pres*(0.5+0.5*clamp(k/0.2,0,1)));
+    const ce=camera.matrixWorld.elements, cl=Math.hypot(ce[8],ce[10])||1, fwx=-ce[8]/cl, fwz=-ce[10]/cl, ah=F.town?165:140;
+    let tx=cam.x+fwx*ah+Math.cos(t*0.05+F.p1)*25, tz=cam.z+fwz*ah+Math.sin(t*0.05+F.p1)*25, street=false;
+    if(F.town){
+      // downtown the chase camera only sees the strip of sky down the street: bring the flock into that canyon
+      F.rt-=dt; if(F.rt<=0){ F.rt=0.6; const T=B.th, px=T.on?T.x:cam.x, pz=T.on?T.z:cam.z; let ok=false;
+        if(inCityRect(px,pz)){ const ne=nearestEdge(px,pz), e=ne.e, al=e?e.dx*fwx+e.dz*fwz:0;
+          if(e&&ne.d<14&&!e.mw&&Math.abs(al)>0.75){ const sg=al>0?1:-1; F.lx=e.ax+e.dx*ne.t; F.lz=e.az+e.dz*ne.t; F.sdx=e.dx*sg; F.sdz=e.dz*sg; F.ln=true; }
+          else if(F.ln){ const rx=px-F.lx, rz=pz-F.lz, q=rx*F.sdx+rz*F.sdz;        // crossing a junction: stay with the street we were on
+            if(Math.abs(rx*F.sdz-rz*F.sdx)>14||F.sdx*fwx+F.sdz*fwz<0.75) F.ln=false; else { F.lx+=F.sdx*q; F.lz+=F.sdz*q; } }
+          if(F.ln) for(const dd of [115,90,65]){ const qx=F.lx+F.sdx*dd, qz=F.lz+F.sdz*dd;
+            if(inCityRect(qx,qz)&&!footSolidAt(qx,qz)&&!footSolidAt(qx-F.sdz*5,qz+F.sdx*5)&&!footSolidAt(qx+F.sdz*5,qz-F.sdx*5)&&!footSolidAt(F.lx+F.sdx*(dd-30),F.lz+F.sdz*(dd-30))){ ok=true; F.sx=qx; F.sz=qz; break; } }
+        } else F.ln=false;
+        F.st=ok; }
+      if(F.st){ street=true; tx=F.sx; tz=F.sz; } else { tx=clamp(tx,-185,185); tz=clamp(tz,-185,185); }
+    }
+    else { const r=Math.hypot(tx,tz); if(r<330){ if(r>1){ tx*=330/r; tz*=330/r; } else { tx=330; tz=0; } } if(tx<-235) tx=-235; }
+    const ddx=tx-F.ax, ddz=tz-F.az, dd=Math.hypot(ddx,ddz);
+    if(dd>290){ F.ax=tx; F.az=tz; } else if(dd>1){ const st=Math.min(dd,(street?27:14)*dt)/dd; F.ax+=ddx*st; F.az+=ddz*st; }
+    F.low+=clamp((street&&dd<45?1:0)-F.low,-dt*0.35,dt*0.25); const lo=F.low*F.low*(3-2*F.low), hi=1-lo;
+    const s1=Math.sin(0.19*t+F.p1), s2=Math.sin(0.47*t+F.p2);
+    const cx=F.ax+hi*(38*s1+16*s2)+lo*(F.sdx*26*s1-F.sdz*2.6*s2), cz=F.az+hi*(38*Math.cos(0.16*t+F.p3)+16*Math.sin(0.41*t+F.p1))+lo*(F.sdz*26*s1+F.sdx*2.6*s2);
+    const cy=hi*(F.h+9*Math.sin(0.23*t+F.p2)+4*Math.sin(0.61*t+F.p3))+lo*(16+3*Math.sin(0.23*t+F.p2)), dcam=Math.hypot(cx-cam.x,cz-cam.z);
+    const mvx=cx-F.cx, mvz=cz-F.cz; F.cx=cx; F.cy=cy; F.cz=cz;
+    if(dcam>390||nAct<=0){ if(F.vis){ F.vis=false; for(const b of F.b) b.on=false; } continue; }
+    F.vis=true;
+    // the blob's long axis swings round smoothly (never flips), along the street when it is down in one
+    if(lo>0.5) F.ha=lerpAngle(F.ha,Math.atan2(F.sdx,F.sdz),Math.min(1,dt*1.2)); else if(Math.hypot(mvx,mvz)>0.02) F.ha=lerpAngle(F.ha,Math.atan2(mvx,mvz),Math.min(1,dt*0.9));
+    const fx=Math.sin(F.ha), fz=Math.cos(F.ha);
+    const A=hi*(20+7*Math.sin(0.31*t+F.p1))+lo*15, Bw=hi*(10+4*Math.sin(0.27*t+F.p2))+lo*3.4, Ch=hi*(5+2.5*Math.sin(0.4*t+F.p3))+lo*3.6, rip=0.5+0.5*Math.sin(t*0.17+F.p3), rw=hi*3.5+lo*1.1;
+    const grow=1+Math.min(dcam,220)/170;
+    for(let i=0;i<F.b.length;i++){ const b=F.b[i];
+      if(i>=nAct){ b.on=false; continue; }
+      const lx=b.ux*A+1.2*Math.sin(t*1.9+b.ph*50), lz=b.uz*Bw+rw*Math.sin(b.ux*2.1+b.uz*1.7-t*1.1+F.p2)+0.9*Math.sin(t*1.7+b.ph*90);
+      const ly=b.uy*Ch+3.2*rip*Math.sin(b.ux*3.2-t*1.6+F.p1)+0.8*Math.sin(t*2.3+b.ph*70);
+      const nx=cx+fx*lx-fz*lz, ny=cy+ly, nz=cz+fz*lx+fx*lz;
+      if(!b.on){ b.on=true; b.x=nx; b.y=ny; b.z=nz; b.hd=Math.atan2(fx,fz); }
+      birdParam(b,nx,ny,nz,dt); b.s=b.sp.s*b.ux2*grow; b.fold=0;
+      if(LOWQ&&dcam>120) b.wing=0.3; else { b.wp+=dt*b.sp.fc; b.wing=0.1+b.sp.amp*Math.sin(b.wp); } }
+  }
+}
+// ---- a skein of geese crossing high overhead now and then ----
+function birdVee(dt,t){
+  const V=BIRD.vee; if(!V) return;
+  if(!V.live){ if(t<V.next||duskK>0.85) return;
+    const c=camera.position, a=rand(0,6.283), off=rand(-45,45); V.dx=Math.cos(a); V.dz=Math.sin(a);
+    V.x=c.x-V.dx*300-V.dz*off; V.z=c.z-V.dz*300+V.dx*off; V.y=rand(46,60); V.live=true; V.t=0;
+    for(const b of V.b){ b.on=true; b.hd=Math.atan2(V.dx,V.dz); b.x=V.x; b.y=V.y; b.z=V.z; b.fold=0; b.pit=0; b.bank=0; } }
+  V.t+=dt; V.x+=V.dx*15*dt; V.z+=V.dz*15*dt;
+  for(let j=0;j<V.b.length;j++){ const b=V.b[j], row=(j+1)>>1, sd=(j&1)?1:-1;
+    b.x=V.x-V.dx*row*2.5-V.dz*sd*row*2.0; b.z=V.z-V.dz*row*2.5+V.dx*sd*row*2.0; b.y=V.y+Math.sin(t*0.9+j)*0.3+row*0.12;
+    b.wp+=dt*b.sp.fc*0.5; b.wing=0.1+b.sp.amp*Math.sin(b.wp+j*0.7); }
+  if(V.t>42){ V.live=false; V.next=t+rand(35,75); for(const b of V.b) b.on=false; }
+}
+// ---- gulls riding the air over the pier and the lifeguard towers ----
+function birdGulls(dt,t){
+  const B=BIRD, cam=camera.position, keep=Math.ceil(B.gulls.length*(1-0.6*birdSmooth(0.7,0.95,duskK)));
+  for(let i=0;i<B.gulls.length;i++){ const G=B.gulls[i], b=G.b;
+    if(i>=keep||Math.hypot(G.cx-cam.x,G.cz-cam.z)>360){ b.on=false; continue; }
+    const a=G.ph+t*G.w, r=G.r*(1+0.3*Math.sin(t*0.21+G.ph*3)), nx=G.cx+Math.cos(a)*r, nz=G.cz+Math.sin(a)*r*0.8, ny=G.y+2.5*Math.sin(t*0.33+G.ph*5)+1.2*Math.sin(t*0.9+G.ph*2);
+    if(!b.on){ b.on=true; b.x=nx; b.y=ny; b.z=nz; b.hd=Math.atan2(-Math.sin(a)*Math.sign(G.w),Math.cos(a)*Math.sign(G.w)); }
+    birdParam(b,nx,ny,nz,dt); b.fold=0;
+    if(Math.sin(t*0.37+G.ph*7)>0.3){ b.wp+=dt*b.sp.fc; b.wing+=(0.1+b.sp.amp*Math.sin(b.wp)-b.wing)*Math.min(1,dt*10); }
+    else b.wing+=(0.2+0.05*Math.sin(t*1.3+G.ph*9)-b.wing)*Math.min(1,dt*4); }
+}
+// ---- crows and vultures: wheel above a wreck or a fresh blood pool, a few drop down to pick at it ----
+function birdCarrionScan(t){
+  const C=BIRD.car, cam=camera.position; let best=null, bd=150*150;
+  for(const v of traffic){ if(!v.wrecked) continue; const p=(v.car&&v.car.g)?v.car.g.position:v, d2=(p.x-cam.x)**2+(p.z-cam.z)**2;
+    if(d2<bd){ bd=d2; best={x:p.x,z:p.z,land:2,rr:4.6,wreck:true}; } }
+  if(typeof bloodDecals!=='undefined'){ const a=bloodDecals.im.instanceMatrix.array;
+    for(let k=1;k<=140;k++){ const i=((bloodDecals.ptr-k)%BLOOD_MAX+BLOOD_MAX)%BLOOD_MAX, o=i*16; if(a[o]===0&&a[o+10]===0) continue;
+      const x=a[o+12], z=a[o+14], d2=(x-cam.x)**2+(z-cam.z)**2; if(d2<bd){ bd=d2; best={x,z,land:3,rr:1.9,wreck:false}; } } }
+  const G=C.tgt;
+  if(G&&best&&Math.hypot(G.x-best.x,G.z-best.z)<7) return;
+  if(G&&t<C.keepT&&Math.hypot(G.x-cam.x,G.z-cam.z)<170) return;
+  if(best){ best.gy=groundHeight(best.x,best.z,0); C.keepT=t+14; }
+  if(G) for(const b of C.b) if(b.on&&(b.st===2||b.st===3)){ b.st=1; b.gt=rand(12,22); b.vy=4; }
+  C.tgt=best;
+}
+function birdNearThreat(x,z,r){ const T=BIRD.th; return T.on&&Math.hypot(T.x-x,T.z-z)<r+T.sp*0.3; }
+function birdNearTraffic(x,z){ for(const v of traffic){ if(Math.abs(v.x-x)<6&&Math.abs(v.z-z)<6&&v.sp>1.5) return true; } return false; }
+function birdCarrion(dt,t){
+  const C=BIRD.car; if(!C) return;
+  C.scanT-=dt; if(C.scanT<=0){ C.scanT=1.1; birdCarrionScan(t); }
+  const G=C.tgt, want=G?(meteorFired?C.b.length:Math.min(4,C.b.length)):0; C.wa+=dt*0.42;
+  for(let i=0;i<C.b.length;i++){ const b=C.b[i], sp=b.sp;
+    if(b.st===0){ if(i<want&&t>b.tm){ const a=rand(0,6.283); b.x=G.x+Math.cos(a)*95; b.z=G.z+Math.sin(a)*95; b.y=G.gy+rand(26,38);
+        b.vx=-Math.cos(a)*6; b.vz=-Math.sin(a)*6; b.vy=0; b.hd=Math.atan2(b.vx,b.vz); b.on=true; b.hit=true; b.st=1; b.fold=0; b.gt=rand(12,24)+i*5; }
+      continue; }
+    if((!G||i>=want)&&b.st!==4){ b.st=4; b.tm=9; const a=rand(0,6.283); b.tx=b.x+Math.cos(a)*250; b.tz=b.z+Math.sin(a)*250; }
+    switch(b.st){
+    case 1: { const a=C.wa*((i&1)?1:-1)*(0.8+b.ph*0.5)+i*1.9, r=9+((i*37)%7)*1.2, h=12+((i*53)%9)*1.1;
+      birdSteer(b,dt,G.x+Math.cos(a)*r,G.gy+h+Math.sin(t*0.5+i)*1.2,G.z+Math.sin(a)*r,sp.spd,sp.acc);
+      if(Math.sin(t*0.5+b.ph*20)>0.5||b.y<G.gy+h-3||Math.hypot(b.x-G.x,b.z-G.z)>r+14) birdFlap(b,dt,sp.fc,sp.amp); else { b.wing+=(0.34-b.wing)*Math.min(1,dt*4); b.fold=0; }
+      if(i<G.land){ b.gt-=dt; if(b.gt<=0&&!birdNearThreat(G.x,G.z,12)){ b.st=2; b.tm=15; const q=rand(0,6.283), rr=G.rr*rand(0.75,1.25); b.hx=G.x+Math.cos(q)*rr; b.hz=G.z+Math.sin(q)*rr; b.hy=G.gy+b.s*0.3; } }
+      break; }
+    case 2: b.tm-=dt; if(birdLand(b,dt,b.hx,b.hy,b.hz)||b.tm<=0){ b.x=b.hx; b.y=b.hy; b.z=b.hz; b.vx=b.vy=b.vz=0; b.st=3; b.gt=0; b.gx=b.x; b.gz=b.z; } break;
+    case 3: if(G.wreck) { b.fold+=(1-b.fold)*Math.min(1,dt*8); b.pit+=(0.3-b.pit)*Math.min(1,dt*5); b.hd=lerpAngle(b.hd,Math.atan2(G.x-b.x,G.z-b.z),Math.min(1,dt*2)); }
+      else { birdWalk(b,G.x,G.z,G.rr,G.gy,dt,t,false); b.fold+=(1-b.fold)*Math.min(1,dt*8); }
+      if(birdNearThreat(b.x,b.z,7.5)||birdNearTraffic(b.x,b.z)){ b.st=1; b.gt=rand(9,16); b.vy=4.5; b.vx=rand(-2,2); b.vz=rand(-2,2); b.wp=0; birdCaw(b.x,b.z); birdClap(b.x,b.z,3,0.07); }
+      break;
+    case 4: birdSteer(b,dt,b.tx,b.y+8,b.tz,sp.spd*1.1,sp.acc); birdFlap(b,dt,sp.fc,sp.amp); b.tm-=dt; if(b.tm<=0){ b.on=false; b.hit=false; b.st=0; b.tm=t+rand(2,6); } break;
+    }
+  }
+}
+
+// ---- feather puffs (pooled) and the car-meets-bird check ----
+function birdPuff(x,y,z,vx,vz,b,n){
+  const F=BIRD.fe; if(!F) return;
+  for(let i=0;i<n;i++){ const p=F.p[F.ptr]; F.ptr=(F.ptr+1)%F.p.length;
+    p.life=p.max=rand(1.1,2.0); p.x=x+rand(-0.15,0.15); p.y=y+rand(0,0.25); p.z=z+rand(-0.15,0.15);
+    p.vx=vx*rand(0.15,0.5)+rand(-2.2,2.2); p.vy=rand(1.2,4.2); p.vz=vz*rand(0.15,0.5)+rand(-2.2,2.2);
+    p.a=rand(0,6.28); p.w=rand(-9,9); p.s=rand(0.1,0.19); const q=i%4===0?0.5:1; p.r=Math.min(1,b.cr*q+0.12); p.g=Math.min(1,b.cg*q+0.12); p.b=Math.min(1,b.cb*q+0.12); }
+}
+function birdFeathers(dt){
+  const F=BIRD.fe; if(!F) return; let k=0; const ma=F.im.instanceMatrix.array, ca=F.im.instanceColor.array;
+  for(const p of F.p){ if(p.life<=0) continue; p.life-=dt; if(p.life<=0) continue;
+    const dr=Math.exp(-2.6*dt); p.vx*=dr; p.vz*=dr; p.vy=Math.max(-1.1,p.vy-6.5*dt); p.x+=p.vx*dt; p.y+=p.vy*dt; p.z+=p.vz*dt; p.a+=p.w*dt;
+    if(p.y<0.05){ p.y=0.05; p.vy=0; p.w*=0.9; }
+    const s=p.s*Math.min(1,p.life/p.max*2.5);
+    _bdE.set(Math.sin(p.a)*1.2,p.a*0.6,p.a); _bdQ.setFromEuler(_bdE); _bdM.compose(_bdV.set(p.x,p.y,p.z),_bdQ,_bdS.set(s,s,s)); _bdM.toArray(ma,k*16);
+    ca[k*3]=p.r; ca[k*3+1]=p.g; ca[k*3+2]=p.b; k++; }
+  F.im.count=k; F.im.visible=k>0; if(k){ F.im.instanceMatrix.needsUpdate=true; F.im.instanceColor.needsUpdate=true; }
+}
+function birdHits(t){
+  const B=BIRD, T=B.th; if(!T.on||T.foot||T.sp<8||!started) return;
+  const sa=Math.sin(player.a), ca=Math.cos(player.a), py=player.y||0;
+  for(const b of B.b){ if(!b.on||!b.hit) continue; const dx=b.x-player.x, dz=b.z-player.z; if(dx>4||dx<-4||dz>4||dz<-4) continue;
+    const f=dx*sa+dz*ca, l=dx*ca-dz*sa, h=b.y-py; if(l>1.05||l<-1.05||f<-2.3||f>2.6||h>1.55||h<-0.5) continue;
+    birdPuff(b.x,b.y+0.2,b.z,player.vx,player.vz,b,LOWQ?6:10); birdClap(b.x,b.z,2,0.1); b.on=false; b.hit=false; b.st=8; B.stats.hits++; }
+}
+
+// ---- sound: every voice is built here from its own nodes and feeds the game's master gain ----
+function birdNoiseBuf(){ const B=BIRD; if(B.noise&&B.noiseAC===AC) return B.noise;
+  const n=Math.floor(AC.sampleRate*0.8), buf=AC.createBuffer(1,n,AC.sampleRate), d=buf.getChannelData(0); let s=12345;
+  for(let i=0;i<n;i++){ s=(s*1103515245+12345)&0x7fffffff; d[i]=s/0x3fffffff-1; } B.noise=buf; B.noiseAC=AC; return buf; }
+function birdVoice(x,z,range,vol,dur){     // a distance-attenuated, panned gain; at most 6 at once
+  if(!AC||muted||!started||!master||AC.state!=='running') return null;
+  const B=BIRD; if(B.voices>=6) return null;
+  const c=camera.position, dx=x-c.x, dz=z-c.z, d=Math.hypot(dx,dz); if(d>range) return null;
+  const k=1-d/range, g=AC.createGain(); g.gain.value=vol*k*k; let out=g;
+  if(AC.createStereoPanner){ const p=AC.createStereoPanner(), e=camera.matrixWorld.elements; p.pan.value=clamp((dx*e[0]+dz*e[2])/(d+6),-1,1)*0.8; g.connect(p); out=p; }
+  out.connect(master); B.voices++; B.stats.snd++;
+  setTimeout(()=>{ B.voices--; try{ g.disconnect(); out.disconnect(); }catch(_){} },(dur+0.35)*1000);
+  return g;
+}
+function birdCoo(x,z){
+  const dur=1.5, g=birdVoice(x,z,42,0.075,dur); if(!g) return; const t0=AC.currentTime+0.02;
+  const o=AC.createOscillator(), e=AC.createGain(), tg=AC.createGain(), lf=AC.createOscillator(), lg=AC.createGain(), lp=AC.createBiquadFilter();
+  o.type='triangle'; lp.type='lowpass'; lp.frequency.value=720; lf.frequency.value=26; lg.gain.value=0.28; tg.gain.value=0.72;
+  const f=rand(295,345); e.gain.setValueAtTime(0.0001,t0);
+  for(const [s,l,fr,a] of [[0,0.28,f,0.55],[0.36,0.62,f*1.13,1],[1.08,0.3,f*0.95,0.5]]){
+    o.frequency.setValueAtTime(fr*0.93,t0+s); o.frequency.linearRampToValueAtTime(fr,t0+s+l*0.35); o.frequency.linearRampToValueAtTime(fr*0.9,t0+s+l);
+    e.gain.setValueAtTime(0.0001,t0+s); e.gain.linearRampToValueAtTime(a,t0+s+l*0.3); e.gain.linearRampToValueAtTime(0.0001,t0+s+l); }
+  lf.connect(lg); lg.connect(tg.gain); o.connect(lp); lp.connect(e); e.connect(tg); tg.connect(g);
+  o.start(t0); lf.start(t0); o.stop(t0+dur); lf.stop(t0+dur);
+}
+function birdClap(x,z,n,vol){              // wing-clap burst on take-off: sharp claps over a fluttering whirr
+  const dur=0.2+n*0.08, g=birdVoice(x,z,75,vol||0.14,dur+0.5); if(!g) return; const t0=AC.currentTime+0.01;
+  const src=AC.createBufferSource(); src.buffer=birdNoiseBuf(); src.loop=true;
+  const bp=AC.createBiquadFilter(), e=AC.createGain(), bp2=AC.createBiquadFilter(), e2=AC.createGain(), tg=AC.createGain(), lf=AC.createOscillator(), lg=AC.createGain();
+  bp.type='bandpass'; bp.frequency.value=1700; bp.Q.value=0.9; bp2.type='bandpass'; bp2.frequency.value=540; bp2.Q.value=0.7;
+  e.gain.setValueAtTime(0.0001,t0); let tt=t0;
+  for(let i=0;i<n;i++){ const a=Math.max(0.15,1-i/(n+2))*rand(0.7,1); e.gain.setValueAtTime(0.0001,tt); e.gain.linearRampToValueAtTime(a,tt+0.006); e.gain.exponentialRampToValueAtTime(0.004,tt+0.05); tt+=rand(0.06,0.09); }
+  e2.gain.setValueAtTime(0.0001,t0); e2.gain.linearRampToValueAtTime(0.45,t0+0.12); e2.gain.exponentialRampToValueAtTime(0.001,t0+dur+0.45);
+  lf.frequency.value=13; lg.gain.value=0.5; tg.gain.value=0.5; lf.connect(lg); lg.connect(tg.gain);
+  src.connect(bp); bp.connect(e); e.connect(g); src.connect(bp2); bp2.connect(tg); tg.connect(e2); e2.connect(g);
+  src.start(t0,rand(0,0.4)); src.stop(t0+dur+0.5); lf.start(t0); lf.stop(t0+dur+0.5);
+}
+function birdChirp(x,z,kind){              // 0: sparrow cheeps, 1: a songbird phrase (the chorus), 2: starling chatter
+  const n=kind===1?5+Math.floor(rand(0,5)):2+Math.floor(rand(0,4)), g=birdVoice(x,z,kind===1?100:72,kind===1?0.034:0.028,n*0.3+0.3); if(!g) return;
+  let tt=AC.currentTime+0.02; const o=AC.createOscillator(), e=AC.createGain(); o.type=kind===2?'triangle':'sine'; e.gain.setValueAtTime(0.0001,tt);
+  const base=kind===1?rand(2100,3300):(kind===2?rand(2600,3600):rand(3700,4800));
+  for(let i=0;i<n;i++){ const l=kind===1?rand(0.07,0.16):rand(0.035,0.07), f0=base*rand(0.8,1.35), f1=f0*(Math.random()<0.5?rand(0.62,0.85):rand(1.15,1.5));
+    o.frequency.setValueAtTime(f0,tt); o.frequency.exponentialRampToValueAtTime(f1,tt+l);
+    e.gain.setValueAtTime(0.0001,tt); e.gain.linearRampToValueAtTime(1,tt+0.012); e.gain.linearRampToValueAtTime(0.0001,tt+l); tt+=l+(kind===1?rand(0.03,0.12):rand(0.05,0.14)); }
+  o.connect(e); e.connect(g); o.start(); o.stop(tt+0.05);
+}
+function birdGullCry(x,z){
+  const n=2+Math.floor(rand(0,4)), g=birdVoice(x,z,190,0.06,0.7+n*0.27); if(!g) return; let tt=AC.currentTime+0.02;
+  const o=AC.createOscillator(), bp=AC.createBiquadFilter(), e=AC.createGain(); o.type='sawtooth'; bp.type='bandpass'; bp.frequency.value=2100; bp.Q.value=2.2;
+  const f=rand(820,980); e.gain.setValueAtTime(0.0001,tt);
+  for(let i=0;i<=n;i++){ const l=i===0?rand(0.4,0.55):rand(0.14,0.2);
+    o.frequency.setValueAtTime(f*0.8,tt); o.frequency.linearRampToValueAtTime(f*1.55,tt+l*0.3); o.frequency.linearRampToValueAtTime(f*(i===0?1.2:1.0),tt+l);
+    e.gain.setValueAtTime(0.0001,tt); e.gain.linearRampToValueAtTime(1,tt+0.03); e.gain.setValueAtTime(1,tt+l*0.7); e.gain.linearRampToValueAtTime(0.0001,tt+l); tt+=l+0.06; }
+  o.connect(bp); bp.connect(e); e.connect(g); o.start(); o.stop(tt+0.05);
+}
+function birdHoot(x,z){
+  const g=birdVoice(x,z,95,0.06,1.9); if(!g) return; const t0=AC.currentTime+0.02, o=AC.createOscillator(), e=AC.createGain(); o.type='sine'; const f=rand(330,380);
+  e.gain.setValueAtTime(0.0001,t0);
+  for(const [s,l] of [[0,0.42],[0.75,0.2],[1.02,0.5]]){ o.frequency.setValueAtTime(f,t0+s); o.frequency.linearRampToValueAtTime(f*0.92,t0+s+l);
+    e.gain.setValueAtTime(0.0001,t0+s); e.gain.linearRampToValueAtTime(1,t0+s+0.07); e.gain.linearRampToValueAtTime(0.0001,t0+s+l); }
+  o.connect(e); e.connect(g); o.start(t0); o.stop(t0+1.7);
+}
+function birdCaw(x,z){ if(!AC||muted||!started) return; const c=camera.position; if(Math.hypot(x-c.x,z-c.z)<85&&typeof crowCaw==='function') crowCaw(); }
+function birdSound(dt,t){                  // sparse ambience from whichever birds are actually around
+  const B=BIRD, T=B.sT, k=duskK; if(!AC||muted||!started) return;
+  const c=camera.position, day=1-birdSmooth(0.62,0.9,k), chorus=birdSmooth(0.06,0.2,k)*day;
+  const pickS=(f)=>{ let n=0,r=null; for(const S of B.act) if(S.calm&&f(S)&&Math.random()<1/++n) r=S; return r; };
+  T.coo-=dt; if(T.coo<=0){ T.coo=rand(5,11); const S=pickS(S=>S.sp==='pg'&&Math.hypot(S.x-c.x,S.z-c.z)<40); if(S) birdCoo(S.x,S.z); }
+  T.chirp-=dt; if(T.chirp<=0){ T.chirp=rand(1.6,5)/(0.6+chorus*1.4);
+    if(day>0.05){ const S=pickS(S=>(S.sp==='sw'||S.sp==='st')&&Math.hypot(S.x-c.x,S.z-c.z)<70);
+      if(S&&Math.random()<0.6) birdChirp(S.x,S.z,S.sp==='st'?2:0);
+      else if((inSuburb(c.x,c.z,50)||Math.hypot(c.x,c.z)>235)&&c.x>-270&&Math.random()<0.25+0.75*chorus){ const a=rand(0,6.283), r=rand(18,55); birdChirp(c.x+Math.cos(a)*r,c.z+Math.sin(a)*r,chorus>0.3&&Math.random()<0.7?1:0); } } }
+  T.gull-=dt; if(T.gull<=0){ T.gull=rand(4,10); const G=B.gulls.length?B.gulls[Math.floor(Math.random()*B.gulls.length)].b:null; if(G&&G.on) birdGullCry(G.x,G.z); }
+  T.caw-=dt; if(T.caw<=0){ T.caw=rand(9,22); const C=B.car; let S=null;
+    if(C&&C.tgt&&C.b[0].on&&Math.random()<0.7) birdCaw(C.tgt.x,C.tgt.z); else if((S=pickS(S=>S.sp==='cr'))) birdCaw(S.x,S.z); }
+  T.owl-=dt; if(T.owl<=0){ T.owl=rand(12,28); const S=pickS(S=>S.k==='ow'); if(S) birdHoot(S.x,S.z); }
+}
+
+// ---- init / per-frame ----
+function birdInit(){
+  const B=BIRD, Q=LOWQ?0.5:1, R=birdRng(90210);
+  // the old coast sprites and the static rural crow meshes make way for the shared bird mesh
+  if(coastP.gulls){ const im=coastP.gulls.im; scene.remove(im); im.geometry.dispose(); im.material.dispose(); coastP.gulls=null; }
+  for(const a of ruralAnim) if(a.kind==='flock'&&a.grp){ const pa=a.grp.geometry.attributes.position;
+    for(const o of scene.children) if(o.isInstancedMesh&&o.geometry.attributes.position===pa) o.visible=false; }
+  const POOL=Math.round(300*Q), NF=Math.round(64*Q), NV=LOWQ?7:9, NG=LOWQ?9:18, NC=LOWQ?5:9;
+  B.cap=POOL+NF*2+NV+NG+NC;
+  const geo=birdGeo(); B.aW=new THREE.InstancedBufferAttribute(new Float32Array(B.cap*2),2); B.aW.setUsage(THREE.DynamicDrawUsage); geo.setAttribute('aWing',B.aW);
+  const im=new THREE.InstancedMesh(geo,birdMat(),B.cap); im.name='birds'; im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  im.setColorAt(0,new THREE.Color(1,1,1)); im.instanceColor.setUsage(THREE.DynamicDrawUsage); im.frustumCulled=false; im.castShadow=false; im.receiveShadow=false; im.count=0;
+  scene.add(im); B.im=im;
+  for(let i=0;i<B.cap;i++) B.b.push(birdNew(i));
+  let p=0; for(;p<POOL;p++) B.free.push(B.b[p]);
+  // murmurations: one over downtown, one over the fields
+  for(let f=0;f<2;f++){ const F={town:f===0,n:NF,b:[],pres:0,vis:false,ax:f?340:0,az:f?120:0,cx:0,cy:0,cz:0,low:0,rt:0,st:false,ln:false,lx:0,lz:0,sx:0,sz:0,sdx:0,sdz:1,ha:0,h:f?27:58,p1:R()*6.28,p2:R()*6.28,p3:R()*6.28};
+    for(let i=0;i<NF;i++){ const b=B.b[p++]; birdDress(b,'st',R); let ux,uy,uz; do{ ux=R()*2-1; uy=R()*2-1; uz=R()*2-1; }while(ux*ux+uy*uy+uz*uz>1);
+      b.ux=ux; b.uy=uy; b.uz=uz; b.ux2=b.s/b.sp.s; F.b.push(b); }
+    B.fl.push(F); }
+  B.vee={b:[],live:false,next:14,t:0,x:0,y:0,z:0,dx:1,dz:0}; for(let i=0;i<NV;i++){ const b=B.b[p++]; birdDress(b,'go',R); B.vee.b.push(b); }
+  // soaring gulls: round the pier head, the pier root and the lifeguard towers
+  { const PZ=COAST.PZ, sx=shoreX(PZ), C=[[sx-48,PZ],[sx-14,PZ]]; for(const c of world.circles) if(c.r===1.8&&c.x<COAST.PROM&&c.x>COAST.PROM-60) C.push([c.x-4,c.z]);
+    for(let i=0;i<NG;i++){ const b=B.b[p++]; birdDress(b,'gu',R); const c=i<NG*0.45?C[i%2]:C[2+(i%Math.max(1,C.length-2))]||C[0];
+      B.gulls.push({b,cx:c[0]+(R()*2-1)*6,cz:c[1]+(R()*2-1)*8,r:9+R()*13,y:9+R()*9,w:(0.25+R()*0.2)*(R()<0.5?1:-1),ph:R()*6.28}); } }
+  B.car={b:[],tgt:null,scanT:1,keepT:0,wa:0}; for(let i=0;i<NC;i++){ const b=B.b[p++]; birdDress(b,i>=5?'vu':'cr',R); b.st=0; b.tm=0; B.car.b.push(b); }
+  // feathers
+  { const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute([0,0,0.9, 0.3,0,0, 0,0,-0.9, 0,0,0.9, 0,0,-0.9, -0.3,0,0],3)); g.computeVertexNormals();
+    const n=LOWQ?24:48, fim=new THREE.InstancedMesh(g,new THREE.MeshLambertMaterial({side:THREE.DoubleSide}),n); fim.name='bird_feathers';
+    fim.instanceMatrix.setUsage(THREE.DynamicDrawUsage); fim.setColorAt(0,new THREE.Color(1,1,1)); fim.instanceColor.setUsage(THREE.DynamicDrawUsage);
+    fim.frustumCulled=false; fim.count=0; fim.visible=false; scene.add(fim);
+    const P=[]; for(let i=0;i<n;i++) P.push({life:0,max:1,x:0,y:0,z:0,vx:0,vy:0,vz:0,a:0,w:0,s:0.1,r:1,g:1,b:1}); B.fe={im:fim,p:P,ptr:0}; }
+  // sites
+  birdSitesCity(R); birdSitesWires(); birdSitesRural(R); birdSitesCoast(R);
+  if(LOWQ) for(const S of B.sites) S.n=Math.max(1,Math.ceil(S.n*0.6));
+  B.stats.sites=B.sites.length; B.on=true;
+}
+function birdUpdate(dt,t){
+  const B=BIRD; if(!B.on) return;
+  const T=B.th, cam=camera.position;
+  T.on=started&&!freeCam;
+  if(onFoot){ T.x=foot.x; T.z=foot.z; T.y=foot.y||0; T.sp=Math.hypot(foot.vx,foot.vz); T.foot=true; }
+  else { T.x=player.x; T.z=player.z; T.y=player.y||0; T.sp=Math.hypot(player.vx,player.vz); T.foot=false; }
+  birdBangs(t);
+  B.scanT-=dt; if(B.scanT<=0){ B.scanT=0.25; birdScan(t); }
+  for(let i=0;i<B.act.length;i++) birdSiteTick(B.act[i],dt,t);
+  birdFlocks(dt,t); birdVee(dt,t); birdGulls(dt,t); birdCarrion(dt,t);
+  birdHits(t); birdFeathers(dt);
+  // pack the visible birds into the front of the instance buffers
+  const ma=B.im.instanceMatrix.array, ca=B.im.instanceColor.array, wa=B.aW.array; let k=0, on=0;
+  for(const b of B.b){ if(!b.on) continue; on++;
+    const dx=b.x-cam.x, dz=b.z-cam.z, d2=dx*dx+dz*dz; if(d2>152100) continue;
+    _bdE.set(-b.pit,b.hd,b.bank); _bdQ.setFromEuler(_bdE); const s=b.s;
+    _bdM.compose(_bdV.set(b.x,b.y,b.z),_bdQ,_bdS.set(s*b.wx,s*b.sy,s)); _bdM.toArray(ma,k*16);
+    ca[k*3]=b.cr; ca[k*3+1]=b.cg; ca[k*3+2]=b.cb; wa[k*2]=(LOWQ&&d2>8100&&b.fold<0.5)?0.28:b.wing; wa[k*2+1]=b.fold; k++; }
+  B.im.count=k; B.im.instanceMatrix.needsUpdate=true; B.im.instanceColor.needsUpdate=true; B.aW.needsUpdate=true;
+  B.stats.on=on; B.stats.vis=k; B.stats.active=B.act.length;
+  birdSound(dt,t);
+}
+
 // ---------------- main loop ----------------
 const clock=new THREE.Clock();
 let elapsed=0, saveT=8;
@@ -15279,10 +15929,12 @@ function loop(){
   }
   updateDusk(dt);
   updateRuralAnim(dt,elapsed);
+  birdUpdate(dt,elapsed);                // BIRDS: pigeons, wire rows, flocks, gulls, carrion
   if(debugOn) updateDebugReadout(dt);
   renderer.render(scene,camera);
 }
 solInit();                              // SOL: pick her venues from the finished world
+birdInit();                             // BIRDS: sites from the finished world (pavements, wires, fences, coast)
 loop();
 
 // Car selection — highlight on tap without starting the game
@@ -15310,6 +15962,6 @@ addEventListener('resize',()=>{
   if(meOn){ mecv.width=innerWidth; mecv.height=innerHeight; }
 });
 </script>
-<div id="buildver" style="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(2px + env(safe-area-inset-bottom));font:600 10px/1.2 ui-monospace,Menlo,monospace;color:#fff;opacity:.6;letter-spacing:.06em;pointer-events:none;z-index:2147483000;text-shadow:0 1px 2px #000">v0.24 · 10 Nov 09:51</div>
+<div id="buildver" style="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(2px + env(safe-area-inset-bottom));font:600 10px/1.2 ui-monospace,Menlo,monospace;color:#fff;opacity:.6;letter-spacing:.06em;pointer-events:none;z-index:2147483000;text-shadow:0 1px 2px #000">v0.25 · 10 Nov 10:24</div>
 </body>
 </html>
