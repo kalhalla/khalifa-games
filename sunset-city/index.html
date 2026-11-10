@@ -14,7 +14,7 @@
 <meta name="twitter:card" content="summary_large_image"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <link rel="apple-touch-icon" href="/sunset-city/square.png"/>
-<meta name="build-version" content="v0.30"/>
+<meta name="build-version" content="v0.31"/>
 <style>
   html,body{margin:0;padding:0;overflow:hidden;background:#1a1420;height:100%;touch-action:none;}
   canvas{display:block;}
@@ -7587,7 +7587,7 @@ const RAG_LIM=[[3,7,0.3],[4,8,0.3],[9,13,0.55],[10,14,0.55],[2,0,0.55],[13,14,0.
       .replace('#include <color_vertex>','#include <color_vertex>\n#ifdef USE_INSTANCING_COLOR\n  vColor.xyz = pslot<0.5 ? instanceColor.xyz : (pslot<1.5 ? pcolB : pcolC);\n#endif');
   };
   mat.customProgramCacheKey=()=>'pedslot3';
-  PEDX.mat=mat;
+  PEDX.mat=mat; PEDX.pgeo=pgeo;      // the zombie rig builds its parts with the same helper
   function makeIM(name,geo,n,shadow,material){
     geo.setAttribute('pcolB',new THREE.InstancedBufferAttribute(new Float32Array(n*3),3));
     geo.setAttribute('pcolC',new THREE.InstancedBufferAttribute(new Float32Array(n*3),3));
@@ -7634,6 +7634,7 @@ const RAG_LIM=[[3,7,0.3],[4,8,0.3],[9,13,0.55],[10,14,0.55],[2,0,0.55],[13,14,0.
   const DRESS=[0xe85a8a,0xf2b8c6,0x3fbac2,0xf2d06a,0x1a1a22,0xd94f4f,0x9fe0c0,0xf4f0ea,0xb06aff,0x2a3a6a];
   const LEATHER=[0x1a1616,0x4a2e22,0x6a4a2a,0x2a2a30];
   const BAGC=[0x3a2418,0x1a1414,0x8a5a3a,0xd94f4f,0xe8d8b8,0x2a3a5a];
+  PEDX.pal={SK,HAIR,PASTEL,BOLD,SUIT,SHIRT,TIE,JEANS,CHINO,SHORTS,SHOE,DRESS,LEATHER};   // zombies wear the same wardrobe, gone dirty
   const optional={hairL:[],hat:[],cap:[],skirt:[],beard:[],shades:[],bag:[],phone:[]};
   const C=new THREE.Color();
   const setC=(name,i,a,b,c)=>{ const im=pedIM[name];
@@ -7870,6 +7871,30 @@ function pedAtCorner(p,t){
   p.lnk=L2; p.nxt=nx; p.tx=p.k1x; p.tz=p.k1z; p.lph=1;
 }
 // ragdoll: start from the ped's current pose, thrown along the impact
+// launch a ragdoll slot from the bone scratch (_BP.._BSR) — shared by pedestrians and zombies
+function ragInit(R,px,py,pz,vx,vz,sev,kill){
+  const dvx=vx/(hyp(vx,vz)||1), dvz=vz/(hyp(vx,vz)||1);
+  const P=R.P, Q=R.Q;
+  const wp=(k,M,x,y,z)=>{ P[k*3]=M[0]*x+M[4]*y+M[8]*z+M[12]; P[k*3+1]=M[1]*x+M[5]*y+M[9]*z+M[13]; P[k*3+2]=M[2]*x+M[6]*y+M[10]*z+M[14]; };
+  wp(0,_BP,0,0,0); wp(1,_BT,0,P_TORSO,0); wp(2,_BH,0,0.2,0);
+  wp(3,_BUL,0,0,0); wp(4,_BUR,0,0,0); wp(5,_BFL,0,0,0); wp(6,_BFR,0,0,0);
+  wp(7,_BFL,0,-P_FA,0); wp(8,_BFR,0,-P_FA,0);
+  wp(9,_BTL,0,0,0); wp(10,_BTR,0,0,0); wp(11,_BSL,0,0,0); wp(12,_BSR,0,0,0);
+  wp(13,_BSL,0,-P_SH,0); wp(14,_BSR,0,-P_SH,0);
+  for(let c=0;c<RAG_C.length;c+=2){ const a=RAG_C[c]*3,b=RAG_C[c+1]*3;
+    R.R[c>>1]=Math.sqrt((P[a]-P[b])**2+(P[a+1]-P[b+1])**2+(P[a+2]-P[b+2])**2); }
+  // legs take the bumper, the upper body lags: the body folds and tumbles over
+  const h=1/60, k=kill?0.95:0.8, up=kill?clamp(sev*0.3,3,9):clamp(sev*0.22,0.6,4.2);
+  const sx=-dvz, sz=dvx, spin=rand(-1,1)*0.25*sev;
+  for(let q=0;q<15;q++){
+    const y=P[q*3+1]-py, lag=clamp(1.15-y*0.42,0.45,1.15);
+    const lat=(P[q*3]-px)*sx+(P[q*3+2]-pz)*sz;
+    const vX=vx*k*lag+sx*rand(-0.3,0.3)+sx*lat*spin*0.1, vZ=vz*k*lag+sz*rand(-0.3,0.3)+sz*lat*spin*0.1;
+    const vY=up*(0.6+0.5*clamp(1.2-y*0.5,0,1))+spin*lat*0.3;
+    Q[q*3]=P[q*3]-vX*h; Q[q*3+1]=P[q*3+1]-vY*h; Q[q*3+2]=P[q*3+2]-vZ*h;
+  }
+  R.side[0]=_BP[0]; R.side[1]=_BP[1]; R.side[2]=_BP[2];
+}
 function pedImpact(p,vx,vz,speed,byPlayer){
   if(typeof p==='number') p=peds[p];
   if(!p||p.gibbed||p.rag>=0||p.down>0) return false;
@@ -7891,26 +7916,7 @@ function pedImpact(p,vx,vz,speed,byPlayer){
   R.p=p; R.t=0; R.gib=kill?rand(0.28,0.5):-1; R.rest=0;
   p.rag=pedRag.indexOf(R);
   posePed(p,0,true);                             // fills the bone scratch for this ped
-  const P=R.P, Q=R.Q;
-  const wp=(k,M,x,y,z)=>{ P[k*3]=M[0]*x+M[4]*y+M[8]*z+M[12]; P[k*3+1]=M[1]*x+M[5]*y+M[9]*z+M[13]; P[k*3+2]=M[2]*x+M[6]*y+M[10]*z+M[14]; };
-  wp(0,_BP,0,0,0); wp(1,_BT,0,P_TORSO,0); wp(2,_BH,0,0.2,0);
-  wp(3,_BUL,0,0,0); wp(4,_BUR,0,0,0); wp(5,_BFL,0,0,0); wp(6,_BFR,0,0,0);
-  wp(7,_BFL,0,-P_FA,0); wp(8,_BFR,0,-P_FA,0);
-  wp(9,_BTL,0,0,0); wp(10,_BTR,0,0,0); wp(11,_BSL,0,0,0); wp(12,_BSR,0,0,0);
-  wp(13,_BSL,0,-P_SH,0); wp(14,_BSR,0,-P_SH,0);
-  for(let c=0;c<RAG_C.length;c+=2){ const a=RAG_C[c]*3,b=RAG_C[c+1]*3;
-    R.R[c>>1]=Math.sqrt((P[a]-P[b])**2+(P[a+1]-P[b+1])**2+(P[a+2]-P[b+2])**2); }
-  // legs take the bumper, the upper body lags: the body folds and tumbles over
-  const h=1/60, k=kill?0.95:0.8, up=kill?clamp(sev*0.3,3,9):clamp(sev*0.22,0.6,4.2);
-  const sx=-dvz, sz=dvx, spin=rand(-1,1)*0.25*sev;
-  for(let q=0;q<15;q++){
-    const y=P[q*3+1]-p.y, lag=clamp(1.15-y*0.42,0.45,1.15);
-    const lat=(P[q*3]-p.x)*sx+(P[q*3+2]-p.z)*sz;
-    const vX=vx*k*lag+sx*rand(-0.3,0.3)+sx*lat*spin*0.1, vZ=vz*k*lag+sz*rand(-0.3,0.3)+sz*lat*spin*0.1;
-    const vY=up*(0.6+0.5*clamp(1.2-y*0.5,0,1))+spin*lat*0.3;
-    Q[q*3]=P[q*3]-vX*h; Q[q*3+1]=P[q*3+1]-vY*h; Q[q*3+2]=P[q*3+2]-vZ*h;
-  }
-  R.side[0]=_BP[0]; R.side[1]=_BP[1]; R.side[2]=_BP[2];
+  ragInit(R,p.x,p.y,p.z,vx,vz,sev,kill);
   if(hyp(player.x-p.x,player.z-p.z)<70) yelp(p.x,p.z);
   return true;
 }
@@ -7979,8 +7985,9 @@ function segM(M,ox,oy,oz,ux,uy,uz,sx,sy,sz){
   M[8]=sy*uz-sz*uy; M[9]=sz*ux-sx*uz; M[10]=sx*uy-sy*ux;
   M[12]=ox; M[13]=oy; M[14]=oz;
 }
-function ragPose(R){
-  const p=R.p, P=R.P, i=p.i, s=p.s;
+// particles -> bone scratch (unit-scale frames; s only places the spine joint)
+function ragBones(R,s){
+  const P=R.P;
   // body frame: up = pelvis->neck, side = hipR->hipL blended with shoulders
   const ux=P[3]-P[0], uy=P[4]-P[1], uz=P[5]-P[2];
   const sx=(P[27]-P[30])+(P[9]-P[12]), sy=(P[28]-P[31])+(P[10]-P[13]), sz=(P[29]-P[32])+(P[11]-P[14]);
@@ -7992,6 +7999,10 @@ function ragPose(R){
   const lim=(M,a,b)=>segM(M,P[a*3],P[a*3+1],P[a*3+2],P[a*3]-P[b*3],P[a*3+1]-P[b*3+1],P[a*3+2]-P[b*3+2],sx,sy,sz);
   lim(_BUL,3,5); lim(_BFL,5,7); lim(_BUR,4,6); lim(_BFR,6,8);
   lim(_BTL,9,11); lim(_BSL,11,13); lim(_BTR,10,12); lim(_BSR,12,14);
+}
+function ragPose(R){
+  const p=R.p, i=p.i, s=p.s;
+  ragBones(R,s);
   const bw=p.belly, sh=p.shw;
   putM(pedIM.hips,i,_BP,s*p.hipw,s,s*bw); putM(pedIM.torso,i,_BT,s*sh,s,s*bw); putM(pedIM.head,i,_BH,s,s,s);
   putM(pedIM.uaL,i,_BUL,s,s,s); putM(pedIM.faL,i,_BFL,s,s,s); putM(pedIM.uaR,i,_BUR,s,s,s); putM(pedIM.faR,i,_BFR,s,s,s);
@@ -9463,7 +9474,7 @@ function footPickTarget(){
   };
   for(const p of peds){ if(p.gibbed||p.rag>=0||p.down>0) continue; consider(p.x,p.z,(p.y||0)+1.1,'ped',p); }
   for(const v of traffic){ if(!footCarOK(v)||v.parked) continue; consider(v.x,v.z,(v.y||0)+0.9,v.kind==='cop'?'cop':'car',v); }
-  if(zombieMode) for(const z of zombies) if(!z.dead) consider(z.x,z.z,(z.y||0)+1.1,'zomb',z);
+  if(zombieMode) for(const z of zombies) if(!z.dead) consider(z.x,z.z,(z.y||0)+(z.aimH||1.1),'zomb',z);
   FT.tgt=best; FT.tgtK=bk; FT.tgtX=bx; FT.tgtZ=bz; FT.tgtY=by;
 }
 function footShoot(t){
@@ -9505,11 +9516,11 @@ function footShoot(t){
     if(!zombieMode){ offence(t,'CIVILIAN SHOT!'); offence(t,'CIVILIAN SHOT!'); if(wanted) heat=Math.max(heat,24+stars*6); }
     FT.tgt=null;
   } else if(kind==='zomb'){
-    best.hp=Math.min(best.hp,1); hitZombie(best,ux*0.6,uz*0.6);      // one round blows a zombie apart
+    best.hp=Math.min(best.hp,1); hitZombie(best,ux*0.6,uz*0.6,true); // one round blows a zombie apart (jointed pieces: zBurst)
     if(best.dead){ gore(best.x,best.z,ux,uz,1.3); gore(best.x+ux*0.4,best.z+uz*0.4,ux,uz,1.0);
       for(let k=0;k<4;k++) fxSpawn(FXS,0,best.x+rand(-0.3,0.3),rand(0.8,1.6),best.z+rand(-0.3,0.3),ux*rand(1,3),rand(0.3,1.2),uz*rand(1,3),
         rand(0.5,0.8),rand(0.8,1.4),0x6a0808,rand(1.2,2),0.7);
-      bloodSplat(best.x+ux*1.2,best.z+uz*1.2,rand(1.4,2.2)); best.gone=true; FT.tgt=null; }
+      bloodSplat(best.x+ux*1.2,best.z+uz*1.2,rand(1.4,2.2)); FT.tgt=null; }
   } else {           // traffic car / cop car: a big dent + sparks per round; the third round blows it
     const v=best, D0=v.car.dmg, was=!!(D0&&D0.exploded);
     v.ftHits=(v.ftHits||0)+1;
@@ -10247,59 +10258,369 @@ const CRASH={x:216,z:-150};
 const zombies=[];
 let wave=0,waveLeft=0,waveSpawnT=0,waveTimer=0,kills=0;
 let craterLight=null,gunG=null,muzzle=null,tracer=null,tracerT=0,fireCool=0;
-// Zombies get the same instanced jointed rig as the pedestrians: one
-// InstancedMesh per body part, all zombies in 6 draw calls, limbs driven
-// per-instance. Heads are jointed too so they can loll.
-const ZMAX=56;
+// Zombie rig v2 — built to the pedestrians' standard: the same joint chain (pelvis -> spine -> neck,
+// shoulder -> elbow -> wrist, hip -> knee -> ankle) composed with the peds' bone()/putM() helpers and
+// bone scratch, one InstancedMesh per part type shared by every zombie (left + right limbs share a
+// mesh: instance 2i = left, 2i+1 = right; im.count follows the highest slot in use). Parts carry the peds' 3-colour slot attribute plus a
+// per-vertex shade, so torn clothes, exposed skin, blood and bone read without extra meshes.
+// Hips, upper arms, thighs, long hair, caps and skirts reuse the pedestrians' geometry buffers.
+const ZMAX=56, ZCAP=LOWQ?28:40;
 const zIM={}; const zSlots=[];
+const ZX={C:new THREE.Color(),grime:new THREE.Color(0x3a342b),blood:new THREE.Color(0x6a0c0c),glow:{value:0.16},
+  ang:new Float32Array(6),frame:0,dirty:false,pool:[],D1:LOWQ?28*28:45*45,D2:LOWQ?55*55:90*90,ragCap:LOWQ?6:12,
+  eye:[0.052,0.203,0.128],BLOOD:0x6a0c0c,BONE:0xd8d0b4};
+const ZRISE=1.4, ZRATE=[3.4,3.4,2.5,4.5], ZATK=[1.0,1.15,0.7,1.2];
+const ZSKIN=[0x7f9a72,0x8aa37a,0x6f8a66,0x93a08a,0x778f7e,0x9aa68c,0x66806a,0xa3ad8f,0x8a9a86];
+const _ZHL=new Float32Array(16), _ZJ=new Float32Array(16), _ZC=new Float32Array(16);
+_ZHL[15]=_ZJ[15]=_ZC[15]=1;
+const _zRot=new THREE.Matrix4(), _zAx=new THREE.Vector3();
+// detachable chunks: 0 head, 1/2 arm L/R, 3/4 leg L/R, 5 trunk, 6/7 forearm L/R, 8/9 shin L/R
+// z.mis bits: 1 head, 2/4 arm, 8/16 forearm, 32/64 shin, 128/256 thigh, 512 jaw, 1024 trunk
+const Z_ROOT=[_BH,_BUL,_BUR,_BTL,_BTR,_BP,_BFL,_BFR,_BSL,_BSR];
+const Z_BITS=[1,2|8,4|16,128|32,256|64,1024,8,16,32,64];
+const Z_LEN=[-0.3,0.6,0.6,0.9,0.9,-0.62,0.33,0.33,0.46,0.46], Z_RAD=[0.1,0.06,0.06,0.08,0.08,0.11,0.05,0.05,0.06,0.06];
+const Z_CHP=[['head','jaw','hairL','cap'],['ua','fa','hand'],['ua','fa','hand'],['th','sh','foot'],['th','sh','foot'],
+  ['hips','torso','ribs','skirt'],['fa','hand'],['fa','hand'],['sh','foot'],['sh','foot']];
 (function buildZombieRig(){
-  function gbox(w,h,d,oy){ const g=new THREE.BoxGeometry(w,h,d); g.translate(0,oy,0); return g; }
-  // look: shaped parts (same pivots and extents as the old boxes, so the animation code is untouched): tapered chest with
-  // shoulders and a neck stub, thigh / shin / foot, upper arm / forearm / hand, a skull with jaw, brow ridge, eye sockets
-  // and mouth. Each box: [w,h,d, x,y,z, shade, topScaleX, topScaleZ]; shade multiplies the instance colour.
-  // 21 boxes (252 triangles) per zombie instead of 6 (72); LOW quality keeps the plain boxes.
-  function zgeo(parts){ const P=[],Cc=[];
-    for(const [w,h,d,x,y,z,sh,tx,tz] of parts){ const g=new THREE.BoxGeometry(w,h,d).toNonIndexed(), a=g.attributes.position.array;
-      for(let k=0;k<a.length;k+=3){ let vx=a[k], vy=a[k+1], vz=a[k+2]; if(vy>0){ vx*=(tx||1); vz*=(tz||1); } P.push(vx+x,vy+y,vz+z); Cc.push(sh,sh,sh); }
-      g.dispose(); }
-    const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(P,3)); g.setAttribute('color',new THREE.Float32BufferAttribute(Cc,3)); g.computeVertexNormals(); return g; }
-  const ZLO=typeof LOWQ!=='undefined'&&LOWQ;
-  const legGeo=ZLO?gbox(0.22,0.7,0.26,-0.35):zgeo([[0.2,0.36,0.23,0,-0.18,0,1,1.1,1.08],[0.165,0.3,0.19,0,-0.5,0,0.9,1.12,1.1],[0.18,0.08,0.33,0,-0.66,0.06,0.5]]);
-  const armGeo=ZLO?gbox(0.13,0.58,0.18,-0.29):zgeo([[0.13,0.3,0.16,0,-0.15,0,1,1.12,1.1],[0.105,0.22,0.13,0,-0.4,0,0.9,1.12,1.1],[0.1,0.1,0.13,0,-0.54,0.012,0.72]]);
-  const bodyGeo=ZLO?gbox(0.56,0.62,0.34,1.0):zgeo([[0.43,0.22,0.3,0,0.8,0,0.82],[0.4,0.38,0.29,0,1.1,0,1,1.42,1.12],[0.15,0.08,0.15,0,1.31,0,0.7]]);
-  const headGeo=ZLO?gbox(0.3,0.32,0.28,0.17):zgeo([[0.27,0.22,0.27,0,0.21,0,1,0.9,0.92],[0.2,0.1,0.21,0,0.07,0.03,0.86],[0.285,0.045,0.06,0,0.245,0.125,0.72],
-    [0.075,0.05,0.02,-0.066,0.195,0.136,0.12],[0.075,0.05,0.02,0.066,0.195,0.136,0.12],[0.13,0.035,0.02,0,0.08,0.137,0.16],[0.05,0.07,0.05,0,0.15,0.15,0.9]]);
-  function makeIM(geo,shadow){
-    const im=new THREE.InstancedMesh(geo,new THREE.MeshLambertMaterial({vertexColors:!!geo.attributes.color}),ZMAX);
+  const pgeo=PEDX.pgeo;
+  // ped part format ([w,h,d, x,y,z, slot, topScaleX, topScaleZ] / ['q',w,h, x,y,z, slot]) plus a shade
+  // multiplier (box index 9, quad index 7); a trailing 'D' marks detail that the LOW tier drops
+  function zgeo(parts){
+    parts=parts.filter(b=>!(LOWQ&&b[b.length-1]==='D')).map(b=>b[b.length-1]==='D'?b.slice(0,-1):b);
+    const g=pgeo(parts), C=[];
+    for(const b of parts){ const q=b[0]==='q', sh=q?b[7]:b[9], s=typeof sh==='number'?sh:1; for(let k=0,n=q?6:36;k<n;k++) C.push(s,s,s); }
+    g.setAttribute('color',new THREE.Float32BufferAttribute(C,3)); return g;
+  }
+  // a pedestrian part reused as-is: same GPU buffers, own per-instance colour attributes
+  function share(im){ const src=im.geometry, g=new THREE.BufferGeometry();
+    for(const k of ['position','normal','pslot']) g.setAttribute(k,src.attributes[k]);
+    g.setAttribute('color',new THREE.BufferAttribute(new Float32Array(src.attributes.position.count*3).fill(1),3)); return g; }
+  const mat=new THREE.MeshLambertMaterial({vertexColors:true});
+  mat.onBeforeCompile=sh=>{
+    sh.uniforms.zGlow=ZX.glow;
+    sh.vertexShader=sh.vertexShader
+      .replace('#include <color_pars_vertex>','#include <color_pars_vertex>\nattribute float pslot;\nattribute vec3 pcolB;\nattribute vec3 pcolC;')
+      .replace('#include <color_vertex>','#include <color_vertex>\n#ifdef USE_INSTANCING_COLOR\n  vColor.xyz = color.xyz * (pslot<0.5 ? instanceColor.xyz : (pslot<1.5 ? pcolB : pcolC));\n#endif');
+    // a little self-light so the horde still reads against a night desert
+    sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform float zGlow;')
+      .replace('#include <emissivemap_fragment>','#include <emissivemap_fragment>\n  totalEmissiveRadiance += vColor * zGlow;');
+  };
+  mat.customProgramCacheKey=()=>'zslot3';
+  ZX.mat=mat;
+  function makeIM(name,geo,n,shadow){
+    geo.setAttribute('pcolB',new THREE.InstancedBufferAttribute(new Float32Array(n*3),3));
+    geo.setAttribute('pcolC',new THREE.InstancedBufferAttribute(new Float32Array(n*3),3));
+    const im=new THREE.InstancedMesh(geo,mat,n);
+    im.userData.dual=n>ZMAX;
     im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    im.castShadow=!!shadow; im.frustumCulled=false; scene.add(im); return im;
+    im.castShadow=!!shadow; im.frustumCulled=false;
+    const c=new THREE.Color(1,1,1); for(let k=0;k<n;k++){ im.setColorAt(k,c); im.setMatrixAt(k,_pHide); }
+    zIM[name]=im; scene.add(im); return im;
   }
-  zIM.legL=makeIM(legGeo,false); zIM.legR=makeIM(legGeo,false);
-  zIM.armL=makeIM(armGeo,false); zIM.armR=makeIM(armGeo,false);
-  zIM.body=makeIM(bodyGeo,true); zIM.head=makeIM(headGeo,false);
-  const skins=[0x7fae6a,0x8fbf7a,0x6a9a58,0x93a86b,0x5f8a62,0x86a25e];
-  const shirts=[0x3a3f38,0x4a3a32,0x2a3038,0x4a4438,0x5a4a52,0x6b5a48];
-  const trousers=[0x23262a,0x33302a,0x2a2330,0x3a3630];
-  const c=new THREE.Color(), blood=new THREE.Color(0x4a0e0e);
-  for(let i=0;i<ZMAX;i++){
-    const skin=pick(skins);
-    const shirtless=Math.random()<0.28;
-    const shirt=shirtless?skin:pick(shirts);
-    const trous=pick(trousers);
-    c.setHex(shirt); if(Math.random()<0.4) c.lerp(blood,rand(0.25,0.55));  // gut-stained
-    zIM.body.setColorAt(i,c);
-    zIM.armL.setColorAt(i,c.setHex(shirtless?skin:shirt));
-    c.setHex(skin); if(Math.random()<0.25) c.lerp(blood,0.35);
-    zIM.armR.setColorAt(i,c);   // one bloodied arm on some of them
-    zIM.head.setColorAt(i,c.setHex(skin).lerp(blood,Math.random()<0.3?0.25:0));
-    zIM.legL.setColorAt(i,c.setHex(trous)); zIM.legR.setColorAt(i,c.setHex(trous));
-    for(const k in zIM) zIM[k].setMatrixAt(i,_pHide);
-    zSlots.push(i);
-  }
-  for(const k in zIM){ if(zIM[k].instanceColor) zIM[k].instanceColor.needsUpdate=true;
-    zIM[k].instanceMatrix.needsUpdate=true; }
+  // head (origin = neck base, faces +z). slots: 0 skin, 1 hair, 2 blood (shaded down to black in the sockets)
+  const headG=zgeo([[0.095,0.12,0.1, 0,0.04,0, 0,1,1,0.8],                 // neck
+    [0.2,0.17,0.225, 0,0.25,0, 0,0.9,0.92],                                // cranium
+    [0.17,0.1,0.2, 0,0.125,0.012, 0,1.12,1.05,0.92],                       // gaunt mid-face
+    [0.215,0.036,0.05, 0,0.243,0.11, 0,1,1,0.72],                          // brow ridge (overhangs the sockets)
+    [0.205,0.03,0.045, 0,0.165,0.103, 0,1,1,0.84],                         // cheekbones (under them)
+    [0.235,0.06,0.04, 0,0.2,-0.01, 0,1,1,0.82,'D'],                        // ears
+    ['q',0.064,0.046, -0.052,0.2025,0.116, 2,0.2],['q',0.064,0.046, 0.052,0.2025,0.116, 2,0.2],   // sunken sockets
+    ['q',0.03,0.036, 0,0.138,0.121, 2,0.3],                                // nasal cavity
+    ['q',0.1,0.024, 0,0.089,0.1185, 0,1.7],                                // upper teeth
+    ['q',0.12,0.075, 0,0.045,0.07, 2,0.22],                                // the maw, seen when the jaw drops
+    [0.205,0.05,0.2, 0,0.345,-0.018, 1,0.9,0.9],                           // patchy hair: top
+    [0.21,0.16,0.05, 0,0.265,-0.1, 1]]);                                   // ... and back
+  // jaw (origin = hinge). slots: 0 skin (often blood-smeared), 1 teeth
+  const jawG=zgeo([[0.15,0.05,0.135, 0,-0.03,0.062, 0,1.08,1.04,0.88],['q',0.09,0.02, 0,0.004,0.1335, 1]]);
+  // torso (origin = waist). slots: 0 top, 1 what shows through the tears, 2 blood
+  const torsoG=zgeo([[0.28,0.5,0.185, 0,0.25,0, 0,1.45,1.15],              // hunched chest, waist -> shoulders
+    [0.06,0.27,0.03, 0,0.365,0.098, 1,2.7,1.25],                           // torn-open collar
+    [0.15,0.11,0.02, 0.045,0.1,0.0925, 1,1,1,0.9],                         // belly tear
+    [0.15,0.2,0.02, -0.02,0.28,-0.103, 1,1,1,0.85,'D'],                    // back tear
+    [0.085,0.035,0.085, 0,0.505,0, 2],                                     // neck stump (hidden inside the neck)
+    ['q',0.11,0.19, -0.095,0.21,0.107, 2,0.95]]);                          // gut stain
+  // forearm, hand (origin = wrist; fingers curled to the palm side), shin, foot (origin = ankle)
+  const faG=zgeo([[0.09,0.17,0.098, 0,-0.085,0, 0,1.1,1.08],[0.074,0.09,0.082, 0,-0.205,0, 1,1,1,0.92]]);
+  const handG=zgeo([[0.07,0.07,0.034, 0,-0.035,0, 0],[0.03,0.065,0.028, -0.02,-0.095,-0.016, 0,1,1,0.82],[0.03,0.065,0.028, 0.02,-0.095,-0.02, 0,1,1,0.76,'D']]);
+  const shG=zgeo([[0.118,0.3,0.13, 0,-0.15,0, 0,1.08,1.05],[0.088,0.12,0.098, 0,-0.355,0, 1,1,1,0.92]]);
+  const footG=zgeo([[0.115,0.085,0.25, 0,-0.028,0.05, 0,0.92,0.9]]);
+  makeIM('hips',share(pedIM.hips),ZMAX,true); makeIM('torso',torsoG,ZMAX,true); makeIM('head',headG,ZMAX,false); makeIM('jaw',jawG,ZMAX,false);
+  makeIM('ua',share(pedIM.uaL),ZMAX*2); makeIM('fa',faG,ZMAX*2); makeIM('hand',handG,ZMAX*2);
+  makeIM('th',share(pedIM.thL),ZMAX*2); makeIM('sh',shG,ZMAX*2); makeIM('foot',footG,ZMAX*2);
+  // optional parts: exposed ribs (slots: 0 bone, 1 cavity), and the peds' long hair / cap / skirt
+  if(!LOWQ) makeIM('ribs',zgeo([['q',0.13,0.17, 0.1,0.285,0.1085, 1],[0.135,0.02,0.02, 0.1,0.235,0.112, 0],
+    [0.135,0.02,0.02, 0.1,0.285,0.113, 0],[0.135,0.02,0.02, 0.1,0.335,0.114, 0,1,1,0.9]]),ZMAX);
+  makeIM('hairL',share(pedIM.hairL),ZMAX); makeIM('cap',share(pedIM.cap),ZMAX); makeIM('skirt',share(pedIM.skirt),ZMAX);
+  for(let i=ZMAX-1;i>=0;i--) zSlots.push(i);
+  for(const k in zIM){ zIM[k].instanceColor.needsUpdate=true; zIM[k].instanceMatrix.needsUpdate=true; zIM[k].count=0; }   // nothing drawn until zombies exist
 })();
-function zHide(i){ for(const k in zIM) zIM[k].setMatrixAt(i,_pHide); }
+function zHide(i){ for(const k in zIM){ const im=zIM[k]; if(im.userData.dual){ zeroM(im,2*i); zeroM(im,2*i+1); } else zeroM(im,i); } }
+function zCol(name,k,a,b,c){ const im=zIM[name], C=ZX.C; if(!im) return;
+  im.setColorAt(k,C.setHex(a));
+  const B=im.geometry.attributes.pcolB.array, CC=im.geometry.attributes.pcolC.array;
+  C.setHex(b!=null?b:a); B[k*3]=C.r; B[k*3+1]=C.g; B[k*3+2]=C.b;
+  C.setHex(c!=null?c:(b!=null?b:a)); CC[k*3]=C.r; CC[k*3+1]=C.g; CC[k*3+2]=C.b; ZX.dirty=true; }
+function zColB(name,k,hex){ const B=zIM[name].geometry.attributes.pcolB.array, C=ZX.C.setHex(hex); B[k*3]=C.r; B[k*3+1]=C.g; B[k*3+2]=C.b; ZX.dirty=true; }
+function zColFlush(){ ZX.dirty=false;
+  for(const k in zIM){ const im=zIM[k]; im.instanceColor.needsUpdate=true; im.geometry.attributes.pcolB.needsUpdate=true; im.geometry.attributes.pcolC.needsUpdate=true; } }
+function zPickKind(){ const r=Math.random(); return r<0.24?'tee':r<0.40?'ragged':r<0.54?'suit':r<0.66?'hoodie':r<0.78?'dress':r<0.90?'beach':'cop'; }
+// outfit + wounds for one zombie: the pedestrians' wardrobe gone dirty, sick grey-green skin, blood where it counts
+function zDress(z,o){
+  const P=PEDX.pal, i=z.i, l=2*i, j=l+1, K=z.kind, C=ZX.C, m=z.mis, BL=ZX.BLOOD;
+  const mix=(h,to,k)=>C.setHex(h).lerp(to,k).getHex();
+  const dirty=(h,k)=>mix(h,ZX.grime,k==null?rand(0.28,0.5):k), bloody=(h,k)=>mix(h,ZX.blood,k);
+  const skin=pick(ZSKIN), skinD=C.setHex(skin).multiplyScalar(0.8).getHex();
+  let top,inner,bot,botLo,shin,ankle,shoe,uaB,faA,wrist,belt=0x1c1814,buckle=0x8a7a40;
+  switch(K){
+    case 'suit': top=dirty(pick(P.SUIT),rand(0.15,0.35)); inner=dirty(pick(P.SHIRT),0.25); bot=top; botLo=bot; shin=bot; ankle=Math.random()<0.4?skin:bot;
+      shoe=pick([0x1a1414,0x2a1c14]); uaB=top; faA=top; wrist=inner; break;
+    case 'dress': top=dirty(pick(P.DRESS),rand(0.15,0.3)); inner=skin; bot=top; botLo=skin; shin=skin; ankle=skin;
+      shoe=Math.random()<0.5?skin:pick([0x1a1414,0xd94f4f,0xe8d8b8]); uaB=skin; faA=skin; wrist=skin; belt=top; buckle=top; z.skirt=true; break;
+    case 'cop': top=0x1b2a4a; inner=0x6f8cb8; bot=0x141a2a; botLo=bot; shin=bot; ankle=bot; shoe=0x0e0e10; uaB=top; faA=skin; wrist=skin;
+      belt=0x0a0a0c; buckle=0xd8b040; z.cap=true; break;
+    case 'beach': top=skin; inner=skinD; bot=dirty(pick(P.SHORTS),0.15); botLo=skin; shin=skin; ankle=skin;
+      shoe=Math.random()<0.6?skin:pick([0xf0f0ea,0xe8b04b,0x3fbac2]); uaB=skin; faA=skin; wrist=skin; belt=bot; buckle=bot; z.cap=Math.random()<0.4; break;
+    case 'hoodie': top=dirty(pick([0x5a5a62,0x2a3a5a,0x8a2a3a,0x3a5a3a,0xb8b0a0,0x24242a])); inner=skin; bot=dirty(pick(P.JEANS)); botLo=bot; shin=bot;
+      ankle=Math.random()<0.5?skin:bot; shoe=dirty(pick(P.SHOE)); uaB=top; faA=top; wrist=skin; break;
+    case 'ragged': top=skin; inner=skinD; bot=dirty(pick(P.JEANS.concat(P.CHINO)),0.5); botLo=bot; shin=Math.random()<0.6?skin:bot; ankle=skin; shoe=skin;
+      uaB=skin; faA=skin; wrist=skin; break;
+    default: top=dirty(pick(P.BOLD.concat(P.PASTEL))); inner=skin; bot=dirty(pick(P.JEANS.concat(P.CHINO))); botLo=bot; shin=bot;
+      ankle=Math.random()<0.5?skin:bot; shoe=Math.random()<0.4?skin:dirty(pick(P.SHOE)); uaB=skin; faA=skin; wrist=skin;
+  }
+  const stain=Math.random()<0.7?BL:top, bald=!z.fem&&Math.random()<0.35;
+  const hair=bald?C.setHex(skin).multiplyScalar(0.9).getHex():dirty(pick(P.HAIR),0.2);
+  z.hairL=!z.cap&&!bald&&(z.fem?Math.random()<0.7:Math.random()<0.08);
+  z.ribs=!!zIM.ribs&&(o&&o.ribs!=null?o.ribs:(K==='ragged'||K==='beach'?Math.random()<0.6:Math.random()<0.22));
+  const headC=Math.random()<0.3?bloody(skin,0.25):skin, jawC=Math.random()<0.45?bloody(skin,0.55):skin;
+  zCol('hips',i,bot,belt,buckle);
+  zCol('torso',i,top,inner,stain);
+  zCol('head',i,headC,hair,BL);
+  zCol('jaw',i,jawC,0xcfc8a4);
+  const arm=(q,hasFa)=>{ const b=Math.random()<0.3;
+    zCol('ua',q,b?bloody(top,0.4):top,hasFa?uaB:BL); zCol('fa',q,b?bloody(faA,0.45):faA,wrist); zCol('hand',q,(b||Math.random()<0.3)?bloody(skin,0.5):skin); };
+  arm(l,!(m&8)); arm(j,!(m&16));
+  zCol('th',l,bot,(m&32)?BL:botLo); zCol('th',j,bot,(m&64)?BL:botLo);
+  zCol('sh',l,shin,ankle); zCol('sh',j,shin,ankle); zCol('foot',l,shoe); zCol('foot',j,shoe);
+  if(z.ribs) zCol('ribs',i,ZX.BONE,0x2a0606);
+  if(z.hairL) zCol('hairL',i,hair);
+  if(z.cap) zCol('cap',i,K==='cop'?0x16223c:pick(P.BOLD),K==='cop'?0x0a0a0c:pick(P.BOLD));
+  if(z.skirt) zCol('skirt',i,top);
+}
+// ---- procedural pose -> bone scratch -> instance matrices (mode 1: bones only, for ragdoll / gib hand-off) ----
+function zPose(z,t,mode){
+  const s=z.s, ty=z.type, sd=z.seed, A=ZX.ang, mv=z.mv, m=z.mis;
+  const ph=z.ph, sn=Math.sin(ph), cs=Math.cos(ph);
+  let rootY=z.y, rootP=0, rootR=0;
+  let pX=0,pY=P_HIPY,pZ=0,pRX=0,pRY=0,pRZ=0, tRX=z.hunch,tRY=0,tRZ=z.leanS, hRX=0,hRY=0,hRZ=z.loll;
+  let uLX=z.armA,uLY=0,uLZ=0.12, uRX=z.armB,uRY=0,uRZ=-0.12, eL=-z.elA,eR=-z.elB, wL=0.6,wR=0.6;
+  let thLX=0,thLY=0,thLZ=0.03, thRX=0,thRY=0,thRZ=-0.03, kL=z.kn,kR=z.kn, fL=0,fR=0, jw=z.jawA;
+  let grounded=true, hop=0, dgL=0, dgR=0, reach=-1.5;
+  const idle=Math.sin(t*0.9+sd), br=Math.sin(t*1.6+sd*3);
+  if(ty===3){
+    // crawler: prone, dragging itself by the arms; one arm reaches while the other pulls
+    grounded=false;
+    const dk=z.dropT>0?z.dropT/0.4:0, d2=dk*dk;                    // just lost its legs: fall into the crawl
+    pRX=1.3*(1-d2); pY=0.17+0.025*Math.abs(cs)*mv+(P_HIPY-0.3)*d2;
+    pRZ=0.13*sn*mv; pRY=0.1*sn*mv;
+    tRX=-0.14+0.05*cs*mv+0.03*br; tRZ=-0.1*sn*mv+z.leanS*0.5; tRY=-0.18*sn*mv;
+    const TP=pRX+tRX;
+    hRX=-0.8+0.1*Math.sin(t*0.8+sd); hRZ=z.loll*0.7; hRY=0.2*Math.sin(t*0.6+sd);
+    const wl=-0.85-0.4*cs*mv-0.25*Math.max(0,-sn)*mv, wr=-0.85+0.4*cs*mv-0.25*Math.max(0,sn)*mv;   // world pitch of each upper arm
+    uLX=wl-TP; uRX=wr-TP; uLZ=0.28; uRZ=-0.28;
+    eL=-(0.2+0.7*(0.5-0.5*cs)); eR=-(0.2+0.7*(0.5+0.5*cs));
+    wL=clamp(-1.5708-(wl+eL),-1.2,1.2); wR=clamp(-1.5708-(wr+eR),-1.2,1.2);                         // palms flat on the ground
+    thLX=0.06+0.1*sn*mv; thRX=0.06-0.1*sn*mv; thLZ=0.14; thRZ=-0.14; kL=kR=0.12;
+    jw=0.45+0.3*Math.sin(t*3+sd); reach=-1.05-TP;
+  } else {
+    // shambler / limper / runner: uneven gait, one leg dragging, arms groping forward, head lolling
+    const run=ty===2, lw=ty===1?1:ty===0?0.4:0, dl=z.drag;
+    const Am=(run?0.85:ty===1?0.42:0.5)*mv, off=run?0.22:0.04;
+    let aL=1,aR=1; if(dl<0) aL=1-0.62*lw; else aR=1-0.62*lw;
+    thLX=-Am*sn*aL-off; thRX=Am*sn*aR-off;
+    const K=(run?1.55:0.85)*mv, kl=Math.max(0,Math.cos(ph+0.6)), kr=Math.max(0,Math.cos(ph+Math.PI+0.6));
+    kL=z.kn+K*kl*kl*aL+(run?0.25:0); kR=z.kn+K*kr*kr*aR+(run?0.25:0);
+    if(dl<0){ thLX+=0.2*lw; kL=0.06+(kL-0.06)*(1-0.85*lw); thLY=0.5*lw; dgL=0.45*lw*mv; }       // stiff leg, toe turned out and trailing
+    else    { thRX+=0.2*lw; kR=0.06+(kR-0.06)*(1-0.85*lw); thRY=-0.5*lw; dgR=0.45*lw*mv; }
+    pRY=-0.16*sn*mv; pRZ=(0.05+0.09*lw)*sn*mv+0.04*idle*(1-mv); pX=-0.03*cs*mv+0.03*idle*(1-mv);
+    tRX=z.hunch+(run?0.32:0)+0.05*Math.cos(2*ph)*mv+0.03*br; tRY=0.22*sn*mv;
+    tRZ=z.leanS-(0.06+0.1*lw)*sn*mv-0.05*idle*(1-mv)+(run?0.13*Math.sin(ph*0.5+sd):0);
+    hRX=-tRX*0.6+0.09*Math.sin(ph+1.3)*mv+0.05*Math.sin(t*0.8+sd); hRY=0.18*Math.sin(t*0.55+sd*2); hRZ=z.loll+0.1*Math.sin(ph*0.5+sd);
+    const limpA=z.armA>-0.5, limpB=z.armB>-0.5;
+    uLX=z.armA+(limpA?0.25*sn*mv:0.1*Math.sin(ph+sd)*mv+(run?0.5*sn:0)+0.04*br);
+    uRX=z.armB+(limpB?-0.25*sn*mv:0.1*Math.sin(ph+sd+2)*mv-(run?0.5*sn:0)+0.04*br);
+    eL=-(z.elA+(limpA?0:0.18*Math.sin(ph*2+sd))); eR=-(z.elB+(limpB?0:0.18*Math.sin(ph*2+sd+1.7)));
+    wL=limpA?0.25:0.6+0.4*Math.sin(t*4.3+sd); wR=limpB?0.25:0.6+0.4*Math.sin(t*3.7+sd*1.7);          // hands clawing
+    if(run){ uLZ=0.2; uRZ=-0.2; hop=0.05*Math.abs(cs)*mv; }
+    jw=z.jawA+0.2*Math.max(0,Math.sin(t*2.3+sd));
+  }
+  // lunge + grab: draw back, throw the arms and the chest forward, bite
+  if(z.atk>0){ const u=z.atk, L=u<0.3?-0.4*(u/0.3):u<0.44?-0.4+1.4*(u-0.3)/0.14:u<0.7?1:1-(u-0.7)/0.3, F=Math.max(0,L), Bk=Math.max(0,-L);
+    tRX+=0.42*L*(ty===3?-0.6:1); pZ+=(ty===3?0.1:0.24)*F; hRX-=0.22*F-0.15*Bk;
+    uLX+=(reach-uLX)*F+0.45*Bk; uRX+=(reach-uRX)*F+0.45*Bk;
+    eL+=(-0.12-eL)*F-0.5*Bk; eR+=(-0.12-eR)*F-0.5*Bk; wL+=(1.0-wL)*F; wR+=(1.0-wR)*F;
+    jw=Math.max(jw,(u<0.62?0.95:0.1)*Math.min(1,F+Bk*1.5));
+    if(ty!==3){ thLX-=0.3*F; kL+=0.25*F; } }
+  // stagger: thrown back on the heels, arms flung wide, then recover
+  if(z.stag>0){ const e=clamp(z.stag/z.stag0,0,1), k=e*e*(3-2*e);
+    tRX-=0.7*k*(ty===3?0.4:1); hRX-=0.3*k; uLZ+=0.8*k; uRZ-=0.8*k; uLX+=0.5*k; uRX+=0.5*k; eL-=0.3*k; eR-=0.3*k;
+    kL+=0.4*k; kR+=0.25*k; pZ-=0.1*k; jw+=0.4*k; rootR+=z.fall*0.14*k; tRY+=z.fall*0.3*k; }
+  // clawing up out of the dirt
+  if(z.rise>0){ const r=z.rise/ZRISE, k=r*r*(3-2*r);
+    rootY-=1.3*s*k; uLX+=(-2.7-uLX)*k; uRX+=(-2.5-uRX)*k; eL+=(-0.4-eL)*k; eR+=(-0.5-eR)*k; uLZ+=0.2*k; uRZ-=0.2*k;
+    hRX-=0.45*k; tRX*=1-k; jw=Math.max(jw,0.6*k); rootR+=0.1*k*Math.sin(t*9+sd); }
+  // dead with no ragdoll slot free: knees buckle, topple backwards, sink
+  if(z.dead){ const k=Math.min(1,z.deadT*2.4), e=k*k, sink=Math.max(0,z.deadT-2.0)*0.55;
+    if(ty===3){ tRX+=(0.05-tRX)*e; hRX+=(0.25-hRX)*e; uLZ+=0.5*e; uRZ-=0.5*e; jw=0.8; rootY-=sink; }
+    else { rootP=-1.5*e; rootR=z.fall*0.2*e; rootY+=0.1*e*s-sink;
+      kL+=0.9*Math.sin(Math.PI*k)+0.25*e; kR+=0.7*Math.sin(Math.PI*k)+0.1*e; thLX-=0.5*Math.sin(Math.PI*k);
+      uLX*=1-e; uRX*=1-e; uLZ+=1.25*e; uRZ-=1.1*e; eL=-0.4; eR=-0.25; tRX*=1-e; hRX=-0.35*e; jw=0.8; } }
+  if(grounded){
+    // pelvis rides on whichever leg reaches the ground, so the feet neither float nor sink
+    const SF=P_SH+0.07, eLv=(P_TH*Math.cos(thLX)+SF*Math.cos(thLX+kL))*Math.cos(thLZ), eRv=(P_TH*Math.cos(thRX)+SF*Math.cos(thRX+kR))*Math.cos(thRZ);
+    const hasL=!(m&(32|128)), hasR=!(m&(64|256));
+    pY=((hasL&&hasR)?Math.max(eLv,eRv):hasL?eLv:hasR?eRv:0.25)-0.004+hop;
+    fL=clamp(-(thLX+kL),-0.7,0.9)+dgL; fR=clamp(-(thRX+kR),-0.7,0.9)+dgR;        // soles level, the trailing toe drags
+  }
+  const yaw=z.a;
+  bone(_BR,_BI,z.x,rootY,z.z,rootP,yaw,rootR);
+  for(let k=0;k<11;k++) if(k!==3&&k!==7) _BR[k]*=s;
+  bone(_BP,_BR,pX,pY,pZ,pRX,pRY,pRZ);
+  bone(_BT,_BP,0,P_SPINE,0,tRX,tRY,tRZ);
+  bone(_BH,_BT,0,P_TORSO,0,hRX,hRY,hRZ);
+  const shx=0.2*z.shw;
+  bone(_BUL,_BT,shx,0.45,0,uLX,uLY,uLZ); bone(_BFL,_BUL,0,-P_UA,0,eL,0,0);
+  bone(_BUR,_BT,-shx,0.45,0,uRX,uRY,uRZ); bone(_BFR,_BUR,0,-P_UA,0,eR,0,0);
+  const hx=0.095*z.hipw;
+  bone(_BTL,_BP,hx,0,0,thLX,thLY,thLZ); bone(_BSL,_BTL,0,-P_TH,0,kL,0,0);
+  bone(_BTR,_BP,-hx,0,0,thRX,thRY,thRZ); bone(_BSR,_BTR,0,-P_TH,0,kR,0,0);
+  A[0]=wL; A[1]=wR; A[2]=fL; A[3]=fR; A[4]=jw;
+  if(mode===1) return;
+  zPut(z,1,1);
+}
+// bone scratch -> the zombie's instances. os scales the child offsets and ps the parts (both 1 when the
+// bones already carry the zombie's scale; the ragdoll's frames are unit-scale so it passes z.s for both).
+// Hands, feet and the jaw hang off wrist / ankle / hinge bones; the far LOD skips them.
+function zPut(z,os,ps){
+  const i=z.i, l=2*i, j=l+1, m=z.mis, A=ZX.ang, far=z.lod>=2, I=zIM;
+  if(!(m&1024)){ putM(I.hips,i,_BP,ps*z.hipw,ps,ps*z.belly); putM(I.torso,i,_BT,ps*z.shw,ps,ps*z.belly);
+    if(z.skirt) putM(I.skirt,i,_BP,ps*z.hipw,ps,ps*z.belly);
+    if(z.ribs&&!far) putM(I.ribs,i,_BT,ps*z.shw,ps,ps*z.belly); }
+  if(!(m&1)){ putM(I.head,i,_BH,ps,ps,ps);
+    if(z.hairL) putM(I.hairL,i,_BH,ps,ps,ps);
+    if(z.cap) putM(I.cap,i,_BH,ps,ps,ps);
+    if(!far&&!(m&512)){ bone(_ZJ,_BH,0,0.082*os,-0.01*os,A[4],0,0); putM(I.jaw,i,_ZJ,ps,ps,ps); } }
+  if(!(m&2)){ putM(I.ua,l,_BUL,ps,ps,ps);
+    if(!(m&8)){ putM(I.fa,l,_BFL,ps,ps,ps); if(!far){ bone(_ZHL,_BFL,0,-P_FA*os,0,A[0],0,0); putM(I.hand,l,_ZHL,ps,ps,ps); } } }
+  if(!(m&4)){ putM(I.ua,j,_BUR,ps,ps,ps);
+    if(!(m&16)){ putM(I.fa,j,_BFR,ps,ps,ps); if(!far){ bone(_ZHL,_BFR,0,-P_FA*os,0,A[1],0,0); putM(I.hand,j,_ZHL,ps,ps,ps); } } }
+  if(!(m&128)){ putM(I.th,l,_BTL,ps,ps,ps);
+    if(!(m&32)){ putM(I.sh,l,_BSL,ps,ps,ps); if(!far){ bone(_ZHL,_BSL,0,-P_SH*os,0,A[2],0,0); putM(I.foot,l,_ZHL,ps,ps,ps); } } }
+  if(!(m&256)){ putM(I.th,j,_BTR,ps,ps,ps);
+    if(!(m&64)){ putM(I.sh,j,_BSR,ps,ps,ps); if(!far){ bone(_ZHL,_BSR,0,-P_SH*os,0,A[3],0,0); putM(I.foot,j,_ZHL,ps,ps,ps); } } }
+}
+// ---- dismemberment: a limb / head / trunk leaves the body as its own jointed rigid piece ----
+// The piece keeps the zombie's own instances (no new meshes); the bone scratch must hold the current pose.
+function zDetach(z,kind,sc,dx,dz,pow){
+  const m=z.mis;
+  if(m&Z_BITS[kind]&~(kind===1?8:kind===2?16:kind===3?32:kind===4?64:0)) return null;     // already gone
+  if((kind===6&&(m&2))||(kind===7&&(m&4))||(kind===8&&(m&128))||(kind===9&&(m&256))) return null;
+  const c=ZX.pool.pop()||{M:new THREE.Matrix4()};
+  c.k=kind; c.m=m;
+  const e=c.M.elements, B=Z_ROOT[kind];
+  for(let k=0;k<16;k++) e[k]=B[k];
+  if(sc!==1) for(let k=0;k<11;k++) if(k!==3&&k!==7) e[k]*=sc;
+  e[3]=e[7]=e[11]=0; e[15]=1;
+  const sp=(kind===5?1.6:3.2)*pow, side=(kind===5||kind===0)?0:(kind===1||kind===3||kind===6||kind===8)?1:-1;
+  c.vx=dx*sp*rand(0.4,1.3)+rand(-2,2)+_BP[0]*side*2; c.vz=dz*sp*rand(0.4,1.3)+rand(-2,2)+_BP[2]*side*2;
+  c.vy=kind===0?rand(4.5,7.5):kind===5?rand(1.5,3):rand(2.5,6);
+  const w=kind===5?3.5:9; c.wx=rand(-w,w); c.wy=rand(-w,w)*0.6; c.wz=rand(-w,w);
+  c.life=rand(2.4,3.1); c.b=0; c.fl=rand(0,6); c.gy=z.y;
+  z.mis|=Z_BITS[kind];
+  if(kind===6||kind===7) zColB('ua',kind===6?2*z.i:2*z.i+1,ZX.BLOOD);               // leave a wet stump
+  if(kind===8||kind===9) zColB('th',kind===8?2*z.i:2*z.i+1,ZX.BLOOD);
+  (z.ch||(z.ch=[])).push(c);
+  puff(e[12],e[13],e[14],0x7a0c0c);
+  return c;
+}
+function zChunkPut(z,c){
+  const i=z.i, k=c.k, q=(k===2||k===4||k===7||k===9)?2*i+1:2*i, e=c.M.elements, I=zIM, m=c.m, fx=0.35*Math.sin(c.fl)/(1+c.b);
+  if(k===0){ putM(I.head,i,e,1,1,1); if(z.hairL) putM(I.hairL,i,e,1,1,1); if(z.cap) putM(I.cap,i,e,1,1,1);
+    if(!(m&512)){ bone(_ZJ,e,0,0.082,-0.01,0.75,0,0); putM(I.jaw,i,_ZJ,1,1,1); } }
+  else if(k===1||k===2){ putM(I.ua,q,e,1,1,1);
+    if(!(m&(k===1?8:16))){ bone(_ZC,e,0,-P_UA,0,-0.5+fx,0,0); putM(I.fa,q,_ZC,1,1,1); bone(_ZHL,_ZC,0,-P_FA,0,0.5,0,0); putM(I.hand,q,_ZHL,1,1,1); } }
+  else if(k===3||k===4){ putM(I.th,q,e,1,1,1);
+    if(!(m&(k===3?32:64))){ bone(_ZC,e,0,-P_TH,0,0.45+fx,0,0); putM(I.sh,q,_ZC,1,1,1); bone(_ZHL,_ZC,0,-P_SH,0,0.3,0,0); putM(I.foot,q,_ZHL,1,1,1); } }
+  else if(k===5){ putM(I.hips,i,e,z.hipw,1,z.belly); bone(_ZC,e,0,P_SPINE,0,0.25+fx*0.5,0,0); putM(I.torso,i,_ZC,z.shw,1,z.belly);
+    if(z.ribs) putM(I.ribs,i,_ZC,z.shw,1,z.belly); if(z.skirt) putM(I.skirt,i,e,z.hipw,1,z.belly); }
+  else if(k===6||k===7){ putM(I.fa,q,e,1,1,1); bone(_ZHL,e,0,-P_FA,0,0.5+fx,0,0); putM(I.hand,q,_ZHL,1,1,1); }
+  else { putM(I.sh,q,e,1,1,1); bone(_ZHL,e,0,-P_SH,0,0.3+fx,0,0); putM(I.foot,q,_ZHL,1,1,1); }
+}
+function zChunks(z,dt){
+  const L=z.ch;
+  for(let n=L.length-1;n>=0;n--){
+    const c=L[n], e=c.M.elements, k=c.k;
+    c.life-=dt;
+    if(c.life<=0){ const q=(k===0||k===5)?z.i:(k===2||k===4||k===7||k===9)?2*z.i+1:2*z.i;
+      for(const nm of Z_CHP[k]) if(zIM[nm]) zeroM(zIM[nm],q);
+      ZX.pool.push(c); L.splice(n,1); continue; }
+    if(c.life<0.6) c.gy-=dt*0.45;                                   // sinks away at the end
+    c.vy-=16*dt; c.fl+=dt*11;
+    let x=e[12]+c.vx*dt, y=e[13]+c.vy*dt, zz=e[14]+c.vz*dt;
+    const w=Math.sqrt(c.wx*c.wx+c.wy*c.wy+c.wz*c.wz);
+    if(w>0.02){ e[12]=e[13]=e[14]=0; _zRot.makeRotationAxis(_zAx.set(c.wx/w,c.wy/w,c.wz/w),w*dt); c.M.premultiply(_zRot); }
+    // ground: the piece is a capsule from its joint along its long axis
+    const len=Z_LEN[k], low=Math.min(y,y-e[5]*len)-Z_RAD[k];
+    if(low<c.gy){ y+=c.gy-low;
+      if(c.vy<0){ if(c.vy<-2.5&&c.b<3) bloodSplat(x,zz,rand(0.4,0.9)); c.vy*=-0.3; c.b++; }
+      c.vx*=0.6; c.vz*=0.6;
+      if(k!==0){ const al=Math.sqrt(e[4]*e[4]+e[6]*e[6])||1, yy=e[5]/z.s;        // lay the long axis flat
+        c.wx=e[6]/al*8*yy; c.wz=-e[4]/al*8*yy; c.wy*=0.7; }
+      else { c.wx*=0.7; c.wy*=0.7; c.wz*=0.7; } }
+    e[12]=x; e[13]=y; e[14]=zz;
+    zChunkPut(z,c);
+  }
+}
+// blown apart: every part that is still attached leaves as its own piece
+function zBurst(z,dx,dz,pow){
+  let sc=1;
+  if(z.rag>=0){ const R=pedRag[z.rag]; ragBones(R,z.s); R.p=null; z.rag=-1; sc=z.s; }
+  else zPose(z,elapsed,1);
+  for(let k=0;k<6;k++) zDetach(z,k,sc,dx,dz,pow);
+  z.burst=true;
+  for(let k=0;k<3;k++) puff(z.x+rand(-0.3,0.3),z.y+rand(0.5,1.4),z.z+rand(-0.3,0.3),0x8a0a0a);
+  bloodSplat(z.x,z.z,rand(1.2,2));
+}
+// car hits (and some bullets) hand the body to the pedestrians' verlet ragdoll: same slots, same solver
+function zRagStart(z,vx,vz,sev,kill){
+  let R=null, n=0;
+  for(const r of pedRag){ if(r.p&&r.p.zomb) n++; else if(!r.p&&!R) R=r; }
+  if(!R||n>=ZX.ragCap) return false;
+  zPose(z,elapsed,1);
+  R.p=z; R.t=0; R.gib=-1; R.rest=0; z.rag=pedRag.indexOf(R); z.sinkT=0;
+  ragInit(R,z.x,z.y,z.z,vx,vz,sev,kill);
+  return true;
+}
+// a bullet from the car gun: sometimes the whole body comes apart, otherwise the head or an arm goes and the rest drops
+function zShot(z,px,pz){
+  const l=Math.hypot(px,pz)||1, dx=px/l, dz=pz/l, r=Math.random();
+  if(r<0.4){ gore(z.x,z.z,dx,dz,0.9); zBurst(z,dx,dz,1); return; }
+  zPose(z,elapsed,1);
+  if(r<0.75) zDetach(z,0,1,dx,dz,0.8); else if(!zDetach(z,Math.random()<0.5?1:2,1,dx,dz,0.9)) zDetach(z,0,1,dx,dz,0.8);
+  if(z.type!==3) zRagStart(z,dx*rand(5,8),dz*rand(5,8),9,false);
+  bloodSplat(z.x+dx*0.8,z.z+dz*0.8,rand(0.8,1.4));
+}
+// clipped by a wing: an arm (or both shins) is torn off, the zombie spins, staggers and keeps coming
+function zClip(z,lat,ux,uz,psp){
+  const side=lat>0?1:-1, lx=Math.cos(player.a), lz=-Math.sin(player.a);
+  zPose(z,elapsed,1);
+  if(Math.random()<0.3&&!(z.mis&(32|64|128|256))){
+    zDetach(z,8,1,ux,uz,1.1); zDetach(z,9,1,ux,uz,1.1);
+    z.type=3; z.runner=false; z.sp=rand(1.1,1.6); z.hp=1; z.aimH=0.4; z.dropT=0.4; z.atk=0;
+  } else { const k=Math.random()<0.5?1:2; if(!zDetach(z,k,1,ux,uz,1)) zDetach(z,3-k,1,ux,uz,1); }
+  z.stag=z.stag0=0.9; z.clipT=1.2; z.fall=side; z.a+=side*rand(0.5,1.2);
+  z.kvx=ux*psp*0.3+lx*side*3; z.kvz=uz*psp*0.3+lz*side*3;
+  bloodSplat(z.x,z.z,rand(0.7,1.2)); thud(0.1); player.shake=Math.max(player.shake,0.2);
+}
 // medkit drops
 const medkits=[];
 const medGeo=mergeParts([
@@ -10381,43 +10702,72 @@ function ensureGun(){
   tracer.visible=false; scene.add(tracer);
 }
 let combo=0,comboT=0;
-function spawnZombie(){
-  if(!zSlots.length) return;
+// spawnZombie() keeps its no-argument form for the wave system; the optional o={x,z,a,type,kind,mis,rise,ribs}
+// pins a variant (0 shambler, 1 limper, 2 runner, 3 crawler)
+function spawnZombie(o){
+  if(!zSlots.length) return null;
+  o=o||{};
   const i=zSlots.pop();
   let x,zp;
-  if(wave<=2&&Math.hypot(player.x-CRASH.x,player.z-CRASH.z)<120){
+  if(o.x!=null){ x=o.x; zp=o.z; }
+  else if(wave<=2&&Math.hypot(player.x-CRASH.x,player.z-CRASH.z)<120){
     const a=rand(0,7),r=rand(6,16); x=CRASH.x+Math.sin(a)*r; zp=CRASH.z+Math.cos(a)*r;
   } else {
     const a=rand(0,7),r=rand(50,85);
     x=player.x+Math.sin(a)*r; zp=player.z+Math.cos(a)*r;
     x=Math.max(x,shoreX(zp)+6);
   }
-  const runner=wave>=3&&Math.random()<Math.min(0.35,0.06*wave);
-  zombies.push({i,x,z:zp,a:rand(0,7),
-    sp:runner?rand(5.6,6.8):rand(2.0,3.0)+wave*0.1,
-    hp:runner?1:2,stag:0,dead:false,gone:false,deadT:0,fall:Math.random()<0.5?1:-1,
-    groanT:rand(1,6),ph:rand(0,7),scale:rand(0.9,1.16),runner,
-    tilt:rand(0.12,0.34),armA:runner?-0.7:rand(-1.5,-1.05),armB:runner?-0.7:rand(-1.5,-1.05)});
+  const r=Math.random();
+  const type=o.type!=null?o.type:(wave>=3&&Math.random()<Math.min(0.35,0.06*wave))?2:r<0.11?3:r<0.33?1:0;
+  const runner=type===2, kind=o.kind||zPickKind();
+  const fem=kind==='dress'||Math.random()<(kind==='cop'||kind==='suit'?0.2:0.4);
+  const reachA=()=>runner?rand(-1.3,-0.8):rand(-1.55,-1.05);
+  const z={zomb:true,i,x,z:zp,y:groundHeight(x,zp),a:o.a!=null?o.a:rand(0,7),type,runner,kind,fem,
+    sp:runner?rand(5.6,6.8):type===3?rand(1.1,1.7)+wave*0.05:type===1?rand(1.6,2.3)+wave*0.08:rand(2.0,3.0)+wave*0.1,
+    hp:(runner||type===3)?1:2,stag:0,stag0:0.4,dead:false,gone:false,deadT:0,fall:Math.random()<0.5?1:-1,
+    groanT:rand(1,6),ph:rand(0,7),seed:rand(0,100),s:fem?rand(0.9,1.0):rand(0.95,1.08),
+    shw:fem?rand(0.86,0.95):rand(0.98,1.1),hipw:fem?rand(1.02,1.12):rand(0.94,1.02),belly:Math.random()<0.15?rand(1.1,1.3):rand(0.9,1.05),
+    hunch:runner?rand(0.15,0.3):rand(0.2,0.5),leanS:rand(-0.16,0.16),loll:(Math.random()<0.5?1:-1)*rand(0.12,0.45),
+    jawA:Math.random()<0.3?rand(0.6,0.95):rand(0.08,0.35),kn:rand(0.12,0.38),drag:Math.random()<0.5?1:-1,
+    armA:reachA(),armB:reachA(),elA:rand(0.25,0.9),elB:rand(0.25,0.9),
+    mis:0,mv:0,atk:0,rise:0,lod:-1,rag:-1,ch:null,burst:false,sinkT:0,ragGib:0,kvx:0,kvz:0,clipT:0,dropT:0,trail:0,
+    aimH:type===3?0.4:1.1,ribs:false,skirt:false,hairL:false,cap:false};
+  z.scale=z.s;
+  if(!runner&&type!==3&&Math.random()<0.22){ if(Math.random()<0.5) z.armA=rand(-0.05,0.25); else z.armB=rand(-0.05,0.25); }   // one arm hangs dead
+  if(o.mis!=null) z.mis=o.mis;
+  else { const q=Math.random();
+    z.mis=q<0.13?8:q<0.26?16:q<0.29?2:q<0.32?4:0;                    // a forearm, or a whole arm, already gone
+    if(Math.random()<0.06) z.mis|=512;                               // jaw torn away
+    if(type===3){ z.mis|=32|64; if(Math.random()<0.35) z.mis|=Math.random()<0.5?128:256; } }   // crawlers lost their legs
+  const cx=onFoot?foot.x:player.x, cz=onFoot?foot.z:player.z;
+  z.rise=o.rise!=null?o.rise:(type!==3&&Math.hypot(x-cx,zp-cz)<45?ZRISE:0);
+  zDress(z,o);
+  zombies.push(z);
+  return z;
 }
 function killZombie(z){
   if(z.dead) return;
   z.dead=true; z.deadT=0; kills++;
   comboT=2.2; combo++;
   const pay=15*Math.min(combo,6); cash+=pay;
-  if(combo>1) floatText('COMBO x'+combo+' \u00b7 +$'+pay);
+  if(combo>1) floatText('COMBO x'+combo+' · +$'+pay);
   blip('triangle',90,30,0.2,0.08);
   if(Math.random()<0.15) dropHealth(z.x,z.z);
 }
-function hitZombie(z,px,pz){
+// burst: the on-foot pistol passes true (one round blows the whole body into jointed pieces)
+function hitZombie(z,px,pz,burst){
   if(z.dead) return;
   z.hp--;
-  puff(z.x+rand(-0.2,0.2),1.1,z.z+rand(-0.2,0.2),0x7a1414);
-  if(z.hp<=0) killZombie(z);
-  else { z.stag=0.4; z.x+=px; z.z+=pz; blip('square',130,55,0.07,0.05); }
+  puff(z.x+rand(-0.2,0.2),(z.y||0)+(z.aimH||1.1),z.z+rand(-0.2,0.2),0x7a1414);
+  if(z.hp<=0){ killZombie(z);
+    if(burst){ const l=Math.hypot(px,pz)||1; zBurst(z,px/l,pz/l,1.2); } else zShot(z,px,pz); }
+  else { z.stag=z.stag0=0.4; z.fall=Math.random()<0.5?1:-1; z.x+=px; z.z+=pz; blip('square',130,55,0.07,0.05);
+    if(Math.random()<0.35){ const l=Math.hypot(px,pz)||1, k=Math.random()<0.5?1:2;                 // the round takes an arm off; it keeps coming
+      zPose(z,elapsed,1); if(!zDetach(z,k,1,px/l,pz/l,0.8)) zDetach(z,3-k,1,px/l,pz/l,0.8); } }
 }
 function updateZombies(dt,t){
   if(wave>0){
-    if(waveLeft>0&&zombies.length<40){
+    if(waveLeft>0&&zombies.length<ZCAP){
       waveSpawnT-=dt;
       if(waveSpawnT<=0){ spawnZombie(); waveLeft--; waveSpawnT=Math.max(0.28,0.6-wave*0.03); }
     } else if(waveLeft<=0&&zombies.length===0){
@@ -10426,60 +10776,92 @@ function updateZombies(dt,t){
     }
   }
   comboT-=dt; if(comboT<=0) combo=0;
-  const psp=Math.hypot(player.vx,player.vz);
-  const tgtx=onFoot?foot.x:player.x, tgtz=onFoot?foot.z:player.z;
+  ZX.frame++;
+  const psp=Math.hypot(player.vx,player.vz), pfx=Math.sin(player.a), pfz=Math.cos(player.a);
+  const tgtx=onFoot?foot.x:player.x, tgtz=onFoot?foot.z:player.z, cam=camera.position, A=ZX.ang;
+  // keep the horde from merging into one body
+  for(let a=zombies.length-1;a>0;a--){ const Z1=zombies[a]; if(Z1.dead) continue;
+    for(let b=a-1;b>=0;b--){ const Z2=zombies[b]; if(Z2.dead) continue;
+      const dx=Z2.x-Z1.x, dz=Z2.z-Z1.z, d2=dx*dx+dz*dz;
+      if(d2<0.49&&d2>1e-4){ const d=Math.sqrt(d2), f=(0.7-d)/d*0.5*Math.min(1,dt*8); Z1.x-=dx*f; Z1.z-=dz*f; Z2.x+=dx*f; Z2.z+=dz*f; } } }
   for(let idx=zombies.length-1;idx>=0;idx--){
-    const z=zombies[idx], i=z.i;
-    if(z.gone){ zHide(i); zSlots.push(i); zombies.splice(idx,1); continue; }
-    let lAL=0,lAR=0,aAL=z.armA,aAR=z.armB,baseY=0.3,lean=0,pitch=z.tilt,headA=0.3;
+    const z=zombies[idx], i=z.i, ty=z.type;
+    if(z.gone){
+      if(z.rag>=0){ pedRag[z.rag].p=null; z.rag=-1; }
+      if(z.ch){ for(const c of z.ch) ZX.pool.push(c); z.ch.length=0; }
+      zHide(i); zSlots.push(i); zombies.splice(idx,1); continue; }
     if(z.dead){
-      // topple backward off the heels, arms flung past the head, then sink
       z.deadT+=dt;
-      const k=Math.min(1,z.deadT*2.6);
-      pitch=(Math.PI/2)*k; lean=z.fall*0.25*k;
-      aAL=z.armA-1.1*k; aAR=z.armB-1.3*k;
-      lAL=0.5*k; lAR=-0.35*k; headA=0.3-0.6*k;
-      baseY=0.3+Math.sin(k*Math.PI)*0.1-Math.max(0,z.deadT-2.0)*0.55;
-      if(z.deadT>2.9){ z.gone=true; }
-    } else if(z.stag>0){
-      // flinch: knocked back on the heels for a beat
-      z.stag-=dt;
-      pitch=-0.28; aAL=z.armA-0.5; aAR=z.armB-0.5; headA=-0.2;
-    } else {
-      const dx=tgtx-z.x,dz=tgtz-z.z,d=Math.hypot(dx,dz)||1;
-      z.a=lerpAngle(z.a,Math.atan2(dx,dz),Math.min(1,(z.runner?3.6:2.2)*dt));
-      // close to arm's length, then claw from there — never walk over the car
-      if(d>2.0){ z.x+=Math.sin(z.a)*z.sp*dt; z.z+=Math.cos(z.a)*z.sp*dt; }
-      else if(d<1.6){ z.x-=(dx/d)*3*dt; z.z-=(dz/d)*3*dt; }
-      // lurch cycle: legs swing out of phase and unevenly, arms grope,
-      // the whole body sways like it forgot how walking works
-      z.ph+=z.sp*dt*(z.runner?2.0:1.5);
-      const sw=Math.sin(z.ph*3.1), sw2=Math.sin(z.ph*3.1+2.7);
-      lAL=sw*(z.runner?0.75:0.5); lAR=sw2*(z.runner?0.75:0.55);
-      aAL=z.armA+sw*(z.runner?0.5:0.12); aAR=z.armB+sw2*(z.runner?0.5:0.1);
-      lean=Math.sin(z.ph*1.55)*(z.runner?0.05:0.11);
-      headA=0.3+Math.sin(z.ph*1.55+1)*0.12;
-      baseY=0.3+Math.abs(sw)*0.05;
-      if(d<2.4){
-        if(!onFoot&&psp>9){
-          killZombie(z);
-          if(psp>13){ gore(z.x,z.z,player.vx*0.12,player.vz*0.12,clamp(psp/22,0.45,1.1)); z.gone=true; }
-          thud(0.15); player.shake=Math.max(player.shake,0.35);
+      if(z.rag>=0){
+        // ragdoll: tumble until it rests, then sink into the dirt
+        const R=pedRag[z.rag];
+        if(z.ragGib>0&&R.t>z.ragGib){     // launched hard: comes apart on landing, like the pedestrians
+          const vx=(R.P[0]-R.Q[0])*60, vz=(R.P[2]-R.Q[2])*60, sp=Math.hypot(vx,vz)||1;
+          z.x=R.P[0]; z.z=R.P[2]; gore(z.x,z.z,vx/sp,vz/sp,clamp(0.6+sp/20,0.6,1.3)); zBurst(z,vx/sp,vz/sp,clamp(sp/9,0.6,1.5));
+        } else {
+          if(z.sinkT>0||R.rest>0.6||z.deadT>4.2){ z.sinkT+=dt; for(let q=1;q<45;q+=3) R.P[q]-=dt*0.4; }
+          else ragStep(R,dt);
+          if(z.sinkT>1.7){ R.p=null; z.rag=-1; zHide(i); z.burst=true; }
+          else { z.x=R.P[0]; z.z=R.P[2]; ragBones(R,z.s); A[0]=A[1]=0.4; A[2]=A[3]=0.5; A[4]=0.7; zPut(z,z.s,z.s); }
         }
-        else { damage((z.runner?7:5)*dt); if(Math.random()<dt*2) player.shake=Math.max(player.shake,0.12); }
-      }
+      } else if(z.burst){ if(!(z.ch&&z.ch.length)) z.gone=true; }
+      else { zPose(z,t,0); if(z.deadT>2.9){ zHide(i); z.burst=true; } }
+      if(z.ch&&z.ch.length) zChunks(z,dt);
+      continue;
+    }
+    z.y=groundHeight(z.x,z.z);
+    if(z.dropT>0) z.dropT-=dt;
+    if(z.clipT>0) z.clipT-=dt;
+    if(z.kvx||z.kvz){ z.x+=z.kvx*dt; z.z+=z.kvz*dt; const f=Math.exp(-dt*5); z.kvx*=f; z.kvz*=f; if(Math.abs(z.kvx)+Math.abs(z.kvz)<0.05) z.kvx=z.kvz=0; }
+    const dx=tgtx-z.x, dz=tgtz-z.z, d=Math.hypot(dx,dz)||1;
+    if(z.rise>0){ z.rise-=dt; z.mv=0; }
+    else if(z.stag>0){ z.stag-=dt; z.atk=0; z.mv+=(0-z.mv)*Math.min(1,dt*6); }    // flinch: knocked back on the heels for a beat
+    else {
+      z.a=lerpAngle(z.a,Math.atan2(dx,dz),Math.min(1,(z.runner?3.6:ty===3?1.6:2.2)*dt));
+      // the speed surges inside the gait cycle: a lurch off the good leg, a heave on each arm pull
+      const g=ty===3?0.45+0.85*Math.abs(Math.sin(z.ph)):ty===1?1+0.55*Math.sin(z.ph+(z.drag<0?1.5708:-1.5708)):ty===2?1+0.15*Math.sin(2*z.ph):1+0.3*Math.sin(2*z.ph+0.5);
+      const v=z.sp*g, moving=d>2.0;
+      // close to arm's length, then claw from there — never walk over the car
+      if(moving){ z.x+=Math.sin(z.a)*v*dt; z.z+=Math.cos(z.a)*v*dt; z.ph+=v*dt*ZRATE[ty];
+        if(ty===3){ z.trail+=v*dt; if(z.trail>1.5){ z.trail=0; bloodSplat(z.x-Math.sin(z.a)*0.5,z.z-Math.cos(z.a)*0.5,rand(0.3,0.5)); } } }
+      else if(d<1.6){ z.x-=(dx/d)*3*dt; z.z-=(dz/d)*3*dt; }
+      z.mv+=((moving?1:0)-z.mv)*Math.min(1,dt*6);
+      const close=d<(ty===3?2.7:3.1);
+      if(close||z.atk>0){ z.atk+=dt/ZATK[ty]; if(z.atk>=1) z.atk=close?1e-4:0; }
+      if(d<2.4&&(onFoot||psp<=9)){ damage((z.runner?7:ty===3?3.5:5)*dt); if(Math.random()<dt*2) player.shake=Math.max(player.shake,0.12); }
       z.groanT-=dt;
       if(z.groanT<=0){ z.groanT=rand(4,9); if(d<60){ if(SFX.ok) sfxGroan(z.x,z.z); else blip('sawtooth',rand(80,110),55,0.45,0.035); } }
     }
-    const gy=groundHeight(z.x,z.z);
-    _pEul.set(pitch,z.a,lean); _pq.setFromEuler(_pEul);
-    _pm.compose(_pv.set(z.x,gy+baseY,z.z),_pq,_ps.set(z.scale,z.scale,z.scale));
-    zIM.body.setMatrixAt(i,_pm);
-    pedLimb(zIM.legL,i,-0.13,0.7,lAL);  pedLimb(zIM.legR,i,0.13,0.7,lAR);
-    pedLimb(zIM.armL,i,-0.34,1.26,aAL); pedLimb(zIM.armR,i,0.34,1.26,aAR);
-    pedLimb(zIM.head,i,0,1.32,headA);
+    // the car: a square hit kills (ragdoll over the bonnet, or blown apart at speed), a wing clips a limb off, a slow nudge shoves
+    if(!onFoot&&d<2.4&&psp>5&&!(z.clipT>0)){
+      const rx=z.x-player.x, rz=z.z-player.z, lat=rx*pfz-rz*pfx, ux=player.vx/psp, uz=player.vz/psp;
+      if(psp>9){
+        if(Math.abs(lat)>0.85&&psp<17&&ty!==3&&Math.random()<0.65) zClip(z,lat,ux,uz,psp);
+        else {
+          killZombie(z);
+          if(psp>17||!zRagStart(z,player.vx,player.vz,psp,psp>13)){
+            if(psp>13){ gore(z.x,z.z,player.vx*0.12,player.vz*0.12,clamp(psp/22,0.45,1.1)); zBurst(z,ux,uz,clamp(psp/14,0.8,1.6)); } }
+          else if(psp>13){ if(Math.random()<0.5) zDetach(z,pick([0,1,2,3,4]),1,ux,uz,1.2); z.ragGib=psp>15?rand(0.35,0.6):0; }
+          thud(0.15); player.shake=Math.max(player.shake,0.35);
+        }
+      } else if(ty!==3&&z.rise<=0){
+        z.stag=z.stag0=0.55; z.clipT=1.6; z.fall=lat>0?1:-1; z.atk=0;
+        z.kvx=ux*psp*0.6+pfz*z.fall*2; z.kvz=uz*psp*0.6-pfx*z.fall*2;
+      }
+      if(z.dead){ if(z.ch&&z.ch.length) zChunks(z,dt); if(z.rag<0&&!z.burst) zPose(z,t,0); continue; }
+    }
+    // LOD: far zombies pose less often and drop hands, feet, jaw and ribs
+    const ex=z.x-cam.x, ez=z.z-cam.z, d2=ex*ex+ez*ez, lod=d2<ZX.D1?0:d2<ZX.D2?1:2;
+    let force=false;
+    if(lod!==z.lod){ z.lod=lod; force=true;
+      if(lod===2){ const l=2*i, j=l+1; zeroM(zIM.hand,l); zeroM(zIM.hand,j); zeroM(zIM.foot,l); zeroM(zIM.foot,j); zeroM(zIM.jaw,i); if(zIM.ribs) zeroM(zIM.ribs,i); } }
+    if(force||lod===0||z.stag>0||z.atk>0||z.rise>0||((ZX.frame+i)%(lod+1))===0) zPose(z,t,0);
+    if(z.ch&&z.ch.length) zChunks(z,dt);
   }
-  for(const k in zIM) zIM[k].instanceMatrix.needsUpdate=true;
+  // draw only up to the highest slot in use (slots are handed out lowest-first)
+  let hi=0; for(const z of zombies) if(z.i>=hi) hi=z.i+1;
+  for(const k in zIM){ const im=zIM[k]; im.count=im.userData.dual?hi*2:hi; im.instanceMatrix.needsUpdate=true; }
+  if(ZX.dirty) zColFlush();
 }
 function updateGun(dt){
   fireCool-=dt; tracerT-=dt;
@@ -16863,9 +17245,9 @@ function tripSkyTick(dt){
   let n=0;
   if(zombieMode&&zombies.length&&zIM.head){
     const a=K.eyes.geometry.attributes.position.array;
-    for(const z of zombies){ if(z.dead||z.gone||n>=ZMAX*2) continue;
+    for(const z of zombies){ if(z.dead||z.gone||(z.mis&1)||n>=ZMAX*2) continue;
       zIM.head.getMatrixAt(z.i,_tqM);
-      for(let e=-1;e<=1;e+=2){ _tqV.set(0.066*e,0.195,0.155).applyMatrix4(_tqM); a[n*3]=_tqV.x; a[n*3+1]=_tqV.y; a[n*3+2]=_tqV.z; n++; } }
+      for(let e=-1;e<=1;e+=2){ _tqV.set(ZX.eye[0]*e,ZX.eye[1],ZX.eye[2]).applyMatrix4(_tqM); a[n*3]=_tqV.x; a[n*3+1]=_tqV.y; a[n*3+2]=_tqV.z; n++; } }
     K.eyes.geometry.attributes.position.needsUpdate=true;
   }
   K.eyes.geometry.setDrawRange(0,n); K.eyes.visible=n>0;
@@ -17187,6 +17569,6 @@ addEventListener('resize',()=>{
   if(meOn){ mecv.width=innerWidth; mecv.height=innerHeight; }
 });
 </script>
-<div id="buildver" style="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(2px + env(safe-area-inset-bottom));font:600 10px/1.2 ui-monospace,Menlo,monospace;color:#fff;opacity:.6;letter-spacing:.06em;pointer-events:none;z-index:2147483000;text-shadow:0 1px 2px #000">v0.30 · 10 Nov 18:06</div>
+<div id="buildver" style="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(2px + env(safe-area-inset-bottom));font:600 10px/1.2 ui-monospace,Menlo,monospace;color:#fff;opacity:.6;letter-spacing:.06em;pointer-events:none;z-index:2147483000;text-shadow:0 1px 2px #000">v0.31 · 10 Nov 19:22</div>
 </body>
 </html>
