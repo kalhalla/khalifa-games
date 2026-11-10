@@ -458,7 +458,7 @@ async function boot() {
   }
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.15;
 
@@ -468,8 +468,8 @@ async function boot() {
   const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 600);
 
   // ---------- lights ----------
-  scene.add(new THREE.HemisphereLight(0xbfd4ff, 0x201538, 1.1));
-  const sun = new THREE.DirectionalLight(0xffd9a0, 2.0);
+  scene.add(new THREE.HemisphereLight(0xcfdcff, 0x3a2f5a, 1.45));
+  const sun = new THREE.DirectionalLight(0xffe2b4, 1.75);
   sun.position.set(38, 48, 16);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
@@ -478,6 +478,7 @@ async function boot() {
   sun.shadow.camera.near = 5; sun.shadow.camera.far = 160;
   sun.shadow.bias = -0.0004;
   sun.shadow.normalBias = 0.03;
+  sun.shadow.radius = 3;
   scene.add(sun);
   const fill = new THREE.DirectionalLight(0x6a7fff, 0.5); // cool moonlight fill
   fill.position.set(-30, 20, -25);
@@ -552,14 +553,43 @@ async function boot() {
   const mat = (color, opts = {}) =>
     new THREE.MeshStandardMaterial({ color, flatShading: true, roughness: 0.9, metalness: 0, ...opts });
 
-  function islandBase(radius, topColor, rockColor) {
+  // Every diorama stands on a square block cut out of its world: the surface on top,
+  // the strata showing on the cut faces.
+  const S = 6.8;                                   // half-width of a block
+  function roundedSquare(s, r) {
+    const sh = new THREE.Shape();
+    sh.moveTo(-s + r, -s);
+    sh.lineTo(s - r, -s); sh.absarc(s - r, -s + r, r, -Math.PI / 2, 0, false);
+    sh.lineTo(s, s - r);  sh.absarc(s - r, s - r, r, 0, Math.PI / 2, false);
+    sh.lineTo(-s + r, s); sh.absarc(-s + r, s - r, r, Math.PI / 2, Math.PI, false);
+    sh.lineTo(-s, -s + r); sh.absarc(-s + r, -s + r, r, Math.PI, Math.PI * 1.5, false);
+    return sh;
+  }
+  const BLOCK_FLOOR = -2.35;
+  // layers: [[thickness, colour], ...] from the surface down; ground: false leaves the top bare
+  function blockBase(layers, ground = true) {
     const g = new THREE.Group();
-    const rock = fMesh(jitter(new THREE.ConeGeometry(radius * 0.97, radius * 1.9, 9, 3), 0.5), rockColor, 0.24);
-    rock.rotation.x = Math.PI;
-    rock.position.y = -radius * 0.95 - 0.4;
-    g.add(rock);
-    const top = fMesh(jitter(new THREE.CylinderGeometry(radius, radius * 1.06, 1.4, 9, 1), 0.5, 0.15), topColor, 0.14);
-    g.add(top);
+    const shape = roundedSquare(S, 0.3);
+    let y = 0.7;
+    layers.forEach(([hgt, c]) => {
+      const geo = new THREE.ExtrudeGeometry(shape, { depth: hgt, bevelEnabled: false, curveSegments: 3 });
+      geo.rotateX(Math.PI / 2);                    // extrude downwards
+      const m = fMesh(geo, c, 0);
+      m.position.y = y;
+      m.userData.flat = true;
+      g.add(m);
+      y -= hgt;
+    });
+    if (ground) {
+      const top = new THREE.PlaneGeometry(2 * (S - 0.12), 2 * (S - 0.12), 16, 16);
+      top.rotateX(-Math.PI / 2);
+      const p = top.attributes.position;
+      for (let i = 0; i < p.count; i++) p.setY(i, fract(Math.sin(p.getX(i) * 91.7 + p.getZ(i) * 47.3) * 43758.5453) * 0.025);
+      const m = fMesh(top, layers[0][1], 0.1);
+      m.position.y = 0.705;
+      m.userData.flat = true;
+      g.add(m);
+    }
     return g;
   }
 
@@ -619,10 +649,18 @@ async function boot() {
       if (o.isMesh && o.material === facetMat) {
         m4.multiplyMatrices(inv, o.matrixWorld);
         const gp = o.geometry.attributes.position, gc = o.geometry.attributes.color;
+        const at = pos.length;
+        let lo = Infinity, hi = -Infinity;
         for (let i = 0; i < gp.count; i++) {
           p.fromBufferAttribute(gp, i).applyMatrix4(m4);
           pos.push(p.x, p.y, p.z);
-          col.push(gc.getX(i), gc.getY(i), gc.getZ(i));
+          lo = Math.min(lo, p.y); hi = Math.max(hi, p.y);
+        }
+        // every part darkens towards its foot, as if light could not quite reach under it
+        const shade = !o.userData.flat && hi - lo > 0.2, reach = Math.min(hi - lo, 1.6);
+        for (let i = 0; i < gp.count; i++) {
+          const f = shade ? 0.7 + 0.36 * smooth((pos[at + i * 3 + 1] - lo) / reach) : 1;
+          col.push(gc.getX(i) * f, gc.getY(i) * f, gc.getZ(i) * f);
         }
         dead.push(o);
       }
@@ -675,6 +713,33 @@ async function boot() {
     }
   }
 
+  // ground cover: n small things dropped on the block wherever place(x, z) returns a height
+  function scatter(g, n, seed, place, make) {
+    const rnd = (k, s) => fract(Math.sin(k * 127.1 + s * 311.7 + seed * 74.7) * 43758.5453);
+    for (let k = 0, done = 0; k < n * 6 && done < n; k++) {
+      const x = (rnd(k, 1) - 0.5) * 2 * (S - 0.25), z = (rnd(k, 2) - 0.5) * 2 * (S - 0.25);
+      const y = place(x, z);
+      if (y == null) continue;
+      const o = make(rnd(k, 3));
+      o.position.set(x, y, z);
+      o.rotation.y = rnd(k, 4) * 6.28;
+      g.add(o);
+      done++;
+    }
+  }
+  const tuft = (c, s = 1) => {
+    const t = new THREE.Group();
+    for (const [ox, oz, lean] of [[0, 0, 0], [0.05, 0.03, 0.35], [-0.04, 0.04, -0.3]]) {
+      const blade = fMesh(new THREE.ConeGeometry(0.04 * s, 0.26 * s, 3, 1, true), c, 0.3);
+      blade.position.set(ox * s, 0.12 * s, oz * s);
+      blade.rotation.z = lean;
+      t.add(blade);
+    }
+    return t;
+  };
+  const pebble = (c, r) => { const m = blob(0.05 + r * 0.09, c, 0, 0, 0, 0.25, 0.4); m.scale.y = 0.6; const o = new THREE.Group(); o.add(m); return o; };
+  const bloom = c => { const o = new THREE.Group(); o.add(cyl(0.01, 0.01, 0.16, 3, 0x3f8f4f, 0, 0.08, 0), blob(0.045, c, 0, 0.18, 0, 0.1, 0.1)); return o; };
+
   // a little standing figure for crowds and bystanders
   function person(shirt, trousers = 0x2a2a34, s = 1) {
     const p = new THREE.Group();
@@ -717,9 +782,8 @@ async function boot() {
 
   // GLIDER — alpine valley: peaks, lake, a river off the island's edge, a thermal, the sailplane
   function buildGlider() {
-    const g = islandBase(6.6, 0x3f9d5c, 0x54607e);
+    const g = blockBase([[0.55, 0x7a5a3c], [1.1, 0x6d7a9c], [1.4, 0x565f7c]], false);
 
-    const ss = (e0, e1, x) => { const u = Math.min(1, Math.max(0, (x - e0) / (e1 - e0))); return u * u * (3 - 2 * u); };
     const h2d = (ix, iz) => fract(Math.sin(ix * 127.1 + iz * 311.7) * 43758.5453);
     function vnoise(x, z) {
       const ix = Math.floor(x), iz = Math.floor(z);
@@ -729,62 +793,50 @@ async function boot() {
       return a + (b - a) * sx + (c - a) * sz + (a - b - c + d) * sx * sz;
     }
     const PEAKS = [
-      { x: -1.0, z: -1.6, s: 1.9, h: 5.6 },
-      { x: 1.9,  z: -2.8, s: 1.4, h: 3.9 },
-      { x: -3.5, z: -0.4, s: 1.3, h: 3.2 }
+      { x: -1.0, z: -1.9, s: 1.9, h: 5.6 },
+      { x: 2.1,  z: -3.3, s: 1.4, h: 3.9 },
+      { x: -3.9, z: -0.8, s: 1.3, h: 3.2 },
+      { x: -4.6, z: -4.6, s: 1.2, h: 2.6 }
     ];
     const LAKE = { x: 2.6, z: 1.7 };
-    const RIV = [3.35, 2.75, 4.7, 4.1];      // river: lake shore to the rim
+    const RIV = [3.35, 2.75, 4.5, S];        // river: lake shore to the front cut face
     function riverDist(x, z) {
       const dx = RIV[2] - RIV[0], dz = RIV[3] - RIV[1];
-      const u = Math.min(1.15, Math.max(0, ((x - RIV[0]) * dx + (z - RIV[1]) * dz) / (dx * dx + dz * dz)));
+      const u = Math.min(1, Math.max(0, ((x - RIV[0]) * dx + (z - RIV[1]) * dz) / (dx * dx + dz * dz)));
       return Math.hypot(x - RIV[0] - dx * u, z - RIV[1] - dz * u);
     }
     const FLOOR = -0.3;
     function height(x, z) {
-      const env = 1 - ss(4.3, 6.3, Math.hypot(x, z));
-      let h = 0;
+      let h = 0.2;
       for (const p of PEAKS) {
         const d2 = (x - p.x) ** 2 + (z - p.z) ** 2;
         h += p.h * (0.5 * Math.exp(-d2 / (2 * p.s * p.s)) + 0.5 * Math.exp(-Math.sqrt(d2) / (p.s * 0.55)));   // broad shoulders, sharp summit
       }
-      h += (vnoise(x * 0.45 + 7, z * 0.45 + 3) - 0.5) * 1.6;
-      h += (vnoise(x * 1.1 + 13, z * 1.1 + 5) - 0.5) * 0.7;
-      h -= 1.7 * Math.exp(-((x - LAKE.x) ** 2 + (z - LAKE.z) ** 2) / (2 * 1.3 * 1.3));
-      h = Math.max(FLOOR, h * env);
+      h += (vnoise(x * 0.45 + 7, z * 0.45 + 3) - 0.5) * 1.5;
+      h += (vnoise(x * 1.1 + 13, z * 1.1 + 5) - 0.5) * 0.6;
+      h -= 1.9 * Math.exp(-((x - LAKE.x) ** 2 + (z - LAKE.z) ** 2) / (2 * 1.3 * 1.3));
+      h = Math.max(FLOOR, h);
       const rd = riverDist(x, z);
       if (rd < 0.7) h += (FLOOR - h) * smooth(1 - rd / 0.7);   // the river cuts its own valley
       return h;
     }
 
-    const RINGS = 16, SEGS = 40, RAD = 6.35, Y0 = 1.12;
+    // square heightfield; the block's cut faces follow the terrain's profile
+    const N = 36, Y0 = 1.12, E = S - 0.02;
     const gy = (x, z) => Y0 + height(x, z);
-    const verts = [0, gy(0, 0), 0];
-    for (let i = 1; i <= RINGS; i++) {
-      for (let j = 0; j < SEGS; j++) {
-        const r = (i / RINGS) * RAD, a = (j / SEGS) * Math.PI * 2;
-        const x = Math.cos(a) * r, z = Math.sin(a) * r;
-        verts.push(x, gy(x, z), z);
-      }
+    const tri = [];
+    const P = (i, j) => { const x = -E + 2 * E * i / N, z = -E + 2 * E * j / N; return [x, gy(x, z), z]; };
+    for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+      const a = P(i, j), b = P(i + 1, j), c = P(i, j + 1), d = P(i + 1, j + 1);
+      if ((i + j) % 2) tri.push(...a, ...c, ...b, ...b, ...c, ...d); else tri.push(...a, ...c, ...d, ...a, ...d, ...b);
     }
-    const idx = [];
-    const vi = (i, j) => 1 + (i - 1) * SEGS + ((j % SEGS) + SEGS) % SEGS;
-    for (let j = 0; j < SEGS; j++) idx.push(0, vi(1, j + 1), vi(1, j));
-    for (let i = 1; i < RINGS; i++) {
-      for (let j = 0; j < SEGS; j++) {
-        const A = vi(i, j), B = vi(i, j + 1), C = vi(i + 1, j), D = vi(i + 1, j + 1);
-        idx.push(A, B, D, A, D, C);
-      }
-    }
-    let terra = new THREE.BufferGeometry();
-    terra.setAttribute("position", new THREE.Float32BufferAttribute(verts, 3));
-    terra.setIndex(idx);
-    terra = terra.toNonIndexed();
+    const terra = new THREE.BufferGeometry();
+    terra.setAttribute("position", new THREE.Float32BufferAttribute(tri, 3));
     {
       const p = terra.attributes.position;
       const cols = new Float32Array(p.count * 3);
-      const cGrassLo = new THREE.Color(0x46a763), cGrassHi = new THREE.Color(0x3b8f57);
-      const cRock = new THREE.Color(0x6d7a9c), cSnow = new THREE.Color(0xf2f5ff), cShore = new THREE.Color(0x8f9a78);
+      const cGrassLo = new THREE.Color(0x58b86a), cGrassHi = new THREE.Color(0x3f9a5a);
+      const cRock = new THREE.Color(0x7d88a6), cSnow = new THREE.Color(0xf2f5ff), cShore = new THREE.Color(0xa8a884);
       const va = new THREE.Vector3(), vb = new THREE.Vector3(), vc = new THREE.Vector3();
       const e1 = new THREE.Vector3(), e2 = new THREE.Vector3(), nrm = new THREE.Vector3();
       for (let i = 0; i < p.count; i += 3) {
@@ -794,10 +846,10 @@ async function boot() {
         nrm.crossVectors(e1, e2).normalize();
         const dith = (h2d(i, 7) - 0.5) * 0.5;
         let c;
-        if (h + dith > 2.9) c = cSnow;
-        else if (h + dith > 1.6 || nrm.y < 0.55) c = cRock;
+        if (h + dith > 3.1) c = cSnow;
+        else if (h + dith > 1.8 || nrm.y < 0.55) c = cRock;
         else if (h < FLOOR + 0.12) c = cShore;
-        else c = h > 0.7 ? cGrassHi : cGrassLo;
+        else c = h > 0.8 ? cGrassHi : cGrassLo;
         const s = 0.9 + h2d(i, 13) * 0.16;
         for (let j = 0; j < 3; j++) {
           cols[(i + j) * 3] = c.r * s;
@@ -807,27 +859,36 @@ async function boot() {
       }
       terra.setAttribute("color", new THREE.BufferAttribute(cols, 3));
     }
-    g.add(new THREE.Mesh(terra, facetMat));
-    const skirt = fMesh(new THREE.CylinderGeometry(RAD, RAD + 0.12, 0.56, SEGS, 1, true), 0x4a5a48, 0.14);
-    skirt.position.y = Y0 - 0.28;
-    g.add(skirt);
+    const land = new THREE.Mesh(terra, facetMat);
+    land.userData.flat = true;
+    g.add(land);
+    {
+      const wall = [];
+      const edges = [u => [u, E], u => [E, -u], u => [-u, -E], u => [-E, u]];
+      for (const edge of edges) for (let k = 0; k < N; k++) {
+        const [x0, z0] = edge(-E + 2 * E * k / N), [x1, z1] = edge(-E + 2 * E * (k + 1) / N);
+        wall.push(x0, 0.7, z0, x1, 0.7, z1, x1, gy(x1, z1), z1, x0, 0.7, z0, x1, gy(x1, z1), z1, x0, gy(x0, z0), z0);
+      }
+      const wg = new THREE.BufferGeometry();
+      wg.setAttribute("position", new THREE.Float32BufferAttribute(wall, 3));
+      const soil = fMesh(wg, 0x7a5a3c, 0.08);
+      soil.userData.flat = true;
+      g.add(soil);
+    }
 
-    // water: lake, river and the fall off the edge
-    const water = new THREE.MeshStandardMaterial({ color: 0x3fa9d9, roughness: 0.25, metalness: 0.1, flatShading: true });
+    // water: lake, river and the fall down the cut face
+    const water = new THREE.MeshStandardMaterial({ color: 0x45b4e6, roughness: 0.12, metalness: 0.15, flatShading: true, transparent: true, opacity: 0.9 });
     const WY = Y0 + FLOOR + 0.07;
-    const lake = lit(new THREE.CylinderGeometry(1.3, 1.3, 0.06, 12), water, LAKE.x, WY, LAKE.z);
-    g.add(lake);
+    g.add(lit(new THREE.CylinderGeometry(1.3, 1.3, 0.06, 14), water, LAKE.x, WY, LAKE.z));
     const rdx = RIV[2] - RIV[0], rdz = RIV[3] - RIV[1], rLen = Math.hypot(rdx, rdz);
-    const river = lit(new THREE.BoxGeometry(rLen * 1.22, 0.06, 0.46), water, RIV[0] + rdx * 0.56, WY, RIV[1] + rdz * 0.56);
+    const river = lit(new THREE.BoxGeometry(rLen + 0.5, 0.06, 0.46), water, RIV[0] + rdx * 0.47, WY, RIV[1] + rdz * 0.47);
     river.rotation.y = -Math.atan2(rdz, rdx);
     g.add(river);
-    const lipX = RIV[0] + rdx * 1.14, lipZ = RIV[1] + rdz * 1.14;
-    const fall = lit(new THREE.BoxGeometry(0.46, 4.4, 0.07), water, lipX, WY - 2.2, lipZ);
-    fall.rotation.y = river.rotation.y + Math.PI / 2;
-    g.add(fall);
+    const DROP = WY - BLOCK_FLOOR;
+    g.add(lit(new THREE.BoxGeometry(0.46, DROP, 0.07), water, RIV[2], WY - DROP / 2, S + 0.03));
     const foamMat = new THREE.MeshBasicMaterial({ color: 0xf4fbff });
     const foam = [0, 1, 2, 3, 4].map(k => {
-      const f = lit(new THREE.BoxGeometry(0.1, 0.22, 0.1), foamMat, lipX + (k % 2 ? 0.06 : -0.05), 0, lipZ + (k % 3) * 0.05);
+      const f = lit(new THREE.BoxGeometry(0.1, 0.22, 0.06), foamMat, RIV[2] + (k % 2 ? 0.1 : -0.09), 0, S + 0.07);
       g.add(f);
       return f;
     });
@@ -837,9 +898,8 @@ async function boot() {
       g.add(pine(tx, tz, tsc, gy(tx, tz) - 0.05));
     }
     let planted = 0;
-    for (let k = 0; k < 140 && planted < 20; k++) {
-      const a = h2d(k, 3) * Math.PI * 2, r = 2.0 + h2d(k, 9) * 3.9;
-      const x = Math.cos(a) * r, z = Math.sin(a) * r, h = height(x, z);
+    for (let k = 0; k < 220 && planted < 30; k++) {
+      const x = (h2d(k, 3) - 0.5) * 12.8, z = (h2d(k, 9) - 0.5) * 12.8, h = height(x, z);
       if (h < 0.02 || h > 1.35 || Math.hypot(x - LAKE.x, z - LAKE.z) < 1.8 || riverDist(x, z) < 0.9) continue;
       g.add(pine(x, z, 0.45 + h2d(k, 5) * 0.4, Y0 + h - 0.05));
       planted++;
@@ -855,6 +915,13 @@ async function boot() {
         lit(new THREE.BoxGeometry(0.16, 0.14, 0.03), emis(0xffd27e, 1.4), 0.18, 0.26, 0.31));
       g.add(hut);
     }
+
+    const meadow = (x, z) => {
+      const hh = height(x, z);
+      return hh < 0.0 || hh > 1.5 || Math.hypot(x - LAKE.x, z - LAKE.z) < 1.6 || riverDist(x, z) < 0.6 ? null : Y0 + hh - 0.03;
+    };
+    scatter(g, 340, 1, meadow, r => tuft(r > 0.5 ? 0x6fcf7a : 0x4fae62, 0.8 + r * 0.6));
+    scatter(g, 46, 2, meadow, r => bloom([0xfff3a0, 0xff8fb8, 0xffffff][Math.floor(r * 3)]));
 
     // windsock on the launch meadow
     const WS = [-1.3, 5.0];
@@ -957,14 +1024,18 @@ async function boot() {
           const fl = Math.sin(t * 5 + k) * 0.35;
           b.userData.w[0].rotation.z = fl; b.userData.w[1].rotation.z = -fl;
         });
-        foam.forEach((f, k) => { f.position.y = WY - ((t * 2.6 + k * 0.9) % 4.4); });
+        foam.forEach((f, k) => { f.position.y = WY - ((t * 2.6 + k * 0.7) % DROP); });
       }
     };
   }
 
   // STUNTMANIA '76 — the showground on a mesa: ramp, a row of buses, a ring of fire, the crowd
   function buildStunt() {
-    const g = islandBase(6.6, 0xd6924f, 0x9a5f36);
+    const g = blockBase([[0.5, 0xd6924f], [0.5, 0xc8683a], [0.35, 0xe0a468], [0.7, 0xb4552f], [1.0, 0x8a4a30]]);
+    const ringIn = (x, z, a, b) => { const r = Math.hypot(x, z); return r > a && r < b; };
+    scatter(g, 90, 3, (x, z) => Math.hypot(x, z) > 5.9 ? 0.71 : null, r => pebble(r > 0.5 ? 0xb4552f : 0xc98a55, r));
+    scatter(g, 70, 4, (x, z) => Math.hypot(x, z) > 5.9 ? 0.71 : null, r => tuft(r > 0.5 ? 0xc9b25a : 0x9a9a4a, 0.7 + r * 0.5));
+    scatter(g, 40, 5, (x, z) => ringIn(x, z, 0, 2.6) && z > 0.3 || ringIn(x, z, 4.15, 4.6) ? 2.1 : null, r => pebble(0xc98a55, r * 0.7));
     const M = 2.1;                                   // arena floor
     const RED = 0xd94f3d, WHT = 0xf4f1e8, BLU = 0x2f4f9f, WOOD = 0x7a5236;
 
@@ -1159,7 +1230,9 @@ async function boot() {
 
   // FITBA CRAZY — a full 7-a-side match under the lights
   function buildFitba() {
-    const g = islandBase(7.0, 0x2e7a44, 0x4c5a4a);
+    const g = blockBase([[0.45, 0x2e7a44], [0.9, 0x6a4a34], [0.7, 0x5a5a52], [1.0, 0x45463f]]);
+    scatter(g, 200, 6, (x, z) => (z > 4.6 || (Math.abs(x) > 4.4 && Math.abs(z) > 3.7) || (Math.abs(x) > 5.4 && Math.abs(z) > 2.5)) ? 0.71 : null,
+      r => tuft(r > 0.5 ? 0x4fb866 : 0x3f9a52, 0.7 + r * 0.5));
     const TOP = 1.1;
     const WHT = 0xf4f7f2;
 
@@ -1350,7 +1423,13 @@ async function boot() {
 
   // GRUNT SQUAD — a wet night at the camp: pillbox, watchtower, the prisoners, the long way round
   function buildGrunt() {
-    const g = islandBase(6.5, 0x4f6f30, 0x4a4438);
+    const g = blockBase([[0.45, 0x4f6f30], [0.8, 0x5a4530], [0.8, 0x4a4438], [1.0, 0x38342c]]);
+    const lea = (x, z) => {
+      const r = Math.hypot(x, z), across = Math.abs(x * 0.6 - z * 0.8);
+      return (r > 3.0 && r < 4.2) || (across < 0.45 && x * 0.8 + z * 0.6 > 1.6) ? null : 0.71;
+    };
+    scatter(g, 330, 7, lea, r => tuft(r > 0.6 ? 0x6f9a45 : r > 0.25 ? 0x557d2e : 0x86a85a, 0.8 + r * 0.7));
+    scatter(g, 40, 8, lea, r => pebble(0x7a7a70, r));
     const T = 0.72;
     const OLIVE = 0x5a6238, DARK = 0x2f2c26, WOOD = 0x6a5038;
 
@@ -1362,11 +1441,10 @@ async function boot() {
     // stream out of the pond, under the bridge and off the edge
     const water = new THREE.MeshStandardMaterial({ color: 0x2f6a9a, roughness: 0.2, metalness: 0.25, flatShading: true });
     const SD = [0.8, 0.6], SROT = -Math.atan2(0.6, 0.8);
-    const stream = lit(new THREE.BoxGeometry(4.5, 0.05, 0.5), water, SD[0] * 4.45, 0.83, SD[1] * 4.45);
+    const stream = lit(new THREE.BoxGeometry(6.4, 0.05, 0.5), water, SD[0] * 5.35, 0.83, SD[1] * 5.35);
     stream.rotation.y = SROT;
     const pond = lit(new THREE.CylinderGeometry(0.55, 0.55, 0.05, 9), water, SD[0] * 2.3, 0.83, SD[1] * 2.3);
-    const fall = lit(new THREE.BoxGeometry(0.07, 3.2, 0.5), water, SD[0] * 6.68, -0.75, SD[1] * 6.68);
-    fall.rotation.y = SROT;
+    const fall = lit(new THREE.BoxGeometry(0.07, 0.86 - BLOCK_FLOOR, 0.62), water, S + 0.03, (0.86 + BLOCK_FLOOR) / 2, SD[1] * 8.5);
     g.add(stream, pond, fall);
     const bridge = grp(SD[0] * 3.6, 0.88, SD[1] * 3.6, -2.214);
     bridge.add(box(1.25, 0.07, 0.95, WOOD, 0, 0, 0), box(1.25, 0.05, 0.05, WOOD, 0, 0.32, 0.45), box(1.25, 0.05, 0.05, WOOD, 0, 0.32, -0.45));
@@ -1612,12 +1690,13 @@ async function boot() {
 
   // SHACKLETON — alone in the crater: the lander, the fallen astronaut, three robots keeping vigil
   function buildMoon() {
-    const g = islandBase(6.4, 0x9aa2b5, 0x565e70);
-    const T = 0.68;
+    const g = blockBase([[0.4, 0x9aa2b5], [0.5, 0x7d8498], [0.9, 0x666d80], [1.25, 0x4a5062]]);
+    scatter(g, 130, 9, () => 0.72, r => pebble(r > 0.5 ? 0x767e92 : 0x8a92a6, r));
+    const T = 0.72;
     const SUIT = 0xc9cfdd, GREY = 0x8a91a5;
 
     // the crater's sunlit rim behind, ice in the permanent shadow of a smaller crater
-    for (const [mx, mz, mr, mh] of [[-4.9, -3.2, 1.5, 1.3], [-3.3, -4.6, 1.7, 1.9], [-1.2, -5.3, 1.6, 1.5], [0.9, -5.4, 1.8, 2.2], [3.0, -4.7, 1.6, 1.6], [4.7, -3.3, 1.4, 1.2], [5.6, -1.7, 1.0, 0.8]]) {
+    for (const [mx, mz, mr, mh] of [[-5.2, -3.6, 1.4, 1.3], [-3.7, -5.0, 1.6, 1.9], [-1.5, -5.2, 1.5, 1.5], [0.7, -5.0, 1.7, 2.2], [2.9, -5.1, 1.5, 1.6], [4.9, -4.7, 1.5, 1.4], [5.6, -2.5, 1.1, 0.8]]) {
       const peak = fMesh(jitter(new THREE.ConeGeometry(mr, mh, 7, 2), 0.55, 0.4), 0x8f97ab, 0.22);
       peak.position.set(mx, T + mh / 2 - 0.15, mz);
       g.add(peak);
@@ -1765,8 +1844,9 @@ async function boot() {
 
   // MASCON — the seed factory: lunar lander, digger bot, assembly bot, factory modules, the mass driver
   function buildMascon() {
-    const g = islandBase(6.4, 0x8a8781, 0x4a4b52);
-    const TOP = 0.68;
+    const g = blockBase([[0.4, 0x8a8781], [0.5, 0x74716c], [0.9, 0x5c5a58], [1.25, 0x424247]]);
+    scatter(g, 130, 10, () => 0.72, r => pebble(r > 0.5 ? 0x77746e : 0x9b978f, r));
+    const TOP = 0.72;
     const WHITE = 0xeceae4, GOLD = 0xd9a441, DARK = 0x2a2a2e, PANEL = 0x1f2f6a, STEEL = 0x8f8c86;
 
     // crater on the right, rocks
@@ -2005,8 +2085,8 @@ async function boot() {
 
   // MU-S1K — the groovebox as the stage: speaker stacks, EQ wall, a lit floor and a small crowd
   function buildMusik() {
-    const g = islandBase(6.4, 0x55507a, 0x3d3a52);
-    const TOP = 0.68;
+    const g = blockBase([[0.35, 0x55507a], [0.12, 0xff4f9e], [1.3, 0x2f2c40], [0.12, 0x3f8cff], [1.16, 0x24222e]]);
+    const TOP = 0.72;
     const BPM = 124, BEAT = 60 / BPM;
     const PADC = [0xff4b36, 0xffb01f, 0xffe03b, 0x8fe04c, 0x26d6c2, 0x3f8cff, 0xb073ff, 0xff4f9e];
 
@@ -2177,12 +2257,14 @@ async function boot() {
 
   // SUNSET CITY: GETAWAY — the bank job at dusk: downtown, the coast, the suburbs, and something in the sky
   function buildSunset() {
-    const g = islandBase(6.6, 0xd08a6a, 0x6b4a63);
+    const g = blockBase([[0.45, 0xdcae82], [0.7, 0xc98a6a], [0.8, 0x8a5a6a], [1.1, 0x5a3f58]]);
+    scatter(g, 70, 11, (x, z) => Math.hypot(x, z) > 5.7 && z < 4.0 ? 0.81 : null, r => r > 0.45 ? tuft(0x7ab87a, 0.6 + r * 0.5) : pebble(0xf4e6cf, r));
     const ROAD = 0.92, BLK = 1.1, MID = 3.72, OUT = 4.22, INN = 3.22;
 
     g.add(cyl(6.45, 6.5, 0.12, 20, 0xdcae82, 0, 0.74, 0, 0.1));
-    const sea = fMesh(new THREE.CylinderGeometry(7.7, 7.7, 0.5, 22, 1, false, -0.98, 1.96), 0x2f9fb8, 0.1);
-    sea.position.y = 0.59;
+    const seaMat = new THREE.MeshStandardMaterial({ color: 0x35b6cf, roughness: 0.1, metalness: 0.15, flatShading: true, transparent: true, opacity: 0.88 });
+    const sea = lit(new THREE.BoxGeometry(2 * S - 0.1, 0.14, 2.6), seaMat, 0, 0.77, S - 1.35);
+    g.add(box(2 * S, 1.1, 0.06, 0x2f9fb8, 0, 0.16, S + 0.03, 0.06));       // the sea, seen in section on the cut face
     g.add(sea, cyl(5.6, 5.6, 0.1, 24, 0xe8c79a, 0, 0.82, 0, 0.08), cyl(4.75, 4.75, 0.1, 28, 0x34344e, 0, 0.87, 0, 0.06), cyl(2.7, 2.7, 0.34, 10, 0x6a7290, 0, 0.93, 0, 0.08),
       cyl(4.9, 4.9, 0.02, 28, 0x9a94a8, 0, 0.865, 0, 0.04));
     for (let k = 0; k < 16; k++) {
@@ -2258,17 +2340,17 @@ async function boot() {
       shade.position.set(ux, 1.42, uz);
       g.add(cyl(0.02, 0.02, 0.5, 4, 0xf4f1e8, ux, 1.12, uz), shade, box(0.34, 0.03, 0.16, 0xf4f1e8, ux + 0.3, 0.89, uz + 0.1, 0.04));
     }
-    const pier = grp(1.7, 0.84, 5.3);
+    const pier = grp(1.7, 0.84, 4.75);
     pier.add(box(0.5, 0.07, 1.7, 0x8a6242, 0, 0.3, 0.8), box(0.9, 0.07, 0.7, 0x8a6242, 0, 0.3, 1.65), box(0.5, 0.34, 0.4, 0xf2a0b4, 0, 0.5, 1.7), pyr(0.62, 0.22, 0.52, 0x8ad0c8, 0, 0.67, 1.7));
     for (const pz of [0.2, 0.8, 1.4, 1.9]) for (const px of [-0.2, 0.2]) pier.add(cyl(0.03, 0.03, 0.5, 4, 0x6b4a33, px, 0.05, pz));
     pier.add(lit(new THREE.SphereGeometry(0.07, 6, 5), lampMat, 0.34, 0.75, 1.9));
     g.add(pier);
-    const boat = dyn(grp(-2.5, 0.86, 6.5, 0.6));
+    const boat = dyn(grp(-2.7, 0.86, 6.1, 0.6));
     boat.add(box(0.9, 0.16, 0.34, 0xf4f1e8, 0, 0.06, 0), box(0.3, 0.16, 0.26, 0x3d6cd9, -0.1, 0.22, 0));
     g.add(bake(boat));
     const surf = [0, 1, 2].map(k => {
       const m = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.6, depthWrite: false });
-      const w = lit(new THREE.TorusGeometry(5.85 + k * 0.55, 0.03, 4, 20, 1.5 - k * 0.2), m, 0, 0.845, 0);
+      const w = lit(new THREE.TorusGeometry(5.8 + k * 0.4, 0.03, 4, 20, 1.5 - k * 0.2), m, 0, 0.845, 0);
       w.rotation.set(Math.PI / 2, 0, Math.PI / 2 - (1.5 - k * 0.2) / 2);
       g.add(w);
       return w;
@@ -2533,7 +2615,8 @@ async function boot() {
     mode = "focus";
     current = i;
     const isl = islands[i];
-    cam.gEl = 0.4;
+    cam.gEl = 0.5;
+    islands.forEach(o => { o.group.visible = true; });
     focusAz = cam.gAz = nearestAngle(cam.az, isl.angle);
     focusT0 = clock.elapsedTime;
     turned = false;
@@ -2554,14 +2637,15 @@ async function boot() {
   function frameFocus() {
     if (mode !== "focus" || current < 0) return;
     const half = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-    cam.gRadius = Math.max(19, 8.2 / (half * camera.aspect));
+    cam.gRadius = Math.max(25, 9.4 / (half * camera.aspect));   // wide enough for the block's diagonal
     cam.gTarget.copy(islands[current].group.position);
-    cam.gTarget.y = islands[current].baseY + 3.0 - cam.gRadius * half * (camera.aspect < 1 ? 0.2 : 0.3);
+    cam.gTarget.y = islands[current].baseY + 0.4 - (camera.aspect < 1 ? cam.gRadius * half * 0.1 : 0);
   }
 
   function backToTour() {
     mode = "tour";
     current = -1;
+    islands.forEach(o => { o.group.visible = true; });
     panel.classList.remove("open");
     cam.gTarget.set(0, 3, 0);
     cam.gRadius = 57;
@@ -2651,6 +2735,12 @@ async function boot() {
     } else {
       islands.forEach(isl => isl.animate(0));
     }
+
+    // a visited diorama stands alone: the fog closes in behind it, then the others step out
+    const fk = reducedMotion ? 1 : 1 - Math.exp(-dt * 2.4);
+    scene.fog.near += ((mode === "focus" ? cam.radius + 11 : 75) - scene.fog.near) * fk;
+    scene.fog.far += ((mode === "focus" ? cam.radius + 16 : 230) - scene.fog.far) * fk;
+    if (mode === "focus" && t - focusT0 > 1.6) islands.forEach((o, i) => { o.group.visible = i === current; });
 
     // damp camera towards goals
     const k = reducedMotion ? 1 : 1 - Math.exp(-dt * 3.2);
