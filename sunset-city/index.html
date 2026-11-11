@@ -14,7 +14,7 @@
 <meta name="twitter:card" content="summary_large_image"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <link rel="apple-touch-icon" href="/sunset-city/square.png"/>
-<meta name="build-version" content="v0.33"/>
+<meta name="build-version" content="v0.34"/>
 <style>
   html,body{margin:0;padding:0;overflow:hidden;background:#1a1420;height:100%;touch-action:none;}
   canvas{display:block;}
@@ -14421,8 +14421,8 @@ function hudTick(t,P){
   if(typeof SOL!=='undefined'&&SOL.ui){
     const U=SOL.ui, on=U.pager.style.display!=='none', v=SOL.venues[SOL.act];
     let txt='', call='';
-    if(on&&v&&(SOL.state==='wait'||SOL.state==='greet'||SOL.state==='walk')){ txt='<b>SOL</b> pick up \u00b7 '+(v.short||v.name); call=SOL.act+':'+v.banner; }
-    else if(on&&SOL.state==='ride'&&SOL.dest) txt='<b>SOL</b> drop at '+SOL.dest.name+' \u00b7 nerve';
+    if(on&&v&&(SOL.state==='wait'||SOL.state==='greet'||SOL.state==='walk')){ txt='<b>'+solVarName()+'</b> pick up \u00b7 '+(v.short||v.name); call=SOL.act+':'+v.banner; }
+    else if(on&&SOL.state==='ride'&&SOL.dest) txt='<b>'+solVarName()+'</b> drop at '+SOL.dest.name+' \u00b7 nerve';
     if(call&&SOL.state==='wait'&&call!==HUD.call) tickerPush('Sol calling \u2014 \u201c'+v.banner+'\u201d','#ffb3e2');   // the phone call, once per call
     if(SOL.state==='wait'||SOL.state==='idle') HUD.call=call;
     if(txt!==HUD.sol){ HUD.sol=txt; HUD.obj2.innerHTML=txt?txt+'<i id="obj2n"></i>':''; }
@@ -15546,6 +15546,274 @@ function solCurve(C,t){                      // sampled xz curve -> _solC
   const f=clamp((t-T[k-1])/Math.max(1e-6,T[k]-T[k-1]),0,1);
   _solC.x=C.x[k-1]+(C.x[k]-C.x[k-1])*f; _solC.z=C.z[k-1]+(C.z[k]-C.z[k-1])*f; return _solC;
 }
+// ---------------------------------------------------------------- variants: Sol's line-up (r12)
+// The two Meshy women are re-dressed at load time instead of shipping more models. Each atlas is one cell per triangle
+// in a ~20-colour palette, so every texel can be given a 3D bind-pose position (from its cell) and a class from its
+// palette colour + where it sits on the body: hair, skin, lips, eyes/brows, top, bottom, shoes, jewellery. A variant
+// is then a repaint of the classes (colour ramps keyed on the source shading, strands in the hair, belts, gloves,
+// stockings, sunglasses, cloth patterns painted from the 3D position) plus a few-percent height / hair-volume change.
+const SV_HAIR=1,SV_SKIN=2,SV_LIP=3,SV_EYE=4,SV_TOP=5,SV_BOT=6,SV_SHOE=7,SV_JEWEL=8;
+// palette -> material family. h hair, s skin, x skin shadow / edge, l lip, c cloth (top or bottom by height), d dark that
+// both the hair and the cloth use, r red (skirt or lips), w white (blouse, eye whites, hair shine), b brown line work, g grey
+const SV_PAL={
+  noir:{th:0.32,waist:1.0,hem:0.9,shoe:0.3,eyeX:0.052,eyeC:-0.047,neck:1.432,stock:0.74,eye:[-0.066,-0.016],lipY:[-0.13,-0.085],p:'876953x101113hc99c79s42332bxc19877s6d5644x1e1b1bc0c0d0fh6b6662g904220laa856as9a795fs30251fcb95e36l151515db89071s574439xce9f7cs'},
+  conf:{th:0,waist:1.135,hem:0.535,shoe:0.165,eyeX:0.066,eyeC:-0.043,neck:1.44,stock:1.0,eye:[-0.064,-0.012],lipY:[-0.125,-0.08],p:'f6e8ach5a4530bcec3acwecb692s937434h392b21ba01f16rd3b167hf5db90hc19f57hc49a7ds1b1612befcf81hac8b46h90735cx775a36hf3edd6w7c1010rf7be98se4c071hab876exdcaa89s'}};
+function solVarHash(i){ i=Math.imul(i^(i>>>15),0x2c1b3c6d); i=Math.imul(i^(i>>>12),0x297a2d39); return ((i^(i>>>15))>>>0)/4294967296; }
+// pos: 9 floats per triangle (bind pose), uv: 6 per triangle (x us = pixels), px: the atlas as decoded (RGBA, before the
+// matte pass), bone: {name:[x,y,z]} bind positions. Returns the per-texel maps every variant is painted from.
+function solVarPrep(m,pos,uv,us,vs,px,w,h,bone){
+  const K=SV_PAL[m], nt=pos.length/9, N=w*h, cls=new Uint8Array(N), fam=new Uint8Array(N), lum=new Uint8Array(N), own=new Uint16Array(N).fill(65535),
+    X=new Int16Array(N), Y=new Int16Array(N), Z=new Int16Array(N), pal=[];
+  for(let i=0;i<K.p.length;i+=7){ const c=parseInt(K.p.substr(i,6),16); pal.push([c>>16,(c>>8)&255,c&255,K.p.charCodeAt(i+6)]); }
+  // texel -> triangle + position
+  for(let t=0;t<nt;t++){ const a=t*6, ax=uv[a]*us, ay=uv[a+1]*vs, bx=uv[a+2]*us, L=Math.abs(bx-ax), up=bx<ax, s=Math.round(L+3.5);
+    const x0=Math.round(up?ax+1-s:ax-1), y0=Math.round(up?ay+1-s:ay-1), p=t*9;
+    for(let iy=0;iy<s;iy++) for(let ix=0;ix<s;ix++){ if((ix+iy>=s-1)!==up) continue;
+      const tx=x0+ix, ty=y0+iy; if(tx<0||ty<0||tx>=w||ty>=h) continue;
+      let lx=ix+0.5, ly=iy+0.5; if(up){ lx=s-lx; ly=s-ly; }
+      let u=Math.min(1,Math.max(0,(lx-1)/L)), v=Math.min(1,Math.max(0,(ly-1)/L)); const sm=Math.max(1,u+v); u/=sm; v/=sm; const q=1-u-v, j=ty*w+tx;
+      own[j]=t; X[j]=(pos[p]*q+pos[p+3]*u+pos[p+6]*v)*1e4; Y[j]=(pos[p+1]*q+pos[p+4]*u+pos[p+7]*v)*1e4; Z[j]=(pos[p+2]*q+pos[p+5]*u+pos[p+8]*v)*1e4; } }
+  // landmarks: the face frame (head bone, tilted for noir's raised chin) and the arm bones
+  const hb=bone.Head, ct=Math.cos(K.th), st=Math.sin(K.th), hc=[hb[0],hb[1]+0.09*ct+0.02*st,hb[2]-0.09*st+0.02*ct];
+  const arm=sd=>[bone[sd+'Arm'],bone[sd+'ForeArm'],bone[sd+'Hand']], AL=arm('Left'), AR=arm('Right');
+  const D={m,K,w,h,nt,cls,fam,lum,own,X,Y,Z,hc,ct,st,AL,AR,bone,hairF:new Float32Array(nt)};
+  // pass 1: palette family + sure classes; 9 = undecided between hair and its neighbour (cloth for noir, skin for conf)
+  const votes=new Int32Array(nt*2), skinN=new Int32Array(nt), allN=new Int32Array(nt);
+  for(let j=0;j<N;j++){ const t=own[j]; if(t===65535) continue;
+    const r=px[j*4], g=px[j*4+1], b=px[j*4+2]; let best=0, bd=1e9;
+    for(let k=0;k<pal.length;k++){ const q=pal[k], d=(q[0]-r)*(q[0]-r)+(q[1]-g)*(q[1]-g)+(q[2]-b)*(q[2]-b); if(d<bd){ bd=d; best=k; } }
+    const f=pal[best][3]; fam[j]=f; lum[j]=Math.round(r*0.299+g*0.587+b*0.114);
+    const c=solVarRule(D,j,String.fromCharCode(f)); cls[j]=c;
+    if(c===SV_HAIR) votes[t*2]++; else if(c<9&&c!==SV_EYE) votes[t*2+1]++; if(c===SV_SKIN) skinN[t]++; allN[t]++; }
+  // pass 2: undecided texels follow their triangle, then the triangles around it, then a guess from where they are
+  const vid=new Int32Array(nt*3), vmap=new Map(), vv=[], vsk=[];
+  for(let i=0;i<nt*3;i++){ const k=Math.round(pos[i*3]*2e4)+','+Math.round(pos[i*3+1]*2e4)+','+Math.round(pos[i*3+2]*2e4); let id=vmap.get(k);
+    if(id===undefined){ id=vv.length/2; vmap.set(k,id); vv.push(0,0); } vid[i]=id; vv[id*2]+=votes[Math.floor(i/3)*2]; vv[id*2+1]+=votes[Math.floor(i/3)*2+1]; vsk[id*2]=(vsk[id*2]||0)+skinN[Math.floor(i/3)]; vsk[id*2+1]=(vsk[id*2+1]||0)+allN[Math.floor(i/3)]; }
+  const tcl=new Int8Array(nt);
+  for(let t=0;t<nt;t++){ let a=votes[t*2], b=votes[t*2+1];
+    if(a+b<4||Math.abs(a-b)<(a+b)*0.2){ a=0; b=0; for(let k=0;k<3;k++){ a+=vv[vid[t*3+k]*2]; b+=vv[vid[t*3+k]*2+1]; } }
+    tcl[t]=a>b?1:(b>a?-1:0); D.hairF[t]=votes[t*2]/Math.max(1,votes[t*2]+votes[t*2+1]); }
+  for(let j=0;j<N;j++){ const t=own[j], c=cls[j];
+    if(c===9) cls[j]=tcl[t]>0?SV_HAIR:solVarRule(D,j,'?');
+    else if(c===SV_SKIN&&fam[j]===120&&m==='noir'&&Y[j]>13000&&D.hairF[t]>0.6) cls[j]=SV_HAIR;      // the dark fringe where a lock crosses skin belongs to the lock
+    else if(c===10){ let a=skinN[t], b=allN[t]; if(a<b*0.12){ a=0; b=0; for(let k=0;k<3;k++){ a+=vsk[vid[t*3+k]*2]; b+=vsk[vid[t*3+k]*2+1]; } }      // brows and lashes sit on skin; a lock of hair does not
+      cls[j]=a>b*0.3?SV_EYE:SV_HAIR; } }
+  // hair volume: corners whose every triangle is hair may be pushed out from the head (1 = fully hair, 0 = touches skin)
+  const hmin=new Float32Array(vv.length/2).fill(1); D.hairW=new Float32Array(nt*3);
+  for(let i=0;i<nt*3;i++){ const f=D.hairF[Math.floor(i/3)]; if(f<hmin[vid[i]]) hmin[vid[i]]=f; }
+  for(let i=0;i<nt*3;i++) D.hairW[i]=Math.min(1,Math.max(0,(hmin[vid[i]]-0.5)/0.4));
+  // conf: the blouse's fold shadows are drawn in skin tones; inside a triangle that is mostly blouse they belong to it
+  if(m==='conf'){ const tc=new Int32Array(nt*2);
+    for(let j=0;j<N;j++){ const t=own[j]; if(t!==65535){ tc[t*2+1]++; if(cls[j]===SV_TOP) tc[t*2]++; } }
+    for(let j=0;j<N;j++){ const t=own[j]; if(t!==65535&&cls[j]===SV_SKIN&&tc[t*2]>tc[t*2+1]*0.55&&Y[j]<14150) cls[j]=SV_TOP; } }
+  // tone: where each texel's luminance sits in its class (5th..95th percentile), 0..255
+  const hist=[]; for(let c=0;c<10;c++) hist.push(new Int32Array(257));
+  for(let j=0;j<N;j++) if(own[j]!==65535){ hist[cls[j]][lum[j]]++; hist[cls[j]][256]++; }
+  D.rng=hist.map(H=>{ let a=0, lo=0, hi=255; for(let i=0;i<256;i++){ a+=H[i]; if(a<H[256]*0.05) lo=i; if(a<=H[256]*0.95) hi=i; } return [lo,Math.max(lo+6,hi+1)]; });
+  // where the back of each leg runs (stocking seams): a line fitted through the rear skin of each leg, x = a + b*y
+  const lf=new Float64Array(10);
+  for(let j=0;j<N;j++) if(cls[j]===SV_SKIN&&Y[j]<K.stock*1e4&&Y[j]>K.shoe*1e4&&Z[j]<-300&&Math.abs(X[j])<2600&&solVarArm(D,X[j]*1e-4,Y[j]*1e-4,Z[j]*1e-4)<0){ const k=X[j]>0?5:0, yy=Y[j]*1e-4, xx=X[j]*1e-4;
+    lf[k]++; lf[k+1]+=yy; lf[k+2]+=xx; lf[k+3]+=yy*yy; lf[k+4]+=yy*xx; }
+  // fingertips: how far down the forearm's line each arm reaches (gloves are measured back from there)
+  D.tip=[D.AR,D.AL].map(A=>{ const e=[A[2][0]-A[1][0],A[2][1]-A[1][1],A[2][2]-A[1][2]], l=Math.hypot(e[0],e[1],e[2]); return [e[0]/l,e[1]/l,e[2]/l,0]; });
+  for(let j=0;j<N;j++) if(own[j]!==65535&&Math.abs(X[j])>1500){ const x=X[j]*1e-4, y=Y[j]*1e-4, z=Z[j]*1e-4; if(solVarArm(D,x,y,z)<1.5) continue;
+    const T=D.tip[x>0?1:0], A=x>0?D.AL:D.AR, p=(x-A[1][0])*T[0]+(y-A[1][1])*T[1]+(z-A[1][2])*T[2]; if(p>T[3]) T[3]=p; }
+  D.leg=[0,5].map(k=>{ const n=lf[k]||1, den=n*lf[k+3]-lf[k+1]*lf[k+1]||1, b=(n*lf[k+4]-lf[k+1]*lf[k+2])/den; return [(lf[k+2]-b*lf[k+1])/n,b]; });
+  return D;
+}
+// which way along the arm a point sits: 0 shoulder .. 1 elbow .. 2 wrist (.. 3 fingertips), or -1 when it is not on an arm
+function solVarArm(D,x,y,z){
+  const A=x>0?D.AL:D.AR; let best=-1, bd=0.075;
+  for(let k=0;k<3;k++){ const a=A[Math.min(k,1)], b=A[Math.min(k,1)+1], ex=b[0]-a[0], ey=b[1]-a[1], ez=b[2]-a[2], l2=ex*ex+ey*ey+ez*ez;
+    const f=((x-a[0])*ex+(y-a[1])*ey+(z-a[2])*ez)/l2, fc=k===2?Math.min(1.75,Math.max(1,f)):Math.min(1,Math.max(k?0:0.12,f));
+    const d=Math.hypot(x-a[0]-ex*fc,y-a[1]-ey*fc,z-a[2]-ez*fc); if(d<bd-(k===2?0.005:0)){ bd=d; best=(k===2?1:k)+fc; } }
+  return best;
+}
+function solVarGlove(D,x,y,z,arm,len){ if(arm<1) return false; const T=D.tip[x>0?1:0], A=x>0?D.AL:D.AR; return T[3]-((x-A[1][0])*T[0]+(y-A[1][1])*T[1]+(z-A[1][2])*T[2])<len; }
+function solVarFace(D,x,y,z,o){ const dx=x-D.hc[0], dy=y-D.hc[1], dz=z-D.hc[2]; o[0]=dx; o[1]=dy*D.ct-dz*D.st; o[2]=dy*D.st+dz*D.ct; return o; }
+const _svF=[0,0,0];
+function solVarRule(D,j,f){
+  const K=D.K, x=D.X[j]*1e-4, y=D.Y[j]*1e-4, z=D.Z[j]*1e-4, noir=D.m==='noir';
+  const F=solVarFace(D,x,y,z,_svF), face=F[2]>0.035&&Math.abs(F[0])<0.075&&F[1]>-0.15&&F[1]<0.0;
+  const eye=face&&F[1]>K.eye[0]&&F[1]<K.eye[1]&&Math.abs(F[0])<K.eyeX&&F[2]>0.05, lip=face&&F[1]>K.lipY[0]&&F[1]<K.lipY[1]&&Math.abs(F[0])<0.04;
+  const body=y<(noir?1.18:1.2), cloth=y>=K.waist?SV_TOP:SV_BOT;
+  if(y<K.shoe&&Math.abs(x)<0.3&&solVarArm(D,x,y,z)<0) return (f==='s'||(noir&&f==='x'))?SV_SKIN:SV_SHOE;
+  if(noir){
+    if(f==='l') return lip?SV_LIP:SV_SKIN;
+    if(f==='s'||f==='x') return eye&&f==='x'?SV_EYE:SV_SKIN;
+    if(f==='g') return eye?SV_EYE:(y>1.6?SV_JEWEL:SV_SKIN);
+    if(eye) return f==='?'?SV_EYE:10;
+    if(body) return cloth;
+    if(f==='h') return SV_HAIR;
+    if(f==='c') return y<1.28?SV_TOP:9;
+    if(f==='d') return 9;
+    return (y<1.28||(z>0.02&&Math.abs(x)<0.13&&y<1.45))?SV_TOP:SV_HAIR;             // '?': an undecided dark with no neighbours to follow
+  }
+  const arm=solVarArm(D,x,y,z);
+  if(f==='r') return y>1.4?(lip?SV_LIP:SV_JEWEL):SV_BOT;                  // red off the lips up here is her earring
+  if(f==='h') return lip?SV_LIP:y>1.18?SV_HAIR:(arm>1.6?SV_JEWEL:(arm>=0?SV_SKIN:(y>K.waist?SV_TOP:SV_BOT)));
+  if(f==='w') return eye?SV_EYE:(y>1.5?SV_HAIR:(y>1.0?SV_TOP:SV_SKIN));
+  if(f==='s') return SV_SKIN;
+  if(f==='x') return eye?SV_EYE:SV_SKIN;
+  if(f==='b'){ if(eye) return SV_EYE; if(lip) return SV_LIP;
+    if(arm>=0) return arm>1.72&&arm<2.12?SV_JEWEL:SV_SKIN;
+    if(y<1.2&&y>0.4) return y>K.waist+0.02?SV_TOP:SV_BOT;
+    if(face) return SV_SKIN;
+    return 9; }
+  return SV_SKIN;                                                         // '?': brown line work away from the hair
+}
+// repaint one atlas. base: the texture the model wears now (after the matte pass), out: same size. V: the variant -
+// hair [dark,mid,light], brow, skin [r,g,b] gains, lip, top, bot, shoe, jewel, pat {k:'pin'|'leo'|'dot',on:5|6|0,c}, belt, hem,
+// stock {c,a}, glove {c,len (metres back from the fingertips)}, choker, shades. Anything left out keeps the model's own paint.
+function solVarPaint(D,base,out,V){
+  const K=D.K, N=D.w*D.h, noir=D.m==='noir', F=_svF, cls=D.cls, own=D.own, rng=D.rng, hx=D.hc[0], hz=D.hc[2];
+  const hex=c=>c===undefined||c===null?null:[c>>16,(c>>8)&255,c&255];
+  const hair=V.hair?V.hair.map(hex):null, brow=hex(V.brow), lip=hex(V.lip), top=hex(V.top), bot=hex(V.bot), shoe=hex(V.shoe), jewel=hex(V.jewel),
+    belt=hex(V.belt), hem=hex(V.hem), stock=V.stock?hex(V.stock.c):null, glove=V.glove?hex(V.glove.c):null, choker=hex(V.choker), shades=hex(V.shades),
+    pat=V.pat?hex(V.pat.c):null, sk=V.skin||null;
+  let r=0,g=0,b=0;
+  const set=(c,k)=>{ r=Math.min(255,c[0]*k); g=Math.min(255,c[1]*k); b=Math.min(255,c[2]*k); };
+  for(let j=0;j<N;j++){ const o=j*4; out[o+3]=255;
+    if(own[j]===65535){ out[o]=base[o]; out[o+1]=base[o+1]; out[o+2]=base[o+2]; continue; }
+    const c=cls[j], x=D.X[j]*1e-4, y=D.Y[j]*1e-4, z=D.Z[j]*1e-4, R=rng[c];
+    let t=Math.min(1,Math.max(0,(D.lum[j]-R[0])/(R[1]-R[0])));
+    r=base[o]; g=base[o+1]; b=base[o+2];
+    if(c===SV_HAIR){ if(hair){
+        // strands: bands of equal angle round the head, wobbling down their length; two widths so locks and hairs both show
+        const u=Math.atan2(x-hx,hz-z)*0.1+0.006*Math.sin(y*37+x*9)+0.003*Math.sin(y*91+z*23), s=0.55*solVarHash(Math.floor(u/0.006)+977)+0.45*solVarHash(Math.floor(u/0.021)+31);
+        t=noir?0.16+0.62*s+0.3*t:0.12+0.74*t+0.2*s; t=Math.round(Math.min(1,Math.max(0,t))*6)/6;
+        const A=t<0.5?hair[0]:hair[1], B=t<0.5?hair[1]:hair[2], f=t<0.5?t*2:t*2-1; r=A[0]+(B[0]-A[0])*f; g=A[1]+(B[1]-A[1])*f; b=A[2]+(B[2]-A[2])*f; } }
+    else if(c===SV_LIP){ if(lip) set(lip,noir?0.62+0.55*t:0.74+0.5*t); }
+    else if(c===SV_SHOE){ if(shoe) set(shoe,noir?0.7+0.5*t:0.5+0.75*t); }
+    else if(c===SV_JEWEL){ if(jewel) set(jewel,0.6+0.6*t); }
+    else if(c===SV_TOP||c===SV_BOT){ const col=c===SV_TOP?top:bot, k=noir?0.74+0.42*t:0.6+0.5*t;
+      if(col) set(col,k);
+      if(pat&&(!V.pat.on||V.pat.on===c)){ const sgn=Math.atan2(x/0.17,(z+0.01)/0.12)*0.145;
+        if(V.pat.k==='pin'){ const q=sgn/0.03; if(q-Math.floor(q)<0.2) set(pat,0.8+0.3*t); }
+        else if(V.pat.k==='dot'){ const q=sgn/0.04, w=y/0.04+(Math.floor(q)&1)*0.5, dx=q-Math.floor(q)-0.5, dy=w-Math.floor(w)-0.5; if(dx*dx+dy*dy<0.07) set(pat,0.8+0.3*t); }
+        else { const cx=Math.floor(sgn/0.045), cy=Math.floor(y/0.045); let hit=0;          // leopard: a ragged dark ring round a tawny centre
+          for(let a=-1;a<=1&&!hit;a++) for(let e=-1;e<=1;e++){ const id=(cx+a)*7919+(cy+e)*104729, px_=(cx+a+0.2+0.6*solVarHash(id))*0.045, py=(cy+e+0.2+0.6*solVarHash(id+1))*0.045,
+              rr=0.011+0.008*solVarHash(id+2), d=Math.hypot(sgn-px_,(y-py)*1.15), ang=Math.atan2(y-py,sgn-px_);
+            if(d<rr){ hit=d>rr*0.5&&solVarHash(id+3+Math.floor((ang+3.2)*1.3))>0.25?1:2; break; } }
+          if(hit===1) set(pat,0.85+0.3*t); else if(hit===2&&col) set(col,k*0.78); } }
+      if(hem&&c===SV_BOT&&y<K.hem) set(hem,0.75+0.4*t);
+      if(belt&&Math.abs(y-K.waist)<0.017&&solVarArm(D,x,y,z)<0){ if(z>0&&Math.abs(x)<0.02&&Math.abs(y-K.waist)<0.013) set([226,178,74],Math.abs(x)<0.011&&Math.abs(y-K.waist)<0.006?0.55:1); else set(belt,0.8+0.35*t); } }
+    else if(c===SV_EYE){ solVarFace(D,x,y,z,F); const f=D.fam[j];
+      if(brow&&F[1]>K.eyeC+0.013&&(f===98||f===100||f===104||f===99)) set(brow,0.8+0.4*t);
+      else if(sk&&(f===115||f===120)){ r=Math.min(255,r*sk[0]); g=Math.min(255,g*sk[1]); b=Math.min(255,b*sk[2]); } }
+    else if(c===SV_SKIN){
+      if(sk){ r=Math.min(255,r*sk[0]); g=Math.min(255,g*sk[1]); b=Math.min(255,b*sk[2]); }
+      const arm=solVarArm(D,x,y,z);
+      if(stock&&arm<0&&y<K.stock){ let a=V.stock.a; const lg=D.leg[x>0?1:0], cx=lg[0]+lg[1]*y;
+        if(K.stock<1&&y>K.stock-0.03) a=Math.min(1,a+0.3);                                 // the welt of a hold-up
+        if(V.stock.seam&&z<-0.02&&Math.abs(x-cx)<0.0045&&y>0.07) a=1;
+        r+=(stock[0]-r)*a; g+=(stock[1]-g)*a; b+=(stock[2]-b)*a; }
+      if(glove&&solVarGlove(D,x,y,z,arm,V.glove.len)) set(glove,0.72+0.5*t);
+      if(choker&&arm<0&&Math.abs(x)<0.055&&Math.abs(z)<0.09){ if(y>K.neck&&y<K.neck+0.016) set(choker,0.85+0.3*t);
+        else if(jewel&&z>0&&Math.abs(x)<0.009&&y>K.neck-0.016&&y<=K.neck) set(jewel,1); } }
+    if(shades&&(c===SV_SKIN||c===SV_EYE)){ solVarFace(D,x,y,z,F);
+      if(F[2]>0&&F[1]>K.eyeC-0.03&&F[1]<K.eyeC+0.035){ const ax=Math.abs(F[0]), ey=F[1]-K.eyeC-0.003, ex=(ax-0.032)/0.028, e2=ex*ex+ey*ey/(0.021*0.021);
+        if(e2<1) set(shades,e2>0.72?0.5:(ey>0.004&&ex<0.1?1.9:1));                          // rim, lens, a strip of sky across the top
+        else if((ax<0.008&&Math.abs(ey-0.006)<0.0035)||(ax>0.058&&Math.abs(ey-0.008)<0.004)) set(shades,0.5); } }
+    out[o]=r; out[o+1]=g; out[o+2]=b; }
+  return out;
+}
+// the line-up. sc = height (1 = 1.70 m), hv = hair volume. Sol and Gilda are the models as they come.
+const SOL_VARS={
+  noir:[{n:'Sol',sc:1,own:1},
+    {n:'Vera',sc:1.012,hv:0.03,hair:[0x2a1208,0x6a3415,0xa5673a],brow:0x2a170e,lip:0x9c1420,top:0x128a5c,bot:0x128a5c,belt:0x1a1418,choker:0x141216,jewel:0xe2b24a,
+      say:["Vera. Sol said you drive like you mean it.","Green means go, driver. So go."]},
+    {n:'Ruby',sc:0.988,hair:[0x5c1a08,0xa8421a,0xdf7c3c],brow:0x6a2a12,lip:0xb01030,skin:[1.07,1.03,1.02],top:0x7a1428,bot:0x7a1428,stock:{c:0x18121a,a:0.62,seam:1},shoe:0x2a0a12,
+      say:["Ruby. Like the stone, only harder to keep.","Redheads are bad luck, they say. Drive carefully."]},
+    {n:'Dahlia',sc:1.024,hv:-0.015,lip:0xc8102e,skin:[1.05,1.02,1.03],top:0xe9e4d8,bot:0xe9e4d8,belt:0x16141a,glove:{c:0x1b1a20,len:0.4},shoe:0xa0101e,choker:0x16141a,
+      say:["Dahlia. Don't look at the gloves, look at the road.","White shows everything, driver. Keep it clean."]},
+    {n:'Mona',sc:1.0,hv:0.05,hair:[0x9a917c,0xd8d0ba,0xf6f1e2],brow:0x6b5a44,lip:0xb5123a,skin:[1.08,1.05,1.05],top:0x2a3f96,bot:0x2a3f96,shoe:0x2a3f96,shades:0x16131c,jewel:0xcfd3dc,
+      say:["Mona. No, you can't see my eyes.","Blondes don't have more fun, driver. We have better lawyers."]},
+    {n:'Kitty',sc:0.976,hv:0.04,hair:[0x7a5522,0xc4923f,0xefca7c],brow:0x5a3c1c,lip:0xd0453a,skin:[0.95,0.93,0.9],top:0xc8964a,bot:0xc8964a,pat:{k:'leo',c:0x24160e},belt:0x24160e,jewel:0xe2b24a,
+      say:["Kitty. I bite, so mind the bumps.","Purr along nicely and nobody gets scratched."]}],
+  conf:[{n:'Gilda',sc:1,own:1,say:["Gilda. You've heard of me, or you will.","There never was a woman like me, driver. Mind the kerb."]},
+    {n:'Lola',sc:0.982,hv:-0.02,hair:[0x08080c,0x141419,0x2c2d38],brow:0x15131a,lip:0xe01835,skin:[0.97,0.94,0.9],top:0xb3121f,bot:0x1c1b1f,shoe:0x18161a,stock:{c:0x1a1418,a:0.5,seam:1},jewel:0xe2b24a,
+      say:["Lola. Whatever I want, driver, is to get there in one piece.","Black skirt, red top, no questions. Drive."]},
+    {n:'Rita',sc:1.02,hv:0.03,hair:[0x3c0f08,0x7a260f,0xb8532a],brow:0x4a1a0c,lip:0xd2452f,skin:[1.02,1.0,1.0],top:0x1b1a1e,bot:0x128a5c,belt:0xe2b24a,shoe:0x18161a,jewel:0xe2b24a,
+      say:["Rita. Put the blame on me if we're late.","Emerald's my colour. Envy's yours, if you scratch this car."]},
+    {n:'Ava',sc:1.035,hair:[0x2a1208,0x6a3415,0xa5673a],brow:0x2a170e,lip:0xc03a6a,skin:[0.93,0.9,0.86],top:0xefe6cf,bot:0x263a80,pat:{k:'pin',on:6,c:0xd4d9e8},shoe:0x263a80,glove:{c:0xefe6cf,len:0.25},jewel:0xf1ead8,
+      say:["Ava. I'm on business, so drive like an accountant.","Pinstripes, driver. I'm either a banker or robbing one."]},
+    {n:'Stella',sc:0.994,hv:0.05,hair:[0xa29a86,0xdcd5c0,0xf8f4e8],brow:0x6b5a44,lip:0x7a0e1e,skin:[1.03,1.03,1.04],top:0x18171b,bot:0xc8964a,pat:{k:'leo',on:6,c:0x24160e},shoe:0x18171b,glove:{c:0x18171b,len:0.46},jewel:0xcfd3dc,
+      say:["Stella. Yes, like the shout. Don't.","The fur's fake. The trouble is real. Drive."]}]};
+// ---- variants in the game: one rig per model wears whichever variant the current pickup drew
+const SOLV={n:{noir:0,conf:0},row:null};
+const SV_DBG=[0x3c3c3c,0xffdc00,0xf0aa82,0xff00a0,0x00e6ff,0x285aff,0x1ec83c,0xa03cff,0xffffff];
+function solVarName(){ return (SOL.vr?SOL.vr.n:'Sol').toUpperCase(); }
+// Sol first and every third pickup of her model after that; the others take turns in between
+function solVarPick(m){ const L=SOL_VARS[m]; if(!L) return null; const n=SOLV.n[m]++; return n%3===0?L[0]:L[1+(n-Math.floor(n/3)-1)%(L.length-1)]; }
+// the atlas as decoded, before footSkinPrep mattes it and frees the image
+function solVarSrc(root){ let d=null;
+  try{ root.traverse(o=>{ const im=o.isSkinnedMesh&&o.material&&o.material.map&&o.material.map.image; if(!im||!im.width||d) return;
+    const c=document.createElement('canvas'); c.width=im.width; c.height=im.height; const x=c.getContext('2d'); x.drawImage(im,0,0); d=x.getImageData(0,0,c.width,c.height); }); }catch(e){ d=null; }
+  return d; }
+function solVarInit(mesh,src){ const g=mesh.geometry, map=mesh.material.map;
+  if(!src||!map||!g.attributes.uv||!(g.attributes.uv.array instanceof Uint16Array)) return null;
+  return {src:src.data,w:src.width,h:src.height,base:map,bpx:null,D:null,pos0:null,hv:0,cache:[],cur:null}; }
+function solVarData(R){ const A=R.va; if(A.D) return A.D;
+  const g=R.mesh.geometry, sk=R.mesh.skeleton, bone={};
+  sk.bones.forEach((b,i)=>{ _solM.copy(sk.boneInverses[i]).invert(); bone[b.name.replace(/^mixamorig:?/,'')]=[_solM.elements[12],_solM.elements[13],_solM.elements[14]]; });
+  A.pos0=g.attributes.position.array.slice();
+  A.D=solVarPrep(R.model,A.pos0,g.attributes.uv.array,A.w/65535,A.h/65535,A.src,A.w,A.h,bone); A.src=null;
+  const c=document.createElement('canvas'); c.width=A.w; c.height=A.h; const x=c.getContext('2d'); x.drawImage(A.base.image,0,0); A.bpx=x.getImageData(0,0,A.w,A.h).data;
+  return A.D; }
+function solVarTex(R,V){ const A=R.va, D=solVarData(R), c=document.createElement('canvas'); c.width=A.w; c.height=A.h;
+  const x=c.getContext('2d'), im=x.createImageData(A.w,A.h), o=im.data;
+  if(V.dbg) for(let j=0;j<A.w*A.h;j++){ const q=SV_DBG[D.own[j]===65535?0:D.cls[j]], k=0.7+0.3*D.lum[j]/255; o[j*4]=(q>>16)*k; o[j*4+1]=((q>>8)&255)*k; o[j*4+2]=(q&255)*k; o[j*4+3]=255; }
+  else solVarPaint(D,A.bpx,o,V);
+  x.putImageData(im,0,0);
+  const t=new THREE.CanvasTexture(c), b=A.base; t.flipY=b.flipY; t.encoding=b.encoding; t.wrapS=b.wrapS; t.wrapT=b.wrapT; t.generateMipmaps=false; t.minFilter=t.magFilter=THREE.LinearFilter; t.anisotropy=1; return t; }
+// hair volume: hair-only corners move out from the head's axis (and up, above its centre)
+function solVarShape(R,V){ const A=R.va, hv=V.hv||0; if(A.hv===hv) return; const D=solVarData(R), P=R.mesh.geometry.attributes.position, a=P.array, p=A.pos0, W=D.hairW, hc=D.hc; A.hv=hv;
+  for(let i=0,n=W.length;i<n;i++){ const k=1+W[i]*hv, j=i*3, dy=p[j+1]-hc[1]; a[j]=hc[0]+(p[j]-hc[0])*k; a[j+1]=hc[1]+dy*(dy>0?k:1); a[j+2]=hc[2]+(p[j+2]-hc[2])*k; }
+  P.needsUpdate=true; }
+// put a variant on a rig: texture (painted once, the last two kept), hair volume, height
+function solVarDress(R,V){
+  if(!R||!R.sk||!R.va) return; V=V||SOL.vr; if(!V||SOL_VARS[R.model].indexOf(V)<0) V=SOL_VARS[R.model][0];
+  const A=R.va, m=R.mesh.material; let tex=A.base;
+  try{ if(!V.own){ let k=A.cache.findIndex(e=>e.V===V), e=k>=0?A.cache.splice(k,1)[0]:{V,tex:solVarTex(R,V)}; A.cache.push(e); tex=e.tex;
+      while(A.cache.length>2) A.cache.shift().tex.dispose(); }
+    solVarShape(R,V); }catch(err){ console.warn('sol variant',err); tex=A.base; }
+  m.map=tex; m.emissiveMap=tex; R.g.scale.setScalar(V.sc||1); A.cur=V; }
+// a frozen copy of a rig in its Idle pose wearing V (plain Mesh: the line-up can show every variant at once)
+function solVarStatic(R,V){
+  const A=R.va, hv0=A.hv, acts=R.acts, sv={}; solVarShape(R,V);
+  for(const n in acts){ sv[n]=acts[n].getEffectiveWeight(); acts[n].setEffectiveWeight(n==='Idle'?1:0); } acts.Idle.time=0; R.mixer.update(0); R.g.updateMatrixWorld(true);
+  const mesh=R.mesh, g=mesh.geometry, P=g.attributes.position.array, Nn=g.attributes.normal.array, SI=g.attributes.skinIndex.array, SW=g.attributes.skinWeight.array, sk=mesh.skeleton, n=P.length/3;
+  const toG=new THREE.Matrix4().copy(R.g.matrixWorld).invert(), M=sk.bones.map((b,i)=>new THREE.Matrix4().copy(toG).multiply(b.matrixWorld).multiply(sk.boneInverses[i]).multiply(mesh.bindMatrix).elements);
+  const p=new Float32Array(n*3), nm=new Float32Array(n*3);
+  for(let i=0;i<n;i++){ const x=P[i*3], y=P[i*3+1], z=P[i*3+2], a=Nn[i*3], b=Nn[i*3+1], c=Nn[i*3+2]; let X=0,Y=0,Z=0,U=0,Vv=0,Wz=0,ws=0;
+    for(let k=0;k<4;k++){ const w=SW[i*4+k]; if(!w) continue; const e=M[SI[i*4+k]]; ws+=w;
+      X+=w*(e[0]*x+e[4]*y+e[8]*z+e[12]); Y+=w*(e[1]*x+e[5]*y+e[9]*z+e[13]); Z+=w*(e[2]*x+e[6]*y+e[10]*z+e[14]);
+      U+=w*(e[0]*a+e[4]*b+e[8]*c); Vv+=w*(e[1]*a+e[5]*b+e[9]*c); Wz+=w*(e[2]*a+e[6]*b+e[10]*c); }
+    ws=ws||1; const l=Math.hypot(U,Vv,Wz)||1; p[i*3]=X/ws; p[i*3+1]=Y/ws; p[i*3+2]=Z/ws; nm[i*3]=U/l; nm[i*3+1]=Vv/l; nm[i*3+2]=Wz/l; }
+  for(const k in acts) acts[k].setEffectiveWeight(sv[k]); solVarShape(R,{hv:hv0});
+  const sg=new THREE.BufferGeometry(); sg.setAttribute('position',new THREE.BufferAttribute(p,3)); sg.setAttribute('normal',new THREE.BufferAttribute(nm,3)); sg.setAttribute('uv',new THREE.BufferAttribute(g.attributes.uv.array,2,true));
+  const tex=V.own?A.base:solVarTex(R,V);
+  const sm=new THREE.Mesh(sg,new THREE.MeshLambertMaterial({map:tex,emissive:FR_EMIS,emissiveMap:tex,side:THREE.DoubleSide})); sm.castShadow=true; sm.scale.setScalar(V.sc||1); sm.userData.own=!!V.own;
+  return sm; }
+// review line-up: every variant side by side (originals first in each group), 6 m ahead of the player unless told where.
+// solVarLineup({x,z,ry,gap,dbg}) -> Promise of the group (dbg adds the two class maps); solVarLineup(false) takes it away.
+function solVarLineup(o){
+  if(SOLV.row){ const G=SOLV.row; SOLV.row=null; scene.remove(G);
+    G.traverse(q=>{ if(q.geometry&&!q.isSprite) q.geometry.dispose(); if(q.material){ if(q.material.map&&!q.userData.own) q.material.map.dispose(); q.material.dispose(); } }); }
+  if(o===false) return null; o=o||{};
+  const G=new THREE.Group(), gap=o.gap||1.15, ry=o.ry!==undefined?o.ry:player.a+Math.PI; SOLV.row=G; G.userData.list=[];
+  const x=o.x!==undefined?o.x:player.x+Math.sin(player.a)*6, z=o.z!==undefined?o.z:player.z+Math.cos(player.a)*6;
+  G.position.set(x,o.y!==undefined?o.y:groundHeight(x,z),z); G.rotation.y=ry;
+  return new Promise(done=>{ const go=()=>{ if(SOLV.row!==G){ done(null); return; }
+    for(const m of ['noir','conf']) if(!solSkGet(m)&&SOLM[m].st!==3){ solSkLoad(m); setTimeout(go,300); return; }
+    const L=[]; for(const m of ['noir','conf']){ const R=solSkGet(m); if(!R||!R.va) continue; for(const V of SOL_VARS[m]) L.push([R,V]); if(o.dbg) L.push([R,{n:m+' classes',dbg:1}]); }
+    L.forEach((e,i)=>{ let sm; try{ sm=solVarStatic(e[0],e[1]); }catch(err){ console.warn('sol line-up',err); return; }
+      sm.position.x=(i-(L.length-1)/2)*gap; G.add(sm); G.userData.list.push({n:e[1].n,x:sm.position.x,h:1.7*(e[1].sc||1)});
+      const c=document.createElement('canvas'); c.width=128; c.height=32; const q=c.getContext('2d'); q.font='bold 20px Courier New,monospace'; q.textAlign='center'; q.fillStyle='#ffd6ee'; q.fillText(e[1].n.toUpperCase(),64,23);
+      const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),transparent:true,depthWrite:false,fog:false})); sp.scale.set(0.9,0.225,1); sp.position.set(sm.position.x,1.98,0); G.add(sp); });
+    scene.add(G); done(G); }; go(); });
+}
 function solSkLoad(m){
   const M=SOLM[m]; if(!M||M.st) return;
   const b64=m==='noir'?(typeof SOL_NOIR_B64==='string'&&SOL_NOIR_B64):(typeof SOL_CONF_B64==='string'&&SOL_CONF_B64);
@@ -15557,7 +15825,7 @@ function solSkLoad(m){
 function solSkGet(m){ const M=SOLM[m]; return M&&M.st===2?M.rig:null; }
 function solSkMake(gl,m){
   const root=gl.scene, g=new THREE.Group(); g.add(root);
-  const SP=footSkinPrep(root); if(!SP) return null;
+  const vsrc=solVarSrc(root), SP=footSkinPrep(root); if(!SP) return null;      // variants: keep the atlas as shipped
   // look: take the forward travel out of the Rise clip's hip track and keep it as a curve, so the rig's root can follow
   // her as she stands up (no slide back when the next clip fades in)
   let riseXZ=null;
@@ -15586,7 +15854,7 @@ function solSkMake(gl,m){
   if(m==='conf'){ const gg=new THREE.CylinderGeometry(0.03,0.02,0.075,6); gg.translate(0,0.03,0);        // her drink at the bar
     glass=new THREE.Mesh(gg,new THREE.MeshLambertMaterial({color:0xe2a84a,emissive:0x3a2208,flatShading:true})); glass.visible=false; g.add(glass); }
   g.visible=false;
-  return {g,sk:true,model:m,root,mesh:SP.mesh,B,mixer,acts,w,tw,bones,snap:bones.map(b=>b.quaternion.clone()),hipSnap:B.Hips.position.clone(),
+  return {g,sk:true,model:m,root,mesh:SP.mesh,va:solVarInit(SP.mesh,vsrc),B,mixer,acts,w,tw,bones,snap:bones.map(b=>b.quaternion.clone()),hipSnap:B.Hips.position.clone(),
     mode:'',mt:0,lastT:-1,lift:0,wv:0,look:0,ra:0,dc:0,dv:0,dm:0,pole:null,seq:null,snapW:true,cur:{},geos:[],
     walkV,strutV,plantL,plantR,hipSit,riseXZ,headF,glass,wsp:0,wk:0,lookP:new THREE.Vector3(),lookT:0,lookW:0,brace:0,br:0,jolt:0,board:null,
     tris:SP.mesh.geometry.index.count/3};
@@ -16216,6 +16484,7 @@ function solUIInit(){
 function solHonk(){ SOL.honk=true; if(AC&&!muted&&!sfxHornPlayer()){ blip('square',392,380,0.32,0.05); blip('square',494,480,0.32,0.04); } }
 function solSay(txt){ SOL.say=txt; SOL.sayT=5; SOL.lineT=6.5; }
 function solLine(k){ const L=SOL_LINES[k]; let i=Math.floor(Math.random()*L.length);
+  const W=SOL.vr; if(k==='greet'&&W&&W.say&&(!W.met||Math.random()<0.5)){ solSay(W.say[W.met?1:0]); W.met=1; return; }      // variants: her own introduction, then her own line half the time
   if(k==='greet'){ if(i===SOL.lastGreet) i=(i+1)%L.length; SOL.lastGreet=i; }
   else if(k==='complain'||k==='praise'){ if(i===SOL.lastCom) i=(i+1)%L.length; SOL.lastCom=i; }
   solSay(L[i]); }
@@ -16226,9 +16495,9 @@ function solUI(dt){
   const v=SOL.venues[SOL.act];
   if(!SOL.paused&&v){
     if(SOL.state==='wait'||SOL.state==='greet'||SOL.state==='walk'){ show=true;
-      txt='<b>SOL</b> '+v.banner+(SOL.state==='wait'?' · '+Math.round(Math.hypot(player.x-v.kerb.x,player.z-v.kerb.z))+' M':''); }
+      txt='<b>'+solVarName()+'</b> '+v.banner+(SOL.state==='wait'?' · '+Math.round(Math.hypot(player.x-v.kerb.x,player.z-v.kerb.z))+' M':''); }
     else if(SOL.state==='ride'&&SOL.dest){ show=true; nerve=true;
-      txt='<b>SOL</b> Drop her at '+SOL.dest.name+' · '+Math.round(Math.hypot(player.x-SOL.dest.x,player.z-SOL.dest.z))+' M · NERVE'; }
+      txt='<b>'+solVarName()+'</b> Drop her at '+SOL.dest.name+' · '+Math.round(Math.hypot(player.x-SOL.dest.x,player.z-SOL.dest.z))+' M · NERVE'; }
   }
   if(SOL.state==='exit'||SOL.state==='idle') show=SOL.sayT>0;
   if(SOL.sayT>0) show=true;
@@ -16274,9 +16543,9 @@ function solNextVenue(){
 function solActivate(i){
   const v=SOL.venues[i]; if(!v) return;
   solSeatOut(); if(SOL.rig){ solDispose(SOL.rig); SOL.rig=null; }
-  SOL.act=i; solSkLoad(SOL_MODEL[v.kind]);                 // chars: decode her model the first time this venue comes up
+  SOL.act=i; SOL.vr=solVarPick(SOL_MODEL[v.kind]); solSkLoad(SOL_MODEL[v.kind]);                 // chars: decode her model the first time this venue comes up
   const skR=solSkGet(SOL_MODEL[v.kind]); if(skR){ solSkReset(skR); scene.add(skR.g); }
-  SOL.rig=skR||solBuild(v.outfit); SOL.rig.g.visible=true;
+  SOL.rig=skR||solBuild(v.outfit); SOL.rig.g.visible=true; solVarDress(SOL.rig);
   SOL.state='wait'; SOL.waitT=0; SOL.stopT=0; SOL.honk=false; SOL.dance=0; SOL.greetT=0; SOL.path=null;
   solPlace(v,0,1);
 }
@@ -16359,7 +16628,7 @@ function solStep(dt,t){
     SOL.t-=dt; if(SOL.t<=0&&!SOL.paused){ const i=solNextVenue(); if(i>=0) solActivate(i); }
   }
   else if(SOL.state==='wait'){
-    if(R&&!R.sk){ const n=solSkGet(SOL_MODEL[v.kind]); if(n){ solDispose(R); solSkReset(n); scene.add(n.g); SOL.rig=n; solPlace(v,t,1); return; } }   // chars: her model arrived
+    if(R&&!R.sk){ const n=solSkGet(SOL_MODEL[v.kind]); if(n){ solDispose(R); solSkReset(n); scene.add(n.g); SOL.rig=n; solVarDress(n); solPlace(v,t,1); return; } }   // chars: her model arrived
     if(R&&R.sk){ const dp=Math.hypot(player.x-R.g.position.x,player.z-R.g.position.z);            // look: she watches the car when it is close
       R.lookT=(inCar&&dp<34&&!SOL.paused)?(v.kind==='club'?0.6:1):0; if(R.lookT) R.lookP.set(player.x,groundHeight(player.x,player.z)+1.1,player.z); }
     if(R){ R.g.visible=!far; if(!far){ if(v.kind==='club') solDanceAt(v,dt,t); else solPlace(v,t,Math.min(1,dt*6)); } }
@@ -16427,7 +16696,7 @@ function solStep(dt,t){
     const dd=Math.hypot(player.x-SOL.dest.x,player.z-SOL.dest.z);
     if(dd<10&&spd<2){
       const pay=Math.round((150+SOL.nerve*3+SOL.trip0*0.25)/10)*10;
-      cash+=pay; SOL.paid+=pay; SOL.trips++; chaChing(); bigText('SOL PAID +$'+pay,'#ff7ad9'); floatText('NERVE '+Math.round(SOL.nerve)+'%');
+      cash+=pay; SOL.paid+=pay; SOL.trips++; chaChing(); bigText(solVarName()+' PAID +$'+pay,'#ff7ad9'); floatText('NERVE '+Math.round(SOL.nerve)+'%');
       solFinish(true);
     }
   }
@@ -19017,6 +19286,6 @@ addEventListener('resize',()=>{
   if(meOn){ mecv.width=innerWidth; mecv.height=innerHeight; }
 });
 </script>
-<div id="buildver" style="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(2px + env(safe-area-inset-bottom));font:600 10px/1.2 ui-monospace,Menlo,monospace;color:#fff;opacity:.6;letter-spacing:.06em;pointer-events:none;z-index:2147483000;text-shadow:0 1px 2px #000">v0.33 · 10 Nov 22:39</div>
+<div id="buildver" style="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(2px + env(safe-area-inset-bottom));font:600 10px/1.2 ui-monospace,Menlo,monospace;color:#fff;opacity:.6;letter-spacing:.06em;pointer-events:none;z-index:2147483000;text-shadow:0 1px 2px #000">v0.34 · 11 Nov 00:26</div>
 </body>
 </html>
