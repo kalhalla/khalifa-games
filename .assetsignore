@@ -6,3 +6,4 @@ wrangler.jsonc
 vercel.json
 .wrangler
 node_modules
+worker.js

@@ -1,11 +1,15 @@
 // Cloudflare Workers static assets: the whole site is static files from the repo root.
 // _redirects and _headers are read as on Pages; 404.html answers unknown paths with a real 404.
+// worker.js runs only for /rosso-di-mare, which it forwards to the game's own deployment.
 {
   "name": "khalifa-games",
+  "main": "worker.js",
   "compatibility_date": "2026-10-01",
   "assets": {
     "directory": ".",
+    "binding": "ASSETS",
     "not_found_handling": "404-page",
-    "html_handling": "auto-trailing-slash"
+    "html_handling": "auto-trailing-slash",
+    "run_worker_first": ["/rosso-di-mare", "/rosso-di-mare/*"]
   }
 }
