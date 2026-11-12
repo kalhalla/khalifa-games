@@ -48,9 +48,12 @@ export default {
           headers: { "content-type": "text/plain; charset=utf-8" },
         });
       }
-      const headers = new Headers(upstream.headers);
-      headers.delete("set-cookie");
-      headers.delete("x-robots-tag");
+      const headers = new Headers();
+      for (const k of ["content-type", "cache-control", "etag", "last-modified"]) {
+        const v = upstream.headers.get(k);
+        if (v) headers.set(k, v);
+      }
+      headers.set("x-forwarded-from", "rosso-di-mare");
       return new Response(upstream.body, { status: upstream.status, headers });
     }
 
