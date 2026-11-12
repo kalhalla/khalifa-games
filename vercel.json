@@ -12,5 +12,9 @@
     { "source": "/mu-s1k",                "destination": "/mu-s1k/",               "permanent": true },
     { "source": "/sunset-city",           "destination": "/sunset-city/",          "permanent": true },
     { "source": "/rosso-di-mare",         "destination": "/rosso-di-mare/",        "permanent": true }
+  ],
+  "rewrites": [
+    { "source": "/rosso-di-mare/",        "destination": "https://rosso-di-mare.vercel.app/" },
+    { "source": "/rosso-di-mare/:path*",  "destination": "https://rosso-di-mare.vercel.app/:path*" }
   ]
 }
