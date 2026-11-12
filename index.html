@@ -5,15 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Khalifa Games — Three.js games that run in the browser</title>
 
-<meta name="description" content="I build Three.js games that run right in the browser. No installs, no engines, no launchers. Fly a glider, jump a canyon, win the league, walk on the Moon, lead a squad, build a factory on the Moon, run a getaway at dusk — just press play." />
+<meta name="description" content="I build Three.js games that run right in the browser. No installs, no engines, no launchers. Fly a glider, jump a canyon, win the league, walk on the Moon, lead a squad, build a factory on the Moon, run a getaway at dusk, race a flying boat round the pylons — just press play." />
 <meta property="og:type" content="website" />
 <meta property="og:title" content="Khalifa Games — browser games built with Three.js" />
-<meta property="og:description" content="Eight worlds, one browser. Glider, Stuntmania '76, Fitba Crazy, Shackleton, Grunt Squad, MASCON, the MU-S1K groovebox and Sunset City: Getaway — no install, just press play." />
+<meta property="og:description" content="Nine worlds, one browser. Glider, Stuntmania '76, Fitba Crazy, Shackleton, Grunt Squad, MASCON, the MU-S1K groovebox, Sunset City: Getaway and Rosso di Mare — no install, just press play." />
 <meta property="og:url" content="https://khalifa.games/" />
 <meta property="og:image" content="https://khalifa.games/glider/title.png" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="Khalifa Games — browser games built with Three.js" />
-<meta name="twitter:description" content="Eight worlds, one browser. No install, just press play." />
+<meta name="twitter:description" content="Nine worlds, one browser. No install, just press play." />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b1030'/%3E%3Cpath d='M5 20 L27 8 L17 24 L14.5 17.5 Z' fill='%23ffb84d'/%3E%3C/svg%3E" />
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -294,7 +294,7 @@
 <body>
 <script>document.body.classList.add('js');</script>
 
-<canvas id="scene" aria-label="Interactive 3D map of Khalifa's games — eight floating islands, one per game"></canvas>
+<canvas id="scene" aria-label="Interactive 3D map of Khalifa's games — nine floating islands, one per game"></canvas>
 
 <div id="loading" aria-hidden="true">LOADING WORLDS…</div>
 
@@ -306,7 +306,7 @@
   </div>
 
   <div id="intro">
-    <h1>EIGHT WORLDS.<br>ONE <em>BROWSER.</em></h1>
+    <h1>NINE WORLDS.<br>ONE <em>BROWSER.</em></h1>
     <p>Games built with Three.js. No installs, no engines, no launchers.<br>Even this page is one — drag to look around.</p>
     <span class="press">▸ TAP AN ISLAND TO VISIT ◂</span>
   </div>
@@ -328,7 +328,7 @@
 <!-- ============ static fallback: no JS, no WebGL, crawlers ============ -->
 <section id="static">
   <header>
-    <h1>EIGHT WORLDS.<br>ONE <em>BROWSER.</em></h1>
+    <h1>NINE WORLDS.<br>ONE <em>BROWSER.</em></h1>
     <p class="lede">I'm Khalifa. I build Three.js games that run right in the browser — no installs, no engines, no launchers. Pick a world and press play.</p>
     <a class="dm-link" href="https://x.com/khalbuildsapps" target="_blank" rel="noopener">DM me on X — @khalbuildsapps ↗</a>
   </header>
@@ -397,6 +397,14 @@
         <a class="btn-play" href="/sunset-city/">▶ PLAY</a>
       </div>
     </article>
+    <article class="scard" style="--ac:#ff5a4d">
+      <a href="/rosso-di-mare/"><img src="/rosso-di-mare/title.png" alt="Rosso di Mare — a seaplane flying and air-racing game over a turquoise archipelago" width="1200" height="630" loading="lazy"></a>
+      <div class="sbody">
+        <h2>ROSSO DI MARE</h2>
+        <p>A travel poster you can fly through. Take a red flying boat off the water and over a turquoise archipelago: race four rivals round the pylons, run parcels between the cays, build your own aeroplane in the boathouse, and follow the shuttles out to the spaceport.</p>
+        <a class="btn-play" href="/rosso-di-mare/">▶ PLAY</a>
+      </div>
+    </article>
   </div>
   <footer>KHALIFA.GAMES · built with Three.js · <a href="https://x.com/khalbuildsapps" target="_blank" rel="noopener">@khalbuildsapps</a></footer>
 </section>
@@ -434,6 +442,10 @@ const GAMES = [
   {
     slug: "sunset", name: "SUNSET CITY", url: "/sunset-city/", accent: "#b48cff",
     desc: "Sunset City: Getaway. Hold the car outside the bank, lose the law across city, suburbs and coast, and watch the sky after dark."
+  },
+  {
+    slug: "rosso", name: "ROSSO DI MARE", url: "/rosso-di-mare/", accent: "#ff5a4d",
+    desc: "Fly a red flying boat over a turquoise archipelago. Race four rivals round the pylons, run parcels between the cays, and find the spaceport."
   }
 ];
 
@@ -2865,6 +2877,118 @@ async function boot() {
     };
   }
 
+  // ROSSO DI MARE — a clear lagoon in section: a sand cay with palms and a jetty, a striped race pylon on its barge,
+  // a yacht at anchor, and the red flying boat circling low round the pylon
+  function buildSeaplane() {
+    const root = new THREE.Group();
+    const BED = -0.2, SEA = 0.84, CX = -1.9, CZ = -1.5;
+    root.add(blockBase([[0.5, 0xf4e6bc], [0.7, 0xd9c08e], [0.95, 0x9a8a7c]], false, BED));
+    // pale shallows on the bed around the cay, and a few coral heads
+    const shoal = cyl(4.6, 4.9, 0.05, 18, 0xfdf3d2, CX, BED + 0.02, CZ, 0.03);
+    shoal.userData.flat = true;
+    root.add(shoal);
+    for (const [bx, bz, br, c] of [[3.6, -3.4, 0.34, 0xd97a8a], [4.6, 0.6, 0.26, 0x8a7a9a], [1.2, 4.4, 0.3, 0xd97a8a], [-4.4, 3.6, 0.24, 0x7fae9a], [5.2, 4.6, 0.2, 0x8a7a9a]]) {
+      root.add(blob(br, c, bx, BED + br * 0.5, bz));
+    }
+    const seaMat = new THREE.MeshStandardMaterial({ color: 0x2fd0d8, roughness: 0.08, metalness: 0.1, flatShading: true, transparent: true, opacity: 0.5 });
+    root.add(lit(new THREE.BoxGeometry(2 * S - 0.03, SEA - BED, 2 * S - 0.03), seaMat, 0, (SEA + BED) / 2, 0));
+
+    // the cay: sand rising out of the lagoon, a green crown, a grey crag
+    const cay = grp(CX, 0, CZ);
+    root.add(cay);
+    cay.add(cyl(2.5, 3.9, SEA - BED + 0.12, 14, 0xf7e9be, 0, (SEA + BED) / 2 + 0.06, 0, 0.05),
+      cyl(1.7, 2.5, 0.34, 12, 0xf7e9be, 0, SEA + 0.26, 0, 0.05));
+    for (const [gx, gz, gr, c] of [[-0.3, -0.4, 0.95, 0x4fa23f], [0.7, -0.7, 0.7, 0x5fb244], [-0.9, 0.4, 0.6, 0x5fb244], [0.3, 0.5, 0.5, 0x4fa23f]]) {
+      const b = blob(gr, c, gx, SEA + 0.5 + gr * 0.35, gz, 0.12, 0.25);
+      b.scale.y = 0.7;
+      cay.add(b);
+    }
+    cay.add(cyl(0.34, 0.6, 1.9, 6, 0x93a0ad, -0.5, SEA + 1.3, -0.9), cyl(0.26, 0.46, 1.3, 6, 0x848f9c, 0.1, SEA + 1.0, -1.2), blob(0.34, 0x93a0ad, 1.9, SEA + 0.1, 1.2));
+    const palm = (x, z, s, lean) => {
+      const p = grp(x, SEA + 0.36, z);
+      p.add(cyl(0.06 * s, 0.11 * s, 2.3 * s, 5, 0x8a6242, 0, 1.15 * s, 0));
+      for (let k = 0; k < 6; k++) {
+        const fg = new THREE.BoxGeometry(0.16 * s, 0.04 * s, 1.1 * s);
+        fg.translate(0, 0, 0.55 * s);
+        const f = fMesh(fg, k % 2 ? 0x3b8a3a : 0x4fa23f, 0.12);
+        f.position.y = 2.3 * s;
+        f.rotation.order = "YXZ";
+        f.rotation.y = k / 6 * Math.PI * 2;
+        f.rotation.x = 0.5;
+        p.add(f);
+      }
+      p.rotation.z = lean;
+      return p;
+    };
+    cay.add(palm(1.1, 0.3, 1, -0.14), palm(-1.3, 1.0, 0.85, 0.16), palm(0.2, 1.3, 0.75, -0.06));
+    // the jetty, and someone watching the aeroplane
+    cay.add(box(0.55, 0.07, 2.6, 0x8a5a34, 1.6, SEA + 0.2, 2.5));
+    for (const pz of [1.6, 2.6, 3.6]) for (const px of [1.38, 1.82]) cay.add(cyl(0.04, 0.04, 0.7, 5, 0x5a3a22, px, SEA - 0.1, pz));
+    const watcher = person(0x16181c, 0xc98a5e, 0.9);
+    watcher.position.set(1.6, SEA + 0.24, 3.5);
+    cay.add(watcher);
+
+    // the race pylon on its barge
+    const PX = 3.3, PZ = 2.0;
+    root.add(box(1.1, 0.26, 1.1, 0x24313c, PX, SEA + 0.05, PZ), box(0.95, 0.04, 0.95, 0xd8b98a, PX, SEA + 0.2, PZ));
+    for (let k = 0; k < 5; k++) {
+      root.add(cyl(0.2 - k * 0.022, 0.222 - k * 0.022, 0.72, 8, k % 2 ? 0xffffff : 0xd8332e, PX, SEA + 0.58 + k * 0.72, PZ, 0.04));
+    }
+    const beacon = new THREE.MeshStandardMaterial({ color: 0x15151a, emissive: 0xffb84d, emissiveIntensity: 1.6, flatShading: true });
+    root.add(lit(new THREE.IcosahedronGeometry(0.17, 0), beacon, PX, SEA + 4.0, PZ));
+
+    // a white yacht at anchor
+    const yacht = dyn(grp(-3.6, SEA, 3.4, 0.7));
+    yacht.add(box(0.5, 0.26, 1.7, 0xf9f7f1, 0, 0.04, 0), box(0.52, 0.06, 1.6, 0x1d3f6b, 0, 0.1, 0, 0.03), box(0.3, 0.16, 0.6, 0xf9f7f1, 0, 0.26, 0.2),
+      cyl(0.022, 0.03, 2.1, 5, 0xe9e2d2, 0, 1.2, -0.2), box(0.05, 0.05, 0.9, 0x1d3f6b, 0, 0.5, 0.25));
+    root.add(yacht);
+
+    // the flying boat: red hull, cream bottom, shoulder wing, pusher engine on struts, tricolour fin
+    const plane = dyn(new THREE.Group());
+    const body = new THREE.Group();
+    plane.add(body);
+    const nacelle = cyl(0.13, 0.15, 0.6, 7, 0x3a352e, 0, 0.62, -0.1);
+    nacelle.rotation.x = Math.PI / 2;
+    body.add(box(0.36, 0.3, 1.9, 0xc1272d, 0, 0, 0), box(0.3, 0.12, 1.5, 0xefe3c0, 0, -0.19, -0.1), box(0.26, 0.2, 0.5, 0xc1272d, 0, 0.02, -1.15),
+      box(2.9, 0.07, 0.56, 0xc1272d, 0, 0.2, -0.2), box(0.5, 0.075, 0.5, 0xefe3c0, -1.15, 0.2, -0.2), box(0.5, 0.075, 0.5, 0xefe3c0, 1.15, 0.2, -0.2),
+      nacelle, box(0.05, 0.36, 0.05, 0x6e4426, -0.12, 0.4, -0.1), box(0.05, 0.36, 0.05, 0x6e4426, 0.12, 0.4, -0.1),
+      box(0.05, 0.5, 0.42, 0x2f7a4a, 0, 0.36, 0.86), box(0.05, 0.5, 0.14, 0xf7f4ec, 0, 0.36, 1.0, 0.03), box(0.05, 0.5, 0.14, 0xc1272d, 0, 0.36, 1.14),
+      box(1.0, 0.05, 0.34, 0xc1272d, 0, 0.22, 0.98), box(0.12, 0.1, 0.4, 0xefe3c0, -1.25, -0.08, -0.2), box(0.12, 0.1, 0.4, 0xefe3c0, 1.25, -0.08, -0.2),
+      box(0.03, 0.26, 0.03, 0x6e4426, -1.25, 0.06, -0.2), box(0.03, 0.26, 0.03, 0x6e4426, 1.25, 0.06, -0.2), box(0.16, 0.14, 0.16, 0xd9a06b, 0, 0.2, -0.75));
+    const propMat = new THREE.MeshBasicMaterial({ color: 0xf4e6c0, transparent: true, opacity: 0.32, side: THREE.DoubleSide });
+    const prop = lit(new THREE.CircleGeometry(0.42, 14), propMat, 0, 0.62, 0.22);
+    body.add(prop);
+    root.add(plane);
+    // her wake where she touched down: fading rings on the water
+    const rings = [0, 1, 2].map(k => {
+      const m = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, side: THREE.DoubleSide });
+      const r = lit(new THREE.RingGeometry(0.5, 0.58, 20), m, 0.6, SEA + 0.012, -3.6);
+      r.rotation.x = -Math.PI / 2;
+      root.add(r);
+      return r;
+    });
+
+    return {
+      group: root,
+      animate(t) {
+        const a = t * 0.5, R = 3.1, by = SEA + 3.0 + Math.sin(t * 0.7) * 0.25;
+        plane.position.set(PX - 1.7 + Math.cos(a) * R, by, PZ - 1.4 + Math.sin(a) * R);
+        plane.rotation.y = -a + Math.PI;                 // nose along the circle
+        body.rotation.z = 0.5;                           // banked into the turn
+        prop.rotation.z = t * 30;
+        yacht.position.y = SEA + Math.sin(t * 1.3) * 0.03;
+        yacht.rotation.z = Math.sin(t * 1.0) * 0.05;
+        seaMat.opacity = 0.5 + Math.sin(t * 0.8) * 0.03;
+        beacon.emissiveIntensity = 1.2 + Math.sin(t * 5) * 0.8;
+        rings.forEach((r, k) => {
+          const u = (t * 0.3 + k / 3) % 1;
+          r.scale.setScalar(0.6 + u * 2.6);
+          r.material.opacity = (1 - u) * 0.5;
+        });
+      }
+    };
+  }
+
   // ---------- drifting clouds ----------
   const cloudLayer = new THREE.Group();
   {
@@ -2885,20 +3009,21 @@ async function boot() {
   }
 
   // ---------- place islands ----------
-  // eight islands, evenly spaced; the ring widens with each one so neighbours keep their breathing room
-  const R = 33;
-  const STEP = Math.PI * 2 / 8;
+  // nine islands, evenly spaced; the ring widens with each one so neighbours keep their breathing room
+  const R = 37;
+  const STEP = Math.PI * 2 / 9;
   const layout = [
-    { angle: -3 * STEP, y: 2.0 },   // glider
-    { angle: -2 * STEP, y: -1.2 },  // stuntmania
-    { angle: -1 * STEP, y: 1.0 },   // fitba
-    { angle: 0, y: -1.6 },          // shackleton
-    { angle: 1 * STEP, y: 0.6 },    // grunt squad
-    { angle: 2 * STEP, y: -0.6 },   // mascon
-    { angle: 3 * STEP, y: 1.4 },    // mu-s1k
-    { angle: 4 * STEP, y: -0.8 }    // sunset city
+    { angle: -4 * STEP, y: 2.0 },   // glider
+    { angle: -3 * STEP, y: -1.2 },  // stuntmania
+    { angle: -2 * STEP, y: 1.0 },   // fitba
+    { angle: -1 * STEP, y: -1.6 },  // shackleton
+    { angle: 0, y: 0.6 },           // grunt squad
+    { angle: 1 * STEP, y: -0.6 },   // mascon
+    { angle: 2 * STEP, y: 1.4 },    // mu-s1k
+    { angle: 3 * STEP, y: -0.8 },   // sunset city
+    { angle: 4 * STEP, y: 0.9 }     // rosso di mare
   ];
-  const builders = [buildGlider, buildStunt, buildFitba, buildMoon, buildGrunt, buildMascon, buildMusik, buildSunset];
+  const builders = [buildGlider, buildStunt, buildFitba, buildMoon, buildGrunt, buildMascon, buildMusik, buildSunset, buildSeaplane];
   const islands = [];
 
   GAMES.forEach((game, i) => {
@@ -2958,7 +3083,7 @@ async function boot() {
     target: new THREE.Vector3(0, 3, 0),
     radius: 57, az: -2.35, el: 0.34,
     gTarget: new THREE.Vector3(0, 3, 0),
-    gRadius: 57, gAz: -2.35, gEl: 0.34
+    gRadius: 61, gAz: -2.35, gEl: 0.34
   };
   let mode = "tour";      // "tour" | "focus"
   let focusAz = 0, focusT0 = 0, turned = false;   // a visited diorama sways until the visitor turns it
@@ -3016,7 +3141,7 @@ async function boot() {
     current = -1;
     panel.classList.remove("open");
     cam.gTarget.set(0, 3, 0);
-    cam.gRadius = 57;
+    cam.gRadius = 61;
     cam.gEl = 0.34;
     selButtons.forEach(b => b.classList.remove("active"));
     tags.forEach(t => t.classList.remove("active"));
