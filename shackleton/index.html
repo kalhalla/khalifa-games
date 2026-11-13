@@ -596,7 +596,7 @@ body.in-wreck .cam-buttons { display: none; }
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.10.4';  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.10.5';  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -3132,9 +3132,18 @@ body.in-wreck .cam-buttons { display: none; }
     // airborne, and landing phases. (When phase is null and player.grounded,
     // we fall through to walk/run/idle.)
     const speed = Math.hypot(player.vel.x, player.vel.z);
-    const freeNow = !player.grounded && jumpPhase === null && speed >= 0.4 && level.id !== 'wreck' &&
-                    lope.w > 0.5 && lope.freeT < 1.8;      // same test as maybeFootstep, without the frame of lag
-    if (jumpPhase || (!player.grounded && !freeNow)) {
+    // v0.10.5: the stride itself is exactly as in v0.10.2. The only change
+    // is what plays when the ground drops away and he has NOT jumped: the
+    // gait clip stays, held in its open hop pose (see applyLope), instead
+    // of the Jump clip. A fall of more than 1.8 s still becomes a Jump.
+    airHold.t = player.grounded ? 0 : airHold.t + dt;
+    const slopeAir = !player.grounded && jumpPhase === null && level.id !== 'wreck' &&
+                     speed >= 0.4 && airHold.t < 1.8 &&
+                     (activeAction === animClips['Walk_Loop'] || activeAction === animClips['Run_Loop']);
+    airHold.on = slopeAir;
+    if (slopeAir) {
+      /* keep the current gait clip */
+    } else if (jumpPhase || !player.grounded) {
       setAnimation('Jump');
     } else if (speed > RUN_THRESHOLD) {
       setAnimation('Run_Loop');
@@ -5225,7 +5234,7 @@ body.in-wreck .cam-buttons { display: none; }
   // time shortens with speed so that stays inside the clip's stance.
   const LOPE_FOOT_M = 1.37, LOPE_STANCE_MAX = 0.36;
   const LOPE_DIP = 0.035;         // m of knee-bend during contact
-  const lope = { phase: 0, parity: 0, w: 0, y: 0, pushed: false, fresh: true, period: 0.95, contact: LOPE_CONTACT, dc: 0.2, free: false, freeT: 0, air: 0 };
+  const lope = { phase: 0, parity: 0, w: 0, y: 0, pushed: false, fresh: true, period: 0.95, contact: LOPE_CONTACT, dc: 0.2 };
   function _lopeLand(speed) {
     sndFootstep(speed);
     const b = (typeof _seatBones === 'function') ? _seatBones() : null;
@@ -5236,23 +5245,7 @@ body.in-wreck .cam-buttons { display: none; }
   function maybeFootstep(dt) {
     const speed = Math.hypot(player.vel.x, player.vel.z);
     const active = player.grounded && speed >= 0.4 && controlMode === 'walking';
-    // Free lope (v0.10.4, replaces v0.10.3's frozen pose, which looked
-    // stiff and skipped on every small rise). When the ground drops away
-    // under a stride and he has not jumped, the SAME stride simply carries
-    // on: for the first moment nothing changes at all, so ripples in the
-    // ground are invisible; after that the legs keep turning at a third
-    // of the pace, and the stride waits at its end until a foot is back
-    // on the ground. No reset, no extra footfall, no Jump clip.
-    lope.freeT = player.grounded ? 0 : lope.freeT + dt;
-    const free = !player.grounded && jumpPhase === null && speed >= 0.4 &&
-                 controlMode === 'walking' && level.id !== 'wreck' && !lope.fresh && lope.freeT < 1.8;
-    lope.free = free;
-    lope.air += ((free && lope.freeT > 0.12 ? 1 : 0) - lope.air) * Math.min(1, dt * 6);
-    lope.w += (((active || free) ? 1 : 0) - lope.w) * Math.min(1, dt * ((active || free) ? 10 : 7));
-    if (free) {
-      const rate = lope.freeT < 0.12 ? 1 : 0.33;
-      lope.phase = Math.min(0.999, lope.phase + dt / lope.period * rate);
-    }
+    lope.w += ((active ? 1 : 0) - lope.w) * Math.min(1, dt * (active ? 10 : 7));
     if (active) {
       const t = Math.max(0, Math.min(1, (speed - WALK_SPEED) / (RUN_SPEED - WALK_SPEED)));
       // Indoors (v0.9.4): an ordinary brisk walk on a hard deck — the step
@@ -5290,16 +5283,33 @@ body.in-wreck .cam-buttons { display: none; }
     if (ph < cf) y = -dip * Math.sin(Math.PI * ph / cf);
     else { const u = (ph - cf) / (1 - cf); y = 4 * apex * u * (1 - u); }
     // The walk clip's toe dips 1.6 cm below the root at push-off; lift by that indoors.
-    lope.y = (y * (1 - lope.air) + (level.id === 'wreck' ? 0.016 : 0)) * lope.w;   // in a free lope the real fall is the arc
+    lope.y = (y + (level.id === 'wreck' ? 0.016 : 0)) * lope.w;
   }
   // Called just before mixer.update: put the body on the arc and lock
   // the gait clip to the stride phase.
+  const airHold = { on: false, t: 0, f: 0 };
   function applyLope() {
     if (!astronautRoot || controlMode !== 'walking') return;
+    // Hop pose while sailing down a slope: ease the gait clip to the open
+    // point of the current stride and hold it there. Runs even after the
+    // lope has faded out, so the legs never free-run in the air.
+    {
+      const a = activeAction;
+      if (airHold.on && a && (a === animClips['Walk_Loop'] || a === animClips['Run_Loop'])) {
+        const D = a.getClip().duration;
+        const target = 0.97 + 0.5 * lope.parity + 0.25;            // mid-flight of this stride
+        let cur = a.time / D, d = target - cur; d -= Math.round(d); // shortest way round the loop
+        cur += d * Math.min(1, 0.12);
+        cur -= Math.floor(cur);
+        a.time = cur * D;
+        astronautRoot.position.y = player.pos.y + lope.y + stepVis.off;
+        return;
+      }
+    }
     if (lope.w <= 0) return;
     astronautRoot.position.y = player.pos.y + lope.y + stepVis.off;
     const a = activeAction;
-    if (a && (a === animClips['Walk_Loop'] || a === animClips['Run_Loop']) && (player.grounded || lope.free)) {
+    if (a && (a === animClips['Walk_Loop'] || a === animClips['Run_Loop']) && player.grounded) {
       const cf = lope.contact / lope.period, dc = lope.dc, ph = lope.phase;
       // Foot down: clip moves with the ground. Foot up: the rest of the half-cycle.
       const within = ph < cf ? (ph / cf - 0.5) * dc
