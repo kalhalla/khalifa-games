@@ -592,7 +592,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.9.0';  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.9.1';  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -14197,10 +14197,33 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     root.add(day); root.add(day.target);
     // Helmet lamp — follows the astronaut's head, casts the only moving shadows.
     const lamp = new THREE.SpotLight(0xfff4dc, 1.6, 15, 0.52, 0.55, 1.6);
-    lamp.castShadow = true; lamp.shadow.mapSize.set(512, 512);
+    lamp.shadow.mapSize.set(512, 512);
     lamp.shadow.camera.near = 0.3;
-    lamp.visible = false;
+    // v0.9.1: the lamp is a chest light and is on outdoors too. It only
+    // casts shadows indoors (a second shadow pass over the whole crater
+    // is too dear on phones). It stays visible so entering the wreck does
+    // not change the light count; "off" is intensity 0.
+    lamp.castShadow = false;
     scene.add(lamp); scene.add(lamp.target);
+    // Glare seen when the camera looks into the lamp.
+    const flare = (function () {
+      const c = document.createElement('canvas'); c.width = c.height = 256;
+      const g = c.getContext('2d');
+      let gr = g.createRadialGradient(128, 128, 0, 128, 128, 128);
+      gr.addColorStop(0, 'rgba(255,252,240,1)'); gr.addColorStop(0.06, 'rgba(255,246,220,0.95)');
+      gr.addColorStop(0.2, 'rgba(255,225,170,0.32)'); gr.addColorStop(0.5, 'rgba(255,200,130,0.08)');
+      gr.addColorStop(1, 'rgba(255,190,120,0)');
+      g.fillStyle = gr; g.fillRect(0, 0, 256, 256);
+      g.save(); g.translate(128, 128); g.scale(1, 0.045);            // thin horizontal streak
+      gr = g.createRadialGradient(0, 0, 0, 0, 0, 128);
+      gr.addColorStop(0, 'rgba(255,250,235,0.9)'); gr.addColorStop(1, 'rgba(255,230,190,0)');
+      g.fillStyle = gr; g.beginPath(); g.arc(0, 0, 128, 0, Math.PI * 2); g.fill(); g.restore();
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c),
+        blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, opacity: 0, fog: false, toneMapped: false }));
+      sp.renderOrder = 996; sp.visible = false;
+      scene.add(sp);
+      return sp;
+    })();
 
     // ── Set cameras, one zone per section ──
     // fixed: camera holds a position and turns to keep him framed.
@@ -14220,7 +14243,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     }
     const SPAWN = { x: 2.6 * WL_K, z: -1.6 * WL_K, heading: Math.PI / 2 };
     const EXIT = { x: 3.2 * WL_K, z: -2.2 * WL_K };
-    return { root, boxes, zones, lights, lamp, SPAWN, EXIT };
+    return { root, boxes, zones, lights, lamp, flare, SPAWN, EXIT };
   })();
 
   // ── Level switch ──
@@ -14257,13 +14280,13 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       // Hide every crater top-level object (terrain, wreck exterior, robots,
       // sun, sky dome…) except the astronaut and the shared UI helpers.
       _hiddenForWreck.length = 0;
-      const keep = new Set([astronautRoot, wreckLevel.root, interactMarker, wreckLevel.lamp, wreckLevel.lamp.target, camera]);
+      const keep = new Set([astronautRoot, wreckLevel.root, interactMarker, wreckLevel.lamp, wreckLevel.lamp.target, wreckLevel.flare, camera]);
       for (const o of scene.children) {
         if (keep.has(o) || !o.visible) continue;
         o.visible = false; _hiddenForWreck.push(o);
       }
       wreckLevel.root.visible = true;
-      wreckLevel.lamp.visible = true;
+      wreckLevel.lamp.castShadow = true;
       scene.background = new THREE.Color(0x000000);
       if (!boxColliders.some(b => b.tag === 'wreckLevel')) _wlRegisterBoxes();
       level.id = 'wreck';
@@ -14285,7 +14308,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       for (const o of _hiddenForWreck) o.visible = true;
       _hiddenForWreck.length = 0;
       wreckLevel.root.visible = false;
-      wreckLevel.lamp.visible = false;
+      wreckLevel.lamp.castShadow = false;
       level.id = 'crater';
       const zl = $('zone-label'); if (zl) zl.textContent = '';
       const s = _wlSavedCrater || { x: hatchInteract.x, z: hatchInteract.z + 1.5, heading: 0 };
@@ -14308,6 +14331,34 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // the camera once the player lets go of the stick — classic fixed-
   // camera control latching.
   const wreckCam = { zone: null, basisYaw: 0, look: new THREE.Vector3(), pos: new THREE.Vector3() };
+  // Chest lamp + glare (v0.9.1). Runs every frame, indoors and out.
+  const _lampToCam = new THREE.Vector3();
+  function updateSuitLamp() {
+    const L = wreckLevel.lamp, F = wreckLevel.flare;
+    const on = controlMode === 'walking' && astronautRoot && astronautRoot.visible &&
+               !(typeof opening !== 'undefined' && (opening.pending || opening.active));
+    if (!on) { L.intensity = 0; F.visible = false; return; }
+    const indoors = level.id === 'wreck';
+    L.intensity = indoors ? 1.6 : 1.25;
+    const b = (astroSeat.bones || _seatBones());
+    const fx = Math.sin(player.heading), fz = Math.cos(player.heading);
+    if (b) b.Spine2.getWorldPosition(L.position); else L.position.set(player.pos.x, player.pos.y + 1.25, player.pos.z);
+    L.position.x += fx * 0.24; L.position.z += fz * 0.24; L.position.y += 0.06;
+    L.target.position.set(L.position.x + fx * 4, L.position.y - 0.9, L.position.z + fz * 4);
+    // Glare: strongest when the lamp points at the camera.
+    _lampToCam.copy(camera.position).sub(L.position);
+    const dist = _lampToCam.length() || 1;
+    _lampToCam.multiplyScalar(1 / dist);
+    const facing = fx * _lampToCam.x * 0.975 - 0.22 * _lampToCam.y + fz * _lampToCam.z * 0.975;
+    const v = _ss(0.2, 0.85, facing);
+    F.visible = v > 0.01;
+    if (F.visible) {
+      F.position.copy(L.position).addScaledVector(_lampToCam, 0.3);
+      F.material.opacity = v * (indoors ? 1.0 : 0.8);
+      const sc = (0.5 + 1.5 * v) * (0.6 + dist * 0.07);
+      F.scale.set(sc, sc, 1);
+    }
+  }
   function updateWreckCamera(dt, snap) {
     const lx = player.pos.x - WL_ORIGIN.x;
     let z = wreckCam.zone;
@@ -14334,11 +14385,6 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       wreckCam.basisYaw = Math.atan2(_camDir.x, _camDir.z);
     }
     wreckCam._latched = moving;
-    // Helmet lamp from the head, along the body heading, tilted down.
-    const L = wreckLevel.lamp, b = (astroSeat.bones || _seatBones());
-    if (b) b.Head.getWorldPosition(L.position); else L.position.set(player.pos.x, player.pos.y + 1.6, player.pos.z);
-    L.target.position.set(L.position.x + Math.sin(player.heading) * 4, L.position.y - 1.2,
-                          L.position.z + Math.cos(player.heading) * 4);
     const zl = $('zone-label');
     if (zl) zl.textContent = WRECK_LEVEL_ENABLED ? ('wreck blockout · camera ' + z.name + ' · ' + z.mode) : '';
   }
@@ -14489,6 +14535,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       updateInteract(dt);                                   // v0.5.0 — after scene state, before camera
       if (level.id === 'wreck') updateWreckCamera(dt);      // v0.6 set cameras indoors
       else if (!shackletonMemory.isActive()) updateCamera(dt);   // camera holds during fragments (spec §8)
+      updateSuitLamp();
       // Shadow frustum follows the active subject — astronaut on
       // foot, Flyer in flight — texel-snapped inside updateSunFollow.
       if (controlMode === 'flying' && typeof flyerHeading !== 'undefined' && flyerHeading) {
