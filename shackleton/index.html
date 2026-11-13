@@ -588,7 +588,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.7.3';  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.8.0';  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -1524,7 +1524,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   const FLOOR_PADS = [
     { x: 8,   z: -2, r: 30, blend: 20 },     // wreck / wake site / Flyer / refill panel (the v0.4 apron)
     { x: -75, z: 80, r: 10, blend: 10 },     // ice pocket (ICE_POCKET)
-    { x: -60, z: 30, r: 16.5, blend: 8 },    // central peak foot (PEAK_CENTER, base r 12.5 + 4)
+    { x: -60, z: 30, r: 14, blend: 8 },      // central peak foot (PEAK_CENTER, bounding r 11 + 3)
   ];
   function floorPadMask(x, z) {
     let m = 1;
@@ -1792,262 +1792,122 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // ============================================================
   const PEAK_CENTER_X    = -60;
   const PEAK_CENTER_Z    = 30;
-  // v0.6.1: PEAK_SCALE 0.5 — Khal halved the central peak. Everything
-  // mountain-sized scales with it; PATH_WIDTH stays person-sized, and
-  // PATH_TURNS halves so the windings keep their 6m radial spacing
-  // (3 turns over the new 9m span would put them 3m apart under a
-  // 3.5m path — one continuous ramp, the wedding cake again).
-  const PEAK_SCALE       = 0.5;
-  const PEAK_BASE_R      = 25.0 * PEAK_SCALE;    // 25m base diameter (was 50m)
-  // PEAK_HEIGHT is the cone's height AT ITS APEX IF IT CAME TO A
-  // POINT — the actual walkable summit is SUMMIT_H below, where the
-  // platform truncates it. 40m apex → 28.8m summit.
-  const PEAK_HEIGHT      = 40.0 * PEAK_SCALE;    // 20m apex → 14.4m summit
-  const PATH_TURNS       = 3 * PEAK_SCALE;       // 1.5 revolutions
-  // PATH_WIDTH 3.5, down from 6. The windings are spaced 6m radially
-  // (18m of radius over 3 turns), so a 6m-wide path was WALL-TO-WALL
-  // shelf — concentric flat discs, the wedding-cake read. At 3.5m
-  // there is 2.5m of true 52° cone face between windings, which the
-  // block displacement then roughens into rock. The trail is still
-  // comfortably wider than the player.
-  const PATH_WIDTH       = 3.5;     // walkable width
-  const SUMMIT_R         = 7.0 * PEAK_SCALE;     // 7m platform diameter
-  // ── THE TIN-CAN FIX ──
-  // The platform used to sit at PEAK_HEIGHT while the cone surface
-  // at SUMMIT_R sat at PEAK_HEIGHT·(1−7/25) — nine metres lower.
-  // The summit was a 9m cylindrical plug jammed into the cone top,
-  // which is exactly the tin-can silhouette in the screenshots. The
-  // platform is now AT the cone surface: the mountain truncates
-  // where the path arrives, like the reference. Everything —
-  // collision, path shelves, overlay, cap mesh — derives from this
-  // one constant, so it cannot desynchronise.
-  const SUMMIT_H = PEAK_HEIGHT * (1 - SUMMIT_R / PEAK_BASE_R);   // 28.8m
-  // Path entry angle (peak-local, radians). Points roughly TOWARD
-  // the wreck so the path mouth is visible from the player's spawn
-  // position. Wreck at world (8,-2), peak at (-60,30), so the
-  // peak→wreck direction is atan2(-32, 68) ≈ -0.44 rad.
+  // ── v0.8.0: THE PEAK IS ONE ROCK ──
+  // Rebuilt at Khal's direction: smaller, irregular, a single mesh with
+  // nothing stuck to it, and one clear path up and round. Everything
+  // comes from ONE height function, peakHeight(): the mesh samples it
+  // and the player walks on it, so they cannot disagree. (The v0.4–0.7
+  // peak was a cone + a separate path ribbon + ~170 loose stones.)
+  //   outline   not a circle: the base radius varies with bearing
+  //             (PEAK_R0 × 0.68…1.32), so it reads as a lumpy outcrop
+  //   path      a spiral ramp at a steady ~12° grade, cut into the
+  //             rock as a level shelf with a bank above and a drop below
+  //   faces     craggy noise everywhere except on the path
+  //   summit    a small level top where the path arrives
+  const PEAK_R0          = 8.5;     // mean base radius (was 12.5)
+  const PEAK_BASE_R      = 11.3;    // bounding radius — nothing of the peak lies beyond it
+  const PEAK_HEIGHT      = 9.0;     // summit height (was 14.4)
+  const SUMMIT_H         = PEAK_HEIGHT;
+  const PEAK_US          = 0.28;    // summit edge, as a fraction of the local base radius
+  const SUMMIT_R         = PEAK_R0 * PEAK_US;
+  const PATH_TURNS       = 1.1;
+  const PATH_WIDTH       = 2.4;     // walkable width
+  // Path entry bearing (peak-local). Points roughly toward the wreck so
+  // the path mouth is visible from the spawn: atan2(-32, 68) ≈ -0.44.
   const PATH_ENTRY_ANGLE = -0.44;
 
-  // Surface elevation at world (x, z), in metres above the crater
-  // floor datum. Three regimes:
-  //   - inside SUMMIT_R: flat platform at PEAK_HEIGHT
-  //   - on the spiral path: terraced flat shelf at the cone height
-  //     at the path's centerline radius for this angle
-  //   - elsewhere: smooth linear cone profile
-  // Radial distance from (r, θ) to the nearest spiral-path
-  // centreline winding, plus that winding's centreline radius.
-  // Shared by peakHeight (collision), the mesh displacement mask,
-  // and the slope rock scatter — one source of truth for "where
-  // the path is".
-  function peakPathQuery(r, theta) {
+  function peakOutlineR(theta) {
+    return PEAK_R0 * (1 + 0.17 * Math.sin(2 * theta + 0.7) + 0.10 * Math.sin(3 * theta + 2.1)
+                        + 0.05 * Math.sin(5 * theta + 4.0));
+  }
+  // Nearest path winding at (u, θ): distance in metres, and the path's
+  // height there. u = r / outline radius (0 centre … 1 base edge).
+  const _pq = { dist: Infinity, h: 0 };
+  function peakPathAt(u, theta, R) {
     const shifted  = theta - PATH_ENTRY_ANGLE;
     const thetaN   = ((shifted % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
     const totalAng = Math.PI * 2 * PATH_TURNS;
-    let bestRP   = 0;
-    let bestDist = Infinity;
-    for (let k = 0; k <= PATH_TURNS; k++) {
+    _pq.dist = Infinity; _pq.h = 0;
+    for (let k = 0; k < 3; k++) {
       const a = thetaN + Math.PI * 2 * k;
       if (a > totalAng + 1e-6) break;
-      const pathFrac = a / totalAng;
-      const rP = PEAK_BASE_R - (PEAK_BASE_R - SUMMIT_R) * pathFrac;
-      const d  = Math.abs(r - rP);
-      if (d < bestDist) { bestDist = d; bestRP = rP; }
+      const f = a / totalAng;
+      const d = Math.abs(u - (1 - (1 - PEAK_US) * f)) * R;
+      if (d < _pq.dist) { _pq.dist = d; _pq.h = PEAK_HEIGHT * f; }
     }
-    return { dist: bestDist, rP: bestRP };
+    return _pq;
   }
+  // Compatibility shim for older callers: (r, θ) → { dist, rP }.
+  function peakPathQuery(r, theta) {
+    const R = peakOutlineR(theta), q = peakPathAt(r / R, theta, R);
+    return { dist: q.dist, rP: r };
+  }
+  function _ss(a, b, x) { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); }
 
+  function _facetNoise(x, z, cell) {
+    const gx = x / cell, gz = z / cell, i = Math.floor(gx), j = Math.floor(gz), fx = gx - i, fz = gz - j;
+    const H = lunarFloor.hash, a = H(i, j), b = H(i + 1, j), c = H(i, j + 1), d = H(i + 1, j + 1);
+    return (fx + fz < 1) ? a + (b - a) * fx + (c - a) * fz : d + (c - d) * (1 - fx) + (b - d) * (1 - fz);
+  }
+  // Height above the crater-floor datum; 0 outside the peak.
   function peakHeight(x, z) {
-    const dx = x - PEAK_CENTER_X;
-    const dz = z - PEAK_CENTER_Z;
-    const r  = Math.sqrt(dx*dx + dz*dz);
+    const dx = x - PEAK_CENTER_X, dz = z - PEAK_CENTER_Z;
+    const r  = Math.sqrt(dx * dx + dz * dz);
     if (r >= PEAK_BASE_R) return 0;
-    if (r <= SUMMIT_R)    return SUMMIT_H;
-    const cone = PEAK_HEIGHT * (1 - r / PEAK_BASE_R);
-    const q = peakPathQuery(r, Math.atan2(dz, dx));
-    if (q.dist <= PATH_WIDTH * 0.5) {
-      return PEAK_HEIGHT * (1 - q.rP / PEAK_BASE_R);
-    }
-    return cone;
+    const theta = Math.atan2(dz, dx), R = peakOutlineR(theta), u = r / R;
+    if (u >= 1) return 0;
+    if (u <= PEAK_US * 0.92) return SUMMIT_H;
+    // Natural rock: a straight flank in u, so it meets the path's steady
+    // ramp along the whole spiral, roughened by crags.
+    const flank = Math.min(SUMMIT_H, PEAK_HEIGHT * (1 - u) / (1 - PEAK_US));
+    // Crags are FACETED noise (flat triangles between lattice points,
+    // not smooth interpolation): big angular planes with hard creases,
+    // so it reads as broken rock. Smooth noise gave a melted-wax blob.
+    const crag = (_facetNoise(x + 40, z - 12, 2.6) - 0.5) * 3.4 + (_facetNoise(x - 7, z + 31, 1.1) - 0.5) * 1.1;
+    const edge = _ss(1.0, 0.95, u) * _ss(PEAK_US * 0.92, PEAK_US * 1.2, u);   // calm only at the very foot and the top
+    const q = peakPathAt(u, theta, R);
+    const off = _ss(PATH_WIDTH * 0.5, PATH_WIDTH * 0.5 + 0.55, q.dist);       // 0 on the path → 1 on rock
+    const rock = Math.max(0, flank + crag * edge * off);
+    return q.h * (1 - off) + rock * off;
   }
 
-  // Build the peak as a single BufferGeometry. Polar grid samples
-  // peakHeight() directly, so the terraced spiral path is part of
-  // the mesh — visible as flat shelves between cone slopes. The
-  // apex is built deliberately asymmetric: the centre vertex is
-  // off-axis and ring 0 (at SUMMIT_R) has independent radial +
-  // height jitter on every vertex, so the top reads as a rough
-  // chunky cylinder rather than a symmetric cone-with-platform.
+  // One BufferGeometry, sampled straight from peakHeight on a polar
+  // grid that follows the irregular outline (so the base edge is clean).
+  // Vertex colour marks the path as pale trodden dust against dark rock.
   function buildCentralPeak() {
-    const SEGS  = 64;    // up from 48 — smaller blocks, chunkier rock
-    const RINGS = 24;    // up from 16
-    const positions = [];
-    const indices   = [];
-    // ── SUMMIT CAP — faceted platform, not a point ──
-    // The old cap was one off-axis apex vertex fanning down to the
-    // rim: a tent. The reference summit is a broken rocky PLATFORM.
-    // So the cap is now a small polar grid: a centre vertex at
-    // platform height, two interior rings with per-vertex height
-    // and radial jitter (irregular facets underfoot; collision
-    // stays flat at PEAK_HEIGHT, deviation ≤ ±0.35m), then the
-    // existing rough rim ring at SUMMIT_R whose ±1.5m jitter gives
-    // broken parapet blocks — some above the deck, some crumbled
-    // below it. Vertex layout: [centre, capA, capB, rim, body×RINGS],
-    // every ring SEGS wide, so one uniform quad loop stitches all.
-    // ── SUMMIT CAP — FLAT, coplanar, no spindle ──
-    // The starburst in the screenshots was per-vertex HEIGHT jitter
-    // on rings that fan to a centre vertex: 64 thin wedges, each
-    // tilted differently, flat-shaded into alternating shards. The
-    // fix is coplanarity: centre and both cap rings sit at EXACTLY
-    // SUMMIT_H. Coplanar faces share one normal, so the wedge fan
-    // shades as a single unbroken surface — the triangulation is
-    // still there, it just becomes invisible. Radial jitter stays
-    // (it breaks the perfect-circle outline without breaking the
-    // plane); the rim ring below provides the broken parapet.
-    positions.push(0, SUMMIT_H, 0);                        // centre — dead flat
-    const capRings = [
-      { r: SUMMIT_R * 0.45, hJ: 0.0, rJ: 0.35, seed: 860 },
-      { r: SUMMIT_R * 0.80, hJ: 0.0, rJ: 0.45, seed: 880 },
-    ];
-    for (const cap of capRings) {
+    const SEGS = 128, RINGS = 46;
+    const pos = [], col = [], idx = [];
+    pos.push(0, SUMMIT_H, 0); col.push(1, 1, 1);
+    for (let j = 1; j <= RINGS; j++) {
+      const u = j / RINGS;
       for (let i = 0; i < SEGS; i++) {
-        const a = (i / SEGS) * Math.PI * 2
-                + (rng(cap.seed * 3 + i) - 0.5) * (Math.PI * 2 / SEGS) * 0.35;
-        const r_v = cap.r + (rng(cap.seed + i) - 0.5) * 2 * cap.rJ;
-        const h_v = SUMMIT_H + (rng(cap.seed + 40 + i) - 0.5) * 2 * cap.hJ;
-        positions.push(Math.cos(a) * r_v, h_v, Math.sin(a) * r_v);
+        const th = (i / SEGS) * Math.PI * 2;
+        const R = peakOutlineR(th);
+        // Slight stagger so facets don't line up in spokes.
+        const uu = (j < RINGS) ? u + (rng(i * 7.3 + j * 131.7) - 0.5) * 0.35 / RINGS : 1;
+        const lx = Math.cos(th) * R * uu, lz = Math.sin(th) * R * uu;
+        const h = (j === RINGS) ? 0 : peakHeight(PEAK_CENTER_X + lx, PEAK_CENTER_Z + lz);
+        pos.push(lx, h, lz);
+        const q = peakPathAt(uu, th, R);
+        const onPath = 1 - _ss(PATH_WIDTH * 0.5 - 0.2, PATH_WIDTH * 0.5 + 0.4, q.dist);
+        const top = uu <= PEAK_US ? 1 : 0;
+        const c = 1 + 0.9 * Math.max(onPath, top);
+        col.push(c, c * 0.99, c * 0.97);
       }
     }
-    for (let ring = 0; ring <= RINGS; ring++) {
-      const tt = ring / RINGS;
-      const r_base = SUMMIT_R + (PEAK_BASE_R - SUMMIT_R) * tt;
-      for (let i = 0; i < SEGS; i++) {
-        // Small angular jitter only on cone body rings — no radial
-        // jitter, which used to push vertices across the path
-        // boundary and produce chaotic shelf/slope alternation.
-        const aJit = (rng(ring * 37 + i + 0.31) - 0.5) * (Math.PI * 2 / SEGS) * 0.20;
-        const a = (i / SEGS) * Math.PI * 2 + aJit;
-        let r_v, h_v;
-        if (ring === 0) {
-          // Summit rim — low broken blocks around the platform edge.
-          // The old ±1.5m height jitter produced shark-tooth spikes;
-          // rim blocks now rise at most ~1.0m proud of the deck and
-          // dip ~0.6m into it, with modest radial breakup.
-          const rJit = (rng(i + 800) - 0.5) * 2.0 * PEAK_SCALE;
-          const hJit = (rng(i + 820) * 1.0 - 0.4) * PEAK_SCALE;
-          r_v = Math.max(SUMMIT_R * 0.72, SUMMIT_R + rJit);
-          h_v = SUMMIT_H + 0.2 + hJit;
-        } else {
-          r_v = r_base;
-          let a_use = a;
-          const wx0 = PEAK_CENTER_X + Math.cos(a) * r_v;
-          const wz0 = PEAK_CENTER_Z + Math.sin(a) * r_v;
-          h_v = peakHeight(wx0, wz0);
-          // ── CHUNKY BLOCK DISPLACEMENT ──
-          // The spiral windings are spaced 6m radially and the path
-          // is 6m wide — the cone body is wall-to-wall shelf, and no
-          // vertex is ever more than 3m from a centreline. So the
-          // ruggedness comes from crumbling the shelf EDGES: full
-          // displacement at the outer/inner lips, zero inside a
-          // 3.2m clean walk strip down the middle. Block-quantised
-          // (3 segs × 2 rings share one offset) so flat shading
-          // produces hard angular steps, not waviness. Collision is
-          // untouched; the walk strip's visual and collision agree,
-          // and edge mismatch is capped at ~1m where nobody walks.
-          const q = peakPathQuery(r_v, a);
-          // Zero inside the path plus a 0.3m margin; full amplitude
-          // on the cone faces between windings (max dist ≈ 3.0m at
-          // the new 3.5m path width).
-          const edgeMask = Math.min(1, Math.max(0,
-            (q.dist - PATH_WIDTH * 0.5 - 0.3) / 0.9));
-          const rimMask  = Math.min(1, (tt) / 0.10)            // fade in off the summit
-                         * Math.min(1, (1 - tt) / 0.08);       // fade out at the base
-          const mask = edgeMask * rimMask;
-          if (mask > 0) {
-            const blk = Math.floor(i / 3) * 131 + Math.floor(ring / 2) * 977;
-            const dR = (rng(blk + 0.17) - 0.5) * 4.4 * PEAK_SCALE * mask;
-            const dH = (rng(blk + 0.53) - 0.5) * 3.2 * PEAK_SCALE * mask;
-            r_v = Math.max(SUMMIT_R + 0.5, r_v + dR);
-            const wx = PEAK_CENTER_X + Math.cos(a_use) * r_v;
-            const wz = PEAK_CENTER_Z + Math.sin(a_use) * r_v;
-            h_v = peakHeight(wx, wz) + dH;
-          }
-        }
-        positions.push(Math.cos(a) * r_v, h_v, Math.sin(a) * r_v);
-      }
+    for (let i = 0; i < SEGS; i++) idx.push(0, 1 + ((i + 1) % SEGS), 1 + i);
+    for (let j = 0; j < RINGS - 1; j++) for (let i = 0; i < SEGS; i++) {
+      const a = 1 + j * SEGS + i, b = 1 + j * SEGS + ((i + 1) % SEGS);
+      const c = a + SEGS, d = b + SEGS;
+      idx.push(a, b, c, b, d, c);
     }
-    // Centre fan onto cap ring A.
-    for (let i = 0; i < SEGS; i++) {
-      const i1 = 1 + i;
-      const i2 = 1 + ((i + 1) % SEGS);
-      indices.push(0, i2, i1);
-    }
-    // Uniform quad loop over ALL consecutive ring pairs: capA→capB,
-    // capB→rim, rim→body₁, … bodyₙ₋₁→bodyₙ. Total rings = 2 caps +
-    // (RINGS+1) rim/body rings; every ring is SEGS wide.
-    const totalRingCount = 2 + RINGS + 1;
-    for (let ring = 0; ring < totalRingCount - 1; ring++) {
-      const a0 = 1 + ring * SEGS;
-      const a1 = 1 + (ring + 1) * SEGS;
-      for (let i = 0; i < SEGS; i++) {
-        const i0 = a0 + i;
-        const i1 = a0 + ((i + 1) % SEGS);
-        const j0 = a1 + i;
-        const j1 = a1 + ((i + 1) % SEGS);
-        indices.push(j0, i0, i1);
-        indices.push(j0, i1, j1);
-      }
-    }
-    const geom = new THREE.BufferGeometry();
-    geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    geom.setIndex(indices);
-    geom.computeVertexNormals();
-    return geom;
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    g.setIndex(idx);
+    g.computeVertexNormals();
+    return g;
   }
-
-  // Build a thin overlay ribbon along the spiral path centerline.
-  // Sits on top of the cone mesh's terraced shelves with a tiny
-  // vertical lift to avoid z-fighting, painted with a lighter
-  // material so the path is clearly readable against the dark peak.
-  // Edges and height are clamped so the ribbon never drops below
-  // the floor at the entry or tunnels into the apex platform.
-  function buildPathOverlay() {
-    const NUM_STEPS   = 80;
-    const RIBBON_LIFT = 0.08;       // m above the cone-mesh shelf
-    const OVERLAY_W   = PATH_WIDTH - 0.8;   // rides the walk strip inside the crumbled edges
-    const T_END       = 0.85;        // stop short of the platform
-    const positions   = [];
-    const indices     = [];
-    for (let s = 0; s <= NUM_STEPS; s++) {
-      const T     = (s / NUM_STEPS) * T_END;
-      const r     = PEAK_BASE_R - (PEAK_BASE_R - SUMMIT_R) * T;
-      const theta = PATH_ENTRY_ANGLE + Math.PI * 2 * PATH_TURNS * T;
-      const cosT  = Math.cos(theta);
-      const sinT  = Math.sin(theta);
-      // Centerline cone height, clamped to floor (path entry at T=0
-      // is at h=0, so the lift keeps the ribbon visible there).
-      const hRaw  = PEAK_HEIGHT * (1 - r / PEAK_BASE_R);
-      const h     = Math.max(0, hRaw) + RIBBON_LIFT;
-      // Clamp edges so the ribbon stays within the cone footprint.
-      const rOut  = Math.min(PEAK_BASE_R,    r + OVERLAY_W * 0.5);
-      const rIn   = Math.max(SUMMIT_R + 0.3, r - OVERLAY_W * 0.5);
-      positions.push(cosT * rOut, h, sinT * rOut);   // outer edge
-      positions.push(cosT * rIn,  h, sinT * rIn);    // inner edge
-    }
-    for (let s = 0; s < NUM_STEPS; s++) {
-      const a0 = s * 2;
-      const a1 = a0 + 1;
-      const b0 = (s + 1) * 2;
-      const b1 = b0 + 1;
-      indices.push(a0, a1, b1);
-      indices.push(a0, b1, b0);
-    }
-    const geom = new THREE.BufferGeometry();
-    geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    geom.setIndex(indices);
-    geom.computeVertexNormals();
-    return geom;
-  }
-
 
   // Peak material — a couple shades darker than rockMid, so the
   // cone reads as the darkest mass against the path (rockMid),
@@ -2056,6 +1916,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   const peakMat = rockify(new THREE.MeshPhongMaterial({
     shininess: 0,
     color: 0x2f2d2b,
+    vertexColors: true,          // v0.8.0: pale path / dark rock
     flatShading: true
   }), 0.8);
   const centralPeak = new THREE.Mesh(buildCentralPeak(), peakMat);
@@ -2065,159 +1926,8 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   root.add(centralPeak);
   cameraOccluders.push(centralPeak);   // pull cam in when peak blocks the shot
 
-  // Path overlay — thin lighter ribbon laid on top of the cone's
-  // terraced shelves. Uses rockLight against the dark peak so the
-  // spiral path reads clearly from a distance.
-  const pathOverlay = new THREE.Mesh(buildPathOverlay(), M.rockLight);
-  pathOverlay.position.set(PEAK_CENTER_X, -CRATER_DEPTH, PEAK_CENTER_Z);
-  pathOverlay.castShadow = false;
-  pathOverlay.receiveShadow = true;
-  root.add(pathOverlay);
-
-  // Stones lining the path edges. Walk the path centerline and
-  // place small stones along the outer (drop) edge mostly, with
-  // a few on the inner (cliff) edge. Each stone's height is queried
-  // from peakHeight() at its actual XZ position — so it sits on
-  // whatever real surface is underneath (cone slope, shelf, or
-  // floor at the path's foot), not on an assumed shelf height.
-  // Mix of rockLight and rockMid so the stones don't read as a
-  // uniform line — they look like loose debris, not paint markers.
-  const NUM_PATH_STONES = 56;
-  for (let s = 0; s < NUM_PATH_STONES; s++) {
-    const T     = (s + 0.5) / NUM_PATH_STONES;     // even spacing along path
-    const r     = PEAK_BASE_R - (PEAK_BASE_R - SUMMIT_R) * T;
-    const theta = PATH_ENTRY_ANGLE + Math.PI * 2 * PATH_TURNS * T;
-    // Most stones on outer edge (drop side); some on inner edge.
-    // Inset slightly so they sit ON the shelf, not at its edge.
-    const outerSide = rng(s + 700) < 0.72;
-    const edgeR = outerSide
-                ? r + PATH_WIDTH * 0.5 - 0.4
-                : r - PATH_WIDTH * 0.5 + 0.4;
-    const tangentJitter = (rng(s + 710) - 0.5) * 0.6;
-    const cosT = Math.cos(theta);
-    const sinT = Math.sin(theta);
-    const tx = -sinT, tz = cosT;
-    const lx = cosT * edgeR + tx * tangentJitter;
-    const lz = sinT * edgeR + tz * tangentJitter;
-    const wx = PEAK_CENTER_X + lx;
-    const wz = PEAK_CENTER_Z + lz;
-    // Sample the actual peak surface at this stone's footprint,
-    // clamped to floor — never below 0.
-    const yPath = Math.max(0, peakHeight(wx, wz));
-    const sz   = 0.4 + rng(s + 720) * 0.6;       // 0.4 .. 1.0m
-    const mat  = (rng(s + 730) < 0.30) ? M.rockMid : M.rockLight;
-    const stone = new THREE.Mesh(new THREE.IcosahedronGeometry(sz, 0), mat);
-    stone.scale.set(
-      0.7 + rng(s + 740) * 0.6,
-      0.5 + rng(s + 750) * 0.5,
-      0.7 + rng(s + 760) * 0.6
-    );
-    stone.rotation.set(
-      rng(s + 770) * Math.PI * 2,
-      rng(s + 780) * Math.PI * 2,
-      rng(s + 790) * Math.PI * 2
-    );
-    // Stones sit with ~30% of their size buried, so they read as
-    // settled into the surface rather than perched on top of it.
-    stone.position.set(wx, -CRATER_DEPTH + yPath + sz * 0.3, wz);
-    stone.castShadow = true;
-    stone.receiveShadow = true;
-    root.add(stone);
-  }
-
-  // ── SLOPE + APRON RUBBLE ──
-  // The reference mountain rises out of its own debris: small rocks
-  // strewn across the cone faces and a rubble skirt where slope
-  // meets floor. 90 slope rocks (path-avoiding, via peakPathQuery)
-  // and 50 apron rocks in a ring just beyond the base. All
-  // deterministic, all settled ~30% into the surface.
-  {
-    const NUM_SLOPE_ROCKS = 90;
-    for (let s = 0; s < NUM_SLOPE_ROCKS; s++) {
-      const a = rng(s + 51000) * Math.PI * 2;
-      const r = SUMMIT_R + 2.0 + rng(s + 51100) * (PEAK_BASE_R - SUMMIT_R - 3.0);
-      const q = peakPathQuery(r, a);
-      if (q.dist < PATH_WIDTH * 0.5 + 0.3) continue;   // keep the walk strip clear; edges take rubble
-      const wx = PEAK_CENTER_X + Math.cos(a) * r;
-      const wz = PEAK_CENTER_Z + Math.sin(a) * r;
-      const h  = peakHeight(wx, wz);
-      const sz = 0.25 + rng(s + 51200) * 0.75;
-      const mat = (rng(s + 51300) < 0.5) ? M.rockMid : M.rockLight;
-      const rock = new THREE.Mesh(new THREE.IcosahedronGeometry(sz, 0), mat);
-      rock.scale.set(0.7 + rng(s + 51400) * 0.6,
-                     0.5 + rng(s + 51500) * 0.5,
-                     0.7 + rng(s + 51600) * 0.6);
-      rock.rotation.set(rng(s + 51700) * Math.PI * 2,
-                        rng(s + 51800) * Math.PI * 2,
-                        rng(s + 51900) * Math.PI * 2);
-      rock.position.set(wx, -CRATER_DEPTH + h + sz * 0.25, wz);
-      rock.castShadow = true;
-      rock.receiveShadow = true;
-      root.add(rock);
-    }
-    const NUM_APRON_ROCKS = 50;
-    for (let s = 0; s < NUM_APRON_ROCKS; s++) {
-      const a = rng(s + 52000) * Math.PI * 2;
-      const r = PEAK_BASE_R + rng(s + 52100) * 8.0;
-      const wx = PEAK_CENTER_X + Math.cos(a) * r;
-      const wz = PEAK_CENTER_Z + Math.sin(a) * r;
-      const sz = 0.3 + rng(s + 52200) * 0.9;
-      const mat = (rng(s + 52300) < 0.5) ? M.rockMid : M.rockLight;
-      const rock = new THREE.Mesh(new THREE.IcosahedronGeometry(sz, 0), mat);
-      rock.scale.set(0.7 + rng(s + 52400) * 0.6,
-                     0.45 + rng(s + 52500) * 0.5,
-                     0.7 + rng(s + 52600) * 0.6);
-      rock.rotation.set(rng(s + 52700) * Math.PI * 2,
-                        rng(s + 52800) * Math.PI * 2,
-                        rng(s + 52900) * Math.PI * 2);
-      rock.position.set(wx,
-        -CRATER_DEPTH + floorHeight(wx, wz) + sz * 0.25, wz);
-      rock.castShadow = true;
-      rock.receiveShadow = true;
-      root.add(rock);
-    }
-  }
-
-  // Boulders hand-placed around the peak's base — bigger anchor
-  // chunks scattered just outside PEAK_BASE_R. Six rockLight,
-  // six rockMid, alternating tonally.
-  const peakBaseBoulders = [
-    // [angleRad, radialOffset beyond PEAK_BASE_R, size, light?]
-    [ 0.30,  1.5, 2.4, true  ],
-    [ 0.85,  3.2, 1.8, false ],
-    [ 1.40,  2.0, 3.0, true  ],
-    [ 1.95,  4.0, 1.6, false ],
-    [ 2.60,  1.0, 2.2, false ],
-    [ 3.15,  3.5, 2.7, true  ],
-    [ 3.80,  1.8, 1.4, true  ],
-    [ 4.35,  2.5, 2.5, false ],
-    [ 4.95,  4.2, 1.9, true  ],
-    [ 5.55,  1.2, 2.8, false ],
-    [ 6.10,  3.0, 1.7, true  ],
-    [-0.40,  2.2, 2.1, false ],
-  ];
-  for (let i = 0; i < peakBaseBoulders.length; i++) {
-    const [ang, off, sz, light] = peakBaseBoulders[i];
-    const r  = PEAK_BASE_R + off;
-    const x  = PEAK_CENTER_X + Math.cos(ang) * r;
-    const z  = PEAK_CENTER_Z + Math.sin(ang) * r;
-    const mat = light ? M.rockLight : M.rockMid;
-    const m  = new THREE.Mesh(new THREE.IcosahedronGeometry(sz, 0), mat);
-    m.scale.set(
-      0.85 + rng(i + 91) * 0.5,
-      0.70 + rng(i + 92) * 0.4,
-      0.85 + rng(i + 93) * 0.5
-    );
-    m.rotation.set(
-      rng(i + 94) * Math.PI * 2,
-      rng(i + 95) * Math.PI * 2,
-      rng(i + 96) * Math.PI * 2
-    );
-    m.position.set(x, -CRATER_DEPTH + sz * 0.3, z);
-    m.castShadow = true;
-    m.receiveShadow = true;
-    root.add(m);
-  }
+  // (v0.8.0: the path ribbon, path-edge stones, slope/apron rubble and
+  // base boulders are gone — the peak is one mesh. See peakHeight.)
 
   // ============================================================
   // BOULDER GENERATOR
