@@ -588,7 +588,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.7.1';  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.7.2';  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -3073,7 +3073,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       player.pos.y = newGroundY;
       if (player.vel.y < 0 && wasAirborne) {
         sndLand();
-        if (level.id !== 'wreck') kickDust(player.pos.x, player.pos.y, player.pos.z, 28, 0.9, 0, 0);
+        if (level.id !== 'wreck') kickDust(player.pos.x, player.pos.y, player.pos.z, 90, 1.5, 0, 0, 1.0);
       }
       player.vel.y = 0;
       player.grounded = true;
@@ -3939,25 +3939,73 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     return tex;
   }
 
+  // v0.7.2 — FOOTPRINTS AS INDENTATIONS. The v0.4 print was an unlit
+  // decal (dark oval, baked rings): it never reacted to the sun, so it
+  // read as a stain. Now each print is a LIT plane with a normal map of
+  // a boot-sole depression: the wall facing the sun goes bright, the
+  // wall facing away goes black, the ribbed sole catches light rib by
+  // rib — the way Apollo prints look under a low sun. Real lighting, so
+  // it is right at any heading, and prints inside a cast shadow go flat.
+  // Alpha is strong on walls/ribs and light on the flat sole, so the
+  // sole reads as slightly darker compacted soil, not a patch.
+  function _makeFootprintMaps() {
+    const W = 128, H = 192;
+    const hgt = new Float32Array(W * H), inside = new Float32Array(W * H);
+    const sm = (t) => { t = Math.max(0, Math.min(1, t)); return t * t * (3 - 2 * t); };
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      // Boot outline: superellipse, toe (canvas bottom) wider than heel.
+      const v = (y - H / 2) / (H / 2 - 22);                 // −1 heel … +1 toe
+      const halfW = 30 + 6 * v - 5 * Math.exp(-(((v + 0.15) / 0.3) ** 2));   // waist
+      const u = (x - W / 2) / halfW;
+      const d = Math.pow(Math.pow(Math.abs(u), 2.6) + Math.pow(Math.abs(v), 2.6), 1 / 2.6);  // 1 at outline
+      const edgePx = (1 - d) * 30;                           // ≈ px inside the outline
+      const inn = sm(edgePx / 7);                            // wall 7px wide
+      // Depression + pushed-up rim just outside + straight ribs across the sole.
+      const rim = 0.30 * Math.exp(-(((d - 1.10) / 0.10) ** 2));
+      const rib = Math.sin(y * Math.PI * 2 / 15) > 0.15 ? 0.22 : 0;
+      hgt[y * W + x] = -1.0 * inn + rim + rib * sm((edgePx - 5) / 5);
+      inside[y * W + x] = inn;
+    }
+    const nc = document.createElement('canvas'), ac = document.createElement('canvas');
+    nc.width = ac.width = W; nc.height = ac.height = H;
+    const nctx = nc.getContext('2d'), actx = ac.getContext('2d');
+    const nimg = nctx.createImageData(W, H), aimg = actx.createImageData(W, H);
+    const at = (x, y) => hgt[Math.max(0, Math.min(H - 1, y)) * W + Math.max(0, Math.min(W - 1, x))];
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      // Tangent space: +u = +x, +v = −y (canvas is flipped on upload).
+      let nx = -(at(x + 1, y) - at(x - 1, y)) * 2.2;
+      let ny = (at(x, y + 1) - at(x, y - 1)) * 2.2;
+      const slope = Math.hypot(nx, ny);
+      const l = Math.hypot(nx, ny, 1); nx /= l; ny /= l;
+      const i = (y * W + x) * 4;
+      nimg.data[i] = (nx * 0.5 + 0.5) * 255; nimg.data[i + 1] = (ny * 0.5 + 0.5) * 255;
+      nimg.data[i + 2] = (1 / l * 0.5 + 0.5) * 255; nimg.data[i + 3] = 255;
+      const a = Math.max(inside[y * W + x] * 0.38, Math.min(1, slope * 2.2));
+      const shade = 232 - 26 * inside[y * W + x];            // compacted sole a touch darker
+      aimg.data[i] = aimg.data[i + 1] = shade; aimg.data[i + 2] = shade + 2;
+      aimg.data[i + 3] = a * 255;
+    }
+    nctx.putImageData(nimg, 0, 0); actx.putImageData(aimg, 0, 0);
+    const mk = (c) => { const t = new THREE.CanvasTexture(c); t.minFilter = THREE.LinearMipmapLinearFilter;
+      t.magFilter = THREE.LinearFilter; t.anisotropy = 4; t.needsUpdate = true; return t; };
+    return { normal: mk(nc), albedo: mk(ac) };
+  }
   function _initFootprintPool() {
     if (footprints.length) return;
-    footprintTexture = _makeFootprintTexture();
-    // Bigger plane — boots on the moon press a substantial print into
-    // soft regolith. Print itself is ~0.30m × 0.42m; the plane carries
-    // extra margin for the baked mound ring around it.
-    const geo = new THREE.PlaneGeometry(0.40, 0.54);
+    const maps = _makeFootprintMaps();
+    footprintTexture = maps.albedo;
+    // Print ≈ 0.26 × 0.40 m inside a plane with margin for the rim.
+    const geo = new THREE.PlaneGeometry(0.40, 0.60);
     geo.rotateX(-Math.PI / 2);    // lay flat on XZ plane (normal = +Y)
-    const mat = new THREE.MeshBasicMaterial({
-      map: footprintTexture,
-      transparent: true,
-      depthWrite: false,
-      polygonOffset: true,
-      polygonOffsetFactor: -1,
-      polygonOffsetUnits: -1
+    const mat = new THREE.MeshPhongMaterial({
+      map: maps.albedo, normalMap: maps.normal, normalScale: new THREE.Vector2(1.0, 1.0),
+      shininess: 0, transparent: true, depthWrite: false,
+      polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1
     });
     for (let i = 0; i < FOOTPRINT_POOL_SIZE; i++) {
       const m = new THREE.Mesh(geo, mat);
       m.visible = false;
+      m.receiveShadow = true;
       scene.add(m);
       footprints.push(m);
     }
@@ -3967,21 +4015,29 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // No air: every grain flies a clean parabola under 1.62 m/s² and
   // drops straight back — no drifting cloud. That absence is the tell
   // people recognise from Apollo footage. Pooled Points, one draw call.
-  const DUST_N = 360, MOON_G = 1.62;
+  // v0.7.2: thrown higher and further, bigger soft grains, 4× the pool.
+  // It "hangs" the honest way — 1.5–2.5 s of flight in one-sixth g —
+  // not by floating (there is nothing for it to float in).
+  const DUST_N = 1500, MOON_G = 1.62;
   const lunarDust = (function () {
     const pos = new Float32Array(DUST_N * 3), vel = new Float32Array(DUST_N * 3);
     const floorY = new Float32Array(DUST_N), alive = new Uint8Array(DUST_N);
     for (let i = 0; i < DUST_N; i++) pos[i * 3 + 1] = -9999;
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    const mat = new THREE.PointsMaterial({ color: 0xc9c6bf, size: 0.045, sizeAttenuation: true,
-      transparent: true, opacity: 0.9, depthWrite: false });
+    const dc = document.createElement('canvas'); dc.width = dc.height = 32;
+    const dg = dc.getContext('2d'), grad = dg.createRadialGradient(16, 16, 0, 16, 16, 16);
+    grad.addColorStop(0, 'rgba(255,255,255,1)'); grad.addColorStop(0.45, 'rgba(255,255,255,0.55)');
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    dg.fillStyle = grad; dg.fillRect(0, 0, 32, 32);
+    const mat = new THREE.PointsMaterial({ color: 0xd6d3cb, size: 0.13, sizeAttenuation: true,
+      map: new THREE.CanvasTexture(dc), transparent: true, opacity: 0.65, depthWrite: false });
     const pts = new THREE.Points(geo, mat);
     pts.frustumCulled = false;
     scene.add(pts);
     return { pos, vel, floorY, alive, geo, pts, next: 0 };
   })();
-  function kickDust(x, y, z, n, speed, dirX, dirZ) {
+  function kickDust(x, y, z, n, speed, dirX, dirZ, up) {
     for (let k = 0; k < n; k++) {
       const i = lunarDust.next; lunarDust.next = (lunarDust.next + 1) % DUST_N;
       const a = Math.random() * Math.PI * 2, s = speed * (0.4 + Math.random() * 0.8);
@@ -3989,7 +4045,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       lunarDust.pos[i * 3 + 1] = y + 0.02;
       lunarDust.pos[i * 3 + 2] = z + (Math.random() - 0.5) * 0.12;
       lunarDust.vel[i * 3]     = Math.cos(a) * s * 0.6 + (dirX || 0) * s;
-      lunarDust.vel[i * 3 + 1] = s * (0.6 + Math.random() * 0.8);
+      lunarDust.vel[i * 3 + 1] = s * (0.5 + Math.random() * 0.9) * (up || 1);
       lunarDust.vel[i * 3 + 2] = Math.sin(a) * s * 0.6 + (dirZ || 0) * s;
       lunarDust.floorY[i] = y;
       lunarDust.alive[i] = 1;
@@ -4009,7 +4065,9 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     lunarDust._wasAny = any;
   }
 
-  function spawnFootprint() {
+  const _fpN = new THREE.Vector3(), _fpQ = new THREE.Quaternion(), _fpUp = new THREE.Vector3(0, 1, 0);
+  const _fpB = new THREE.Vector3();
+  function spawnFootprint(footBone) {
     if (typeof level !== 'undefined' && level.id === 'wreck') return;   // prints are crater-only
     if (!footprints.length) _initFootprintPool();
     const m = footprints[footprintIdx];
@@ -4025,15 +4083,21 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     // Slight backward offset (foot lands behind the body's centre of
     // mass), 0.18m sideways from centreline so the bigger print pairs
     // sit comfortably either side of the walking path without overlap
-    const px = player.pos.x - fx * 0.05 + rx * 0.18 * side;
-    const pz = player.pos.z - fz * 0.05 + rz * 0.18 * side;
-    const py = shackletonScene.getGroundY(px, pz) + 0.008;   // tiny lift to dodge z-fight
+    let px = player.pos.x - fx * 0.05 + rx * 0.18 * side;
+    let pz = player.pos.z - fz * 0.05 + rz * 0.18 * side;
+    if (footBone) {               // v0.7.2: under the foot that actually landed
+      footBone.getWorldPosition(_fpB);
+      px = _fpB.x + fx * 0.06; pz = _fpB.z + fz * 0.06;
+    }
+    const G = shackletonScene.getGroundY;
+    const py = G(px, pz) + 0.008;   // tiny lift to dodge z-fight
     m.position.set(px, py, pz);
-    m.rotation.y = h;             // toe points where the player faces
+    // Lie on the slope (crater bowls), toe along the heading.
+    _fpN.set(G(px - 0.3, pz) - G(px + 0.3, pz), 0.6, G(px, pz - 0.3) - G(px, pz + 0.3)).normalize();
+    m.quaternion.setFromUnitVectors(_fpUp, _fpN);
+    m.quaternion.multiply(_fpQ.setFromAxisAngle(_fpUp, h));
     m.visible = true;
-    // Toe-off kicks a little spray back and out of the step.
-    const sp = Math.hypot(player.vel.x, player.vel.z);
-    kickDust(px, py, pz, sp > 3 ? 9 : 5, 0.35 + sp * 0.12, -fx * 0.6, -fz * 0.6);
+    spawnFootprint.last = { x: px, y: py, z: pz };
   }
 
   // ── ROBOT FOOTPRINTS ──
@@ -5241,24 +5305,78 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     pct.textContent = Math.round(p) + ' / ' + Math.round(cap);
   }
 
+  // ============================================================
+  // LUNAR LOPE (v0.7.2) — the Apollo bounding gait.
+  // Each stride = a short push on one foot, then a ballistic float
+  // under 1.62 m/s²: apex = g·t²/8 for a flight of t seconds. The
+  // slow-motion look comes from that flight time, not from slowing
+  // the clip (0.78× timescale and a sine "lope oscillator" were both
+  // tried in v0.4 and reverted — they slowed the legs without ever
+  // leaving the ground, so it read as wading).
+  //   - visual only: astronautRoot rides the arc; player.pos stays on
+  //     the ground, so collision, interaction, camera are untouched
+  //   - the Walk/Run clip is phase-locked to the stride (planted foot
+  //     in the clip = the foot in contact), measured from the rig:
+  //     right foot planted at clip fraction 0.97, left at 0.47
+  //   - landing: thud + print under that foot + small splash;
+  //     push-off: a fan of dust thrown back, 1–2 s in flight
+  // ============================================================
+  const LOPE_CONTACT = 0.26;      // s on the ground per stride
+  const LOPE_DIP = 0.035;         // m of knee-bend during contact
+  const lope = { phase: 0, parity: 0, w: 0, y: 0, pushed: false, fresh: true, period: 0.95 };
+  function _lopeLand(speed) {
+    sndFootstep(speed);
+    const b = (typeof _seatBones === 'function') ? _seatBones() : null;
+    spawnFootprint(b ? (lope.parity ? b.LeftFoot : b.RightFoot) : null);
+    const p = spawnFootprint.last;
+    if (p && level.id !== 'wreck') kickDust(p.x, p.y, p.z, 22, 0.6, 0, 0, 0.7);
+  }
   function maybeFootstep(dt) {
-    if (!player.grounded) { footstepTimer = 0; return; }
     const speed = Math.hypot(player.vel.x, player.vel.z);
-    if (speed < 0.4) { footstepTimer = 0; return; }
-    const cadence = 0.6 - Math.min(0.4, speed * 0.06);
-    footstepTimer += dt;
-    if (footstepTimer >= cadence) {
-      footstepTimer -= cadence;
-      sndFootstep(speed);
-      spawnFootprint();
-      // Every step kicks regolith — 2-4 motes at the feet, more when
-      // running. v0.4.2: tuned way down from the default burst params
-      // (speed 5 → 0.55) — the old motes flew metres from the boot.
-      // Now they hop low and slow and settle within ~half a metre of
-      // the print, which is what heavy dust with no air does.
-      spawnDust(player.pos.x, player.pos.y + 0.06, player.pos.z,
-                2 + Math.floor(speed * 0.5),
-                { speed: 0.55, upVel: 0.35, upVar: 0.5, life: 0.9 });
+    const active = player.grounded && speed >= 0.4 && controlMode === 'walking';
+    lope.w += ((active ? 1 : 0) - lope.w) * Math.min(1, dt * (active ? 10 : 7));
+    if (active) {
+      const t = Math.max(0, Math.min(1, (speed - WALK_SPEED) / (RUN_SPEED - WALK_SPEED)));
+      lope.period = 0.95 + 0.10 * t;
+      if (lope.fresh) { lope.fresh = false; lope.phase = 0; lope.pushed = false; _lopeLand(speed); }
+      lope.phase += dt / lope.period;
+      const cf = LOPE_CONTACT / lope.period;
+      if (!lope.pushed && lope.phase >= cf) {
+        lope.pushed = true;
+        const p = spawnFootprint.last;
+        if (p && level.id !== 'wreck') {
+          const fx = Math.sin(player.heading), fz = Math.cos(player.heading);
+          kickDust(p.x, p.y, p.z, 60 + Math.floor(speed * 8), 0.95 + speed * 0.16, -fx * 0.75, -fz * 0.75, 1.15);
+        }
+      }
+      if (lope.phase >= 1) {
+        lope.phase -= 1; lope.parity ^= 1; lope.pushed = false;
+        _lopeLand(speed);
+      }
+    } else if (lope.w < 0.02) {
+      lope.w = 0; lope.fresh = true;
+    }
+    // Height of the body on the stride: dip in contact, parabola in flight.
+    const cf = LOPE_CONTACT / lope.period, ph = lope.phase;
+    const tf = lope.period - LOPE_CONTACT;
+    const apex = MOON_G * tf * tf / 8 * Math.min(1, speed / WALK_SPEED + 0.25);
+    let y;
+    if (ph < cf) y = -LOPE_DIP * Math.sin(Math.PI * ph / cf);
+    else { const u = (ph - cf) / (1 - cf); y = 4 * apex * u * (1 - u); }
+    lope.y = y * lope.w;
+  }
+  // Called just before mixer.update: put the body on the arc and lock
+  // the gait clip to the stride phase.
+  function applyLope() {
+    if (!astronautRoot || controlMode !== 'walking') return;
+    if (lope.w <= 0) return;
+    astronautRoot.position.y = player.pos.y + lope.y;
+    const a = activeAction;
+    if (a && (a === animClips['Walk_Loop'] || a === animClips['Run_Loop']) && player.grounded) {
+      const cf = LOPE_CONTACT / lope.period;
+      let f = 0.97 + 0.5 * (lope.parity + lope.phase) - 0.25 * cf;
+      f -= Math.floor(f);
+      a.time = f * a.getClip().duration;
     }
   }
   function sndFootstep(speed) {
@@ -14438,6 +14556,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     } else if (_gameStarted) {
       updateCinematic(dt);
     }
+    applyLope();                     // v0.7.2 — stride arc + clip phase lock
     if (mixer) mixer.update(dt);
     if (astroSeat.want || astroSeat.w > 0) applySeatedPose(dt);   // bones AFTER the mixer stamp
     updateReach(dt);                 // arm override AFTER the mixer stamp
