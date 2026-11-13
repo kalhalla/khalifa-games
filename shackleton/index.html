@@ -596,7 +596,7 @@ body.in-wreck .cam-buttons { display: none; }
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.10.7';  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.11.0';  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -7725,7 +7725,8 @@ body.in-wreck .cam-buttons { display: none; }
     robot.position.z = r.pos.z;
     // Track terrain Y so the robot's feet plant on the actual ground when it
     // wanders onto the crater wall ramp, not just the flat floor.
-    r.pos.y = shackletonScene.getGroundY(r.pos.x, r.pos.z);
+    r.pos.y = Math.abs(r.pos.x - WL_ORIGIN.x) < 300 ? WL_ORIGIN.y            // inside the wreck level (v0.11.0)
+                                                    : shackletonScene.getGroundY(r.pos.x, r.pos.z);
     robot.position.y = r.pos.y;
     robot.rotation.y = r.heading;
 
@@ -10433,6 +10434,7 @@ body.in-wreck .cam-buttons { display: none; }
 
   // ── Scene 4 set dressing (engine bay, x 10.3-18.4) ──
   const s4 = {};
+  const S4O = { x: 0, y: 0, z: 0 };   // v0.11.0: where the brace puzzle sits relative to its original crater position
   {
     const fy = -CRATER_DEPTH;
     const steel = new THREE.MeshPhongMaterial({ shininess: 0, color: 0x565a63, flatShading: true, side: THREE.DoubleSide });
@@ -10465,10 +10467,10 @@ body.in-wreck .cam-buttons { display: none; }
       dragKind: 'extra', homeX: 13.5, homeZ: -2.15,
       enabled: () => scene4.active,
       onDrop(m) {
-        m.position.y = shackletonScene.getGroundY(m.position.x, m.position.z) + 0.04;
+        m.position.y = (level.id === 'wreck' ? WL_ORIGIN.y : shackletonScene.getGroundY(m.position.x, m.position.z)) + 0.04;
         m.rotation.set(0, m.rotation.y, 0);
         if (!scene4.panelDone &&
-            Math.hypot(m.position.x - 13.0, m.position.z + 2.9) > 1.5) {
+            Math.hypot(m.position.x - (13.0 + S4O.x), m.position.z - (-2.9 + S4O.z)) > 1.5) {
           scene4.panelDone = true;
           speak('SUIT', 'plating clear', 2.0, { kind: 'system' });
           _scene4TryPull();
@@ -10480,17 +10482,18 @@ body.in-wreck .cam-buttons { display: none; }
   }
 
   // Pin pull — reach gesture
-  worldInteractables.push({
+  worldInteractables.push(s4.pinIx = {
     x: 13.95, z: -2.05, r: 2.0,
     label: 'pull the locking pin',
     hidden: () => !scene4.active || scene4.pinDone,
     fire() {
       if (reach.active) return;
-      reachStart(new THREE.Vector3(13.95, -CRATER_DEPTH + 0.62, -2.05), {
+      const pinAt = s4.pin.position.clone();
+      reachStart(pinAt, {
         onContact() {
           scene4.pinDone = true;
           s4.pin.position.x += 0.45;      // slides out
-          spawnDust(13.95, -CRATER_DEPTH + 0.6, -2.05, 3, { speed: 0.4, upVel: 0.3, upVar: 0.3, life: 0.7 });
+          spawnDust(pinAt.x, pinAt.y, pinAt.z, 3, { speed: 0.4, upVel: 0.3, upVar: 0.3, life: 0.7 });
           speak('SUIT', 'pressure released', 2.0, { kind: 'system' });
           _scene4TryPull();
         },
@@ -10499,7 +10502,7 @@ body.in-wreck .cam-buttons { display: none; }
   });
 
   // Brace pickup — appears once M-08 has pulled it free
-  worldInteractables.push({
+  worldInteractables.push(s4.braceIx = {
     x: 12.6, z: -1.55, r: 2.0,
     label: 'take the structural brace',
     hidden: () => !scene4.pulled || scene4.braceHeld,
@@ -10516,7 +10519,7 @@ body.in-wreck .cam-buttons { display: none; }
           setObjective('install the structural brace');
           // M-08 stands aside by the deck gap (robots have no hull
           // collision — keep its path inside the room).
-          robotStates[2].scripted = { x: 17.3, z: 0.6, faceX: 12.6, faceZ: -1.55 };
+          robotStates[2].scripted = { x: 17.3 + S4O.x, z: 0.6 + S4O.z, faceX: 12.6 + S4O.x, faceZ: -1.55 + S4O.z };
           // MEMORY M01 — "Hands". First wired memory in the game.
           shackletonMemory.fire('M01_HANDS');
         },
@@ -10539,8 +10542,9 @@ body.in-wreck .cam-buttons { display: none; }
     if (scene4.active) return;
     scene4.active = true;
     const rs = robotStates[2];                 // M-08, red
-    rs.pos.set(12.2, rs.pos.y, -3.6);
-    rs.scripted = { x: 12.35, z: -3.5, faceX: 13.0, faceZ: -2.95, manip: true };
+    rs.pos.set(12.2 + S4O.x, rs.pos.y, -3.6 + S4O.z);
+    rs.scripted = { x: 12.35 + S4O.x, z: -3.5 + S4O.z, faceX: 13.0 + S4O.x, faceZ: -2.95 + S4O.z, manip: true };
+    if (WRECK_LEVEL_ENABLED) robots[2].visible = level.id === 'wreck';   // he is in the cargo bay now
   }
 
   // ── Scene 5: install at the Flyer ──
@@ -10759,7 +10763,8 @@ body.in-wreck .cam-buttons { display: none; }
   function updateScenes(dt) {
     // Scene 4: engine-bay entry beat
     if (scene4.active && !scene4.entered &&
-        player.pos.x < 18.42 && player.pos.x > 10.3 && Math.abs(player.pos.z + 2) < 3.6) {
+        (WRECK_LEVEL_ENABLED ? (level.id === 'wreck' && player.pos.x - WL_ORIGIN.x > 30 * WL_K + 0.8)
+                             : (player.pos.x < 18.42 && player.pos.x > 10.3 && Math.abs(player.pos.z + 2) < 3.6))) {
       scene4.entered = true;
       setObjective('recover the structural brace');
       speak('M-08', 'stuck.', 2.0, { kind: 'robot', delay: 1.0 });
@@ -10769,12 +10774,12 @@ body.in-wreck .cam-buttons { display: none; }
       scene4.pullT += dt;
       const k = Math.min(1, scene4.pullT / 1.4);
       const e = k * k * (3 - 2 * k);
-      s4.brace.position.x = 13.0 - 0.4 * e;
-      s4.brace.position.z = -2.95 + 1.4 * e;
+      s4.brace.position.x = 13.0 + S4O.x - 0.4 * e;
+      s4.brace.position.z = -2.95 + S4O.z + 1.4 * e;
       if (scene4.pullT >= 1.4) {
         // Done: M-08 stands aside, faces the player's likely approach.
-        robotStates[2].scripted = { x: 12.0, z: -0.9, faceX: 12.6, faceZ: -1.55 };
-        spawnDust(12.6, -CRATER_DEPTH + 0.2, -1.55, 6, { speed: 0.5, upVel: 0.4, upVar: 0.4, life: 0.9 });
+        robotStates[2].scripted = { x: 12.0 + S4O.x, z: -0.9 + S4O.z, faceX: 12.6 + S4O.x, faceZ: -1.55 + S4O.z };
+        spawnDust(12.6 + S4O.x, -CRATER_DEPTH + S4O.y + 0.2, -1.55 + S4O.z, 6, { speed: 0.5, upVel: 0.4, upVar: 0.4, life: 0.9 });
       }
     }
     // Scene 5: weld sequence
@@ -13897,7 +13902,15 @@ body.in-wreck .cam-buttons { display: none; }
     // the hatch instead of setting the battery down.)
     if (interact.carry) return _carryCandidates(out);
     // Inside the wreck level only the level's own verbs exist.
-    if (level.id === 'wreck') { wreckLevelCandidates(out); _loosePartCandidates(out); return out; }   // v0.10.0: puzzle parts indoors
+    if (level.id === 'wreck') {
+      wreckLevelCandidates(out); _loosePartCandidates(out);                 // v0.10.0: puzzle parts indoors
+      for (const it of worldInteractables) {                                // v0.11.0: pin, brace
+        if (it.hidden && it.hidden()) continue;
+        if (Math.hypot(it.x - player.pos.x, it.z - player.pos.z) > 12) continue;
+        out.push({ key: it, x: it.x, z: it.z, r: it.r, label: it.label, fire: () => it.fire(), hold: it.hold });
+      }
+      return out;
+    }
     wreckLevelCandidates(out);
     // Scene interactables (pin, brace, install, reflector crank …)
     for (const it of worldInteractables) {
@@ -14350,9 +14363,6 @@ body.in-wreck .cam-buttons { display: none; }
     // ── Cargo bay (Scene 4, Puzzle B): unconverted ──
     box(2.2, 1.6, 1.4, 33.4, 0, 2.0, matWall, { walk: false });           // cargo crates
     box(1.4, 0.8, 1.4, 35.6, 0, 2.2, matWall, { walk: true });            // climbable step
-    box(4.4, 0.25, 0.9, 38.0, 0.3, -1.9, matPart, { solid: false });      // the brace, ends showing under the plating
-    box(3.6, 0.9, 1.5, 38.0, 0, -1.9, matWall);                           // plating pinning it (solid to the deck, v0.9.6)
-    box(0.25, 0.9, 0.25, 36.1, 0, -1.2, matDev);                          // locking pin
     box(11.5, 0.07, 0.3, 36.8, 0, 0.3, matWall, { solid: false });        // cargo lift rail, along the floor
     label('Puzzle B: brace', 37, 3.4, -1.5, '#9cc4ff');
 
@@ -14425,6 +14435,19 @@ body.in-wreck .cam-buttons { display: none; }
     return { root, boxes, zones, lights, lamp, flare, labels, SPAWN, EXIT };
   })();
 
+  // ── v0.11.0: Puzzle B (structural brace) and M-08 live in the cargo bay ──
+  // Same idea as Puzzle A below: the set was built in crater coordinates
+  // (brace at 13.0, −2.95); with ?wreck2 everything moves by one offset,
+  // S4O, which the scene code adds wherever it used a literal position.
+  if (WRECK_LEVEL_ENABLED) (function () {
+    S4O.x = WL_ORIGIN.x + 38 * WL_K - 13.0;
+    S4O.y = WL_ORIGIN.y + CRATER_DEPTH;
+    S4O.z = WL_ORIGIN.z - 1.9 * WL_K + 2.95;
+    for (const m of [s4.plating, s4.brace, s4.pin, s4.panel]) { m.position.x += S4O.x; m.position.y += S4O.y; m.position.z += S4O.z; }
+    s4.panel.userData.homeX += S4O.x; s4.panel.userData.homeZ += S4O.z;
+    for (const it of [s4.pinIx, s4.braceIx]) { it.x += S4O.x; it.z += S4O.z; }
+  })();
+
   // ── v0.10.0: Puzzle A (oxygen stabiliser) lives in the wreck level ──
   // The puzzle was built in crater coordinates, mounted sideways on the
   // old wreck's deck disc (deck plane x = 18.42, unit at z = −1.5). With
@@ -14481,6 +14504,10 @@ body.in-wreck .cam-buttons { display: none; }
       _hiddenForWreck.length = 0;
       const keep = new Set([astronautRoot, wreckLevel.root, interactMarker, wreckLevel.lamp, wreckLevel.lamp.target, wreckLevel.flare, camera]);
       if (WRECK_LEVEL_FLAG && wreckInterior.group) keep.add(wreckInterior.group);
+      if (WRECK_LEVEL_ENABLED) {                                   // brace puzzle and M-08 (v0.11.0)
+        for (const m of [s4.plating, s4.pin, s4.panel, s4.brace]) keep.add(m);
+        if (Math.abs(robotStates[2].pos.x - WL_ORIGIN.x) < 300) keep.add(robots[2]);
+      }
       for (const o of scene.children) {
         if (keep.has(o) || !o.visible) continue;
         o.visible = false; _hiddenForWreck.push(o);
