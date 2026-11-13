@@ -596,7 +596,7 @@ body.in-wreck .cam-buttons { display: none; }
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.10.3';  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.10.4';  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -5225,7 +5225,7 @@ body.in-wreck .cam-buttons { display: none; }
   // time shortens with speed so that stays inside the clip's stance.
   const LOPE_FOOT_M = 1.37, LOPE_STANCE_MAX = 0.36;
   const LOPE_DIP = 0.035;         // m of knee-bend during contact
-  const lope = { phase: 0, parity: 0, w: 0, y: 0, pushed: false, fresh: true, period: 0.95, contact: LOPE_CONTACT, dc: 0.2, free: false, freeT: 0 };
+  const lope = { phase: 0, parity: 0, w: 0, y: 0, pushed: false, fresh: true, period: 0.95, contact: LOPE_CONTACT, dc: 0.2, free: false, freeT: 0, air: 0 };
   function _lopeLand(speed) {
     sndFootstep(speed);
     const b = (typeof _seatBones === 'function') ? _seatBones() : null;
@@ -5236,25 +5236,22 @@ body.in-wreck .cam-buttons { display: none; }
   function maybeFootstep(dt) {
     const speed = Math.hypot(player.vel.x, player.vel.z);
     const active = player.grounded && speed >= 0.4 && controlMode === 'walking';
-    // v0.10.3 free lope: the ground has dropped away under a stride (the
-    // lip of a dip, a crater edge) and he has not jumped. He holds the
-    // open stride and sails down under real gravity, then lands on the
-    // other foot and carries on. No Jump clip.
+    // Free lope (v0.10.4, replaces v0.10.3's frozen pose, which looked
+    // stiff and skipped on every small rise). When the ground drops away
+    // under a stride and he has not jumped, the SAME stride simply carries
+    // on: for the first moment nothing changes at all, so ripples in the
+    // ground are invisible; after that the legs keep turning at a third
+    // of the pace, and the stride waits at its end until a foot is back
+    // on the ground. No reset, no extra footfall, no Jump clip.
+    lope.freeT = player.grounded ? 0 : lope.freeT + dt;
     const free = !player.grounded && jumpPhase === null && speed >= 0.4 &&
                  controlMode === 'walking' && level.id !== 'wreck' && !lope.fresh && lope.freeT < 1.8;
-    lope.freeT = player.grounded ? 0 : lope.freeT + dt;    // a long fall (off the peak) becomes a proper fall
-    if (lope.free && player.grounded) {                    // touched down out of a free lope
-      lope.phase = 0; lope.parity ^= 1; lope.pushed = false;
-      if (active) _lopeLand(speed);
-    }
     lope.free = free;
+    lope.air += ((free && lope.freeT > 0.12 ? 1 : 0) - lope.air) * Math.min(1, dt * 6);
     lope.w += (((active || free) ? 1 : 0) - lope.w) * Math.min(1, dt * ((active || free) ? 10 : 7));
     if (free) {
-      const cfF = lope.contact / lope.period;
-      const hold = cfF + (1 - cfF) * 0.5;                  // mid-flight: legs at full stretch
-      lope.phase += (hold - lope.phase) * Math.min(1, dt * 5);
-      lope.y += (0 - lope.y) * Math.min(1, dt * 6);        // the real fall is the arc now
-      return;
+      const rate = lope.freeT < 0.12 ? 1 : 0.33;
+      lope.phase = Math.min(0.999, lope.phase + dt / lope.period * rate);
     }
     if (active) {
       const t = Math.max(0, Math.min(1, (speed - WALK_SPEED) / (RUN_SPEED - WALK_SPEED)));
@@ -5293,7 +5290,7 @@ body.in-wreck .cam-buttons { display: none; }
     if (ph < cf) y = -dip * Math.sin(Math.PI * ph / cf);
     else { const u = (ph - cf) / (1 - cf); y = 4 * apex * u * (1 - u); }
     // The walk clip's toe dips 1.6 cm below the root at push-off; lift by that indoors.
-    lope.y = (y + (level.id === 'wreck' ? 0.016 : 0)) * lope.w;
+    lope.y = (y * (1 - lope.air) + (level.id === 'wreck' ? 0.016 : 0)) * lope.w;   // in a free lope the real fall is the arc
   }
   // Called just before mixer.update: put the body on the arc and lock
   // the gait clip to the stride phase.
