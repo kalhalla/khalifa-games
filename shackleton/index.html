@@ -592,7 +592,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.9.5';  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.9.6';  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -14153,16 +14153,23 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       return m;
     }
     // Floating label for the walkthrough.
+    // Blockout notes. v0.9.6: the tag is sized to its text (long ones were
+    // being cropped), drawn at one constant on-screen size from every
+    // camera, and only shown when he is near it.
+    const labels = [];
     function label(text, x, y, z, col) {
-      const c = document.createElement('canvas'); c.width = 512; c.height = 96;
-      const g = c.getContext('2d');
-      g.fillStyle = 'rgba(10,12,16,0.72)'; g.fillRect(0, 0, 512, 96);
+      const c = document.createElement('canvas');
+      let g = c.getContext('2d'); g.font = '30px monospace';
+      c.width = Math.ceil(g.measureText(text).width) + 36; c.height = 56;
+      g = c.getContext('2d');
+      g.fillStyle = 'rgba(10,12,16,0.78)'; g.fillRect(0, 0, c.width, c.height);
       g.fillStyle = col || '#f0c674'; g.font = '30px monospace'; g.textAlign = 'center';
-      g.fillText(text, 256, 60);
+      g.fillText(text, c.width / 2, 39);
       const tex = new THREE.CanvasTexture(c);
-      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
-      sp.scale.set(2.6, 0.49, 1); sp.position.set(x * WL_K, y, z * WL_K); sp.renderOrder = 997;
-      root.add(sp);
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true, sizeAttenuation: false }));
+      const hgt = 0.03;
+      sp.scale.set(hgt * c.width / c.height, hgt, 1); sp.position.set(x * WL_K, y, z * WL_K); sp.renderOrder = 997;
+      root.add(sp); labels.push(sp);
       return sp;
     }
 
@@ -14201,7 +14208,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     // floor panels down (tidy); the rest is still in flight layout, sideways.
     bulkhead(7, 0.5); bulkhead(14, -0.6); bulkhead(23, 0.4); bulkhead(30, -0.4);
     box(0.4, 8, WL_HALF_W * 2, 43.2, 0, 0, matBlock);
-    label('tail bulkhead — sealed (engine bay)', 42.4, 2.6, 0, '#ff8a80');
+    label('sealed: engine bay', 42.4, 2.6, 0, '#ff8a80');
 
     // ── Flight deck (new): crushed nose, seats on the wall, the radio ──
     box(1.6, 5.5, 3.4, 0.9, 0, -1.2, matHull, { ry: 0.35 });              // crushed nose structure
@@ -14210,8 +14217,8 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     box(0.9, 1.1, 0.9, 4.4, 2.3, 2.55, matSeat, { solid: false });        // flight seats, bolted to the wall,
     box(0.9, 1.1, 0.9, 4.4, 4.0, 2.55, matSeat, { solid: false });        //   facing the nose
     box(1.3, 0.4, 1.0, 5.3, 0, 0.9, matWall, { walk: true });             // fallen panel
-    label('flight deck — radio (Transmission 01)', 3.4, 3.0, -1.4, '#9cc4ff');
-    label('seats on the wall: this was "up"', 4.4, 5.4, 1.9, '#c8ccd2');
+    label('radio', 3.4, 3.0, -1.4, '#9cc4ff');
+    label('flight seats', 4.4, 5.4, 1.9, '#c8ccd2');
 
     // ── Crew quarters: unconverted, a fallen deck plate pinches the way ──
     box(4, 6.5, 0.25, 9.5, 0, -1.3, matWall);                             // deck plate (was a floor)
@@ -14221,7 +14228,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     box(2.0, 0.6, 0.8, 11.2, 4.0, 2.6, matWall, { solid: false });
     box(1.6, 0.1, 1.0, 8.6, 3.3, 1.6, matWall, { solid: false });         // fold-down table, hanging
     box(0.8, 1.9, 0.6, 12.8, 0, -2.6, matMem);                            // personal locker — M08 site, dormant in the demo
-    label('crew quarters — locker: "memory: unavailable"', 11.4, 3.3, -1.7, '#d2b6ff');
+    label('locker (memory)', 11.4, 3.3, -1.7, '#d2b6ff');
 
     // ── Life support (Scene 3, Puzzle A): converted, floor panels down ──
     box(8.6, 0.05, 5.7, 18.5, -0.04, 0, matPanel, { solid: false });          // habitat floor panels
@@ -14230,7 +14237,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     box(0.5, 0.35, 0.4, 16.4, 0, 1.9, matPart);                           // loose battery
     box(1.1, 0.12, 0.8, 18.1, 0, 0.6, matPart, { walk: true });                           // debris plate
     box(0.9, 0.12, 0.7, 19.6, 0, -0.9, matPart, { walk: true });                          // debris plate
-    label('life support — O₂ stabiliser (Puzzle A)', 18.5, 2.6, -2.2, '#9cc4ff');
+    label('Puzzle A: O₂ stabiliser', 18.5, 2.6, -2.2, '#9cc4ff');
 
     // ── Airlock and suit bay (new): the way in. Converted. ──
     box(6.6, 0.05, 5.7, 26.5, -0.04, 0, matPanel, { solid: false });          // habitat floor panels
@@ -14243,17 +14250,17 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     box(0.7, 1.9, 0.5, 26.3, 0, 2.7, matWall);
     box(0.8, 1.4, 0.6, 28.6, 0, 2.65, matDev);                            // suit O₂ refill point
     box(1.2, 0.5, 0.9, 28.4, 0, -1.4, matWall, { walk: true });           // fallen locker
-    label('airlock + suit bay — way out', 26.5, 3.6, -2.2);
+    label('way out', 26.5, 3.6, -2.2);
     label('← nose        tail →', 26.5, 4.5, 2.4, '#c8ccd2');
 
     // ── Cargo bay (Scene 4, Puzzle B): unconverted ──
     box(2.2, 1.6, 1.4, 33.4, 0, 2.0, matWall, { walk: false });           // cargo crates
     box(1.4, 0.8, 1.4, 35.6, 0, 2.2, matWall, { walk: true });            // climbable step
-    box(3.4, 0.25, 1.0, 38.0, 0.35, -1.9, matPart, { solid: false });     // the brace
-    box(3.6, 0.3, 1.5, 38.0, 0.6, -1.9, matWall, { solid: false });       // plating pinning it
+    box(4.4, 0.25, 0.9, 38.0, 0.3, -1.9, matPart, { solid: false });      // the brace, ends showing under the plating
+    box(3.6, 0.9, 1.5, 38.0, 0, -1.9, matWall);                           // plating pinning it (solid to the deck, v0.9.6)
     box(0.25, 0.9, 0.25, 36.1, 0, -1.2, matDev);                          // locking pin
     box(11.5, 0.07, 0.3, 36.8, 0, 0.3, matWall, { solid: false });        // cargo lift rail, along the floor
-    label('cargo bay — structural brace (Puzzle B)', 37, 3.4, -1.5, '#9cc4ff');
+    label('Puzzle B: brace', 37, 3.4, -1.5, '#9cc4ff');
 
     // ── Lights: dark interior, emergency red/amber, daylight at the rip ──
     const lights = [];
@@ -14321,7 +14328,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     }
     const SPAWN = { x: 26.5 * WL_K, z: -1.7 * WL_K, heading: 0 };
     const EXIT = { x: 26.5 * WL_K, z: -2.2 * WL_K };
-    return { root, boxes, zones, lights, lamp, flare, SPAWN, EXIT };
+    return { root, boxes, zones, lights, lamp, flare, labels, SPAWN, EXIT };
   })();
 
   // ── Level switch ──
@@ -14438,6 +14445,10 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     }
   }
   function updateWreckCamera(dt, snap) {
+    for (const sp of wreckLevel.labels) {                      // notes fade out beyond about 10 m
+      const d = Math.hypot(sp.position.x + WL_ORIGIN.x - player.pos.x, sp.position.z + WL_ORIGIN.z - player.pos.z);
+      sp.material.opacity = 1 - _ss(8, 12, d); sp.visible = sp.material.opacity > 0.02;
+    }
     const lx = player.pos.x - WL_ORIGIN.x;
     let z = wreckCam.zone;
     if (!z || lx < z.x0 - 0.3 || lx > z.x1 + 0.3) {          // hysteresis at boundaries
