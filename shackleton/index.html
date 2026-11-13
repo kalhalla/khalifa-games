@@ -592,7 +592,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.9.4';  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.9.5';  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -1195,6 +1195,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // ============================================================
   const boxColliders = [];
   const BOX_STEP_UP = 0.45;
+  const stepVis = { off: 0 };     // drawn body height minus player.pos.y (v0.9.5 step smoothing)
   const BOX_PLAYER_R = 0.35;
   function addBoxCollider(o) {
     const yaw = o.yaw || 0;
@@ -2708,9 +2709,20 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
 
     // Ground check (v0.5.0: terrain OR a walkable box top)
     const groundY = playerGroundY(player.pos.x, player.pos.z, player.pos.y);
+    // v0.9.5 step-down: walking off a low box (or any small ledge indoors)
+    // keeps him on the ground instead of starting a fall and the Jump clip.
+    // The body is eased down by stepVis, below.
+    const _drop = player.pos.y - groundY;
+    const stepDown = player.grounded && jumpPhase === null && player.vel.y <= 0 &&
+                     _drop > 0.02 && _drop <= BOX_STEP_UP + 0.06 &&
+                     (level.id === 'wreck' || player.onBox);
+    if (stepDown) { stepVis.off += _drop; player.pos.y = groundY; }
+    const _terrainY = level.id === 'wreck' ? WL_ORIGIN.y : shackletonScene.getGroundY(player.pos.x, player.pos.z);
+    player.onBox = groundY > _terrainY + 0.01;
     const onGround = player.pos.y <= groundY + 0.02;
     if (onGround && player.vel.y <= 0) {
       const wasAirborne = !player.grounded;
+      if (!wasAirborne && groundY - player.pos.y > 0.03) stepVis.off -= (groundY - player.pos.y);   // stepped up
       player.pos.y = groundY;
       player.vel.y = 0;
       player.grounded = true;
@@ -2899,6 +2911,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     const newGroundY = playerGroundY(player.pos.x, player.pos.z, player.pos.y);
     if (player.pos.y < newGroundY) {
       const wasAirborne = !player.grounded;
+      if (!wasAirborne && newGroundY - player.pos.y > 0.03) stepVis.off -= (newGroundY - player.pos.y);   // stepped up
       player.pos.y = newGroundY;
       if (player.vel.y < 0 && wasAirborne) {
         sndLand();
@@ -3086,9 +3099,29 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       player.vel.x *= -0.3; player.vel.z *= -0.3;
     }
 
+    // v0.9.5 step up / step down. player.pos.y still snaps (collision is
+    // unchanged); stepVis.off is how far the drawn body is from it.
+    //   - look ahead 0.5 m along the direction of travel: if a step he can
+    //     climb is coming, start rising now, so he is already at its height
+    //     when his feet reach the edge (no legs cutting through the box)
+    //   - after a snap up or down, the body eases to the new height
+    {
+      const sp = Math.hypot(player.vel.x, player.vel.z);
+      let want = 0;
+      if (player.grounded && jumpPhase === null && sp > 0.3) {
+        const ax = player.pos.x + player.vel.x / sp * 0.5, az = player.pos.z + player.vel.z / sp * 0.5;
+        const ahead = playerGroundY(ax, az, player.pos.y) - player.pos.y;
+        if (ahead > 0.05 && ahead <= BOX_STEP_UP && (level.id === 'wreck' || player.onBox || boxTopAt(ax, az, player.pos.y) > -Infinity)) want = ahead;
+      }
+      const rate = stepVis.off < want ? 7 : 5.5;            // up a touch quicker than down
+      stepVis.off += (want - stepVis.off) * Math.min(1, dt * rate);
+      if (Math.abs(stepVis.off) < 0.002 && want === 0) stepVis.off = 0;
+      if (!player.grounded) stepVis.off *= Math.max(0, 1 - dt * 10);
+    }
     // Update model position + rotation
     if (astronautRoot) {
       astronautRoot.position.copy(player.pos);
+      astronautRoot.position.y += stepVis.off;
       astronautRoot.rotation.y = player.heading;
     }
 
@@ -5243,7 +5276,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   function applyLope() {
     if (!astronautRoot || controlMode !== 'walking') return;
     if (lope.w <= 0) return;
-    astronautRoot.position.y = player.pos.y + lope.y;
+    astronautRoot.position.y = player.pos.y + lope.y + stepVis.off;
     const a = activeAction;
     if (a && (a === animClips['Walk_Loop'] || a === animClips['Run_Loop']) && player.grounded) {
       const cf = lope.contact / lope.period, dc = lope.dc, ph = lope.phase;
@@ -7893,7 +7926,10 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       knob.style.transform = 'translate(' + (nx * R) + 'px,' + (ny * R) + 'px)';
       const mm = Math.min(1, m);
       const live = mm > DEAD ? (mm - DEAD) / (1 - DEAD) : 0;
-      const k = mm > 0 ? live / mm : 0;
+      // v0.9.5: once past the dead zone the stick never asks for less than
+      // half speed, so he is always moving fast enough for the walk clip
+      // (a feather touch used to slide him along in the idle pose).
+      const k = mm > 0 && live > 0 ? (0.5 + 0.5 * live) / mm : 0;
       joy.x = nx * k; joy.y = -ny * k;
       joy.active = live > 0;
       joy.run = mm >= RUN_AT;
