@@ -425,6 +425,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
 #interact-prompt .ip-info { opacity: 0.75; font-style: italic; }
 /* O₂ HUD: clear of the controls card; animated while gas flows */
 #oxygen-hud { top: 170px !important; }
+body.in-wreck .cam-buttons { display: none; }
 /* v0.9.0: phone landscape — the key legend is useless on touch, and the gauge must clear the joystick */
 @media (max-height: 480px) { .legend { display: none; } #oxygen-hud { top: 56px !important; } }
 #oxygen-hud.filling #oxygen-bar-fill {
@@ -592,7 +593,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.9.6';  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.9.7';  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -14375,6 +14376,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       scene.background = new THREE.Color(0x000000);
       if (!boxColliders.some(b => b.tag === 'wreckLevel')) _wlRegisterBoxes();
       level.id = 'wreck';
+      document.body.classList.add('in-wreck');        // hides the outdoor camera-mode buttons
       const s = wreckLevel.SPAWN;
       player.pos.set(WL_ORIGIN.x + s.x, WL_ORIGIN.y, WL_ORIGIN.z + s.z);
       player.vel.set(0, 0, 0);
@@ -14395,6 +14397,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       wreckLevel.root.visible = false;
       wreckLevel.lamp.castShadow = false;
       level.id = 'crater';
+      document.body.classList.remove('in-wreck');
       const zl = $('zone-label'); if (zl) zl.textContent = '';
       const s = _wlSavedCrater || { x: hatchInteract.x, z: hatchInteract.z + 1.5, heading: 0 };
       // Step back out of the doorway, facing away from the hull.
