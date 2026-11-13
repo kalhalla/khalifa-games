@@ -596,7 +596,7 @@ body.in-wreck .cam-buttons { display: none; }
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.10.5';  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.10.6';  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -2657,6 +2657,7 @@ body.in-wreck .cam-buttons { display: none; }
   const TAKEOFF_HOLD_TIME = 1.10;    // clip time of the extended takeoff pose
   const LANDING_START_TIME = 1.70;   // clip time where the landing motion begins
   let jumpPhase = null;              // null | 'windup' | 'airborne' | 'landing'
+  let runJump = false;               // v0.10.6: this jump was taken from a run (no wind-up, no landing crouch)
   let landingStartedAt = 0;          // performance.now() when 'landing' phase began (safety-net timeout)
   let jumpStartTime = 0;
   let jumpAction = null;             // reference to the Jump AnimationAction
@@ -2869,6 +2870,25 @@ body.in-wreck .cam-buttons { display: none; }
     // Jump state machine
     // Press jump when grounded + jumpAvailable: enter windup phase, play clip,
     // wait for the launch frame to fire the impulse.
+    // v0.10.6 running jump: pressed while moving, he takes off at once from
+    // the stride — no stop, no crouch — carrying his speed, and on landing
+    // goes straight back into the run. Standing still, the full wind-up
+    // jump below is unchanged.
+    if (input.jump && player.grounded && player.jumpAvailable && jumpPhase === null &&
+        Math.hypot(player.vel.x, player.vel.z) >= 1.0 && level.id !== 'wreck') {
+      player.jumpAvailable = false;
+      player.vel.y = JUMP_VELOCITY;
+      player.grounded = false;
+      jumpPhase = 'airborne';
+      runJump = true;
+      if (jumpAction) {                                   // join the Jump clip just before its take-off hold
+        jumpAction.paused = false;
+        jumpAction.time = Math.max(0, TAKEOFF_HOLD_TIME - 0.18);
+      }
+      setAnimation('Jump');
+      sndJump();
+      kickDust(player.pos.x, player.pos.y, player.pos.z, 260, 2.2);
+    }
     if (input.jump && player.grounded && player.jumpAvailable && jumpPhase === null) {
       jumpPhase = 'windup';
       jumpStartTime = performance.now();
@@ -3136,6 +3156,10 @@ body.in-wreck .cam-buttons { display: none; }
     // is what plays when the ground drops away and he has NOT jumped: the
     // gait clip stays, held in its open hop pose (see applyLope), instead
     // of the Jump clip. A fall of more than 1.8 s still becomes a Jump.
+    if (runJump && player.grounded && jumpPhase !== 'airborne') {   // landed from a running jump: no crouch
+      jumpPhase = null; runJump = false;
+      if (jumpAction) jumpAction.paused = false;
+    }
     airHold.t = player.grounded ? 0 : airHold.t + dt;
     const slopeAir = !player.grounded && jumpPhase === null && level.id !== 'wreck' &&
                      speed >= 0.4 && airHold.t < 1.8 &&
