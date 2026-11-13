@@ -588,7 +588,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.7.2';  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.7.3';  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -768,12 +768,96 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // ============================================================
   const M = {
     rockDark:   new THREE.MeshPhongMaterial({ shininess: 0, color: 0x70747a, flatShading: true }),
-    rockMid:    new THREE.MeshPhongMaterial({ shininess: 0, color: 0x8e9298, flatShading: true }),
-    rockLight:  new THREE.MeshPhongMaterial({ shininess: 0, color: 0xc8ccd4, flatShading: true }),
+    rockMid:    new THREE.MeshPhongMaterial({ shininess: 0, color: 0x2d2b29, flatShading: true }),
+    rockLight:  new THREE.MeshPhongMaterial({ shininess: 0, color: 0x3b3835, flatShading: true }),   // v0.7.3: was near-white 0xc8ccd4
     outerSurf:  new THREE.MeshLambertMaterial({ color: 0xeef0f3 }),
     craterFloor:new THREE.MeshLambertMaterial({ color: 0x868a92 }),
     outerRock:  new THREE.MeshPhongMaterial({ shininess: 0, color: 0xb0b4bc, flatShading: true })
   };
+
+  // ============================================================
+  // LUNAR ROCK SURFACE (v0.7.3) — after the Apollo 17 Station 6
+  // boulder Khal supplied as reference: dark grey breccia, pocked
+  // with cavities, mottled, dust lying on every up-facing surface.
+  // Patches any flat-shaded Phong rock material, per pixel in world
+  // space (rocks are static), no textures or UVs:
+  //   pits     two scales of cellular noise → dark cavities whose
+  //            walls tilt the normal, so the sun picks out their rims
+  //   mottle   clast-like light/dark patches
+  //   rough    fine normal grain so facets aren't plastic-smooth
+  //   dust     up-facing surfaces fade to the soil colour, pits fill
+  // ============================================================
+  const ROCK_GLSL = `
+    float rkHash(vec3 p){ p = fract(p * vec3(0.1031, 0.1030, 0.0973)); p += dot(p, p.yxz + 33.33); return fract((p.x + p.y) * p.z); }
+    vec3  rkHash3(vec3 p){ return vec3(rkHash(p), rkHash(p + 17.1), rkHash(p + 41.7)); }
+    float rkNoise(vec3 p){ vec3 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f);
+      return mix(mix(mix(rkHash(i), rkHash(i+vec3(1,0,0)), f.x), mix(rkHash(i+vec3(0,1,0)), rkHash(i+vec3(1,1,0)), f.x), f.y),
+                 mix(mix(rkHash(i+vec3(0,0,1)), rkHash(i+vec3(1,0,1)), f.x), mix(rkHash(i+vec3(0,1,1)), rkHash(i+vec3(1,1,1)), f.x), f.y), f.z); }
+    // Nearest pit: xyz = offset to its centre, w = distance / radius (≥1 = no pit).
+    vec4 rkPit(vec3 p){
+      vec3 ip = floor(p), fp = fract(p); vec4 best = vec4(0.0, 0.0, 0.0, 9.0);
+      for (int x = -1; x <= 1; x++) for (int y = -1; y <= 1; y++) for (int z = -1; z <= 1; z++) {
+        vec3 g = vec3(float(x), float(y), float(z));
+        vec3 h = rkHash3(ip + g);
+        if (h.x + h.y > 0.95) continue;                 // only some cells hold a pit
+        float r = 0.16 + 0.26 * h.z;
+        vec3 d = g + 0.2 + 0.6 * h - fp;
+        float q = length(d) / r;
+        if (q < best.w) best = vec4(d, q);
+      }
+      return best;
+    }`;
+  function rockify(mat, strength) {
+    const K = (strength == null ? 1 : strength).toFixed(2);
+    mat.onBeforeCompile = (shader) => {
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', '#include <common>\nvarying vec3 vRockPos;')
+        .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvRockPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', '#include <common>\nvarying vec3 vRockPos;\n' + ROCK_GLSL +
+                 '\nfloat rkDust; vec4 rkP1; vec4 rkP2;')
+        .replace('#include <normal_fragment_begin>', `#include <normal_fragment_begin>
+          {
+            vec3 upV = normalize((viewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
+            float upness = dot(normal, upV);
+            rkDust = smoothstep(0.45, 0.92, upness + (rkNoise(vRockPos * 2.3) - 0.5) * 0.35) * 0.85;
+            vec3 rkW = vRockPos + (vec3(rkNoise(vRockPos * 4.0), rkNoise(vRockPos * 4.0 + 9.0), rkNoise(vRockPos * 4.0 + 21.0)) - 0.5) * 0.22;
+            rkP1 = rkPit(rkW * 2.2);
+            rkP2 = rkPit(rkW * 7.5 + 11.0);
+            float w1 = (1.0 - smoothstep(0.55, 1.0, rkP1.w)) * (1.0 - rkDust);
+            float w2 = (1.0 - smoothstep(0.55, 1.0, rkP2.w)) * (1.0 - rkDust);
+            // Pit walls lean toward the pit centre; plus fine roughness.
+            vec3 e = vec3(0.04, 0.0, 0.0);
+            vec3 gr = vec3(rkNoise(vRockPos * 14.0 + e.xyy) - rkNoise(vRockPos * 14.0 - e.xyy),
+                           rkNoise(vRockPos * 14.0 + e.yxy) - rkNoise(vRockPos * 14.0 - e.yxy),
+                           rkNoise(vRockPos * 14.0 + e.yyx) - rkNoise(vRockPos * 14.0 - e.yyx));
+            vec3 bendW = (normalize(rkP1.xyz + 1e-4) * w1 * smoothstep(0.15, 0.7, rkP1.w) * 1.5
+                        + normalize(rkP2.xyz + 1e-4) * w2 * smoothstep(0.15, 0.7, rkP2.w) * 1.0
+                        - gr * 2.2 * (1.0 - 0.6 * rkDust)) * ${K};
+            normal = normalize(normal + (viewMatrix * vec4(bendW, 0.0)).xyz);
+          }`)
+        .replace('#include <color_fragment>', `#include <color_fragment>
+          {
+            float mot = (rkNoise(vRockPos * 1.3) - 0.5) * 0.34 + (rkNoise(vRockPos * 5.0) - 0.5) * 0.20
+                      + (rkNoise(vRockPos * 22.0) - 0.5) * 0.14;
+            // Occasional pale clasts.
+            float clast = smoothstep(0.74, 0.80, rkNoise(vRockPos * 3.7 + 5.0)) * 0.22;
+            diffuseColor.rgb *= 1.0 + (mot + clast) * ${K};
+          }`)
+        .replace('#include <lights_fragment_begin>', `
+          // Dust mantle on up-facing surfaces: soil colour, set here so it
+          // can read rkDust from the normal stage.
+          float rkPitK = max((1.0 - smoothstep(0.35, 0.95, rkP1.w)) * 0.55, (1.0 - smoothstep(0.35, 0.95, rkP2.w)) * 0.42);
+          diffuseColor.rgb *= 1.0 - rkPitK * ${K};
+          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.27, 0.256, 0.24) * (0.9 + 0.2 * rkNoise(vRockPos * 9.0)), rkDust * ${K});
+          material.diffuseColor = diffuseColor.rgb;
+          #include <lights_fragment_begin>`);
+    };
+    mat.customProgramCacheKey = () => 'lunar-rock-v1-' + K;
+    mat.needsUpdate = true;
+    return mat;
+  }
+  rockify(M.rockDark); rockify(M.rockMid); rockify(M.rockLight); rockify(M.outerRock);
 
   // ============================================================
   // REGOLITH MATERIAL — shared by every lunar-surface mesh (outer
@@ -791,7 +875,12 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // ============================================================
   const regolith = new THREE.MeshPhongMaterial({
     shininess: 0,
-    color: 0xdee0e3,
+    // v0.7.3: warm mid-grey (was near-white 0xdee0e3). Apollo surface
+    // photos show soil like dark cement, not snow; the brightness came
+    // from exposure, and it hid every bit of surface texture.
+    // (Colours here are linear — colour management is off — so 0x4a
+    // displays around 150/255 under the 17° sun after tone mapping.)
+    color: 0x4a4641,
     // v0.6.2: flatShading OFF at the material level — the lunar shader
     // below rebuilds the faceted normal per pixel and decides how much
     // of it to keep: full facets on rock (steep faces), partial on dust.
@@ -823,7 +912,8 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   const GEO_N = (+THREE.REVISION >= 152) ? 'geometryNormal'  : 'geometry.normal';
   const GEO_V = (+THREE.REVISION >= 152) ? 'geometryViewDir' : 'geometry.viewDir';
   const REGOLITH_LUNAR_K = 0.5;   // 0 = plain Lambert, 1 = full (capped) Lommel–Seeliger
-  const DUST_FACET = 0.70;        // how much low-poly facet survives on dust (0.45 lost the house look)
+  const DUST_FACET = 0.45;   // v0.7.3: was 0.70 — powder shouldn't read as flat plates up close
+  const DUST_FACET_OLD = 0.70;        // how much low-poly facet survives on dust (0.45 lost the house look)
   regolith.onBeforeCompile = function(shader) {
     // Pass world position from vertex to fragment.
     shader.vertexShader = shader.vertexShader
@@ -886,6 +976,17 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
            float n = (fine - 0.5) * 0.10 + (coarse - 0.5) * 0.06;
            // Apply as multiplicative shade. 1 + n in roughly [0.92, 1.08].
            diffuseColor.rgb *= (1.0 + n);
+           // v0.7.3 powder: close-range clods and grit. Dark specks are the
+           // shadowed sides of small clumps; pale ones are tiny rock chips.
+           // Fades with distance so it never shimmers.
+           {
+             float nearK = 1.0 - smoothstep(10.0, 34.0, length(vViewPosition));
+             vec3 q = vWorldPos_regolith;
+             float clod = valueNoise(q * 11.0) * 0.6 + valueNoise(q * 27.0) * 0.4;
+             float dark = smoothstep(0.60, 0.74, clod), pale = smoothstep(0.80, 0.86, valueNoise(q * 19.0 + 7.0));
+             float churn = (valueNoise(q * 2.2 + 3.0) - 0.5) * 0.16;     // scuffed, uneven tone
+             diffuseColor.rgb *= 1.0 + churn + nearK * (-0.22 * dark + 0.16 * pale);
+           }
            // v0.6.2 albedo: maturity patches + fresh-crater halos and rays.
            // (Skipped on the floor grid: its vertex colours carry MASCON's
            // albedo from the real crater list.)
@@ -940,7 +1041,13 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
            #ifdef USE_LUNAR_SURF
              amp *= 1.0 - 0.6 * clamp(vSurf.y, 0.0, 1.0);   // fine dust: softer grain
            #endif
-           vec3 gW = vec3(g1x * 0.9 + g2x * 1.4, 0.0, g1z * 0.9 + g2z * 1.4) * amp;
+           // v0.7.3: clumpy micro-relief up close (the churned look).
+           float nearN = 1.0 - smoothstep(8.0, 28.0, length(vViewPosition));
+           float e3 = 0.02;
+           float g3x = valueNoise(p * 11.0 + vec3(e3, 0.0, 0.0)) - valueNoise(p * 11.0 - vec3(e3, 0.0, 0.0));
+           float g3z = valueNoise(p * 11.0 + vec3(0.0, 0.0, e3)) - valueNoise(p * 11.0 - vec3(0.0, 0.0, e3));
+           vec3 gW = (vec3(g1x * 0.9 + g2x * 1.4, 0.0, g1z * 0.9 + g2z * 1.4)
+                    + vec3(g3x, 0.0, g3z) * 1.6 * nearN) * amp;
            normal = normalize(normal - (viewMatrix * vec4(gW, 0.0)).xyz);
          }`
       )
@@ -1946,11 +2053,11 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // cone reads as the darkest mass against the path (rockMid),
   // which in turn is darker than the lightest boulders (rockLight).
   // Three-tone palette: peak → path → boulders, dark to light.
-  const peakMat = new THREE.MeshPhongMaterial({
+  const peakMat = rockify(new THREE.MeshPhongMaterial({
     shininess: 0,
-    color: 0x6c7178,
+    color: 0x2f2d2b,
     flatShading: true
-  });
+  }), 0.8);
   const centralPeak = new THREE.Mesh(buildCentralPeak(), peakMat);
   centralPeak.position.set(PEAK_CENTER_X, -CRATER_DEPTH, PEAK_CENTER_Z);
   centralPeak.castShadow = true;
@@ -2127,11 +2234,11 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // unique). Cheap to scale to hundreds of boulders.
   // ============================================================
   const boulderGeom = new THREE.IcosahedronGeometry(1, 0);
-  const boulderMat = new THREE.MeshPhongMaterial({
+  const boulderMat = rockify(new THREE.MeshPhongMaterial({
     shininess: 0,
-    color: 0xc0c4c8,           // a touch darker than regolith 0xdee0e3
+    color: 0x33302d,           // v0.7.3: darker, warmer — boulders read as rock against dust
     flatShading: true
-  });
+  }));
 
   // Place a boulder at world (x, surfaceY, z) with the given
   // diameter. Diameter ~= the boulder's largest dimension; we
@@ -2439,9 +2546,9 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // ============================================================
   const STUDY_ROCK_POS = { x: -10.5, z: -7.5 };
   {
-    const matStudy = new THREE.MeshPhongMaterial({
+    const matStudy = rockify(new THREE.MeshPhongMaterial({
       shininess: 0, color: 0xa89888, flatShading: true
-    });
+    }));
     const stoneGeo = new THREE.IcosahedronGeometry(1, 0);
     const stone = new THREE.Mesh(stoneGeo, matStudy);
     const baseFloorY = -CRATER_DEPTH + floorHeight(STUDY_ROCK_POS.x, STUDY_ROCK_POS.z);
@@ -3073,7 +3180,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       player.pos.y = newGroundY;
       if (player.vel.y < 0 && wasAirborne) {
         sndLand();
-        if (level.id !== 'wreck') kickDust(player.pos.x, player.pos.y, player.pos.z, 90, 1.5, 0, 0, 1.0);
+        if (level.id !== 'wreck') kickDust(player.pos.x, player.pos.y, player.pos.z, 320, 1.9, 0, 0, 0.8);
       }
       player.vel.y = 0;
       player.grounded = true;
@@ -3999,6 +4106,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     geo.rotateX(-Math.PI / 2);    // lay flat on XZ plane (normal = +Y)
     const mat = new THREE.MeshPhongMaterial({
       map: maps.albedo, normalMap: maps.normal, normalScale: new THREE.Vector2(1.0, 1.0),
+      color: 0x4a4641,              // soil tone (regolith base colour)
       shininess: 0, transparent: true, depthWrite: false,
       polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1
     });
@@ -4011,47 +4119,70 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     }
   }
 
-  // ── LUNAR DUST (v0.6.2) ──
+  // ── LUNAR DUST (v0.6.2, reworked v0.7.3) ──
   // No air: every grain flies a clean parabola under 1.62 m/s² and
-  // drops straight back — no drifting cloud. That absence is the tell
-  // people recognise from Apollo footage. Pooled Points, one draw call.
-  // v0.7.2: thrown higher and further, bigger soft grains, 4× the pool.
-  // It "hangs" the honest way — 1.5–2.5 s of flight in one-sixth g —
-  // not by floating (there is nothing for it to float in).
-  const DUST_N = 1500, MOON_G = 1.62;
+  // drops straight back. v0.7.3, after the Apollo reference: kicked
+  // soil is DARK (the same grey-brown as the ground, darker than the
+  // sunlit surface it flies over), very fine, and leaves the boot as a
+  // flat SHEET — all grains at nearly the same launch angle, fast ones
+  // further out — not a ball of white blobs. 5,000 grains, sized
+  // 1.5–6 cm, with a few larger clods.
+  const DUST_N = 5000, MOON_G = 1.62;
   const lunarDust = (function () {
     const pos = new Float32Array(DUST_N * 3), vel = new Float32Array(DUST_N * 3);
     const floorY = new Float32Array(DUST_N), alive = new Uint8Array(DUST_N);
-    for (let i = 0; i < DUST_N; i++) pos[i * 3 + 1] = -9999;
+    const size = new Float32Array(DUST_N), shade = new Float32Array(DUST_N);
+    for (let i = 0; i < DUST_N; i++) {
+      pos[i * 3 + 1] = -9999;
+      const r = Math.random();
+      size[i] = r > 0.96 ? 0.07 + Math.random() * 0.05 : 0.015 + Math.random() * 0.045;
+      shade[i] = 0.75 + Math.random() * 0.5;
+    }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    const dc = document.createElement('canvas'); dc.width = dc.height = 32;
-    const dg = dc.getContext('2d'), grad = dg.createRadialGradient(16, 16, 0, 16, 16, 16);
-    grad.addColorStop(0, 'rgba(255,255,255,1)'); grad.addColorStop(0.45, 'rgba(255,255,255,0.55)');
-    grad.addColorStop(1, 'rgba(255,255,255,0)');
-    dg.fillStyle = grad; dg.fillRect(0, 0, 32, 32);
-    const mat = new THREE.PointsMaterial({ color: 0xd6d3cb, size: 0.13, sizeAttenuation: true,
-      map: new THREE.CanvasTexture(dc), transparent: true, opacity: 0.65, depthWrite: false });
+    geo.setAttribute('aSize', new THREE.BufferAttribute(size, 1));
+    geo.setAttribute('aShade', new THREE.BufferAttribute(shade, 1));
+    const mat = new THREE.ShaderMaterial({
+      uniforms: { uScale: { value: 800 }, uColor: { value: new THREE.Color(0.40, 0.38, 0.355) } },
+      vertexShader: `attribute float aSize; attribute float aShade; uniform float uScale; varying float vShade;
+        void main(){ vec4 mv = modelViewMatrix * vec4(position, 1.0); vShade = aShade;
+          gl_PointSize = max(1.0, aSize * uScale / -mv.z); gl_Position = projectionMatrix * mv; }`,
+      fragmentShader: `uniform vec3 uColor; varying float vShade;
+        void main(){ float d = length(gl_PointCoord - 0.5) * 2.0; if (d > 1.0) discard;
+          gl_FragColor = vec4(uColor * vShade, (1.0 - d * d) * 0.85); }`,
+      transparent: true, depthWrite: false,
+    });
     const pts = new THREE.Points(geo, mat);
     pts.frustumCulled = false;
     scene.add(pts);
-    return { pos, vel, floorY, alive, geo, pts, next: 0 };
+    return { pos, vel, floorY, alive, geo, pts, mat, next: 0 };
   })();
+  // dir given → a sheet thrown that way; no dir → a low ring (landings).
   function kickDust(x, y, z, n, speed, dirX, dirZ, up) {
+    const directed = !!(dirX || dirZ);
+    const dl = Math.hypot(dirX || 0, dirZ || 0) || 1, dx = (dirX || 0) / dl, dz = (dirZ || 0) / dl;
+    const lift = (up || 1) * (0.55 + Math.random() * 0.25);       // one launch angle per kick
     for (let k = 0; k < n; k++) {
       const i = lunarDust.next; lunarDust.next = (lunarDust.next + 1) % DUST_N;
-      const a = Math.random() * Math.PI * 2, s = speed * (0.4 + Math.random() * 0.8);
-      lunarDust.pos[i * 3] = x + (Math.random() - 0.5) * 0.12;
+      const s = speed * (0.25 + Math.random() * 0.95);
+      let hx, hz;
+      if (directed) {
+        const side = (Math.random() - 0.5) * 1.5;                 // fan ±~37°
+        hx = dx - dz * side; hz = dz + dx * side;
+        const hl = Math.hypot(hx, hz); hx /= hl; hz /= hl;
+      } else { const a = Math.random() * Math.PI * 2; hx = Math.cos(a); hz = Math.sin(a); }
+      lunarDust.pos[i * 3] = x + (Math.random() - 0.5) * 0.16;
       lunarDust.pos[i * 3 + 1] = y + 0.02;
-      lunarDust.pos[i * 3 + 2] = z + (Math.random() - 0.5) * 0.12;
-      lunarDust.vel[i * 3]     = Math.cos(a) * s * 0.6 + (dirX || 0) * s;
-      lunarDust.vel[i * 3 + 1] = s * (0.5 + Math.random() * 0.9) * (up || 1);
-      lunarDust.vel[i * 3 + 2] = Math.sin(a) * s * 0.6 + (dirZ || 0) * s;
+      lunarDust.pos[i * 3 + 2] = z + (Math.random() - 0.5) * 0.16;
+      lunarDust.vel[i * 3]     = hx * s;
+      lunarDust.vel[i * 3 + 1] = s * lift * (0.9 + Math.random() * 0.2);
+      lunarDust.vel[i * 3 + 2] = hz * s;
       lunarDust.floorY[i] = y;
       lunarDust.alive[i] = 1;
     }
   }
   function updateLunarDust(dt) {
+    lunarDust.mat.uniforms.uScale.value = renderer.domElement.height / (2 * Math.tan(camera.fov * Math.PI / 360));
     const P = lunarDust.pos, V = lunarDust.vel;
     let any = false;
     for (let i = 0; i < DUST_N; i++) {
@@ -5329,7 +5460,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     const b = (typeof _seatBones === 'function') ? _seatBones() : null;
     spawnFootprint(b ? (lope.parity ? b.LeftFoot : b.RightFoot) : null);
     const p = spawnFootprint.last;
-    if (p && level.id !== 'wreck') kickDust(p.x, p.y, p.z, 22, 0.6, 0, 0, 0.7);
+    if (p && level.id !== 'wreck') kickDust(p.x, p.y, p.z, 70, 0.8, 0, 0, 0.55);
   }
   function maybeFootstep(dt) {
     const speed = Math.hypot(player.vel.x, player.vel.z);
@@ -5346,7 +5477,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
         const p = spawnFootprint.last;
         if (p && level.id !== 'wreck') {
           const fx = Math.sin(player.heading), fz = Math.cos(player.heading);
-          kickDust(p.x, p.y, p.z, 60 + Math.floor(speed * 8), 0.95 + speed * 0.16, -fx * 0.75, -fz * 0.75, 1.15);
+          kickDust(p.x, p.y, p.z, 170 + Math.floor(speed * 25), 1.5 + speed * 0.2, -fx, -fz, 1.0);
         }
       }
       if (lope.phase >= 1) {
@@ -14456,6 +14587,38 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       }
     }, 300);
   }
+
+  // ============================================================
+  // SURFACE LITTER (v0.7.3) — the reference soil is strewn with small
+  // stones and clods, a few to a square metre. 9,000 instanced rocks,
+  // 3–16 cm, half-buried, denser in MASCON's rock fields and round
+  // crater rims. One draw call; too small to need colliders.
+  // ============================================================
+  (function scatterLitter() {
+    const N = 9000;
+    const im = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 0), boulderMat, N);
+    const d = new THREE.Object3D();
+    let n = 0;
+    for (let k = 0; n < N && k < N * 6; k++) {
+      const a = rng(k + 0.11) * Math.PI * 2, r = Math.sqrt(rng(k + 0.37)) * (CRATER_FLOOR - 3);
+      const x = Math.cos(a) * r, z = Math.sin(a) * r;
+      if (x > 5 && x < 39 && z > -8 && z < 5) continue;                       // inside the wreck hull
+      if (Math.hypot(x - PEAK_CENTER_X, z - PEAK_CENTER_Z) < PEAK_BASE_R) continue;
+      if (rng(k + 0.59) > 0.22 + 0.78 * lunarFloor.rockAt(x, z)) continue;
+      const big = rng(k + 0.71);
+      const sz = big > 0.93 ? 0.09 + rng(k + 0.83) * 0.08 : 0.025 + rng(k + 0.83) * 0.05;
+      d.position.set(x, shackletonScene.getGroundY(x, z) + sz * 0.15, z);
+      d.rotation.set(rng(k + 0.2) * 6.28, rng(k + 0.3) * 6.28, rng(k + 0.4) * 6.28);
+      d.scale.set(sz * (0.7 + rng(k + 0.5) * 0.6), sz * (0.45 + rng(k + 0.6) * 0.4), sz * (0.7 + rng(k + 0.7) * 0.6));
+      d.updateMatrix();
+      im.setMatrixAt(n++, d.matrix);
+    }
+    im.count = n;
+    im.castShadow = true; im.receiveShadow = true;
+    im.name = 'surface-litter';
+    im.frustumCulled = false;
+    scene.add(im);
+  })();
 
   // ============================================================
   // RENDER LOOP
