@@ -406,3 +406,4 @@ background:linear-gradient(180deg,#e9ebed 0%,#fbfbfb 14%,#f2f3f4 80%,#e1e4e6 100
 .key.hit,.key:active{transform:translateY(3px);box-shadow:0 0 0 1px var(--edge),0 1px 0 var(--edge-dk),inset 0 2px 6px rgba(0,0,0,.18);background:linear-gradient(180deg,#e2e5e7,#f4f5f6)}
 .seg.wrap{flex-wrap:wrap}
 .seg.wrap button{flex:1 0 28%}
+.pad.on.roll{font-weight:600;color:var(--ink);background-image:repeating-linear-gradient(90deg,rgba(255,255,255,.28) 0 2px,transparent 2px 6px),linear-gradient(180deg,rgba(255,255,255,.4),rgba(255,255,255,0) 45%,rgba(0,0,0,.15))}

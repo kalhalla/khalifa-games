@@ -5,7 +5,7 @@ const NOTE=['C','C♯','D','E♭','E','F','F♯','G','A♭','A','B♭','B'];
 const DR=[{id:'kick',name:'Kick'},{id:'clap',name:'Clap'},{id:'hat',name:'Hat'},{id:'open',name:'Open hat'},{id:'perc',name:'Perc'}];
 const BARS=[1,2,4,8,16];
 const MAXL=12,MAXS=16;
-const P=s=>[...s.padEnd(16,'.')].slice(0,16).map(c=>c==='x'?1:0);
+const P=s=>[...s.padEnd(16,'.')].slice(0,16).map(c=>c==='x'?1:/[2-4]/.test(c)?+c:0);
 const Z=()=>Array(16).fill(0);
 const clone=o=>JSON.parse(JSON.stringify(o));
 const blankAcid=()=>Array.from({length:16},()=>({on:0,d:0,a:0,s:0}));
@@ -37,6 +37,11 @@ drums:{kick:'x...x...x...x...',clap:'....x.......x...',hat:'..x...x...x...x.',op
 acid:{steps:[[0,0,0,0],[4,0,0,0],[8,0,0,0],[10,0,1,0],[12,0,0,0]],cutoff:.2,res:.2,env:.25,decay:.4,dist:.1,vol:.5,wave:'saw',follow:true},
 chords:{mode:'arp',prog:[0,5,2,4],stab:'',cutoff:.6,vol:.75,ext:true},
 fx:{rev:.55,dly:.45,pump:.55}},
+jam:{name:'909 acid jam',bpm:132,swing:.06,root:9,scale:'minor',kit:'909',
+drums:{kick:'x...x...x...x...',clap:'....x.......x...',hat:'..x...x...x...x2',open:'..x...x...x.....',perc:'.........2....4.'},
+acid:{steps:[[0,0,1,0],[2,0,0,0],[3,0,0,1],[4,7,0,0],[6,0,1,0],[7,10,0,1],[8,12,1,0],[10,0,0,0],[11,3,0,1],[12,5,0,0],[13,7,1,0],[14,0,0,0],[15,12,0,1]],cutoff:.18,res:.88,env:.75,decay:.3,dist:.45,vol:.58,wave:'saw',follow:false},
+chords:{mode:'off',prog:[0,0,0,0],stab:'',cutoff:.5,vol:.6,ext:false},
+fx:{rev:.25,dly:.4,pump:.35}},
 boom:{name:'808 acid',bpm:126,swing:.1,root:7,scale:'minor',kit:'808',
 drums:{kick:'x.....x...x.....',clap:'....x.......x...',hat:'xx.xx.xxx.xx.x.x',open:'..............x.',perc:'.......x......x.'},
 acid:{steps:[[0,0,1,0],[2,0,0,1],[3,7,0,0],[5,0,0,0],[6,10,1,1],[7,7,0,0],[8,0,0,0],[10,3,1,0],[11,5,0,1],[12,3,0,0],[14,0,1,0],[15,-2,0,0]],cutoff:.2,res:.9,env:.78,decay:.32,dist:.38,vol:.6,wave:'saw',follow:false},
@@ -71,7 +76,7 @@ if(!SCALES[o.scale])o.scale='minor';o.root=(o.root|0)%12;o.bpm=Math.max(90,Math.
 o.layers=o.layers.filter(L=>L&&TCOL[L.type]&&Array.isArray(L.pats)&&L.pats.length).slice(0,MAXL);
 o.layers.forEach(L=>{
 if(L.pats.length<2)L.pats.push(clone(L.pats[0]));L.ev=L.ev?1:0;if(L.vol==null)L.vol=.8;L.col=L.col||TCOL[L.type];
-if(L.type==='drums'){if(L.kit!=='808'&&L.kit!=='studio')L.kit='mu';if(L.boom==null)L.boom=.5;L.dmute=L.dmute||{};L.dvol=L.dvol||{kick:.9,clap:.6,hat:.4,open:.35,perc:.5};L.dtune=L.dtune||{kick:0,clap:0,hat:0,open:0,perc:0}}
+if(L.type==='drums'){if(!['808','909','studio'].includes(L.kit))L.kit='mu';if(L.boom==null)L.boom=.5;L.dmute=L.dmute||{};L.dvol=L.dvol||{kick:.9,clap:.6,hat:.4,open:.35,perc:.5};L.dtune=L.dtune||{kick:0,clap:0,hat:0,open:0,perc:0}}
 if(L.type==='acid')for(const k in ACID_DEF)if(L[k]==null)L[k]=ACID_DEF[k];
 if(L.type==='chords'){if(L.cutoff==null)L.cutoff=.55;if(L.ext==null)L.ext=true;if(!['piano','fmpiano','vibes','pad','strings','pizz','harp','guitar'].includes(L.inst))L.inst='synth'}
 if(L.type==='pads'&&(!Array.isArray(L.pads)||L.pads.length!==16))L.pads=defPads();
@@ -266,6 +271,26 @@ const HAT6=[205.3,304.4,369.6,522.7,540,800];
 function metal(t,dur,v,p,dest,hp,open){const g=gn(0),b=bq('bandpass',10000*p,1.2),h=bq('highpass',hp*p);
 HAT6.forEach(f=>{const o=ctx.createOscillator();o.type='square';o.frequency.value=f*p*1.04;o.connect(b);o.start(t);o.stop(t+dur+.05)});
 g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(v*.55,t+.002);g.gain.setTargetAtTime(0,t+.003,dur/4);b.connect(h).connect(g).connect(dest.out);if(open)g.connect(dest.dRev);return g}
+/* 909-style kit: the analogue recipes (punchy pitched kick with a click, tone-plus-noise snare,
+   a bright multi-burst clap, metallic hats); the real 909 used samples for its cymbals, these are synthesised */
+const V909={
+kick(t,v,p,n){const L=n.L||{},dec=.18+(L.boom!=null?L.boom:.5)*.5,o=ctx.createOscillator(),g=gn(0),ws=ctx.createWaveShaper();
+if(!N.k808){const c=new Float32Array(512);for(let k=0;k<512;k++){const x=k/255.5-1;c[k]=Math.tanh(1.8*x)/Math.tanh(1.8)}N.k808=c}ws.curve=N.k808;
+o.frequency.setValueAtTime(260*p,t);o.frequency.exponentialRampToValueAtTime(58*p,t+.032);o.frequency.exponentialRampToValueAtTime(48*p,t+dec);
+g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(v*1.15,t+.002);g.gain.setTargetAtTime(0,t+.04,dec/3);
+o.connect(ws).connect(g).connect(n.out);o.start(t);o.stop(t+dec*1.8+.1);
+const s=noise(),hp=bq('bandpass',3200,.8),ng=gn(0);ng.gain.setValueAtTime(v*.35,t);ng.gain.setTargetAtTime(0,t+.0005,.004);s.connect(hp).connect(ng).connect(n.out);s.start(t,Math.random()*.5);s.stop(t+.03);
+const L2=n.L||{};if(lg(L2)>0||!n.L)pump(t)},
+clap(t,v,p,n){const s=noise(),b=bq('bandpass',1250*p,1.3),h=bq('highpass',800),g=gn(0);
+[0,.011,.022,.031].forEach(o=>{g.gain.setValueAtTime(v,t+o);g.gain.setTargetAtTime(0,t+o+.0007,.003)});
+g.gain.setValueAtTime(v*.8,t+.04);g.gain.setTargetAtTime(0,t+.041,.11);s.connect(b).connect(h).connect(g);g.connect(n.out);g.connect(n.dRev);s.start(t,Math.random()*.5);s.stop(t+.7)},
+hat(t,v,p,n){metal(t,.045,v*1.1,p*1.25,n,8500);if(n.openG){n.openG.gain.cancelScheduledValues(t);n.openG.gain.setTargetAtTime(0,t,.006)}},
+open(t,v,p,n){n.openG=metal(t,.5,v,p*1.25,n,7800,true)},
+perc(t,v,p,n){const o1=ctx.createOscillator(),o2=ctx.createOscillator(),tg=gn(0);o1.type=o2.type='triangle';
+o1.frequency.setValueAtTime(330*p,t);o1.frequency.exponentialRampToValueAtTime(180*p,t+.03);o2.frequency.setValueAtTime(190*p,t);o2.frequency.exponentialRampToValueAtTime(160*p,t+.03);
+tg.gain.setValueAtTime(v*.6,t);tg.gain.setTargetAtTime(0,t+.005,.035);o1.connect(tg);o2.connect(tg);tg.connect(n.out);o1.start(t);o2.start(t);o1.stop(t+.3);o2.stop(t+.3);
+const s=noise(),hp=bq('highpass',1800),bp=bq('peaking',5000,1),g=gn(0);bp.gain.value=4;g.gain.setValueAtTime(v*.7,t);g.gain.setTargetAtTime(0,t+.004,.055);s.connect(hp).connect(bp).connect(g);g.connect(n.out);g.connect(n.dRev);s.start(t,Math.random()*.5);s.stop(t+.45)}
+};
 const V808={
 kick(t,v,p,n){const L=n.L||{},dec=.35+(L.boom!=null?L.boom:.5)*1.5,o=ctx.createOscillator(),g=gn(0),ws=ctx.createWaveShaper();
 if(!N.k808){const c=new Float32Array(512);for(let k=0;k<512;k++){const x=k/255.5-1;c[k]=Math.tanh(1.8*x)/Math.tanh(1.8)}N.k808=c}ws.curve=N.k808;
@@ -293,8 +318,8 @@ hat(t,v,p,n){if(!kitHit('hat',t,v*1.1,p,n))VOICE.hat(t,v,p,n);else if(n.openG){n
 open(t,v,p,n){const g=kitHit('open',t,v*.9,p,n,'dRev');if(!g){VOICE.open(t,v,p,n);return}n.openG=g},
 perc(t,v,p,n){if(!kitHit('perc',t,v*.9,p,n))VOICE.perc(t,v,p,n)}
 };
-const kitV=L=>L.kit==='808'?V808:L.kit==='studio'?VREC:VOICE;
-const dname=(L,id)=>id==='perc'&&L.kit==='808'?'Cowbell':id==='perc'&&L.kit==='studio'?'Tambourine':DR.find(x=>x.id===id).name;
+const kitV=L=>L.kit==='808'?V808:L.kit==='909'?V909:L.kit==='studio'?VREC:VOICE;
+const dname=(L,id)=>id==='perc'&&L.kit==='808'?'Cowbell':id==='perc'&&L.kit==='909'?'Snare':id==='perc'&&L.kit==='studio'?'Tambourine':DR.find(x=>x.id===id).name;
 /* acid sounds: one-tap settings for the 303-style synth */
 const ACID_SOUNDS=[['classic','the original squelch',{wave:'saw',cutoff:.3,res:.72,env:.55,decay:.4,dist:.3}],
 ['squelchy','wet and rubbery',{wave:'saw',cutoff:.2,res:.9,env:.78,decay:.32,dist:.38}],
@@ -365,7 +390,7 @@ else{const seq=[...notes,notes[0]+12,notes[1]+12],ix=[0,2,1,3,2,4,3,5][s%8]%seq.
 }
 function playLayer(L,v,s,cb,t,sd,sec){
 const n=lnode(L),p=L.pats[v];n.L=L;
-if(L.type==='drums'){const V=kitV(L);DR.forEach(d=>{if(p[d.id][s]&&!L.dmute[d.id])V[d.id](t,L.dvol[d.id],tune(L,d.id),n)})}
+if(L.type==='drums'){const V=kitV(L);DR.forEach(d=>{const r=p[d.id][s];if(r&&!L.dmute[d.id]){const k=r>1?Math.min(4,r):1;for(let j=0;j<k;j++)V[d.id](t+j*sd/k,L.dvol[d.id]*(j?.82:1),tune(L,d.id),n)}})}
 else if(L.type==='acid')playAcid(L,n,p,s,cb,t,sd,sec);
 else if(L.type==='chords')playChords(L,n,p,s,cb,t,sd);
 else p[s].forEach(i=>playPad(L,i,t));
@@ -635,7 +660,7 @@ x.clearRect(0,0,w,h);try{k?drawSpec(x,w,h,dpr,t):drawScope(x,w,h,dpr)}catch(e){}
 requestAnimationFrame(frame)}
 requestAnimationFrame(frame);
 /* ---------- UI ---------- */
-let tab='layers',selTrack='kick',selStep=0,selPad=0,rec=false,padSel=false,delArm=null,kOct=0,krec=false;
+let rollMode=false,tab='layers',selTrack='kick',selStep=0,selPad=0,rec=false,padSel=false,delArm=null,kOct=0,krec=false;
 const get=p=>p.split('.').reduce((o,k)=>o[k],S);
 const setv=(p,v)=>{const k=p.split('.'),l=k.pop();k.reduce((o,x)=>o[x],S)[l]=v};
 const pct=v=>Math.round(v*100)+'%';
@@ -740,10 +765,11 @@ const MOODS={happy:{scale:'major',prog:[0,4,5,3],ext:false,d:'bright and uplifti
 const MODEN={pad:'long',stab:'short',arp:'rolling',off:'off'};
 const EDIT={
 drums(L){const D=L.pats[L.ev],pat=D[selTrack],d={id:selTrack,name:dname(L,selTrack)};
-return `<div><div class="meta" style="margin-bottom:8px">kit</div><div class="seg">${[['studio','recorded'],['mu','classic'],['808','808']].map(([k,n])=>`<button class="${L.kit===k?'on':''}" data-act="kit" data-k="${k}">${n}</button>`).join('')}</div></div>
+return `<div><div class="meta" style="margin-bottom:8px">kit</div><div class="seg">${[['studio','recorded'],['mu','classic'],['808','808'],['909','909']].map(([k,n])=>`<button class="${L.kit===k?'on':''}" data-act="kit" data-k="${k}">${n}</button>`).join('')}</div></div>
 <div class="ov">${DR.map(t=>`<button class="ovrow ${t.id===selTrack?'sel':''} ${L.dmute[t.id]?'muted':''}" data-track="${t.id}" style="--c:var(--${t.id})"><span>${dname(L,t.id)}</span><span class="dots">${D[t.id].map((v,i)=>`<i class="dot ${v?'on':''}" data-s="${i}"></i>`).join('')}</span></button>`).join('')}</div>
-<p class="meta simp" style="margin:0">Choose a drum above, then tap steps to switch it on or off.</p>
-<div class="grid8" style="--tc:var(--${selTrack})">${pat.map((v,i)=>`<button class="pad ${v?'on':''} ${i%4===0?'beat':''}" data-s="${i}" data-pad="${i}" aria-pressed="${!!v}" aria-label="${d.name} step ${i+1}">${i+1}</button>`).join('')}</div>
+<div class="seg"><button class="${rollMode?'':'on'}" data-act="rollm" data-r="0">tap: on / off</button><button class="${rollMode?'on':''}" data-act="rollm" data-r="1">tap: roll ×2 ×3 ×4</button></div>
+<p class="meta" style="margin:0">${rollMode?'Each tap adds a faster repeat inside that step: ×2, ×3, ×4, then back to one hit. Great for snare rolls and hi-hat flutters.':'Choose a drum above, then tap steps to switch it on or off.'}</p>
+<div class="grid8" style="--tc:var(--${selTrack})">${pat.map((v,i)=>`<button class="pad ${v?'on':''} ${i%4===0?'beat':''} ${v>1?'roll':''}" data-s="${i}" data-pad="${i}" aria-pressed="${!!v}" aria-label="${d.name} step ${i+1}${v>1?', roll of '+v:''}">${v>1?'×'+v:i+1}</button>`).join('')}</div>
 <div class="simp"><div class="meta" style="margin-bottom:8px">ready-made beats</div><div class="tools">${Object.keys(DPAT).map(k=>`<button class="btn" data-act="dpat" data-p="${k}">${k}</button>`).join('')}<button class="btn" data-act="dpat" data-p="clear">clear all</button></div></div>
 <div class="tools adv"><button class="btn ${L.dmute[selTrack]?'on':''}" data-act="vmute" style="--tc:var(--hat)">${L.dmute[selTrack]?d.name+' muted':'mute '+d.name.toLowerCase()}</button><button class="btn" data-act="clear">clear</button><button class="btn" data-act="four">every beat</button><button class="btn" data-act="off">offbeats</button></div>`},
 acid(L){const steps=L.pats[L.ev],st=steps[selStep];
@@ -798,7 +824,8 @@ highlight();
 const ECLICK={
 drums(L,b,a){const pat=L.pats[L.ev][selTrack],hit=()=>{if(ctx&&!playing){const n=lnode(L);n.L=L;kitV(L)[selTrack](ctx.currentTime+.01,L.dvol[selTrack],tune(L,selTrack),n)}};
 if(b.dataset.track){selTrack=b.dataset.track;hit()}
-else if(b.dataset.pad){const i=+b.dataset.pad;pat[i]=pat[i]?0:1;if(pat[i])hit()}
+else if(b.dataset.pad){const i=+b.dataset.pad;if(rollMode)pat[i]=pat[i]?(pat[i]>=4?1:pat[i]+1):2;else pat[i]=pat[i]?0:1;if(pat[i])hit()}
+else if(a==='rollm')rollMode=b.dataset.r==='1';
 else if(a==='kit'){L.kit=b.dataset.k;hit()}
 else if(a==='dpat'){const np=emptyDrums(),k=b.dataset.p;if(k!=='clear')for(const [v,s] of Object.entries(DPAT[k]))np[v]=P(s);L.pats[L.ev]=np;if(!playing)start()}
 else if(a==='vmute')L.dmute[selTrack]=!L.dmute[selTrack];
