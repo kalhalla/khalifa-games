@@ -592,7 +592,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.9.3';  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.9.4';  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -5201,7 +5201,12 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     lope.w += ((active ? 1 : 0) - lope.w) * Math.min(1, dt * (active ? 10 : 7));
     if (active) {
       const t = Math.max(0, Math.min(1, (speed - WALK_SPEED) / (RUN_SPEED - WALK_SPEED)));
-      lope.period = level.id === 'wreck' ? 0.80 : 0.95 + 0.10 * t;       // shorter hop indoors
+      // Indoors (v0.9.4): an ordinary brisk walk on a hard deck — the step
+      // time is what the clip's own stride needs at this speed, plus 10%,
+      // so the legs turn over quickly and there is almost no float.
+      lope.period = level.id === 'wreck'
+        ? Math.max(0.36, Math.min(0.70, 0.55 * LOPE_FOOT_M / speed))
+        : 0.95 + 0.10 * t;
       lope.contact = Math.max(0.16, Math.min(0.30, LOPE_STANCE_MAX * LOPE_FOOT_M / speed));
       lope.dc = Math.max(0.08, Math.min(LOPE_STANCE_MAX, speed * lope.contact / LOPE_FOOT_M));
       if (lope.fresh) { lope.fresh = false; lope.phase = 0; lope.pushed = false; _lopeLand(speed); }
@@ -5227,9 +5232,11 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     const tf = lope.period - lope.contact;
     const apex = MOON_G * tf * tf / 8 * Math.min(1, speed / WALK_SPEED + 0.25);
     let y;
-    if (ph < cf) y = -LOPE_DIP * Math.sin(Math.PI * ph / cf);
+    const dip = level.id === 'wreck' ? 0 : LOPE_DIP;                  // no sinking into a hard deck
+    if (ph < cf) y = -dip * Math.sin(Math.PI * ph / cf);
     else { const u = (ph - cf) / (1 - cf); y = 4 * apex * u * (1 - u); }
-    lope.y = y * lope.w;
+    // The walk clip's toe dips 1.6 cm below the root at push-off; lift by that indoors.
+    lope.y = (y + (level.id === 'wreck' ? 0.016 : 0)) * lope.w;
   }
   // Called just before mixer.update: put the body on the arc and lock
   // the gait clip to the stride phase.
@@ -14181,7 +14188,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     label('crew quarters — locker: "memory: unavailable"', 11.4, 3.3, -1.7, '#d2b6ff');
 
     // ── Life support (Scene 3, Puzzle A): converted, floor panels down ──
-    box(8.6, 0.05, 5.7, 18.5, 0, 0, matPanel, { solid: false });          // habitat floor panels
+    box(8.6, 0.05, 5.7, 18.5, -0.04, 0, matPanel, { solid: false });          // habitat floor panels
     box(1.4, 1.6, 1.0, 18.5, 0, -2.4, matDev);                            // stabiliser
     box(0.9, 0.5, 0.6, 20.7, 1.3, -2.6, matDev, { solid: false });        // battery rack (high)
     box(0.5, 0.35, 0.4, 16.4, 0, 1.9, matPart);                           // loose battery
@@ -14190,7 +14197,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     label('life support — O₂ stabiliser (Puzzle A)', 18.5, 2.6, -2.2, '#9cc4ff');
 
     // ── Airlock and suit bay (new): the way in. Converted. ──
-    box(6.6, 0.05, 5.7, 26.5, 0, 0, matPanel, { solid: false });          // habitat floor panels
+    box(6.6, 0.05, 5.7, 26.5, -0.04, 0, matPanel, { solid: false });          // habitat floor panels
     const breach = new THREE.Mesh(new THREE.PlaneGeometry(2.6 * WL_K, 3.2),
       new THREE.MeshBasicMaterial({ color: 0xe8ecf2 }));
     breach.position.set(26.5 * WL_K, 1.6, -WL_HALF_W * WL_K + 0.02);
