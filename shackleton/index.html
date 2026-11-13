@@ -392,7 +392,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
 /* ============================================================
    OBJECTIVE HUD — single-line lowercase objective, script style.
    ============================================================ */
-#objective-hud { position: fixed; left: 50%; top: 52px; transform: translateX(-50%);
+#objective-hud { position: fixed; left: 50%; top: 66px; transform: translateX(-50%);
   z-index: 5; font-family: 'Courier New', monospace; color: #f0c674; font-size: 14px;
   letter-spacing: 3px; opacity: 0; transition: opacity 1.2s ease; pointer-events: none; }
 #objective-hud.on { opacity: 0.85; }
@@ -404,6 +404,23 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   padding: 10px 18px; border-radius: 4px; opacity: 0; transition: opacity 0.25s ease;
   pointer-events: none; cursor: pointer; }
 #interact-prompt.on { opacity: 1; pointer-events: auto; }
+/* v0.5.0 — key cap, hold ring, info line */
+#interact-prompt { display: flex; align-items: center; gap: 10px; letter-spacing: 1.5px;
+  user-select: none; -webkit-user-select: none; touch-action: none; }
+#interact-prompt .ip-key { display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; border-radius: 50%; color: #0c0e12; background: #f0c674;
+  font-weight: bold; font-size: 14px; letter-spacing: 0; flex: none; }
+#interact-prompt .ip-key.ip-hold { color: #f0c674;
+  background: radial-gradient(circle, #0c0e12 58%, transparent 60%),
+              conic-gradient(#f0c674 var(--hold, 0%), rgba(240,198,116,0.22) 0); }
+#interact-prompt .ip-verb { opacity: 0.6; margin-right: -6px; }
+#interact-prompt .ip-info { opacity: 0.75; font-style: italic; }
+/* O₂ HUD: clear of the controls card; animated while gas flows */
+#oxygen-hud { top: 170px !important; }
+#oxygen-hud.filling #oxygen-bar-fill {
+  background: repeating-linear-gradient(0deg, #6ad28e 0 6px, #9ff0bc 6px 12px) !important;
+  background-size: 100% 24px !important; animation: o2flow 0.5s linear infinite; }
+@keyframes o2flow { from { background-position: 0 0; } to { background-position: 0 -24px; } }
 </style>
 </head>
 <body>
@@ -523,10 +540,44 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     </div>
   </div>
 </div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
-<script>
+<!-- three.js r187 (ES modules). r128 was the last release with the global
+     examples/js builds this file was written against; the bridge below
+     rebuilds that global THREE namespace so the game code is unchanged. -->
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.187.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+  import * as T from 'three';
+  import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+  import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
+  // ── r128 LOOK COMPATIBILITY ──
+  // Everything in this game was tuned on r128 with legacy lighting. r187
+  // differs in three ways; each is put back here, once, so no colour or
+  // light value in the game needs re-tuning:
+  //  1. Colour management: hex colours were used as-is (no sRGB→linear).
+  //  2. Lambert diffuse: legacy lights carried a ×π that cancelled the
+  //     1/π in BRDF_Lambert. r155 dropped it (lights ~3× dimmer).
+  //  3. Point/spot falloff: legacy pow(1 − d/cutoff, decay), not inverse-square.
+  T.ColorManagement.enabled = false;
+  T.ShaderChunk.common = T.ShaderChunk.common.replace(
+    'return RECIPROCAL_PI * diffuseColor;', 'return diffuseColor;   /* r128 legacy-light scale */');
+  T.ShaderChunk.lights_pars_begin = T.ShaderChunk.lights_pars_begin.replace(
+    /float getDistanceAttenuation\([\s\S]*?return distanceFalloff;\n}/,
+    `float getDistanceAttenuation( const in float lightDistance, const in float cutoffDistance, const in float decayExponent ) {
+      if ( cutoffDistance > 0.0 && decayExponent > 0.0 ) return pow( saturate( - lightDistance / cutoffDistance + 1.0 ), decayExponent );
+      return 1.0;   /* r128 legacy falloff */
+    }`);
+  window.THREE = Object.assign({}, T, { GLTFLoader, SkeletonUtils });
+</script>
+<script type="module">
+  // MASCON's lunar terrain generator (shared module) — crater floor detail.
+  import { createHeightfield } from '/shackleton/lunar-terrain.js?v=0.7.1';   // bump with the module (stale-cache guard)
+  window.ShackletonLunar = { createHeightfield };
+</script>
+<script type="module">
 (function(){
   'use strict';
 
@@ -537,7 +588,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.4.7';  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.8.0';  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -593,6 +644,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // ~25% too dark on screen). ACES tone-maps the brightest highlights
   // smoothly so a strong sun + light pigment doesn't blow to flat white.
   if (THREE.sRGBEncoding !== undefined) renderer.outputEncoding = THREE.sRGBEncoding;
+  if (THREE.SRGBColorSpace !== undefined) renderer.outputColorSpace = THREE.SRGBColorSpace;   // r152+
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.0;
   stage.appendChild(renderer.domElement);
@@ -612,7 +664,11 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   const hemiLight = new THREE.HemisphereLight(0xd0dce8, 0x18181c, 0.08);
   scene.add(hemiLight);
   const sun = new THREE.DirectionalLight(0xfff4e0, 2.10);
-  sun.position.set(60, 22, 0);
+  // v0.6.1: sun lowered to 17° elevation (was atan(22/60) ≈ 20°).
+  // Still cheated — the real pole sun is under ~2° — but low enough
+  // for long raking shadows while the floor stays readable.
+  const SUN_ELEV_DEG = 17;
+  sun.position.set(60, 60 * Math.tan(SUN_ELEV_DEG * Math.PI / 180), 0);
   sun.castShadow = true;
   sun.shadow.mapSize.set(4096, 4096);
   // ── FOLLOW-FRUSTUM SHADOWS ──
@@ -631,7 +687,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   const SHADOW_R = 90;
   Object.assign(sun.shadow.camera,
     { left:-SHADOW_R, right:SHADOW_R, top:SHADOW_R, bottom:-SHADOW_R, near:0.5, far:600 });
-  const _sunDir   = new THREE.Vector3(60, 22, 0).normalize();
+  const _sunDir   = new THREE.Vector3(60, 60 * Math.tan(SUN_ELEV_DEG * Math.PI / 180), 0).normalize();
   const _sunRight = new THREE.Vector3().crossVectors(_sunDir, new THREE.Vector3(0,1,0)).normalize();
   const _sunUp    = new THREE.Vector3().crossVectors(_sunRight, _sunDir).normalize();
   const _sunTmp   = new THREE.Vector3();
@@ -712,12 +768,96 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // ============================================================
   const M = {
     rockDark:   new THREE.MeshPhongMaterial({ shininess: 0, color: 0x70747a, flatShading: true }),
-    rockMid:    new THREE.MeshPhongMaterial({ shininess: 0, color: 0x8e9298, flatShading: true }),
-    rockLight:  new THREE.MeshPhongMaterial({ shininess: 0, color: 0xc8ccd4, flatShading: true }),
+    rockMid:    new THREE.MeshPhongMaterial({ shininess: 0, color: 0x2d2b29, flatShading: true }),
+    rockLight:  new THREE.MeshPhongMaterial({ shininess: 0, color: 0x3b3835, flatShading: true }),   // v0.7.3: was near-white 0xc8ccd4
     outerSurf:  new THREE.MeshLambertMaterial({ color: 0xeef0f3 }),
     craterFloor:new THREE.MeshLambertMaterial({ color: 0x868a92 }),
     outerRock:  new THREE.MeshPhongMaterial({ shininess: 0, color: 0xb0b4bc, flatShading: true })
   };
+
+  // ============================================================
+  // LUNAR ROCK SURFACE (v0.7.3) — after the Apollo 17 Station 6
+  // boulder Khal supplied as reference: dark grey breccia, pocked
+  // with cavities, mottled, dust lying on every up-facing surface.
+  // Patches any flat-shaded Phong rock material, per pixel in world
+  // space (rocks are static), no textures or UVs:
+  //   pits     two scales of cellular noise → dark cavities whose
+  //            walls tilt the normal, so the sun picks out their rims
+  //   mottle   clast-like light/dark patches
+  //   rough    fine normal grain so facets aren't plastic-smooth
+  //   dust     up-facing surfaces fade to the soil colour, pits fill
+  // ============================================================
+  const ROCK_GLSL = `
+    float rkHash(vec3 p){ p = fract(p * vec3(0.1031, 0.1030, 0.0973)); p += dot(p, p.yxz + 33.33); return fract((p.x + p.y) * p.z); }
+    vec3  rkHash3(vec3 p){ return vec3(rkHash(p), rkHash(p + 17.1), rkHash(p + 41.7)); }
+    float rkNoise(vec3 p){ vec3 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f);
+      return mix(mix(mix(rkHash(i), rkHash(i+vec3(1,0,0)), f.x), mix(rkHash(i+vec3(0,1,0)), rkHash(i+vec3(1,1,0)), f.x), f.y),
+                 mix(mix(rkHash(i+vec3(0,0,1)), rkHash(i+vec3(1,0,1)), f.x), mix(rkHash(i+vec3(0,1,1)), rkHash(i+vec3(1,1,1)), f.x), f.y), f.z); }
+    // Nearest pit: xyz = offset to its centre, w = distance / radius (≥1 = no pit).
+    vec4 rkPit(vec3 p){
+      vec3 ip = floor(p), fp = fract(p); vec4 best = vec4(0.0, 0.0, 0.0, 9.0);
+      for (int x = -1; x <= 1; x++) for (int y = -1; y <= 1; y++) for (int z = -1; z <= 1; z++) {
+        vec3 g = vec3(float(x), float(y), float(z));
+        vec3 h = rkHash3(ip + g);
+        if (h.x + h.y > 0.95) continue;                 // only some cells hold a pit
+        float r = 0.16 + 0.26 * h.z;
+        vec3 d = g + 0.2 + 0.6 * h - fp;
+        float q = length(d) / r;
+        if (q < best.w) best = vec4(d, q);
+      }
+      return best;
+    }`;
+  function rockify(mat, strength) {
+    const K = (strength == null ? 1 : strength).toFixed(2);
+    mat.onBeforeCompile = (shader) => {
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', '#include <common>\nvarying vec3 vRockPos;')
+        .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvRockPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', '#include <common>\nvarying vec3 vRockPos;\n' + ROCK_GLSL +
+                 '\nfloat rkDust; vec4 rkP1; vec4 rkP2;')
+        .replace('#include <normal_fragment_begin>', `#include <normal_fragment_begin>
+          {
+            vec3 upV = normalize((viewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
+            float upness = dot(normal, upV);
+            rkDust = smoothstep(0.45, 0.92, upness + (rkNoise(vRockPos * 2.3) - 0.5) * 0.35) * 0.85;
+            vec3 rkW = vRockPos + (vec3(rkNoise(vRockPos * 4.0), rkNoise(vRockPos * 4.0 + 9.0), rkNoise(vRockPos * 4.0 + 21.0)) - 0.5) * 0.22;
+            rkP1 = rkPit(rkW * 2.2);
+            rkP2 = rkPit(rkW * 7.5 + 11.0);
+            float w1 = (1.0 - smoothstep(0.55, 1.0, rkP1.w)) * (1.0 - rkDust);
+            float w2 = (1.0 - smoothstep(0.55, 1.0, rkP2.w)) * (1.0 - rkDust);
+            // Pit walls lean toward the pit centre; plus fine roughness.
+            vec3 e = vec3(0.04, 0.0, 0.0);
+            vec3 gr = vec3(rkNoise(vRockPos * 14.0 + e.xyy) - rkNoise(vRockPos * 14.0 - e.xyy),
+                           rkNoise(vRockPos * 14.0 + e.yxy) - rkNoise(vRockPos * 14.0 - e.yxy),
+                           rkNoise(vRockPos * 14.0 + e.yyx) - rkNoise(vRockPos * 14.0 - e.yyx));
+            vec3 bendW = (normalize(rkP1.xyz + 1e-4) * w1 * smoothstep(0.15, 0.7, rkP1.w) * 1.5
+                        + normalize(rkP2.xyz + 1e-4) * w2 * smoothstep(0.15, 0.7, rkP2.w) * 1.0
+                        - gr * 2.2 * (1.0 - 0.6 * rkDust)) * ${K};
+            normal = normalize(normal + (viewMatrix * vec4(bendW, 0.0)).xyz);
+          }`)
+        .replace('#include <color_fragment>', `#include <color_fragment>
+          {
+            float mot = (rkNoise(vRockPos * 1.3) - 0.5) * 0.34 + (rkNoise(vRockPos * 5.0) - 0.5) * 0.20
+                      + (rkNoise(vRockPos * 22.0) - 0.5) * 0.14;
+            // Occasional pale clasts.
+            float clast = smoothstep(0.74, 0.80, rkNoise(vRockPos * 3.7 + 5.0)) * 0.22;
+            diffuseColor.rgb *= 1.0 + (mot + clast) * ${K};
+          }`)
+        .replace('#include <lights_fragment_begin>', `
+          // Dust mantle on up-facing surfaces: soil colour, set here so it
+          // can read rkDust from the normal stage.
+          float rkPitK = max((1.0 - smoothstep(0.35, 0.95, rkP1.w)) * 0.55, (1.0 - smoothstep(0.35, 0.95, rkP2.w)) * 0.42);
+          diffuseColor.rgb *= 1.0 - rkPitK * ${K};
+          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.27, 0.256, 0.24) * (0.9 + 0.2 * rkNoise(vRockPos * 9.0)), rkDust * ${K});
+          material.diffuseColor = diffuseColor.rgb;
+          #include <lights_fragment_begin>`);
+    };
+    mat.customProgramCacheKey = () => 'lunar-rock-v1-' + K;
+    mat.needsUpdate = true;
+    return mat;
+  }
+  rockify(M.rockDark); rockify(M.rockMid); rockify(M.rockLight); rockify(M.outerRock);
 
   // ============================================================
   // REGOLITH MATERIAL — shared by every lunar-surface mesh (outer
@@ -735,9 +875,45 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // ============================================================
   const regolith = new THREE.MeshPhongMaterial({
     shininess: 0,
-    color: 0xdee0e3,
-    flatShading: true
+    // v0.7.3: warm mid-grey (was near-white 0xdee0e3). Apollo surface
+    // photos show soil like dark cement, not snow; the brightness came
+    // from exposure, and it hid every bit of surface texture.
+    // (Colours here are linear — colour management is off — so 0x4a
+    // displays around 150/255 under the 17° sun after tone mapping.)
+    color: 0x4a4641,
+    // v0.6.2: flatShading OFF at the material level — the lunar shader
+    // below rebuilds the faceted normal per pixel and decides how much
+    // of it to keep: full facets on rock (steep faces), partial on dust.
+    flatShading: false
   });
+  // ── LUNAR REGOLITH (v0.6.2) — ported from MASCON's terrain ──
+  // MASCON: per-vertex albedo, tiled grain colour + grain normal maps,
+  // a rock/dust mask that keeps facets on rock and smooths dust. Here
+  // the floor's triangles are ~8m at the edge — too coarse to paint
+  // albedo per vertex — so everything is computed per pixel from world
+  // position and slope instead (no UVs, no textures, no attributes):
+  //   albedo   large mottled patches (maturity), bright halos + ray
+  //            streaks round a handful of fresh craters (REGOLITH_FRESH)
+  //   rock     faces steeper than ~37° keep their hard facets
+  //   dust     flat ground keeps DUST_FACET of the facet, the rest is
+  //            the smooth vertex normal + a fine grain normal
+  //   light    Lommel–Seeliger blend (no limb darkening — regolith
+  //            stays bright at grazing view, the Apollo look) and an
+  //            opposition surge when the sun is behind the camera.
+  // MASCON's GTAO pass is not ported: it needs a far newer three.js.
+  const REGOLITH_FRESH = [   // x, z, radius, ray phase — albedo only, on open floor
+    new THREE.Vector4( -25, -60, 4.5, 0.3), new THREE.Vector4( 70,  55, 3.5, 1.7),
+    new THREE.Vector4( -95, -20, 5.5, 2.9), new THREE.Vector4( 40, -95, 3.0, 4.1),
+    new THREE.Vector4( -40,  95, 4.0, 5.3), new THREE.Vector4(120, -30, 6.0, 0.9),
+  ];
+  // Shader-chunk names differ across three.js releases: the lighting
+  // functions took a GeometricContext struct (geometry.normal) up to
+  // ~r151 and flat vec3 params (geometryNormal) after.
+  const GEO_N = (+THREE.REVISION >= 152) ? 'geometryNormal'  : 'geometry.normal';
+  const GEO_V = (+THREE.REVISION >= 152) ? 'geometryViewDir' : 'geometry.viewDir';
+  const REGOLITH_LUNAR_K = 0.5;   // 0 = plain Lambert, 1 = full (capped) Lommel–Seeliger
+  const DUST_FACET = 0.45;   // v0.7.3: was 0.70 — powder shouldn't read as flat plates up close
+  const DUST_FACET_OLD = 0.70;        // how much low-poly facet survives on dust (0.45 lost the house look)
   regolith.onBeforeCompile = function(shader) {
     // Pass world position from vertex to fragment.
     shader.vertexShader = shader.vertexShader
@@ -747,7 +923,12 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       )
       .replace(
         '#include <worldpos_vertex>',
-        '#include <worldpos_vertex>\nvWorldPos_regolith = (modelMatrix * vec4(transformed, 1.0)).xyz;'
+        '#include <worldpos_vertex>\nvWorldPos_regolith = (modelMatrix * vec4(transformed, 1.0)).xyz;' +
+        '\n#ifdef USE_LUNAR_SURF\nvSurf = surf;\n#endif'
+      )
+      .replace(
+        '#include <common>',
+        '#include <common>\n#ifdef USE_LUNAR_SURF\nattribute vec2 surf;\nvarying vec2 vSurf;\n#endif'
       );
     // Inject the noise into the diffuse colour just before lighting.
     // hash3() turns a 3D world position into a deterministic 0..1
@@ -795,12 +976,105 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
            float n = (fine - 0.5) * 0.10 + (coarse - 0.5) * 0.06;
            // Apply as multiplicative shade. 1 + n in roughly [0.92, 1.08].
            diffuseColor.rgb *= (1.0 + n);
+           // v0.7.3 powder: close-range clods and grit. Dark specks are the
+           // shadowed sides of small clumps; pale ones are tiny rock chips.
+           // Fades with distance so it never shimmers.
+           {
+             float nearK = 1.0 - smoothstep(10.0, 34.0, length(vViewPosition));
+             vec3 q = vWorldPos_regolith;
+             float clod = valueNoise(q * 11.0) * 0.6 + valueNoise(q * 27.0) * 0.4;
+             float dark = smoothstep(0.60, 0.74, clod), pale = smoothstep(0.80, 0.86, valueNoise(q * 19.0 + 7.0));
+             float churn = (valueNoise(q * 2.2 + 3.0) - 0.5) * 0.16;     // scuffed, uneven tone
+             diffuseColor.rgb *= 1.0 + churn + nearK * (-0.22 * dark + 0.16 * pale);
+           }
+           // v0.6.2 albedo: maturity patches + fresh-crater halos and rays.
+           // (Skipped on the floor grid: its vertex colours carry MASCON's
+           // albedo from the real crater list.)
+           #ifndef USE_COLOR
+           vec2 wp = vWorldPos_regolith.xz;
+           float alb = 1.0
+             + (valueNoise(vec3(wp * 0.022, 3.1)) - 0.5) * 0.30
+             + (valueNoise(vec3(wp * 0.085, 9.7)) - 0.5) * 0.12;
+           for (int k = 0; k < 6; k++) {
+             vec4 c = uFresh[k];
+             vec2 dv = wp - c.xy;
+             float d = length(dv) / c.z;
+             if (d > 5.0) continue;
+             alb += 0.30 * exp(-pow((d - 1.05) / 0.32, 2.0));          // bright ejecta halo
+             alb -= 0.12 * (1.0 - smoothstep(0.0, 0.9, d));            // darker bowl floor
+             float a = atan(dv.y, dv.x);
+             float rays = pow(max(0.0, sin(a * 7.0 + c.w)), 7.0) * 0.7
+                        + pow(max(0.0, sin(a * 11.0 + c.w * 2.3)), 9.0) * 0.5;
+             float reach = smoothstep(1.1, 1.4, d) * (1.0 - smoothstep(1.4, 5.0, d));
+             alb += 0.26 * rays * reach;
+           }
+           diffuseColor.rgb *= clamp(alb, 0.62, 1.35) * 0.88;   // 0.88: headroom for halos
+           #endif
          }`
+      )
+      .replace(
+        '#include <normal_fragment_begin>',
+        `#include <normal_fragment_begin>
+         {
+           // Faceted normal (what flatShading used to give us).
+           vec3 fdx = dFdx(vViewPosition), fdy = dFdy(vViewPosition);
+           vec3 faceN = normalize(cross(fdx, fdy));
+           vec3 upV = normalize((viewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
+           float slopeCos = abs(dot(faceN, upV));
+           float rock = 1.0 - smoothstep(0.80, 0.92, slopeCos);       // > ~37° = rock
+           float facetFloor = DUST_FACET_U;
+           #ifdef USE_LUNAR_SURF
+             rock = max(rock, clamp(vSurf.x * 1.3, 0.0, 1.0));        // MASCON rock map
+             facetFloor = mix(DUST_FACET_U, 0.15, clamp(vSurf.y, 0.0, 1.0));   // settled dust reads smooth
+           #endif
+           if (dot(faceN, normal) < 0.0) faceN = -faceN;
+           normal = normalize(mix(normal, faceN, max(rock, facetFloor)));
+           // Grain normal: world-space gradient of value noise, two scales,
+           // strong on dust, faint on rock.
+           vec3 p = vWorldPos_regolith;
+           float e = 0.06;
+           float g1x = valueNoise(p * 3.2 + vec3(e, 0.0, 0.0)) - valueNoise(p * 3.2 - vec3(e, 0.0, 0.0));
+           float g1z = valueNoise(p * 3.2 + vec3(0.0, 0.0, e)) - valueNoise(p * 3.2 - vec3(0.0, 0.0, e));
+           float g2x = valueNoise(p * 0.9 + vec3(e, 0.0, 0.0)) - valueNoise(p * 0.9 - vec3(e, 0.0, 0.0));
+           float g2z = valueNoise(p * 0.9 + vec3(0.0, 0.0, e)) - valueNoise(p * 0.9 - vec3(0.0, 0.0, e));
+           float amp = mix(1.6, 0.5, rock);
+           #ifdef USE_LUNAR_SURF
+             amp *= 1.0 - 0.6 * clamp(vSurf.y, 0.0, 1.0);   // fine dust: softer grain
+           #endif
+           // v0.7.3: clumpy micro-relief up close (the churned look).
+           float nearN = 1.0 - smoothstep(8.0, 28.0, length(vViewPosition));
+           float e3 = 0.02;
+           float g3x = valueNoise(p * 11.0 + vec3(e3, 0.0, 0.0)) - valueNoise(p * 11.0 - vec3(e3, 0.0, 0.0));
+           float g3z = valueNoise(p * 11.0 + vec3(0.0, 0.0, e3)) - valueNoise(p * 11.0 - vec3(0.0, 0.0, e3));
+           vec3 gW = (vec3(g1x * 0.9 + g2x * 1.4, 0.0, g1z * 0.9 + g2z * 1.4)
+                    + vec3(g3x, 0.0, g3z) * 1.6 * nearN) * amp;
+           normal = normalize(normal - (viewMatrix * vec4(gW, 0.0)).xyz);
+         }`
+      )
+      .replace(
+        '#include <lights_phong_pars_fragment>',
+        THREE.ShaderChunk.lights_phong_pars_fragment.replace(
+          'vec3 irradiance = dotNL * directLight.color;',
+          `float dotNV_l = saturate(dot(${GEO_N}, ${GEO_V}));
+           // Lommel–Seeliger: 2μ0/(μ0+μ), = Lambert at normal view, no limb darkening.
+           // Capped at 1.7× Lambert: uncapped, a 17° sun seen from eye height
+           // ran ~5× and tone mapping flattened the floor to white (v0.6.2 test).
+           float ls = min(2.0 * dotNL / max(dotNL + dotNV_l, 1e-3), dotNL * 1.7);
+           // Opposition surge: sun straight behind the viewer.
+           float phase = saturate(dot(${GEO_V}, directLight.direction));
+           float surge = 1.0 + 0.18 * exp(-(1.0 - phase) * 22.0);   // 0.30 blew out fresh ejecta down-sun (v0.7.1)
+           vec3 irradiance = mix(dotNL, ls, LUNAR_K_U) * surge * directLight.color;`
+        )
       );
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <common>',
+      '#include <common>\n#ifdef USE_LUNAR_SURF\nvarying vec2 vSurf;\n#endif\nuniform vec4 uFresh[6];\n#define LUNAR_K_U ' + REGOLITH_LUNAR_K.toFixed(3) +
+      '\n#define DUST_FACET_U ' + DUST_FACET.toFixed(3));
+    shader.uniforms.uFresh = { value: REGOLITH_FRESH };
   };
   // Assign a unique key so Three.js doesn't share the compiled program
   // with other Lambert materials (which would skip our injection).
-  regolith.customProgramCacheKey = () => 'regolith-noise-v1';
+  regolith.customProgramCacheKey = () => 'regolith-lunar-v2';
 
   // ============================================================
   // SHACKLETON SCENE — a named boundary, not (yet) a module.
@@ -897,6 +1171,102 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   scene.add(root);
   const colliders = [];
   function addCollider(x, z, r, h) { colliders.push({ x, z, r, h }); }
+
+  // ============================================================
+  // BOX COLLIDERS (v0.5.0) — the collision half of the asset
+  // pipeline. What you SEE and what you BUMP INTO are now separate:
+  // a detailed GLB renders, a handful of oriented boxes collide.
+  // Boxes come from three places: COL_* nodes inside a GLB (authored
+  // proxies), an automatic footprint box for props, or hand calls.
+  //
+  //   addBoxCollider({ x, z, hx, hz, yaw, y0, y1, walkable, tag })
+  //     hx/hz  half-extents in the box's own frame
+  //     yaw    rotation about +Y (same sense as Object3D.rotation.y)
+  //     y0/y1  vertical span; a walkable box whose top is within
+  //            STEP_UP of the feet is stepped onto, not pushed off.
+  //
+  // Player is a vertical cylinder (BOX_PLAYER_R) — resolved by the
+  // closest-point-on-rectangle push in boxResolvePlayer(), and stood
+  // on via boxTopAt() inside updatePlayer's ground checks.
+  // ============================================================
+  const boxColliders = [];
+  const BOX_STEP_UP = 0.45;
+  const BOX_PLAYER_R = 0.35;
+  function addBoxCollider(o) {
+    const yaw = o.yaw || 0;
+    const b = {
+      x: o.x, z: o.z, hx: o.hx, hz: o.hz,
+      c: Math.cos(yaw), s: Math.sin(yaw),
+      y0: o.y0, y1: o.y1,
+      walkable: o.walkable !== false,
+      tag: o.tag || '', enabled: true,
+    };
+    boxColliders.push(b);
+    return b;
+  }
+  function removeBoxCollidersByTag(tag) {
+    for (let i = boxColliders.length - 1; i >= 0; i--) {
+      if (boxColliders[i].tag === tag) boxColliders.splice(i, 1);
+    }
+  }
+  // World (x,z) → box-local. Object3D yaw maps local→world as
+  //   wx = lx·c + lz·s,  wz = −lx·s + lz·c   — so the inverse is:
+  function _boxLocal(b, x, z, out) {
+    const dx = x - b.x, dz = z - b.z;
+    out.x = dx * b.c - dz * b.s;
+    out.z = dx * b.s + dz * b.c;
+    return out;
+  }
+  const _bl = { x: 0, z: 0 };
+  // Highest walkable box top under (x,z) that the feet at height y
+  // can reach (≤ y + STEP_UP). −Infinity when none.
+  function boxTopAt(x, z, y) {
+    let top = -Infinity;
+    for (const b of boxColliders) {
+      if (!b.enabled || !b.walkable || (b.level || 'crater') !== level.id) continue;
+      if (b.y1 > y + BOX_STEP_UP || b.y1 <= top) continue;
+      _boxLocal(b, x, z, _bl);
+      if (Math.abs(_bl.x) <= b.hx && Math.abs(_bl.z) <= b.hz) top = b.y1;
+    }
+    return top;
+  }
+  // Terrain or box top, whichever is higher — the player's floor.
+  function playerGroundY(x, z, y) {
+    const t = level.id === 'wreck' ? WL_ORIGIN.y : shackletonScene.getGroundY(x, z);
+    if (!boxColliders.length) return t;
+    return Math.max(t, boxTopAt(x, z, y));
+  }
+  // Push the player cylinder out of every box it overlaps at its
+  // current height. Boxes the player is standing on (or can step
+  // onto) are skipped — boxTopAt handles those.
+  function boxResolvePlayer(pos, vel) {
+    for (const b of boxColliders) {
+      if (!b.enabled || (b.level || 'crater') !== level.id) continue;
+      if (pos.y >= b.y1 - 0.02) continue;                        // on top / above
+      if (pos.y + 1.7 < b.y0) continue;                          // passes under
+      if (b.walkable && b.y1 <= pos.y + BOX_STEP_UP) continue;   // step-up
+      _boxLocal(b, pos.x, pos.z, _bl);
+      const cx = Math.max(-b.hx, Math.min(b.hx, _bl.x));
+      const cz = Math.max(-b.hz, Math.min(b.hz, _bl.z));
+      let nx = _bl.x - cx, nz = _bl.z - cz;
+      let d = Math.hypot(nx, nz);
+      let push;
+      if (d > 1e-5) {
+        if (d >= BOX_PLAYER_R) continue;
+        nx /= d; nz /= d; push = BOX_PLAYER_R - d;
+      } else {
+        // Centre inside the box — exit through the nearest face.
+        const ex = b.hx - Math.abs(_bl.x), ez = b.hz - Math.abs(_bl.z);
+        if (ex < ez) { nx = Math.sign(_bl.x) || 1; nz = 0; push = ex + BOX_PLAYER_R; }
+        else         { nx = 0; nz = Math.sign(_bl.z) || 1; push = ez + BOX_PLAYER_R; }
+      }
+      // Local push → world (same rotation as local→world above).
+      const wx = nx * b.c + nz * b.s, wz = -nx * b.s + nz * b.c;
+      pos.x += wx * push; pos.z += wz * push;
+      const vn = vel.x * wx + vel.z * wz;
+      if (vn < 0) { vel.x -= vn * wx; vel.z -= vn * wz; }
+    }
+  }
   // Camera occluders — list of meshes the chase camera raycasts
   // against to pull in when the player walks behind one. Declared
   // here so placeBoulder (and other early scene init) can push to
@@ -1115,7 +1485,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // Safe to tune from screenshots: AMP is the single knob for
   // "how lumpy"; pull it toward 0.6 if objects with hardcoded Y
   // heights start floating or sinking.
-  const FLOOR_NOISE_AMP   = 1.1;    // metres, primary component
+  const FLOOR_NOISE_AMP   = 0.6;    // metres, primary component (v0.7.1: 1.1 → 0.6, MASCON detail adds the rest)
   const FLOOR_FREQ_A      = 0.045;  // rad/m — broad rolling swells (~140m)
   const FLOOR_FREQ_B      = 0.11;   // rad/m — mid detail (~57m)
   const FLOOR_FREQ_C      = 0.19;   // rad/m — fine facets (~33m)
@@ -1128,6 +1498,43 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // floor edge (r >= CRATER_FLOOR) and small noise elsewhere.
   // Tapered near the edge so the floor seats flush against the
   // wall transition without a visible step.
+  // ── LUNAR FLOOR DETAIL (v0.7.1) — MASCON's generator ──
+  // Real crater geometry (bowl, raised rim, ejecta; fresh / mature /
+  // degraded), rock fields, settled dust patches and albedo, from the
+  // shared lunar-terrain.js. Shackleton-specific settings: no maria
+  // (south-polar highlands), no map-edge craters (they'd land in the
+  // walls), broad rolling ground scaled down (the floor keeps its own
+  // swells), hand-placed landmark craters clear of every work site.
+  const LUNAR_FLOOR_OPTS = {
+    seed: 0, size: 408, cacheRes: 408, cacheBound: 204,
+    pad: { radius: 0, blend: 1 },          // Shackleton applies its own pads below
+    maria: [], rim: [], backdrop: false, baseScale: 0.35,
+    landmarks: [[95, -60, 22, 'mature'], [-120, -70, 16, 'fresh'], [60, 120, 26, 'degraded'], [135, 55, 12, 'fresh']],
+    craters: [
+      { count: 22,  spread: 390, clear: 0, rMin: 5,   rMax: 16,  fresh: 0.22, mature: 0.43 },
+      { count: 90,  spread: 395, clear: 0, rMin: 1.6, rMax: 5.2, fresh: 0.25, mature: 0.40 },
+      { count: 160, spread: 395, clear: 0, rMin: 0.7, rMax: 1.7, fresh: 0.12, mature: 0.38 },
+    ],
+    dust: { first: null, count: 14, rMin: 20, rMax: 180, sizeMin: 8, sizeMax: 24 },
+  };
+  const lunarFloor = window.ShackletonLunar.createHeightfield(LUNAR_FLOOR_OPTS);
+  // Level work sites: noise AND craters fade to zero inside r, back to
+  // full over `blend`. Literal coordinates — the peak/ice constants are
+  // declared further down the file (TDZ at mesh-build time).
+  const FLOOR_PADS = [
+    { x: 8,   z: -2, r: 30, blend: 20 },     // wreck / wake site / Flyer / refill panel (the v0.4 apron)
+    { x: -75, z: 80, r: 10, blend: 10 },     // ice pocket (ICE_POCKET)
+    { x: -60, z: 30, r: 14, blend: 8 },      // central peak foot (PEAK_CENTER, bounding r 11 + 3)
+  ];
+  function floorPadMask(x, z) {
+    let m = 1;
+    for (const p of FLOOR_PADS) {
+      const d = Math.hypot(x - p.x, z - p.z);
+      m = Math.min(m, d < p.r ? 0 : Math.min(1, (d - p.r) / p.blend));
+    }
+    return m * m * (3 - 2 * m);
+  }
+
   function floorHeight(x, z) {
     const r = Math.hypot(x, z);
     if (r >= CRATER_FLOOR) return 0;
@@ -1140,10 +1547,8 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     // area so the opening, refill panel, and Flyer assembly sit on
     // near-level ground regardless of AMP tuning. Radius 30m around
     // the wreck at (8,-2); smooth ramp out over a further 20m.
-    const dxW = x - 8, dzW = z + 2;
-    const rW = Math.hypot(dxW, dzW);
-    const apron = rW < 30 ? 0 : Math.min(1, (rW - 30) / 20);
-    return noise * tEdge * apron;
+    // (v0.7.1: the wreck apron is now FLOOR_PADS[0]; same 30m + 20m ramp.)
+    return (noise + lunarFloor.heightAt(x, z)) * tEdge * floorPadMask(x, z);
   }
 
   const craterContents = new THREE.Group();
@@ -1178,7 +1583,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // declared near the top of the file (hoisted so the outer mesh
   // can reference them at construction time). Wall ring count is
   // local to this block — only the rim ring needs cross-mesh sync.
-  const INNER_FLOOR_RINGS = 24;  // dense rings through floor (r=0..CRATER_FLOOR)
+  const INNER_FLOOR_RINGS = 3;   // v0.7.1: wall-foot collar only (r = FLOOR-6 .. FLOOR)
   const INNER_WALL_RINGS = 28;   // dense rings through wall transition
 
   // Wall surface elevation in the rim transition zone.
@@ -1220,15 +1625,18 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     // Floor rings — packed tighter near the edge where the wall
     // transition begins. Range: r=0 (excluded — that's the centre
     // vertex) to r=CRATER_FLOOR.
+    // v0.7.1: the floor itself is now the 1.5m grid (buildFloorGrid).
+    // These rings only form a narrow 6m collar at the foot of the wall,
+    // 8cm below the true surface so the grid draws over it with no seam.
+    // (The centre vertex above stays in the buffer, unreferenced.)
     for (let ring = 1; ring <= INNER_FLOOR_RINGS; ring++) {
       const t = ring / INNER_FLOOR_RINGS;
-      // Quadratic spacing so rings cluster near the floor edge
-      const r = CRATER_FLOOR * (t * t * 0.7 + t * 0.3);
+      const r = (CRATER_FLOOR - 6) + 6 * t;
       for (let i = 0; i < INNER_SEGS; i++) {
         const a = (i / INNER_SEGS) * Math.PI * 2;
         const x = Math.cos(a) * r;
         const z = Math.sin(a) * r;
-        positions.push(x, -CRATER_DEPTH + floorHeight(x, z), z);
+        positions.push(x, -CRATER_DEPTH + floorHeight(x, z) - (ring < INNER_FLOOR_RINGS ? 0.08 : 0), z);
       }
     }
 
@@ -1248,13 +1656,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       }
     }
 
-    // Triangle indices.
-    // Centre fan.
-    for (let i = 0; i < INNER_SEGS; i++) {
-      const i1 = 1 + i;
-      const i2 = 1 + ((i + 1) % INNER_SEGS);
-      indices.push(0, i2, i1);
-    }
+    // Triangle indices. (v0.7.1: no centre fan — the grid owns the floor.)
     // Ring quads — wound for outward-facing normals.
     const totalRings = INNER_FLOOR_RINGS + INNER_WALL_RINGS;
     for (let ring = 1; ring < totalRings; ring++) {
@@ -1281,6 +1683,11 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // horizon. No seam, no material discontinuity.
   const innerSurfaceMat = regolith.clone();
   innerSurfaceMat.side = THREE.DoubleSide;   // back-face visible during exit/entry near rim
+  // Material.clone() in r128 does NOT copy onBeforeCompile or the cache
+  // key — so from day one the crater floor silently rendered without
+  // the regolith shader (found v0.6.2). Re-attach both explicitly.
+  innerSurfaceMat.onBeforeCompile = regolith.onBeforeCompile;
+  innerSurfaceMat.customProgramCacheKey = () => 'regolith-lunar-v2-ds';
   const innerSurface = new THREE.Mesh(buildInnerSurface(), innerSurfaceMat);
   // castShadow = false — deliberate. Under the grazing sun (~20°
   // elevation) the near-flat floor self-shadows its own undulation,
@@ -1294,6 +1701,77 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   innerSurface.castShadow = false;
   innerSurface.receiveShadow = true;
   root.add(innerSurface);
+
+  // ============================================================
+  // FLOOR GRID (v0.7.1) — the crater floor at ~1.5m, MASCON-style.
+  // The old polar floor ran 8m triangles at the edge: too coarse to
+  // hold a crater. This square grid (jittered so it never reads as a
+  // grid) covers r ≤ 204 and is clipped to the circle; past the floor
+  // edge it follows the wall 6cm low, so the wall mesh hides the seam.
+  // Per vertex, from lunarFloor:
+  //   color  albedo (0.22–0.86, normalised to the regolith base)
+  //   surf   x = rockiness (crater rims, boulder fields, steep faces)
+  //          y = fine dust (smooth, settled patches)
+  // Height comes from floorHeight → the same function getGroundY uses,
+  // so what you see is what you walk on.
+  // ============================================================
+  const FLOOR_GRID_CELL = 1.5, FLOOR_GRID_HALF = 204;
+  function buildFloorGrid() {
+    const N = Math.ceil((FLOOR_GRID_HALF * 2) / FLOOR_GRID_CELL);
+    const g = new THREE.PlaneGeometry(FLOOR_GRID_HALF * 2, FLOOR_GRID_HALF * 2, N, N);
+    g.rotateX(-Math.PI / 2);
+    const pos = g.attributes.position;
+    const hsh = lunarFloor.hash;
+    const cols = new Float32Array(pos.count * 3), surfA = new Float32Array(pos.count * 2);
+    for (let i = 0; i < pos.count; i++) {
+      let x = pos.getX(i), z = pos.getZ(i);
+      if (Math.abs(x) < FLOOR_GRID_HALF - 0.5 && Math.abs(z) < FLOOR_GRID_HALF - 0.5) {
+        x += (hsh(Math.round(x * 7 + 1000), Math.round(z * 7 + 3000)) - 0.5) * 0.9;
+        z += (hsh(Math.round(x * 5 + 2000), Math.round(z * 11 + 4000)) - 0.5) * 0.9;
+      }
+      const r = Math.hypot(x, z);
+      const y = r < CRATER_FLOOR ? -CRATER_DEPTH + floorHeight(x, z) : getGroundYNoPeak(x, z) - 0.06;
+      pos.setXYZ(i, x, y, z);
+      const pad = r < CRATER_FLOOR ? floorPadMask(x, z) : 0;
+      const edge = Math.min(1, Math.max(0, (CRATER_FLOOR - r) / 40));
+      const a = 0.6 + (lunarFloor.albedoAt(x, z) - 0.6) * edge * (0.35 + 0.65 * pad);
+      const c = Math.min(1.25, a / 0.66);      // 0.6 normalisation ran hot on fresh ejecta
+      cols[i * 3] = c; cols[i * 3 + 1] = c * 0.995; cols[i * 3 + 2] = c * 0.99;
+      const dust = lunarFloor.dustAt(x, z) * edge;
+      surfA[i * 2] = lunarFloor.rockAt(x, z) * (1 - dust) * edge * pad;
+      surfA[i * 2 + 1] = dust;
+    }
+    // Clip to the circle: keep triangles with every vertex inside r 204.
+    const idx = g.index.array, keep = [];
+    const inside = (k) => Math.hypot(pos.getX(k), pos.getZ(k)) < FLOOR_GRID_HALF;
+    for (let t = 0; t < idx.length; t += 3) {
+      if (inside(idx[t]) && inside(idx[t + 1]) && inside(idx[t + 2])) keep.push(idx[t], idx[t + 1], idx[t + 2]);
+    }
+    g.setIndex(keep);
+    g.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
+    g.setAttribute('surf', new THREE.Float32BufferAttribute(surfA, 2));
+    g.computeVertexNormals();
+    g.computeBoundingSphere();
+    return g;
+  }
+  // Wall height without the central peak (getGroundY is defined later).
+  function getGroundYNoPeak(x, z) {
+    const r = Math.hypot(x, z);
+    if (r <= CRATER_FLOOR) return -CRATER_DEPTH + floorHeight(x, z);
+    return wallY(r, Math.atan2(z, x));
+  }
+  const floorGridMat = regolith.clone();
+  floorGridMat.vertexColors = true;
+  floorGridMat.defines = Object.assign({}, floorGridMat.defines, { USE_LUNAR_SURF: '' });
+  floorGridMat.onBeforeCompile = regolith.onBeforeCompile;          // clone() drops it (r128 and r187)
+  floorGridMat.customProgramCacheKey = () => 'regolith-lunar-v2-grid';
+  const floorGrid = new THREE.Mesh(buildFloorGrid(), floorGridMat);
+  floorGrid.name = 'crater-floor';
+  // Craters' rims now cast into their own bowls (MASCON does the same);
+  // a small normal bias keeps the flat stretches clean.
+  floorGrid.castShadow = true;
+  floorGrid.receiveShadow = true;
+  root.add(floorGrid);
 
   // ============================================================
   // CENTRAL PEAK — a wide chunky pyramid with a three-turn spiral
@@ -1314,266 +1792,133 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // ============================================================
   const PEAK_CENTER_X    = -60;
   const PEAK_CENTER_Z    = 30;
-  const PEAK_BASE_R      = 25.0;    // 50m base diameter
-  // PEAK_HEIGHT is the cone's height AT ITS APEX IF IT CAME TO A
-  // POINT — the actual walkable summit is SUMMIT_H below, where the
-  // platform truncates it. 40m apex → 28.8m summit.
-  const PEAK_HEIGHT      = 40.0;
-  const PATH_TURNS       = 3;       // spiral makes three full revolutions
-  // PATH_WIDTH 3.5, down from 6. The windings are spaced 6m radially
-  // (18m of radius over 3 turns), so a 6m-wide path was WALL-TO-WALL
-  // shelf — concentric flat discs, the wedding-cake read. At 3.5m
-  // there is 2.5m of true 52° cone face between windings, which the
-  // block displacement then roughens into rock. The trail is still
-  // comfortably wider than the player.
-  const PATH_WIDTH       = 3.5;     // walkable width
-  const SUMMIT_R         = 7.0;     // 14m platform diameter
-  // ── THE TIN-CAN FIX ──
-  // The platform used to sit at PEAK_HEIGHT while the cone surface
-  // at SUMMIT_R sat at PEAK_HEIGHT·(1−7/25) — nine metres lower.
-  // The summit was a 9m cylindrical plug jammed into the cone top,
-  // which is exactly the tin-can silhouette in the screenshots. The
-  // platform is now AT the cone surface: the mountain truncates
-  // where the path arrives, like the reference. Everything —
-  // collision, path shelves, overlay, cap mesh — derives from this
-  // one constant, so it cannot desynchronise.
-  const SUMMIT_H = PEAK_HEIGHT * (1 - SUMMIT_R / PEAK_BASE_R);   // 28.8m
-  // Path entry angle (peak-local, radians). Points roughly TOWARD
-  // the wreck so the path mouth is visible from the player's spawn
-  // position. Wreck at world (8,-2), peak at (-60,30), so the
-  // peak→wreck direction is atan2(-32, 68) ≈ -0.44 rad.
+  // ── v0.8.0: THE PEAK IS ONE ROCK ──
+  // Rebuilt at Khal's direction: smaller, irregular, a single mesh with
+  // nothing stuck to it, and one clear path up and round. Everything
+  // comes from ONE height function, peakHeight(): the mesh samples it
+  // and the player walks on it, so they cannot disagree. (The v0.4–0.7
+  // peak was a cone + a separate path ribbon + ~170 loose stones.)
+  //   outline   not a circle: the base radius varies with bearing
+  //             (PEAK_R0 × 0.68…1.32), so it reads as a lumpy outcrop
+  //   path      a spiral ramp at a steady ~12° grade, cut into the
+  //             rock as a level shelf with a bank above and a drop below
+  //   faces     craggy noise everywhere except on the path
+  //   summit    a small level top where the path arrives
+  const PEAK_R0          = 8.5;     // mean base radius (was 12.5)
+  const PEAK_BASE_R      = 11.3;    // bounding radius — nothing of the peak lies beyond it
+  const PEAK_HEIGHT      = 9.0;     // summit height (was 14.4)
+  const SUMMIT_H         = PEAK_HEIGHT;
+  const PEAK_US          = 0.28;    // summit edge, as a fraction of the local base radius
+  const SUMMIT_R         = PEAK_R0 * PEAK_US;
+  const PATH_TURNS       = 1.1;
+  const PATH_WIDTH       = 2.4;     // walkable width
+  // Path entry bearing (peak-local). Points roughly toward the wreck so
+  // the path mouth is visible from the spawn: atan2(-32, 68) ≈ -0.44.
   const PATH_ENTRY_ANGLE = -0.44;
 
-  // Surface elevation at world (x, z), in metres above the crater
-  // floor datum. Three regimes:
-  //   - inside SUMMIT_R: flat platform at PEAK_HEIGHT
-  //   - on the spiral path: terraced flat shelf at the cone height
-  //     at the path's centerline radius for this angle
-  //   - elsewhere: smooth linear cone profile
-  // Radial distance from (r, θ) to the nearest spiral-path
-  // centreline winding, plus that winding's centreline radius.
-  // Shared by peakHeight (collision), the mesh displacement mask,
-  // and the slope rock scatter — one source of truth for "where
-  // the path is".
-  function peakPathQuery(r, theta) {
+  function peakOutlineR(theta) {
+    return PEAK_R0 * (1 + 0.17 * Math.sin(2 * theta + 0.7) + 0.10 * Math.sin(3 * theta + 2.1)
+                        + 0.05 * Math.sin(5 * theta + 4.0));
+  }
+  // Nearest path winding at (u, θ): distance in metres, and the path's
+  // height there. u = r / outline radius (0 centre … 1 base edge).
+  const _pq = { dist: Infinity, h: 0 };
+  function peakPathAt(u, theta, R) {
     const shifted  = theta - PATH_ENTRY_ANGLE;
     const thetaN   = ((shifted % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
     const totalAng = Math.PI * 2 * PATH_TURNS;
-    let bestRP   = 0;
-    let bestDist = Infinity;
-    for (let k = 0; k <= PATH_TURNS; k++) {
+    _pq.dist = Infinity; _pq.h = 0;
+    for (let k = 0; k < 3; k++) {
       const a = thetaN + Math.PI * 2 * k;
       if (a > totalAng + 1e-6) break;
-      const pathFrac = a / totalAng;
-      const rP = PEAK_BASE_R - (PEAK_BASE_R - SUMMIT_R) * pathFrac;
-      const d  = Math.abs(r - rP);
-      if (d < bestDist) { bestDist = d; bestRP = rP; }
+      const f = a / totalAng;
+      const d = Math.abs(u - (1 - (1 - PEAK_US) * f)) * R;
+      if (d < _pq.dist) { _pq.dist = d; _pq.h = PEAK_HEIGHT * f; }
     }
-    return { dist: bestDist, rP: bestRP };
+    return _pq;
   }
+  // Compatibility shim for older callers: (r, θ) → { dist, rP }.
+  function peakPathQuery(r, theta) {
+    const R = peakOutlineR(theta), q = peakPathAt(r / R, theta, R);
+    return { dist: q.dist, rP: r };
+  }
+  function _ss(a, b, x) { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); }
 
+  function _facetNoise(x, z, cell) {
+    const gx = x / cell, gz = z / cell, i = Math.floor(gx), j = Math.floor(gz), fx = gx - i, fz = gz - j;
+    const H = lunarFloor.hash, a = H(i, j), b = H(i + 1, j), c = H(i, j + 1), d = H(i + 1, j + 1);
+    return (fx + fz < 1) ? a + (b - a) * fx + (c - a) * fz : d + (c - d) * (1 - fx) + (b - d) * (1 - fz);
+  }
+  // Height above the crater-floor datum; 0 outside the peak.
   function peakHeight(x, z) {
-    const dx = x - PEAK_CENTER_X;
-    const dz = z - PEAK_CENTER_Z;
-    const r  = Math.sqrt(dx*dx + dz*dz);
+    const dx = x - PEAK_CENTER_X, dz = z - PEAK_CENTER_Z;
+    const r  = Math.sqrt(dx * dx + dz * dz);
     if (r >= PEAK_BASE_R) return 0;
-    if (r <= SUMMIT_R)    return SUMMIT_H;
-    const cone = PEAK_HEIGHT * (1 - r / PEAK_BASE_R);
-    const q = peakPathQuery(r, Math.atan2(dz, dx));
-    if (q.dist <= PATH_WIDTH * 0.5) {
-      return PEAK_HEIGHT * (1 - q.rP / PEAK_BASE_R);
-    }
-    return cone;
+    const theta = Math.atan2(dz, dx), R = peakOutlineR(theta), u = r / R;
+    if (u >= 1) return 0;
+    if (u <= PEAK_US * 0.92) return SUMMIT_H;
+    // Natural rock: a straight flank in u, so it meets the path's steady
+    // ramp along the whole spiral, roughened by crags.
+    const flank = Math.min(SUMMIT_H, PEAK_HEIGHT * (1 - u) / (1 - PEAK_US));
+    // Crags are FACETED noise (flat triangles between lattice points,
+    // not smooth interpolation): big angular planes with hard creases,
+    // so it reads as broken rock. Smooth noise gave a melted-wax blob.
+    const crag = (_facetNoise(x + 40, z - 12, 2.6) - 0.5) * 3.4 + (_facetNoise(x - 7, z + 31, 1.1) - 0.5) * 1.1;
+    const edge = _ss(1.0, 0.95, u) * _ss(PEAK_US * 0.92, PEAK_US * 1.2, u);   // calm only at the very foot and the top
+    const q = peakPathAt(u, theta, R);
+    const off = _ss(PATH_WIDTH * 0.5, PATH_WIDTH * 0.5 + 0.55, q.dist);       // 0 on the path → 1 on rock
+    const rock = Math.max(0, flank + crag * edge * off);
+    return q.h * (1 - off) + rock * off;
   }
 
-  // Build the peak as a single BufferGeometry. Polar grid samples
-  // peakHeight() directly, so the terraced spiral path is part of
-  // the mesh — visible as flat shelves between cone slopes. The
-  // apex is built deliberately asymmetric: the centre vertex is
-  // off-axis and ring 0 (at SUMMIT_R) has independent radial +
-  // height jitter on every vertex, so the top reads as a rough
-  // chunky cylinder rather than a symmetric cone-with-platform.
+  // One BufferGeometry, sampled straight from peakHeight on a polar
+  // grid that follows the irregular outline (so the base edge is clean).
+  // Vertex colour marks the path as pale trodden dust against dark rock.
   function buildCentralPeak() {
-    const SEGS  = 64;    // up from 48 — smaller blocks, chunkier rock
-    const RINGS = 24;    // up from 16
-    const positions = [];
-    const indices   = [];
-    // ── SUMMIT CAP — faceted platform, not a point ──
-    // The old cap was one off-axis apex vertex fanning down to the
-    // rim: a tent. The reference summit is a broken rocky PLATFORM.
-    // So the cap is now a small polar grid: a centre vertex at
-    // platform height, two interior rings with per-vertex height
-    // and radial jitter (irregular facets underfoot; collision
-    // stays flat at PEAK_HEIGHT, deviation ≤ ±0.35m), then the
-    // existing rough rim ring at SUMMIT_R whose ±1.5m jitter gives
-    // broken parapet blocks — some above the deck, some crumbled
-    // below it. Vertex layout: [centre, capA, capB, rim, body×RINGS],
-    // every ring SEGS wide, so one uniform quad loop stitches all.
-    // ── SUMMIT CAP — FLAT, coplanar, no spindle ──
-    // The starburst in the screenshots was per-vertex HEIGHT jitter
-    // on rings that fan to a centre vertex: 64 thin wedges, each
-    // tilted differently, flat-shaded into alternating shards. The
-    // fix is coplanarity: centre and both cap rings sit at EXACTLY
-    // SUMMIT_H. Coplanar faces share one normal, so the wedge fan
-    // shades as a single unbroken surface — the triangulation is
-    // still there, it just becomes invisible. Radial jitter stays
-    // (it breaks the perfect-circle outline without breaking the
-    // plane); the rim ring below provides the broken parapet.
-    positions.push(0, SUMMIT_H, 0);                        // centre — dead flat
-    const capRings = [
-      { r: SUMMIT_R * 0.45, hJ: 0.0, rJ: 0.35, seed: 860 },
-      { r: SUMMIT_R * 0.80, hJ: 0.0, rJ: 0.45, seed: 880 },
-    ];
-    for (const cap of capRings) {
+    const SEGS = 128, RINGS = 46;
+    const pos = [], col = [], idx = [];
+    pos.push(0, SUMMIT_H, 0); col.push(1, 1, 1);
+    for (let j = 1; j <= RINGS; j++) {
+      const u = j / RINGS;
       for (let i = 0; i < SEGS; i++) {
-        const a = (i / SEGS) * Math.PI * 2
-                + (rng(cap.seed * 3 + i) - 0.5) * (Math.PI * 2 / SEGS) * 0.35;
-        const r_v = cap.r + (rng(cap.seed + i) - 0.5) * 2 * cap.rJ;
-        const h_v = SUMMIT_H + (rng(cap.seed + 40 + i) - 0.5) * 2 * cap.hJ;
-        positions.push(Math.cos(a) * r_v, h_v, Math.sin(a) * r_v);
+        const th = (i / SEGS) * Math.PI * 2;
+        const R = peakOutlineR(th);
+        // Slight stagger so facets don't line up in spokes.
+        const uu = (j < RINGS) ? u + (rng(i * 7.3 + j * 131.7) - 0.5) * 0.35 / RINGS : 1;
+        const lx = Math.cos(th) * R * uu, lz = Math.sin(th) * R * uu;
+        const h = (j === RINGS) ? 0 : peakHeight(PEAK_CENTER_X + lx, PEAK_CENTER_Z + lz);
+        pos.push(lx, h, lz);
+        const q = peakPathAt(uu, th, R);
+        const onPath = 1 - _ss(PATH_WIDTH * 0.5 - 0.2, PATH_WIDTH * 0.5 + 0.4, q.dist);
+        const top = uu <= PEAK_US ? 1 : 0;
+        const c = 1 + 0.9 * Math.max(onPath, top);
+        col.push(c, c * 0.99, c * 0.97);
       }
     }
-    for (let ring = 0; ring <= RINGS; ring++) {
-      const tt = ring / RINGS;
-      const r_base = SUMMIT_R + (PEAK_BASE_R - SUMMIT_R) * tt;
-      for (let i = 0; i < SEGS; i++) {
-        // Small angular jitter only on cone body rings — no radial
-        // jitter, which used to push vertices across the path
-        // boundary and produce chaotic shelf/slope alternation.
-        const aJit = (rng(ring * 37 + i + 0.31) - 0.5) * (Math.PI * 2 / SEGS) * 0.20;
-        const a = (i / SEGS) * Math.PI * 2 + aJit;
-        let r_v, h_v;
-        if (ring === 0) {
-          // Summit rim — low broken blocks around the platform edge.
-          // The old ±1.5m height jitter produced shark-tooth spikes;
-          // rim blocks now rise at most ~1.0m proud of the deck and
-          // dip ~0.6m into it, with modest radial breakup.
-          const rJit = (rng(i + 800) - 0.5) * 2.0;
-          const hJit = rng(i + 820) * 1.0 - 0.4;
-          r_v = Math.max(5.0, SUMMIT_R + rJit);
-          h_v = SUMMIT_H + 0.2 + hJit;
-        } else {
-          r_v = r_base;
-          let a_use = a;
-          const wx0 = PEAK_CENTER_X + Math.cos(a) * r_v;
-          const wz0 = PEAK_CENTER_Z + Math.sin(a) * r_v;
-          h_v = peakHeight(wx0, wz0);
-          // ── CHUNKY BLOCK DISPLACEMENT ──
-          // The spiral windings are spaced 6m radially and the path
-          // is 6m wide — the cone body is wall-to-wall shelf, and no
-          // vertex is ever more than 3m from a centreline. So the
-          // ruggedness comes from crumbling the shelf EDGES: full
-          // displacement at the outer/inner lips, zero inside a
-          // 3.2m clean walk strip down the middle. Block-quantised
-          // (3 segs × 2 rings share one offset) so flat shading
-          // produces hard angular steps, not waviness. Collision is
-          // untouched; the walk strip's visual and collision agree,
-          // and edge mismatch is capped at ~1m where nobody walks.
-          const q = peakPathQuery(r_v, a);
-          // Zero inside the path plus a 0.3m margin; full amplitude
-          // on the cone faces between windings (max dist ≈ 3.0m at
-          // the new 3.5m path width).
-          const edgeMask = Math.min(1, Math.max(0,
-            (q.dist - PATH_WIDTH * 0.5 - 0.3) / 0.9));
-          const rimMask  = Math.min(1, (tt) / 0.10)            // fade in off the summit
-                         * Math.min(1, (1 - tt) / 0.08);       // fade out at the base
-          const mask = edgeMask * rimMask;
-          if (mask > 0) {
-            const blk = Math.floor(i / 3) * 131 + Math.floor(ring / 2) * 977;
-            const dR = (rng(blk + 0.17) - 0.5) * 4.4 * mask;
-            const dH = (rng(blk + 0.53) - 0.5) * 3.2 * mask;
-            r_v = Math.max(SUMMIT_R + 0.5, r_v + dR);
-            const wx = PEAK_CENTER_X + Math.cos(a_use) * r_v;
-            const wz = PEAK_CENTER_Z + Math.sin(a_use) * r_v;
-            h_v = peakHeight(wx, wz) + dH;
-          }
-        }
-        positions.push(Math.cos(a) * r_v, h_v, Math.sin(a) * r_v);
-      }
+    for (let i = 0; i < SEGS; i++) idx.push(0, 1 + ((i + 1) % SEGS), 1 + i);
+    for (let j = 0; j < RINGS - 1; j++) for (let i = 0; i < SEGS; i++) {
+      const a = 1 + j * SEGS + i, b = 1 + j * SEGS + ((i + 1) % SEGS);
+      const c = a + SEGS, d = b + SEGS;
+      idx.push(a, b, c, b, d, c);
     }
-    // Centre fan onto cap ring A.
-    for (let i = 0; i < SEGS; i++) {
-      const i1 = 1 + i;
-      const i2 = 1 + ((i + 1) % SEGS);
-      indices.push(0, i2, i1);
-    }
-    // Uniform quad loop over ALL consecutive ring pairs: capA→capB,
-    // capB→rim, rim→body₁, … bodyₙ₋₁→bodyₙ. Total rings = 2 caps +
-    // (RINGS+1) rim/body rings; every ring is SEGS wide.
-    const totalRingCount = 2 + RINGS + 1;
-    for (let ring = 0; ring < totalRingCount - 1; ring++) {
-      const a0 = 1 + ring * SEGS;
-      const a1 = 1 + (ring + 1) * SEGS;
-      for (let i = 0; i < SEGS; i++) {
-        const i0 = a0 + i;
-        const i1 = a0 + ((i + 1) % SEGS);
-        const j0 = a1 + i;
-        const j1 = a1 + ((i + 1) % SEGS);
-        indices.push(j0, i0, i1);
-        indices.push(j0, i1, j1);
-      }
-    }
-    const geom = new THREE.BufferGeometry();
-    geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    geom.setIndex(indices);
-    geom.computeVertexNormals();
-    return geom;
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    g.setIndex(idx);
+    g.computeVertexNormals();
+    return g;
   }
-
-  // Build a thin overlay ribbon along the spiral path centerline.
-  // Sits on top of the cone mesh's terraced shelves with a tiny
-  // vertical lift to avoid z-fighting, painted with a lighter
-  // material so the path is clearly readable against the dark peak.
-  // Edges and height are clamped so the ribbon never drops below
-  // the floor at the entry or tunnels into the apex platform.
-  function buildPathOverlay() {
-    const NUM_STEPS   = 80;
-    const RIBBON_LIFT = 0.08;       // m above the cone-mesh shelf
-    const OVERLAY_W   = PATH_WIDTH - 0.8;   // rides the walk strip inside the crumbled edges
-    const T_END       = 0.85;        // stop short of the platform
-    const positions   = [];
-    const indices     = [];
-    for (let s = 0; s <= NUM_STEPS; s++) {
-      const T     = (s / NUM_STEPS) * T_END;
-      const r     = PEAK_BASE_R - (PEAK_BASE_R - SUMMIT_R) * T;
-      const theta = PATH_ENTRY_ANGLE + Math.PI * 2 * PATH_TURNS * T;
-      const cosT  = Math.cos(theta);
-      const sinT  = Math.sin(theta);
-      // Centerline cone height, clamped to floor (path entry at T=0
-      // is at h=0, so the lift keeps the ribbon visible there).
-      const hRaw  = PEAK_HEIGHT * (1 - r / PEAK_BASE_R);
-      const h     = Math.max(0, hRaw) + RIBBON_LIFT;
-      // Clamp edges so the ribbon stays within the cone footprint.
-      const rOut  = Math.min(PEAK_BASE_R,    r + OVERLAY_W * 0.5);
-      const rIn   = Math.max(SUMMIT_R + 0.3, r - OVERLAY_W * 0.5);
-      positions.push(cosT * rOut, h, sinT * rOut);   // outer edge
-      positions.push(cosT * rIn,  h, sinT * rIn);    // inner edge
-    }
-    for (let s = 0; s < NUM_STEPS; s++) {
-      const a0 = s * 2;
-      const a1 = a0 + 1;
-      const b0 = (s + 1) * 2;
-      const b1 = b0 + 1;
-      indices.push(a0, a1, b1);
-      indices.push(a0, b1, b0);
-    }
-    const geom = new THREE.BufferGeometry();
-    geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    geom.setIndex(indices);
-    geom.computeVertexNormals();
-    return geom;
-  }
-
 
   // Peak material — a couple shades darker than rockMid, so the
   // cone reads as the darkest mass against the path (rockMid),
   // which in turn is darker than the lightest boulders (rockLight).
   // Three-tone palette: peak → path → boulders, dark to light.
-  const peakMat = new THREE.MeshPhongMaterial({
+  const peakMat = rockify(new THREE.MeshPhongMaterial({
     shininess: 0,
-    color: 0x6c7178,
+    color: 0x2f2d2b,
+    vertexColors: true,          // v0.8.0: pale path / dark rock
     flatShading: true
-  });
+  }), 0.8);
   const centralPeak = new THREE.Mesh(buildCentralPeak(), peakMat);
   centralPeak.position.set(PEAK_CENTER_X, -CRATER_DEPTH, PEAK_CENTER_Z);
   centralPeak.castShadow = true;
@@ -1581,159 +1926,8 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   root.add(centralPeak);
   cameraOccluders.push(centralPeak);   // pull cam in when peak blocks the shot
 
-  // Path overlay — thin lighter ribbon laid on top of the cone's
-  // terraced shelves. Uses rockLight against the dark peak so the
-  // spiral path reads clearly from a distance.
-  const pathOverlay = new THREE.Mesh(buildPathOverlay(), M.rockLight);
-  pathOverlay.position.set(PEAK_CENTER_X, -CRATER_DEPTH, PEAK_CENTER_Z);
-  pathOverlay.castShadow = false;
-  pathOverlay.receiveShadow = true;
-  root.add(pathOverlay);
-
-  // Stones lining the path edges. Walk the path centerline and
-  // place small stones along the outer (drop) edge mostly, with
-  // a few on the inner (cliff) edge. Each stone's height is queried
-  // from peakHeight() at its actual XZ position — so it sits on
-  // whatever real surface is underneath (cone slope, shelf, or
-  // floor at the path's foot), not on an assumed shelf height.
-  // Mix of rockLight and rockMid so the stones don't read as a
-  // uniform line — they look like loose debris, not paint markers.
-  const NUM_PATH_STONES = 56;
-  for (let s = 0; s < NUM_PATH_STONES; s++) {
-    const T     = (s + 0.5) / NUM_PATH_STONES;     // even spacing along path
-    const r     = PEAK_BASE_R - (PEAK_BASE_R - SUMMIT_R) * T;
-    const theta = PATH_ENTRY_ANGLE + Math.PI * 2 * PATH_TURNS * T;
-    // Most stones on outer edge (drop side); some on inner edge.
-    // Inset slightly so they sit ON the shelf, not at its edge.
-    const outerSide = rng(s + 700) < 0.72;
-    const edgeR = outerSide
-                ? r + PATH_WIDTH * 0.5 - 0.4
-                : r - PATH_WIDTH * 0.5 + 0.4;
-    const tangentJitter = (rng(s + 710) - 0.5) * 0.6;
-    const cosT = Math.cos(theta);
-    const sinT = Math.sin(theta);
-    const tx = -sinT, tz = cosT;
-    const lx = cosT * edgeR + tx * tangentJitter;
-    const lz = sinT * edgeR + tz * tangentJitter;
-    const wx = PEAK_CENTER_X + lx;
-    const wz = PEAK_CENTER_Z + lz;
-    // Sample the actual peak surface at this stone's footprint,
-    // clamped to floor — never below 0.
-    const yPath = Math.max(0, peakHeight(wx, wz));
-    const sz   = 0.4 + rng(s + 720) * 0.6;       // 0.4 .. 1.0m
-    const mat  = (rng(s + 730) < 0.30) ? M.rockMid : M.rockLight;
-    const stone = new THREE.Mesh(new THREE.IcosahedronGeometry(sz, 0), mat);
-    stone.scale.set(
-      0.7 + rng(s + 740) * 0.6,
-      0.5 + rng(s + 750) * 0.5,
-      0.7 + rng(s + 760) * 0.6
-    );
-    stone.rotation.set(
-      rng(s + 770) * Math.PI * 2,
-      rng(s + 780) * Math.PI * 2,
-      rng(s + 790) * Math.PI * 2
-    );
-    // Stones sit with ~30% of their size buried, so they read as
-    // settled into the surface rather than perched on top of it.
-    stone.position.set(wx, -CRATER_DEPTH + yPath + sz * 0.3, wz);
-    stone.castShadow = true;
-    stone.receiveShadow = true;
-    root.add(stone);
-  }
-
-  // ── SLOPE + APRON RUBBLE ──
-  // The reference mountain rises out of its own debris: small rocks
-  // strewn across the cone faces and a rubble skirt where slope
-  // meets floor. 90 slope rocks (path-avoiding, via peakPathQuery)
-  // and 50 apron rocks in a ring just beyond the base. All
-  // deterministic, all settled ~30% into the surface.
-  {
-    const NUM_SLOPE_ROCKS = 90;
-    for (let s = 0; s < NUM_SLOPE_ROCKS; s++) {
-      const a = rng(s + 51000) * Math.PI * 2;
-      const r = SUMMIT_R + 2.0 + rng(s + 51100) * (PEAK_BASE_R - SUMMIT_R - 3.0);
-      const q = peakPathQuery(r, a);
-      if (q.dist < PATH_WIDTH * 0.5 + 0.3) continue;   // keep the walk strip clear; edges take rubble
-      const wx = PEAK_CENTER_X + Math.cos(a) * r;
-      const wz = PEAK_CENTER_Z + Math.sin(a) * r;
-      const h  = peakHeight(wx, wz);
-      const sz = 0.25 + rng(s + 51200) * 0.75;
-      const mat = (rng(s + 51300) < 0.5) ? M.rockMid : M.rockLight;
-      const rock = new THREE.Mesh(new THREE.IcosahedronGeometry(sz, 0), mat);
-      rock.scale.set(0.7 + rng(s + 51400) * 0.6,
-                     0.5 + rng(s + 51500) * 0.5,
-                     0.7 + rng(s + 51600) * 0.6);
-      rock.rotation.set(rng(s + 51700) * Math.PI * 2,
-                        rng(s + 51800) * Math.PI * 2,
-                        rng(s + 51900) * Math.PI * 2);
-      rock.position.set(wx, -CRATER_DEPTH + h + sz * 0.25, wz);
-      rock.castShadow = true;
-      rock.receiveShadow = true;
-      root.add(rock);
-    }
-    const NUM_APRON_ROCKS = 50;
-    for (let s = 0; s < NUM_APRON_ROCKS; s++) {
-      const a = rng(s + 52000) * Math.PI * 2;
-      const r = PEAK_BASE_R + rng(s + 52100) * 8.0;
-      const wx = PEAK_CENTER_X + Math.cos(a) * r;
-      const wz = PEAK_CENTER_Z + Math.sin(a) * r;
-      const sz = 0.3 + rng(s + 52200) * 0.9;
-      const mat = (rng(s + 52300) < 0.5) ? M.rockMid : M.rockLight;
-      const rock = new THREE.Mesh(new THREE.IcosahedronGeometry(sz, 0), mat);
-      rock.scale.set(0.7 + rng(s + 52400) * 0.6,
-                     0.45 + rng(s + 52500) * 0.5,
-                     0.7 + rng(s + 52600) * 0.6);
-      rock.rotation.set(rng(s + 52700) * Math.PI * 2,
-                        rng(s + 52800) * Math.PI * 2,
-                        rng(s + 52900) * Math.PI * 2);
-      rock.position.set(wx,
-        -CRATER_DEPTH + floorHeight(wx, wz) + sz * 0.25, wz);
-      rock.castShadow = true;
-      rock.receiveShadow = true;
-      root.add(rock);
-    }
-  }
-
-  // Boulders hand-placed around the peak's base — bigger anchor
-  // chunks scattered just outside PEAK_BASE_R. Six rockLight,
-  // six rockMid, alternating tonally.
-  const peakBaseBoulders = [
-    // [angleRad, radialOffset beyond PEAK_BASE_R, size, light?]
-    [ 0.30,  1.5, 2.4, true  ],
-    [ 0.85,  3.2, 1.8, false ],
-    [ 1.40,  2.0, 3.0, true  ],
-    [ 1.95,  4.0, 1.6, false ],
-    [ 2.60,  1.0, 2.2, false ],
-    [ 3.15,  3.5, 2.7, true  ],
-    [ 3.80,  1.8, 1.4, true  ],
-    [ 4.35,  2.5, 2.5, false ],
-    [ 4.95,  4.2, 1.9, true  ],
-    [ 5.55,  1.2, 2.8, false ],
-    [ 6.10,  3.0, 1.7, true  ],
-    [-0.40,  2.2, 2.1, false ],
-  ];
-  for (let i = 0; i < peakBaseBoulders.length; i++) {
-    const [ang, off, sz, light] = peakBaseBoulders[i];
-    const r  = PEAK_BASE_R + off;
-    const x  = PEAK_CENTER_X + Math.cos(ang) * r;
-    const z  = PEAK_CENTER_Z + Math.sin(ang) * r;
-    const mat = light ? M.rockLight : M.rockMid;
-    const m  = new THREE.Mesh(new THREE.IcosahedronGeometry(sz, 0), mat);
-    m.scale.set(
-      0.85 + rng(i + 91) * 0.5,
-      0.70 + rng(i + 92) * 0.4,
-      0.85 + rng(i + 93) * 0.5
-    );
-    m.rotation.set(
-      rng(i + 94) * Math.PI * 2,
-      rng(i + 95) * Math.PI * 2,
-      rng(i + 96) * Math.PI * 2
-    );
-    m.position.set(x, -CRATER_DEPTH + sz * 0.3, z);
-    m.castShadow = true;
-    m.receiveShadow = true;
-    root.add(m);
-  }
+  // (v0.8.0: the path ribbon, path-edge stones, slope/apron rubble and
+  // base boulders are gone — the peak is one mesh. See peakHeight.)
 
   // ============================================================
   // BOULDER GENERATOR
@@ -1750,11 +1944,11 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // unique). Cheap to scale to hundreds of boulders.
   // ============================================================
   const boulderGeom = new THREE.IcosahedronGeometry(1, 0);
-  const boulderMat = new THREE.MeshPhongMaterial({
+  const boulderMat = rockify(new THREE.MeshPhongMaterial({
     shininess: 0,
-    color: 0xc0c4c8,           // a touch darker than regolith 0xdee0e3
+    color: 0x33302d,           // v0.7.3: darker, warmer — boulders read as rock against dust
     flatShading: true
-  });
+  }));
 
   // Place a boulder at world (x, surfaceY, z) with the given
   // diameter. Diameter ~= the boulder's largest dimension; we
@@ -2062,9 +2256,9 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // ============================================================
   const STUDY_ROCK_POS = { x: -10.5, z: -7.5 };
   {
-    const matStudy = new THREE.MeshPhongMaterial({
+    const matStudy = rockify(new THREE.MeshPhongMaterial({
       shininess: 0, color: 0xa89888, flatShading: true
-    });
+    }));
     const stoneGeo = new THREE.IcosahedronGeometry(1, 0);
     const stone = new THREE.Mesh(stoneGeo, matStudy);
     const baseFloorY = -CRATER_DEPTH + floorHeight(STUDY_ROCK_POS.x, STUDY_ROCK_POS.z);
@@ -2118,6 +2312,11 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       // the central peak. The peak is contained well inside
       // CRATER_FLOOR so we don't need to consult it elsewhere.
       const baseY = -CRATER_DEPTH + floorHeight(x, z);
+      // v0.7.1 FIX: peakHeight returns 0 (not "absent") outside the peak,
+      // so max(peak, floor) clamped every floor hollow up to the datum —
+      // the walk height floated over dips the mesh showed (±1.9m sines
+      // since v0.4; 5m crater bowls now). Only consult the peak on it.
+      if (Math.hypot(x - PEAK_CENTER_X, z - PEAK_CENTER_Z) >= PEAK_BASE_R) return baseY;
       const peakY = -CRATER_DEPTH + peakHeight(x, z);
       return peakY > baseY ? peakY : baseY;
     }
@@ -2144,7 +2343,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // Mesh references — handy for raycasting, debug visualisation,
   // and future scene swap/unload paths. Order: outer field, far
   // ring, inner surface (single mesh; replaced the old floor+wall pair).
-  shackletonScene.meshes = [outerSurface, outerFarRing, innerSurface];
+  shackletonScene.meshes = [outerSurface, outerFarRing, innerSurface, floorGrid];
 
   // ============================================================
   // GROUND-CLAMP LANDED VEHICLES
@@ -2246,6 +2445,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       palette.minFilter = THREE.NearestFilter;
       palette.flipY = false;  // GLTF convention
       if (THREE.sRGBEncoding !== undefined) palette.encoding = THREE.sRGBEncoding;
+      if (THREE.SRGBColorSpace !== undefined) palette.colorSpace = THREE.SRGBColorSpace;   // r152+
       if (THREE.SRGBColorSpace !== undefined) palette.colorSpace = THREE.SRGBColorSpace;
     } catch (err) {
       console.warn('Palette texture not loaded (' + ASSET_PATHS.palettePNG + ') — falling back to vertex colors.');
@@ -2479,7 +2679,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
                         Math.abs(input.strafe) > 0.05 || input.jump;
       if (wantsMove) {
         rescueSit.active = false;
-        if (animClips['Crouch_Loop']) animClips['Crouch_Loop'].paused = false;
+        astroSeat.want = false;          // pose blends out over ~0.5s — he rises
         setAnimation('Idle_Breath');
         // fall through — this frame runs the normal controller
       } else {
@@ -2494,8 +2694,8 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       }
     }
 
-    // Ground check
-    const groundY = shackletonScene.getGroundY(player.pos.x, player.pos.z);
+    // Ground check (v0.5.0: terrain OR a walkable box top)
+    const groundY = playerGroundY(player.pos.x, player.pos.z, player.pos.y);
     const onGround = player.pos.y <= groundY + 0.02;
     if (onGround && player.vel.y <= 0) {
       const wasAirborne = !player.grounded;
@@ -2522,6 +2722,9 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
 
     // Horizontal input (camera-relative)
     camera.getWorldDirection(_camDir);
+    if (level.id === 'wreck') {                // v0.6: latched set-camera basis
+      _camDir.set(Math.sin(wreckCam.basisYaw), 0, Math.cos(wreckCam.basisYaw));
+    }
     let camFx = _camDir.x, camFz = _camDir.z;
     const camLen = Math.hypot(camFx, camFz);
     if (camLen > 0.05) { camFx /= camLen; camFz /= camLen; } else { camFx = 0; camFz = 1; }
@@ -2548,7 +2751,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     const SLOPE_CUTOFF = Math.PI / 180 * 50;
     let tooSteep = false;
     let slideX = 0, slideZ = 0;
-    if (player.grounded) {
+    if (player.grounded && level.id !== 'wreck') {   // v0.6: no terrain slope indoors
       const eps = 0.6;
       const yE = shackletonScene.getGroundY(player.pos.x + eps, player.pos.z);
       const yW = shackletonScene.getGroundY(player.pos.x - eps, player.pos.z);
@@ -2681,11 +2884,14 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     player.pos.addScaledVector(player.vel, dt);
 
     // Re-check ground after integration
-    const newGroundY = shackletonScene.getGroundY(player.pos.x, player.pos.z);
+    const newGroundY = playerGroundY(player.pos.x, player.pos.z, player.pos.y);
     if (player.pos.y < newGroundY) {
       const wasAirborne = !player.grounded;
       player.pos.y = newGroundY;
-      if (player.vel.y < 0 && wasAirborne) sndLand();
+      if (player.vel.y < 0 && wasAirborne) {
+        sndLand();
+        if (level.id !== 'wreck') kickDust(player.pos.x, player.pos.y, player.pos.z, 320, 1.9, 0, 0, 0.8);
+      }
       player.vel.y = 0;
       player.grounded = true;
       // If we landed mid-airborne-phase, jump the clip to the landing motion.
@@ -2839,6 +3045,9 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       }
     }
 
+    // Box colliders (v0.5.0) — GLB proxies and authored blockers.
+    boxResolvePlayer(player.pos, player.vel);
+
     // Crater wall collision. Originally gated on `player.pos.y < -0.1`
     // — back when the only sub-zero terrain was the main crater. The
     // outer terrain now contains hundreds of procedural crater bowls
@@ -2858,8 +3067,8 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
         if (vR > 0) { player.vel.x -= vR * nx; player.vel.z -= vR * nz; }
       }
     }
-    // World boundary
-    if (dC > 140) {
+    // World boundary (crater only — the wreck level sits 3 km out)
+    if (dC > 140 && level.id !== 'wreck') {
       const sc = 140 / dC;
       player.pos.x *= sc; player.pos.z *= sc;
       player.vel.x *= -0.3; player.vel.z *= -0.3;
@@ -3547,31 +3756,160 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     return tex;
   }
 
+  // v0.7.2 — FOOTPRINTS AS INDENTATIONS. The v0.4 print was an unlit
+  // decal (dark oval, baked rings): it never reacted to the sun, so it
+  // read as a stain. Now each print is a LIT plane with a normal map of
+  // a boot-sole depression: the wall facing the sun goes bright, the
+  // wall facing away goes black, the ribbed sole catches light rib by
+  // rib — the way Apollo prints look under a low sun. Real lighting, so
+  // it is right at any heading, and prints inside a cast shadow go flat.
+  // Alpha is strong on walls/ribs and light on the flat sole, so the
+  // sole reads as slightly darker compacted soil, not a patch.
+  function _makeFootprintMaps() {
+    const W = 128, H = 192;
+    const hgt = new Float32Array(W * H), inside = new Float32Array(W * H);
+    const sm = (t) => { t = Math.max(0, Math.min(1, t)); return t * t * (3 - 2 * t); };
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      // Boot outline: superellipse, toe (canvas bottom) wider than heel.
+      const v = (y - H / 2) / (H / 2 - 22);                 // −1 heel … +1 toe
+      const halfW = 30 + 6 * v - 5 * Math.exp(-(((v + 0.15) / 0.3) ** 2));   // waist
+      const u = (x - W / 2) / halfW;
+      const d = Math.pow(Math.pow(Math.abs(u), 2.6) + Math.pow(Math.abs(v), 2.6), 1 / 2.6);  // 1 at outline
+      const edgePx = (1 - d) * 30;                           // ≈ px inside the outline
+      const inn = sm(edgePx / 7);                            // wall 7px wide
+      // Depression + pushed-up rim just outside + straight ribs across the sole.
+      const rim = 0.30 * Math.exp(-(((d - 1.10) / 0.10) ** 2));
+      const rib = Math.sin(y * Math.PI * 2 / 15) > 0.15 ? 0.22 : 0;
+      hgt[y * W + x] = -1.0 * inn + rim + rib * sm((edgePx - 5) / 5);
+      inside[y * W + x] = inn;
+    }
+    const nc = document.createElement('canvas'), ac = document.createElement('canvas');
+    nc.width = ac.width = W; nc.height = ac.height = H;
+    const nctx = nc.getContext('2d'), actx = ac.getContext('2d');
+    const nimg = nctx.createImageData(W, H), aimg = actx.createImageData(W, H);
+    const at = (x, y) => hgt[Math.max(0, Math.min(H - 1, y)) * W + Math.max(0, Math.min(W - 1, x))];
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      // Tangent space: +u = +x, +v = −y (canvas is flipped on upload).
+      let nx = -(at(x + 1, y) - at(x - 1, y)) * 2.2;
+      let ny = (at(x, y + 1) - at(x, y - 1)) * 2.2;
+      const slope = Math.hypot(nx, ny);
+      const l = Math.hypot(nx, ny, 1); nx /= l; ny /= l;
+      const i = (y * W + x) * 4;
+      nimg.data[i] = (nx * 0.5 + 0.5) * 255; nimg.data[i + 1] = (ny * 0.5 + 0.5) * 255;
+      nimg.data[i + 2] = (1 / l * 0.5 + 0.5) * 255; nimg.data[i + 3] = 255;
+      const a = Math.max(inside[y * W + x] * 0.38, Math.min(1, slope * 2.2));
+      const shade = 232 - 26 * inside[y * W + x];            // compacted sole a touch darker
+      aimg.data[i] = aimg.data[i + 1] = shade; aimg.data[i + 2] = shade + 2;
+      aimg.data[i + 3] = a * 255;
+    }
+    nctx.putImageData(nimg, 0, 0); actx.putImageData(aimg, 0, 0);
+    const mk = (c) => { const t = new THREE.CanvasTexture(c); t.minFilter = THREE.LinearMipmapLinearFilter;
+      t.magFilter = THREE.LinearFilter; t.anisotropy = 4; t.needsUpdate = true; return t; };
+    return { normal: mk(nc), albedo: mk(ac) };
+  }
   function _initFootprintPool() {
     if (footprints.length) return;
-    footprintTexture = _makeFootprintTexture();
-    // Bigger plane — boots on the moon press a substantial print into
-    // soft regolith. Print itself is ~0.30m × 0.42m; the plane carries
-    // extra margin for the baked mound ring around it.
-    const geo = new THREE.PlaneGeometry(0.40, 0.54);
+    const maps = _makeFootprintMaps();
+    footprintTexture = maps.albedo;
+    // Print ≈ 0.26 × 0.40 m inside a plane with margin for the rim.
+    const geo = new THREE.PlaneGeometry(0.40, 0.60);
     geo.rotateX(-Math.PI / 2);    // lay flat on XZ plane (normal = +Y)
-    const mat = new THREE.MeshBasicMaterial({
-      map: footprintTexture,
-      transparent: true,
-      depthWrite: false,
-      polygonOffset: true,
-      polygonOffsetFactor: -1,
-      polygonOffsetUnits: -1
+    const mat = new THREE.MeshPhongMaterial({
+      map: maps.albedo, normalMap: maps.normal, normalScale: new THREE.Vector2(1.0, 1.0),
+      color: 0x4a4641,              // soil tone (regolith base colour)
+      shininess: 0, transparent: true, depthWrite: false,
+      polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1
     });
     for (let i = 0; i < FOOTPRINT_POOL_SIZE; i++) {
       const m = new THREE.Mesh(geo, mat);
       m.visible = false;
+      m.receiveShadow = true;
       scene.add(m);
       footprints.push(m);
     }
   }
 
-  function spawnFootprint() {
+  // ── LUNAR DUST (v0.6.2, reworked v0.7.3) ──
+  // No air: every grain flies a clean parabola under 1.62 m/s² and
+  // drops straight back. v0.7.3, after the Apollo reference: kicked
+  // soil is DARK (the same grey-brown as the ground, darker than the
+  // sunlit surface it flies over), very fine, and leaves the boot as a
+  // flat SHEET — all grains at nearly the same launch angle, fast ones
+  // further out — not a ball of white blobs. 5,000 grains, sized
+  // 1.5–6 cm, with a few larger clods.
+  const DUST_N = 5000, MOON_G = 1.62;
+  const lunarDust = (function () {
+    const pos = new Float32Array(DUST_N * 3), vel = new Float32Array(DUST_N * 3);
+    const floorY = new Float32Array(DUST_N), alive = new Uint8Array(DUST_N);
+    const size = new Float32Array(DUST_N), shade = new Float32Array(DUST_N);
+    for (let i = 0; i < DUST_N; i++) {
+      pos[i * 3 + 1] = -9999;
+      const r = Math.random();
+      size[i] = r > 0.96 ? 0.07 + Math.random() * 0.05 : 0.015 + Math.random() * 0.045;
+      shade[i] = 0.75 + Math.random() * 0.5;
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setAttribute('aSize', new THREE.BufferAttribute(size, 1));
+    geo.setAttribute('aShade', new THREE.BufferAttribute(shade, 1));
+    const mat = new THREE.ShaderMaterial({
+      uniforms: { uScale: { value: 800 }, uColor: { value: new THREE.Color(0.40, 0.38, 0.355) } },
+      vertexShader: `attribute float aSize; attribute float aShade; uniform float uScale; varying float vShade;
+        void main(){ vec4 mv = modelViewMatrix * vec4(position, 1.0); vShade = aShade;
+          gl_PointSize = max(1.0, aSize * uScale / -mv.z); gl_Position = projectionMatrix * mv; }`,
+      fragmentShader: `uniform vec3 uColor; varying float vShade;
+        void main(){ float d = length(gl_PointCoord - 0.5) * 2.0; if (d > 1.0) discard;
+          gl_FragColor = vec4(uColor * vShade, (1.0 - d * d) * 0.85); }`,
+      transparent: true, depthWrite: false,
+    });
+    const pts = new THREE.Points(geo, mat);
+    pts.frustumCulled = false;
+    scene.add(pts);
+    return { pos, vel, floorY, alive, geo, pts, mat, next: 0 };
+  })();
+  // dir given → a sheet thrown that way; no dir → a low ring (landings).
+  function kickDust(x, y, z, n, speed, dirX, dirZ, up) {
+    const directed = !!(dirX || dirZ);
+    const dl = Math.hypot(dirX || 0, dirZ || 0) || 1, dx = (dirX || 0) / dl, dz = (dirZ || 0) / dl;
+    const lift = (up || 1) * (0.55 + Math.random() * 0.25);       // one launch angle per kick
+    for (let k = 0; k < n; k++) {
+      const i = lunarDust.next; lunarDust.next = (lunarDust.next + 1) % DUST_N;
+      const s = speed * (0.25 + Math.random() * 0.95);
+      let hx, hz;
+      if (directed) {
+        const side = (Math.random() - 0.5) * 1.5;                 // fan ±~37°
+        hx = dx - dz * side; hz = dz + dx * side;
+        const hl = Math.hypot(hx, hz); hx /= hl; hz /= hl;
+      } else { const a = Math.random() * Math.PI * 2; hx = Math.cos(a); hz = Math.sin(a); }
+      lunarDust.pos[i * 3] = x + (Math.random() - 0.5) * 0.16;
+      lunarDust.pos[i * 3 + 1] = y + 0.02;
+      lunarDust.pos[i * 3 + 2] = z + (Math.random() - 0.5) * 0.16;
+      lunarDust.vel[i * 3]     = hx * s;
+      lunarDust.vel[i * 3 + 1] = s * lift * (0.9 + Math.random() * 0.2);
+      lunarDust.vel[i * 3 + 2] = hz * s;
+      lunarDust.floorY[i] = y;
+      lunarDust.alive[i] = 1;
+    }
+  }
+  function updateLunarDust(dt) {
+    lunarDust.mat.uniforms.uScale.value = renderer.domElement.height / (2 * Math.tan(camera.fov * Math.PI / 360));
+    const P = lunarDust.pos, V = lunarDust.vel;
+    let any = false;
+    for (let i = 0; i < DUST_N; i++) {
+      if (!lunarDust.alive[i]) continue;
+      any = true;
+      V[i * 3 + 1] -= MOON_G * dt;
+      P[i * 3] += V[i * 3] * dt; P[i * 3 + 1] += V[i * 3 + 1] * dt; P[i * 3 + 2] += V[i * 3 + 2] * dt;
+      if (P[i * 3 + 1] < lunarDust.floorY[i]) { lunarDust.alive[i] = 0; P[i * 3 + 1] = -9999; }
+    }
+    if (any || lunarDust._wasAny) lunarDust.geo.attributes.position.needsUpdate = true;
+    lunarDust._wasAny = any;
+  }
+
+  const _fpN = new THREE.Vector3(), _fpQ = new THREE.Quaternion(), _fpUp = new THREE.Vector3(0, 1, 0);
+  const _fpB = new THREE.Vector3();
+  function spawnFootprint(footBone) {
+    if (typeof level !== 'undefined' && level.id === 'wreck') return;   // prints are crater-only
     if (!footprints.length) _initFootprintPool();
     const m = footprints[footprintIdx];
     footprintIdx = (footprintIdx + 1) % FOOTPRINT_POOL_SIZE;
@@ -3586,12 +3924,21 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     // Slight backward offset (foot lands behind the body's centre of
     // mass), 0.18m sideways from centreline so the bigger print pairs
     // sit comfortably either side of the walking path without overlap
-    const px = player.pos.x - fx * 0.05 + rx * 0.18 * side;
-    const pz = player.pos.z - fz * 0.05 + rz * 0.18 * side;
-    const py = shackletonScene.getGroundY(px, pz) + 0.008;   // tiny lift to dodge z-fight
+    let px = player.pos.x - fx * 0.05 + rx * 0.18 * side;
+    let pz = player.pos.z - fz * 0.05 + rz * 0.18 * side;
+    if (footBone) {               // v0.7.2: under the foot that actually landed
+      footBone.getWorldPosition(_fpB);
+      px = _fpB.x + fx * 0.06; pz = _fpB.z + fz * 0.06;
+    }
+    const G = shackletonScene.getGroundY;
+    const py = G(px, pz) + 0.008;   // tiny lift to dodge z-fight
     m.position.set(px, py, pz);
-    m.rotation.y = h;             // toe points where the player faces
+    // Lie on the slope (crater bowls), toe along the heading.
+    _fpN.set(G(px - 0.3, pz) - G(px + 0.3, pz), 0.6, G(px, pz - 0.3) - G(px, pz + 0.3)).normalize();
+    m.quaternion.setFromUnitVectors(_fpUp, _fpN);
+    m.quaternion.multiply(_fpQ.setFromAxisAngle(_fpUp, h));
     m.visible = true;
+    spawnFootprint.last = { x: px, y: py, z: pz };
   }
 
   // ── ROBOT FOOTPRINTS ──
@@ -4574,16 +4921,10 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       else if (!shouldShow && isShown) boardBtn.style.display = 'none';
     }
 
-    // Re-fire showInteractPrompt every frame while in range so the
-    // prompt stays reliably visible even if some other code path
-    // happened to hide it. Cheap — just a textContent + display set.
-    // Wording covers desktop ([E] key) and mobile (BOARD button).
-    if (nearFlyer) {
-      showInteractPrompt(flyerRepair.installed
-        ? '[E] or tap BOARD to enter Flyer'
-        : (scene4.braceHeld ? '[E] install the structural brace'
-                            : 'frame buckled — structural brace required'));
-    } else if (wasNear) hideInteractPrompt();
+    // v0.5.0: prompt text moved into the interaction system — this
+    // function used to rewrite #interact-prompt every frame, fighting
+    // the wreck scan and the refill panel for the same element.
+    void wasNear;
   }
   function showInteractPrompt(text) {
     const el = $('interact-prompt');
@@ -4630,37 +4971,10 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       light.material.color.setHex(c);
     }
 
-    // On-screen button (mobile). Visible whenever the player is near
-    // the panel and not in the Flyer's proximity zone. Label and
-    // colour swap based on connection state.
-    const refillBtn = $('refill-btn');
-    if (refillBtn) {
-      const shouldShow = (controlMode === 'walking' && refill.nearPanel && !nearFlyer);
-      const isShown = refillBtn.style.display === 'flex';
-      if (shouldShow && !isShown) refillBtn.style.display = 'flex';
-      else if (!shouldShow && isShown) refillBtn.style.display = 'none';
-      // Label and connected-state styling
-      if (refill.connected) {
-        refillBtn.textContent = '× DISCONNECT';
-        refillBtn.classList.add('connected');
-      } else {
-        refillBtn.textContent = '↻ REFILL O₂';
-        refillBtn.classList.remove('connected');
-      }
-    }
-
-    // Text prompt — yield to Flyer if both are in range. Wording
-    // covers desktop ([E] key) and mobile (REFILL button).
-    if (refill.nearPanel && !nearFlyer) {
-      const txt = refill.connected
-        ? '[E] or tap DISCONNECT'
-        : '[E] or tap REFILL O₂';
-      showInteractPrompt(txt);
-    } else if (wasNear && !nearFlyer) {
-      // Only hide if we owned the prompt; otherwise Flyer's
-      // updateFlyerProximity manages it.
-      hideInteractPrompt();
-    }
+    // v0.5.0: the REFILL button and the text prompt moved into the
+    // unified interaction system (updateInteract). The tappable prompt
+    // is the mobile control; the separate button is retired.
+    void wasNear;
   }
 
   // ============================================================
@@ -4707,26 +5021,9 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
         // he wakes SITTING against the tanks, hose clipped to helmet,
         // already refilling (v0.4.3 — was a standing wake mid-field).
         if (into < dt * 1.5) {
-          const sx = REFILL_PANEL_POS.x + 0.72;   // right against the tanks
-          const sz = REFILL_PANEL_POS.z - 0.55;
-          player.pos.set(sx, shackletonScene.getGroundY(sx, sz), sz);
-          player.vel.set(0, 0, 0);
-          // Face the tanks (they sit behind the pillar, local -z).
-          player.heading = Math.atan2(REFILL_PANEL_POS.x - sx,
-                                      (REFILL_PANEL_POS.z - 0.55) - sz);
-          if (astronautRoot) {
-            astronautRoot.position.copy(player.pos);
-            astronautRoot.rotation.y = player.heading;
-          }
-          // Seated pose — freeze Crouch_Loop mid-frame. Unlike the
-          // Flyer pilot (whose paused pose must NOT re-stamp so head
-          // tracking survives), here re-stamping every mixer.update
-          // is exactly what keeps him seated.
-          if (mixer && animClips['Crouch_Loop']) {
-            setAnimation('Crouch_Loop');
-            animClips['Crouch_Loop'].time = 0.35;
-            animClips['Crouch_Loop'].paused = true;
-          }
+          // v0.5.1: same seat as the opening — back to the bottle.
+          seatAtTanks();
+          camYaw = seatCamYaw();
           rescueSit.active = true;
           rescueSit.spoke = false;
           refill.connected = true;            // hose attached, refilling
@@ -4785,12 +5082,20 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
         // wreck. setObjective handles fade-out/fade-in.
         setObjective('enter the wreck');
       }
-      oxygen.percent = Math.min(oxygen.capacity, oxygen.percent + OXYGEN_REFILL_RATE * dt);
-      // If we hit the ceiling, stay connected — the player still has
-      // to press E or walk away to leave. Cleaner than auto-detach
-      // on full because it doesn't yank focus from the player.
+      // v0.5.0: a full tank takes O2_FILL_SECONDS whatever its size
+      // (the flat 4%/s meant a 30s stand at capacity 120). The ice
+      // pocket keeps the old gentle rate — it's ambient, not a station.
+      const rate = refill.connected
+        ? Math.max(OXYGEN_REFILL_RATE, oxygen.capacity / O2_FILL_SECONDS)
+        : OXYGEN_REFILL_RATE;
+      oxygen.percent = Math.min(oxygen.capacity, oxygen.percent + rate * dt);
+      // At the ceiling the station clicks and releases the hose
+      // (updateO2Station). v0.4.x stayed connected at full, which
+      // left players unsure whether it had finished.
     } else {
-      oxygen.percent = Math.max(0, oxygen.percent - OXYGEN_DRAIN_RATE * dt);
+      // v0.6 blockout: no drain inside the wreck level (sheltered) — the
+      // interior's own O₂ rules come with the stabiliser puzzle move.
+      if (level.id !== 'wreck') oxygen.percent = Math.max(0, oxygen.percent - OXYGEN_DRAIN_RATE * dt);
     }
 
     // Hit zero — rescue.
@@ -4841,24 +5146,78 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     pct.textContent = Math.round(p) + ' / ' + Math.round(cap);
   }
 
+  // ============================================================
+  // LUNAR LOPE (v0.7.2) — the Apollo bounding gait.
+  // Each stride = a short push on one foot, then a ballistic float
+  // under 1.62 m/s²: apex = g·t²/8 for a flight of t seconds. The
+  // slow-motion look comes from that flight time, not from slowing
+  // the clip (0.78× timescale and a sine "lope oscillator" were both
+  // tried in v0.4 and reverted — they slowed the legs without ever
+  // leaving the ground, so it read as wading).
+  //   - visual only: astronautRoot rides the arc; player.pos stays on
+  //     the ground, so collision, interaction, camera are untouched
+  //   - the Walk/Run clip is phase-locked to the stride (planted foot
+  //     in the clip = the foot in contact), measured from the rig:
+  //     right foot planted at clip fraction 0.97, left at 0.47
+  //   - landing: thud + print under that foot + small splash;
+  //     push-off: a fan of dust thrown back, 1–2 s in flight
+  // ============================================================
+  const LOPE_CONTACT = 0.26;      // s on the ground per stride
+  const LOPE_DIP = 0.035;         // m of knee-bend during contact
+  const lope = { phase: 0, parity: 0, w: 0, y: 0, pushed: false, fresh: true, period: 0.95 };
+  function _lopeLand(speed) {
+    sndFootstep(speed);
+    const b = (typeof _seatBones === 'function') ? _seatBones() : null;
+    spawnFootprint(b ? (lope.parity ? b.LeftFoot : b.RightFoot) : null);
+    const p = spawnFootprint.last;
+    if (p && level.id !== 'wreck') kickDust(p.x, p.y, p.z, 70, 0.8, 0, 0, 0.55);
+  }
   function maybeFootstep(dt) {
-    if (!player.grounded) { footstepTimer = 0; return; }
     const speed = Math.hypot(player.vel.x, player.vel.z);
-    if (speed < 0.4) { footstepTimer = 0; return; }
-    const cadence = 0.6 - Math.min(0.4, speed * 0.06);
-    footstepTimer += dt;
-    if (footstepTimer >= cadence) {
-      footstepTimer -= cadence;
-      sndFootstep(speed);
-      spawnFootprint();
-      // Every step kicks regolith — 2-4 motes at the feet, more when
-      // running. v0.4.2: tuned way down from the default burst params
-      // (speed 5 → 0.55) — the old motes flew metres from the boot.
-      // Now they hop low and slow and settle within ~half a metre of
-      // the print, which is what heavy dust with no air does.
-      spawnDust(player.pos.x, player.pos.y + 0.06, player.pos.z,
-                2 + Math.floor(speed * 0.5),
-                { speed: 0.55, upVel: 0.35, upVar: 0.5, life: 0.9 });
+    const active = player.grounded && speed >= 0.4 && controlMode === 'walking';
+    lope.w += ((active ? 1 : 0) - lope.w) * Math.min(1, dt * (active ? 10 : 7));
+    if (active) {
+      const t = Math.max(0, Math.min(1, (speed - WALK_SPEED) / (RUN_SPEED - WALK_SPEED)));
+      lope.period = 0.95 + 0.10 * t;
+      if (lope.fresh) { lope.fresh = false; lope.phase = 0; lope.pushed = false; _lopeLand(speed); }
+      lope.phase += dt / lope.period;
+      const cf = LOPE_CONTACT / lope.period;
+      if (!lope.pushed && lope.phase >= cf) {
+        lope.pushed = true;
+        const p = spawnFootprint.last;
+        if (p && level.id !== 'wreck') {
+          const fx = Math.sin(player.heading), fz = Math.cos(player.heading);
+          kickDust(p.x, p.y, p.z, 170 + Math.floor(speed * 25), 1.5 + speed * 0.2, -fx, -fz, 1.0);
+        }
+      }
+      if (lope.phase >= 1) {
+        lope.phase -= 1; lope.parity ^= 1; lope.pushed = false;
+        _lopeLand(speed);
+      }
+    } else if (lope.w < 0.02) {
+      lope.w = 0; lope.fresh = true;
+    }
+    // Height of the body on the stride: dip in contact, parabola in flight.
+    const cf = LOPE_CONTACT / lope.period, ph = lope.phase;
+    const tf = lope.period - LOPE_CONTACT;
+    const apex = MOON_G * tf * tf / 8 * Math.min(1, speed / WALK_SPEED + 0.25);
+    let y;
+    if (ph < cf) y = -LOPE_DIP * Math.sin(Math.PI * ph / cf);
+    else { const u = (ph - cf) / (1 - cf); y = 4 * apex * u * (1 - u); }
+    lope.y = y * lope.w;
+  }
+  // Called just before mixer.update: put the body on the arc and lock
+  // the gait clip to the stride phase.
+  function applyLope() {
+    if (!astronautRoot || controlMode !== 'walking') return;
+    if (lope.w <= 0) return;
+    astronautRoot.position.y = player.pos.y + lope.y;
+    const a = activeAction;
+    if (a && (a === animClips['Walk_Loop'] || a === animClips['Run_Loop']) && player.grounded) {
+      const cf = LOPE_CONTACT / lope.period;
+      let f = 0.97 + 0.5 * (lope.parity + lope.phase) - 0.25 * cf;
+      f -= Math.floor(f);
+      a.time = f * a.getClip().duration;
     }
   }
   function sndFootstep(speed) {
@@ -7462,21 +7821,9 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     // Flyer, it triggers the boarding sequence. In flying mode it's
     // tracked as a held key (yaw-right), so it falls through to the
     // generic handler below.
-    if (k === 'e' && controlMode === 'walking' && nearFlyer && flyerRepair.installed) {
-      beginBoarding();
-      activate(); e.preventDefault();
-      return;
-    }
-    // (While the Flyer is broken, E near it falls through to the
-    // generic scan — which owns the brace-install interactable.)
-    // Refill panel: same key, lower priority than Flyer boarding.
-    // Toggles connect/disconnect. Only valid while in range and
-    // not currently in the rescue cinematic.
-    if (k === 'e' && controlMode === 'walking' && refill.nearPanel && !oxygen.dead) {
-      requestRefillToggle();       // reach gesture → connect on contact
-      activate(); e.preventDefault();
-      return;
-    }
+    // v0.5.0: walking-mode E (board, refill, every scene action) is
+    // handled by the interaction system's own listener — one action
+    // per press. In flight E is still yaw-right via keys['e'] below.
     if (['w','a','s','d','q','e',' ','arrowup','arrowdown','arrowleft','arrowright'].includes(k)) {
       keys[k] = true; activate(); e.preventDefault();
     }
@@ -8914,24 +9261,37 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       }
       return;
     }
-    // Helmet target: head height drops when seated; small forward
-    // offset so the hose meets the visor side, not the spine.
-    const helmetY = rescueSit.active ? 1.00 : 1.50;
-    _hoseEnd.set(
-      player.pos.x + Math.sin(player.heading) * 0.14,
-      player.pos.y + helmetY,
-      player.pos.z + Math.cos(player.heading) * 0.14
-    );
-    // Extension: the free end travels from the manifold toward the
-    // helmet as t rises; sag eases off as the line goes taut.
+    // Seated (v0.5.1): valve of the bottle he leans on → neck ring,
+    // over the shoulder. Standing: manifold → helmet side as before.
+    const seatEnd = (astroSeat.w > 0.5) ? seatHoseEnd() : null;
+    const anchor = seatEnd ? seatHoseAnchor() : hoseAnchor;
+    if (seatEnd) {
+      _hoseEnd.copy(seatEnd);
+    } else {
+      const helmetY = 1.50;
+      _hoseEnd.set(
+        player.pos.x + Math.sin(player.heading) * 0.14,
+        player.pos.y + helmetY,
+        player.pos.z + Math.cos(player.heading) * 0.14
+      );
+    }
+    // Extension: the free end travels from the anchor toward the
+    // suit as t rises; sag eases off as the line goes taut.
     const e = o2Hose.t * o2Hose.t * (3 - 2 * o2Hose.t);
-    _hoseEnd.lerpVectors(hoseAnchor, _hoseEnd, e);
-    _hoseMid.lerpVectors(hoseAnchor, _hoseEnd, 0.5);
-    _hoseMid.y -= 0.30 * e + 0.05;      // slack droop
+    _hoseEnd.lerpVectors(anchor, _hoseEnd, e);
+    _hoseMid.lerpVectors(anchor, _hoseEnd, 0.5);
+    if (seatEnd) {
+      // Arc up and out over the bottle's shoulder before dropping to
+      // the neck ring — a straight chord would cut through the dome.
+      _hoseMid.addScaledVector(_F, 0.10);
+      _hoseMid.y += 0.12;
+    } else {
+      _hoseMid.y -= 0.30 * e + 0.05;    // slack droop
+    }
     o2Hose.mesh.geometry.dispose();
     o2Hose.mesh.geometry = new THREE.TubeGeometry(
-      new THREE.QuadraticBezierCurve3(hoseAnchor.clone(), _hoseMid.clone(), _hoseEnd.clone()),
-      12, 0.03, 6, false
+      new THREE.QuadraticBezierCurve3(anchor.clone(), _hoseMid.clone(), _hoseEnd.clone()),
+      14, 0.038, 6, false
     );
     o2Hose.mesh.visible = true;
     // Nozzle collar rides the free end, aimed back along the last leg.
@@ -9649,6 +10009,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // pointerdown; stopPropagation keeps the camera still while a part
   // is picked. Touch works through the same pointer events.
   window.addEventListener('pointerdown', (e) => {
+    if (!POINTER_DRAG_ENABLED) return;
     if (e.target !== renderer.domElement) return;
     if (controlMode !== 'walking' || oxygen.dead || shackletonMemory.isActive()) return;
     const cands = (_stabCanInteract() ? _stabDraggables() : [])
@@ -9670,6 +10031,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   }, true);
 
   window.addEventListener('pointermove', (e) => {
+    if (!POINTER_DRAG_ENABLED) return;
     if (stabDrag.mesh) {
       if (!_dragGateOK(stabDrag.mesh)) { _stabDrop(); return; }
       _stabSetNDC(e);
@@ -9706,8 +10068,8 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     }
   }, true);
 
-  window.addEventListener('pointerup', () => { _stabDrop(); }, true);
-  window.addEventListener('pointercancel', () => { _stabDrop(); }, true);
+  window.addEventListener('pointerup', () => { if (POINTER_DRAG_ENABLED) _stabDrop(); }, true);
+  window.addEventListener('pointercancel', () => { if (POINTER_DRAG_ENABLED) _stabDrop(); }, true);
 
   function _wreckInteriorSolved() {
     wreckInterior.solved = true;
@@ -9766,43 +10128,9 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       if (!wreckInterior.solved) setObjective('restore the oxygen stabiliser');
     }
 
-    // Interaction proximity — nearest undone interactable in range.
-    // The hatch touchpad joins the scan permanently (it toggles, so it
-    // is never "done"); the stabiliser items only while unsolved.
-    const prompt = $('interact-prompt');
-    let best = null, bestD = 1e9;
-    if (!wreckInterior.solved) {
-      for (const it of wreckInterior.interactables) {
-        if (it.done || it.drag) continue;   // drag tasks live in stabDrag, not [E]
-        const d = Math.hypot(p.x - it.x, p.z - it.z);
-        if (d < it.r && d < bestD) { best = it; bestD = d; }
-      }
-    }
-    {
-      const d = Math.hypot(p.x - hatchInteract.x, p.z - hatchInteract.z);
-      if (d < hatchInteract.r && d < bestD) { best = hatchInteract; bestD = d; }
-    }
-    // Scene interactables (v0.4.5) — pins, pickups, installs, cranks.
-    for (const it of worldInteractables) {
-      if (it.hidden && it.hidden()) continue;
-      const d = Math.hypot(p.x - it.x, p.z - it.z);
-      if (d < it.r && d < bestD) { best = it; bestD = d; }
-    }
-    wreckInterior._active = best;
-    if (prompt) {
-      if (best) {
-        const lbl = (typeof best.label === 'function') ? best.label() : best.label;
-        prompt.textContent = '[E] / tap — ' + lbl;
-        prompt.classList.add('on');
-      } else if (!wreckInterior.solved && wreckInterior.entered &&
-                 Math.hypot(p.x - STAB_POS.x, p.z - STAB_POS.z) < 5.0) {
-        // Repair-puzzle hint — informational, not an [E] action.
-        prompt.textContent = 'repair — drag the loose parts into place';
-        prompt.classList.add('on');
-      } else {
-        prompt.classList.remove('on');
-      }
-    }
+    // v0.5.0: proximity scan, prompt and E handling moved to
+    // updateInteract (focus by facing, not nearest-in-radius).
+    void p;
 
     // Dragged part: hover bob + slow turn so it reads as "held".
     if (stabDrag.mesh) {
@@ -9813,12 +10141,6 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       // Walked away / state changed mid-drag → put the part down.
       if (!_dragGateOK(stabDrag.mesh)) _stabDrop();
     }
-    // E-key with latch so one press = one action.
-    if (best && keys['e'] && !wreckInterior._eLatch) {
-      wreckInterior._eLatch = true;
-      _fireInteract();
-    }
-    if (!keys['e']) wreckInterior._eLatch = false;
   }
 
   function _fireInteract() {
@@ -9838,14 +10160,8 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       setTimeout(_wreckInteriorSolved, 900);
     }
   }
-  // Mobile: the prompt itself is the button.
-  (function () {
-    const prompt = $('interact-prompt');
-    if (prompt) prompt.addEventListener('pointerdown', (ev) => {
-      ev.stopPropagation();
-      _fireInteract();
-    });
-  })();
+  // (v0.5.0: the prompt's tap handler lives in the interaction system.)
+  void _fireInteract;
 
   // ============================================================
   // SCENES 4-6 (v0.4.5) — Structural Brace → Install → First Ice.
@@ -11418,6 +11734,171 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   //   OPEN_PRONE_PITCH — flip the sign if the model lies on its back
   //   OPEN_PRONE_LIFT  — raise if the body sinks into the regolith
   // ============================================================
+  // SEATED AT THE TANKS (v0.5.1) — opening + blackout wake.
+  //
+  // v0.4.x froze Crouch_Loop mid-frame 0.16m from the right-hand
+  // bottle, facing it: the helmet sat inside the tank and he read as
+  // merged with the station. Now he SITS on the regolith with his back
+  // against that bottle, facing away from the station — one leg out,
+  // the other knee up with an arm draped over it, head dropped a
+  // little — the way something dragged there and propped up would
+  // sit. The rig has no sit clip, so the pose is solved on the bones
+  // after the mixer stamps Idle_Breath (which keeps the chest
+  // breathing): each limb is aimed at a direction in the body frame,
+  // same minimal-rotation method as the reach system. Weight `w`
+  // blends it in/out so standing up is a rise, not a pop.
+  // ============================================================
+  const TANK_SEAT = {
+    // panel-local: east face of the right tank (tx +0.30, r 0.26)
+    // plus ~0.30m of backpack between the bottle and the pelvis.
+    x: 0.30 + 0.26 + 0.30, z: -0.55,
+    heading: Math.PI / 2,     // facing east, back to the bottles
+    camYaw: Math.PI,          // camera on his right, wreck behind him
+    // Hose leaves the right tank's valve neck, not the manifold —
+    // the manifold sits between the bottles, behind the tank he leans on.
+    hose: { x: 0.36, y: 1.64, z: -0.55 },
+  };
+  const astroSeat = { want: false, w: 0, t: 0, bones: null, hipsRest: null };
+
+  function seatAtTanks() {
+    const p = refillPanel.localToWorld(new THREE.Vector3(TANK_SEAT.x, 0, TANK_SEAT.z));
+    player.pos.set(p.x, shackletonScene.getGroundY(p.x, p.z), p.z);
+    player.vel.set(0, 0, 0);
+    player.heading = TANK_SEAT.heading + refillPanel.rotation.y;
+    if (astronautRoot) {
+      astronautRoot.rotation.order = 'XYZ';
+      astronautRoot.rotation.x = 0;
+      astronautRoot.rotation.y = player.heading;
+      astronautRoot.position.copy(player.pos);
+      astronautRoot.visible = true;
+    }
+    if (mixer && animClips['Crouch_Loop']) animClips['Crouch_Loop'].paused = false;
+    if (mixer && animClips['Idle_Breath']) setAnimation('Idle_Breath');
+    astroSeat.want = true;
+    astroSeat.w = 1;                       // already seated when the fade lifts
+  }
+  function seatCamYaw() { return TANK_SEAT.camYaw + refillPanel.rotation.y; }
+
+  function _seatBones() {
+    if (astroSeat.bones !== null) return astroSeat.bones;
+    astroSeat.bones = false;
+    if (!astronautRoot) return false;
+    const b = {};
+    const names = ['Hips', 'Spine', 'Spine1', 'Spine2', 'Neck', 'Head',
+      'LeftUpLeg', 'LeftLeg', 'LeftFoot', 'LeftToeBase',
+      'RightUpLeg', 'RightLeg', 'RightFoot', 'RightToeBase',
+      'LeftArm', 'LeftForeArm', 'LeftHand', 'RightArm', 'RightForeArm', 'RightHand'];
+    for (const n of names) {
+      let found = null;
+      astronautRoot.traverse(o => { if (!found && o.isBone && (o.name === n || o.name.endsWith(':' + n) || o.name.endsWith(n) && o.name.length - n.length <= 10)) found = o; });
+      if (!found) { console.warn('[seat] bone missing:', n); return false; }
+      b[n] = found;
+    }
+    astroSeat.bones = b;
+    astroSeat.hipsRest = b.Hips.position.clone();
+    return b;
+  }
+
+  const _sa = new THREE.Vector3(), _sb = new THREE.Vector3(), _sd = new THREE.Vector3();
+  const _sq = new THREE.Quaternion(), _sqw = new THREE.Quaternion(), _sqp = new THREE.Quaternion();
+  const _sq0 = new THREE.Quaternion();
+  // Rotate `bone` so (bone → child) points along world `dir`, blended
+  // by w against whatever the mixer left there.
+  function _aimBone(bone, child, dir, w) {
+    _sq0.copy(bone.quaternion);
+    bone.updateMatrixWorld(true);
+    bone.getWorldPosition(_sa); child.getWorldPosition(_sb);
+    _sd.subVectors(_sb, _sa);
+    if (_sd.lengthSq() < 1e-10) return;
+    _sd.normalize();
+    _sq.setFromUnitVectors(_sd, dir);
+    bone.getWorldQuaternion(_sqw);
+    _sqw.premultiply(_sq);
+    bone.parent.getWorldQuaternion(_sqp).invert();
+    bone.quaternion.copy(_sqp.multiply(_sqw));
+    if (w < 1) bone.quaternion.copy(_sq0.slerp(bone.quaternion, w));
+    bone.updateMatrixWorld(true);
+  }
+
+  const _F = new THREE.Vector3(), _U = new THREE.Vector3(0, 1, 0), _R = new THREE.Vector3();
+  const _dir = new THREE.Vector3();
+  // dir = f·F + u·U + r·R (body frame), normalised
+  function _bd(f, u, r) {
+    return _dir.set(0, 0, 0).addScaledVector(_F, f).addScaledVector(_U, u)
+      .addScaledVector(_R, r).normalize();
+  }
+  const SEAT_PELVIS_Y = 0.17;   // m above the regolith (suit seat on the ground)
+
+  function applySeatedPose(dt) {
+    const target = astroSeat.want ? 1 : 0;
+    astroSeat.w += (target - astroSeat.w) * Math.min(1, dt * (astroSeat.want ? 8 : 5));
+    if (!astroSeat.want && astroSeat.w < 0.01) {
+      astroSeat.w = 0;
+      const b0 = astroSeat.bones;
+      if (b0 && astroSeat.hipsRest) b0.Hips.position.copy(astroSeat.hipsRest);
+      return;
+    }
+    const b = _seatBones();
+    if (!b) return;
+    const w = astroSeat.w;
+    astroSeat.t += dt;
+    const breathe = Math.sin(astroSeat.t * 1.3);           // slow, tired
+    const drift = Math.sin(astroSeat.t * 0.37) * 0.5 + Math.sin(astroSeat.t * 0.23) * 0.5;
+
+    const h = player.heading;
+    _F.set(Math.sin(h), 0, Math.cos(h));
+    _R.set(-_F.z, 0, _F.x);                                // forward × up
+
+    // Pelvis down to the ground, a touch back against the bottle.
+    b.Hips.position.copy(astroSeat.hipsRest);
+    astronautRoot.updateMatrixWorld(true);
+    b.Hips.getWorldPosition(_sa);
+    const groundY = player.pos.y;
+    const drop = (_sa.y - (groundY + SEAT_PELVIS_Y)) * w;
+    _sb.copy(_sa).addScaledVector(_U, -drop).addScaledVector(_F, -0.06 * w);
+    b.Hips.parent.worldToLocal(_sb);
+    b.Hips.position.copy(_sb);
+    b.Hips.updateMatrixWorld(true);
+
+    // Back against the bottle: lean ~20° back, a little more up top.
+    _aimBone(b.Spine,  b.Spine1, _bd(-0.30, 1, 0.03), w);
+    _aimBone(b.Spine2, b.Neck,   _bd(-0.22 + breathe * 0.015, 1, 0.02), w);
+    // Head dropped forward and to the right — groggy, slowly settling.
+    _aimBone(b.Neck,   b.Head,   _bd(0.38 + drift * 0.06, 1, 0.16 + drift * 0.05), w);
+
+    // Left leg out straight, slightly splayed; toes up.
+    _aimBone(b.LeftUpLeg, b.LeftLeg,   _bd(1, 0.06, -0.20), w);
+    _aimBone(b.LeftLeg,   b.LeftFoot,  _bd(1, -0.10, -0.06), w);
+    _aimBone(b.LeftFoot,  b.LeftToeBase, _bd(0.35, 1, -0.15), w);
+    // Right knee up, foot planted.
+    _aimBone(b.RightUpLeg, b.RightLeg,  _bd(0.62, 0.66, 0.16), w);
+    _aimBone(b.RightLeg,   b.RightFoot, _bd(0.48, -0.88, 0.04), w);
+    _aimBone(b.RightFoot,  b.RightToeBase, _bd(1, -0.25, 0.08), w);
+
+    // Left arm limp on the ground beside the hip.
+    _aimBone(b.LeftArm,     b.LeftForeArm, _bd(0.18, -1, -0.42), w);
+    _aimBone(b.LeftForeArm, b.LeftHand,    _bd(0.75, -0.55, -0.25), w);
+    // Right forearm draped over the raised knee.
+    _aimBone(b.RightArm,     b.RightForeArm, _bd(0.55, -0.62, 0.38), w);
+    _aimBone(b.RightForeArm, b.RightHand,    _bd(0.80, -0.05, -0.22), w);
+  }
+
+  // World anchor for the seated hose (right tank valve).
+  const _seatHoseA = new THREE.Vector3();
+  function seatHoseAnchor() {
+    return refillPanel.localToWorld(_seatHoseA.set(TANK_SEAT.hose.x, TANK_SEAT.hose.y, TANK_SEAT.hose.z));
+  }
+  // Suit end of the seated hose: the neck ring, back-left of the helmet
+  // (the side facing the valve), so the line comes over the shoulder.
+  const _seatHoseE = new THREE.Vector3();
+  function seatHoseEnd() {
+    const b = astroSeat.bones;
+    if (!b) return null;
+    b.Neck.getWorldPosition(_seatHoseE);
+    return _seatHoseE.addScaledVector(_F, -0.12).addScaledVector(_R, -0.10).addScaledVector(_U, 0.02);
+  }
+
+  // ============================================================
   const OPEN_PRONE_PITCH = Math.PI / 2;   // face-down pitch on root
   const OPEN_PRONE_LIFT  = 0.06;          // was 0.18 — read as floating above the ground per feedback
   const OPEN_BLACK_DUR   = 3.8;           // seconds of black + HUD before reveal
@@ -11447,25 +11928,11 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     get x() { return REFILL_PANEL_POS.x + 0.72; },
     get z() { return REFILL_PANEL_POS.z - 0.55; },
   };
-  const OPEN_HEADING = -Math.PI / 2;   // facing the tanks (west)
+  const OPEN_HEADING = -Math.PI / 2;   // (v0.4.x, retired — see TANK_SEAT)
 
   function poseSeatedWake() {
     if (!astronautRoot) return;
-    player.heading = OPEN_HEADING;
-    player.pos.set(OPEN_SPAWN.x,
-                   shackletonScene.getGroundY(OPEN_SPAWN.x, OPEN_SPAWN.z),
-                   OPEN_SPAWN.z);
-    astronautRoot.rotation.order = 'XYZ';
-    astronautRoot.rotation.x = 0;
-    astronautRoot.rotation.y = player.heading;
-    astronautRoot.position.copy(player.pos);
-    astronautRoot.visible = true;
-    // Seated pose — same frozen crouch as the blackout wake.
-    if (mixer && animClips['Crouch_Loop']) {
-      setAnimation('Crouch_Loop');
-      animClips['Crouch_Loop'].time = 0.35;
-      animClips['Crouch_Loop'].paused = true;
-    }
+    seatAtTanks();          // v0.5.1 — sitting against the bottle, not crouched into it
     // Already on the umbilical: connected, hose out, objective solved.
     refill.connected = true;
     refill._everConnected = true;   // "find oxygen" never needs to fire
@@ -11516,23 +11983,26 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // exact chase-cam target for the handoff so gameplay's updateCamera
   // takes over with zero pop.
   function _openingCloseCam(outPos, outLook) {
-    // Seated framing: head ~1.0m up, slightly forward of the root.
+    // v0.5.1 seated framing: front-right three-quarter on the visor,
+    // the bottle he leans on and the hose behind his head.
     const dirX = Math.sin(player.heading), dirZ = Math.cos(player.heading);
-    const hx = player.pos.x + dirX * 0.25;
-    const hz = player.pos.z + dirZ * 0.25;
-    const hy = player.pos.y + 1.0;
-    // Camera off the right shoulder, at visor height, looking across
-    // at the helmet with the tanks behind.
-    const sx = Math.cos(player.heading), sz = -Math.sin(player.heading);
-    outPos.set(hx + sx * 1.7 + dirX * 0.7, hy + 0.15, hz + sz * 1.7 + dirZ * 0.7);
-    outLook.set(hx, hy, hz);
+    const rx = -dirZ, rz = dirX;                       // his right
+    const b = _seatBones();
+    let hx, hy, hz;
+    if (b) { b.Head.getWorldPosition(_sa); hx = _sa.x; hy = _sa.y; hz = _sa.z; }
+    else { hx = player.pos.x; hy = player.pos.y + 0.75; hz = player.pos.z; }
+    outPos.set(hx + rx * 1.35 + dirX * 1.25, hy + 0.20, hz + rz * 1.35 + dirZ * 1.25);
+    outLook.set(hx - dirX * 0.10, hy - 0.08, hz - dirZ * 0.10);
   }
   function _openingChaseCam(outPos, outLook) {
     // POSITIVE pitch lifts the camera above the player (vertOffset
     // adds to y). The previous −0.30 put the target 2.3m underground;
     // gameplay's per-frame terrain clamp hid the error, but the rise
     // lerp has no clamp and swung the camera below the floor.
-    const yaw = player.heading, pitch = 0.30;
+    // v0.5.1: seated framing is side-on (wreck behind him), and movement
+    // is camera-relative — so the first W walks him clear of the
+    // bottles, not into them.
+    const yaw = astroSeat.want ? seatCamYaw() : player.heading, pitch = 0.30;
     const horiz = camDist * Math.cos(pitch);
     const vert  = camDist * Math.sin(pitch);
     outPos.set(player.pos.x - Math.sin(yaw) * horiz,
@@ -11555,8 +12025,8 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     astronautRoot.position.copy(player.pos);
     // Snap the chase-cam state to match the camera we hand over, so
     // updateCamera's first frame continues seamlessly.
-    camYaw = player.heading;
-    camPitch = 0.30;   // matches _openingChaseCam — elevated behind, zero pop
+    camYaw = astroSeat.want ? seatCamYaw() : player.heading;
+    camPitch = 0.30;   // matches _openingChaseCam — elevated, zero pop
     const vg = $('opening-vignette'); if (vg) vg.style.opacity = '0';
     const pr = $('opening-prompt');   if (pr) pr.classList.remove('on');
     // He stays SEATED at the tanks until the player moves — same
@@ -12897,12 +13367,985 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // visual or audible begins until the user clicks/keys.
 
   // ============================================================
+  // ASSET LIBRARY (v0.5.0) — one manifest for every external GLB.
+  //
+  // Drop a GLB at the manifest path and it appears in the game; no
+  // code change. Missing files are not errors: load() resolves null
+  // and the caller keeps its procedural stand-in. Every URL carries
+  // ?v=BUILD_VERSION so a new deploy can never pair fresh code with
+  // a stale cached model (the v0.4.6 wreck desync, see WRECK_GLB_B64).
+  //
+  // Authoring conventions inside a GLB:
+  //   COL_*   mesh nodes → box colliders (hidden at load). Name a
+  //           node COL_wall_01 etc.; its bounding box becomes an
+  //           oriented box. Add "_nowalk" to stop the player standing
+  //           on it (e.g. COL_pipe_nowalk).
+  //   everything else renders. PBR materials are converted to the
+  //   house MeshPhongMaterial (shininess 0, flat shading) so Meshy /
+  //   Blender output sits in the same light as the procedural world.
+  // ============================================================
+  const ASSET_BASE = '/shackleton/assets/';
+  const ASSET_MANIFEST = {
+    // Robots — Meshy output. Fitted at runtime to the height of the
+    // procedural robot they replace, base on the ground, facing +Z.
+    robot_L07: { url: 'robots/L07.glb', flat: true },
+    robot_M08: { url: 'robots/M08.glb', flat: true },
+    robot_P03: { url: 'robots/P03.glb', flat: true },
+  };
+
+  const assetLib = (function () {
+    const loader = new THREE.GLTFLoader();
+    const cache = {};
+
+    function _housify(root, flat) {
+      root.traverse(o => {
+        if (!o.isMesh) return;
+        o.castShadow = true; o.receiveShadow = true;
+        const conv = (m) => {
+          if (!m || m.isMeshPhongMaterial || m.isMeshBasicMaterial) return m;
+          const p = new THREE.MeshPhongMaterial({
+            color: m.color ? m.color.clone() : new THREE.Color(0xffffff),
+            map: m.map || null,
+            vertexColors: !!m.vertexColors,
+            transparent: !!m.transparent, opacity: m.opacity == null ? 1 : m.opacity,
+            side: m.side, shininess: 0, flatShading: !!flat,
+          });
+          if (m.emissive && m.emissiveMap) { p.emissive = m.emissive.clone(); p.emissiveMap = m.emissiveMap; }
+          return p;
+        };
+        o.material = Array.isArray(o.material) ? o.material.map(conv) : conv(o.material);
+      });
+    }
+    function _hideColNodes(root) {
+      const cols = [];
+      root.traverse(o => { if (/^COL_/i.test(o.name)) cols.push(o); });
+      for (const c of cols) c.visible = false;
+      root.userData.colNodes = cols;
+    }
+    function load(key) {
+      if (cache[key]) return cache[key];
+      const m = ASSET_MANIFEST[key];
+      cache[key] = new Promise((resolve) => {
+        if (!m) { resolve(null); return; }
+        const url = ASSET_BASE + m.url + '?v=' + encodeURIComponent(BUILD_VERSION);
+        loader.load(url, (gltf) => {
+          const root = gltf.scene;
+          _housify(root, m.flat);
+          _hideColNodes(root);
+          console.log('[asset] loaded', key);
+          resolve(root);
+        }, undefined, () => {
+          console.info('[asset] ' + key + ' not present — keeping built-in (' + url + ')');
+          resolve(null);
+        });
+      });
+      return cache[key];
+    }
+    // A fresh copy each call (robots share a source but need their
+    // own transforms). Uses SkeletonUtils for skinned models.
+    function instance(key) {
+      return load(key).then(src => {
+        if (!src) return null;
+        let hasSkin = false;
+        src.traverse(o => { if (o.isSkinnedMesh) hasSkin = true; });
+        const copy = (hasSkin && THREE.SkeletonUtils) ? THREE.SkeletonUtils.clone(src) : src.clone(true);
+        copy.userData.colNodes = [];
+        copy.traverse(o => { if (/^COL_/i.test(o.name)) copy.userData.colNodes.push(o); });
+        return copy;
+      });
+    }
+    // Wrap `obj` so its visible bounds sit base-on-ground, centred,
+    // and `height` tall. Returns the wrapper (add THAT to the scene).
+    function fit(obj, height) {
+      const wrap = new THREE.Group();
+      wrap.add(obj);
+      obj.updateMatrixWorld(true);
+      const box = new THREE.Box3();
+      obj.traverse(o => {
+        if (o.isMesh && o.visible && !/^COL_/i.test(o.name)) box.expandByObject(o);
+      });
+      if (box.isEmpty()) return wrap;
+      const size = box.getSize(new THREE.Vector3());
+      const k = height ? height / Math.max(1e-6, size.y) : 1;
+      obj.scale.multiplyScalar(k);
+      const c = box.getCenter(new THREE.Vector3());
+      obj.position.set(-c.x * k, -box.min.y * k, -c.z * k);
+      return wrap;
+    }
+    // COL_* nodes → oriented box colliders in world space.
+    function addColliders(obj, tag) {
+      obj.updateMatrixWorld(true);
+      // Search the whole subtree — fit() wraps models, so the COL_
+      // nodes are never direct userData of the object passed in.
+      const nodes = [];
+      obj.traverse(o => { if (/^COL_/i.test(o.name) && o.geometry) nodes.push(o); });
+      const e = new THREE.Vector3(), cen = new THREE.Vector3();
+      for (const n of nodes) {
+        if (!n.geometry) continue;
+        n.geometry.computeBoundingBox();
+        const bb = n.geometry.boundingBox;
+        bb.getCenter(cen); cen.applyMatrix4(n.matrixWorld);
+        const me = n.matrixWorld.elements;
+        const sx = Math.hypot(me[0], me[1], me[2]);
+        const sy = Math.hypot(me[4], me[5], me[6]);
+        const sz = Math.hypot(me[8], me[9], me[10]);
+        bb.getSize(e);
+        addBoxCollider({
+          x: cen.x, z: cen.z,
+          hx: e.x * sx / 2, hz: e.z * sz / 2,
+          yaw: Math.atan2(-me[2], me[0]),
+          y0: cen.y - e.y * sy / 2, y1: cen.y + e.y * sy / 2,
+          walkable: !/_nowalk/i.test(n.name),
+          tag: tag || n.name,
+        });
+      }
+      return nodes.length;
+    }
+    return { load, instance, fit, addColliders, manifest: ASSET_MANIFEST };
+  })();
+
+  // ── Robot GLB swap ──
+  // When robots/<ID>.glb exists, it replaces the procedural body:
+  // fitted to the procedural robot's own height, parented to the
+  // bodyGroup so the walk bob still carries it. Procedural meshes are
+  // hidden, not removed — their pivots keep animating harmlessly, and
+  // deleting the GLB brings the old robot straight back.
+  //   Rigid for now: a single-mesh Meshy model has no arm joints. If
+  //   arms are exported as separate nodes named arm_L / arm_R they are
+  //   re-parented onto the procedural arm pivots and swing with them.
+  const ROBOT_ASSET_KEYS = { P: 'robot_P03', L: 'robot_L07', M: 'robot_M08' };
+  function upgradeRobotVisual(robot, letter) {
+    const key = ROBOT_ASSET_KEYS[letter];
+    if (!key) return;
+    assetLib.instance(key).then(model => {
+      if (!model) return;
+      const ud = robot.userData;
+      // Measure the procedural robot in its own frame before hiding it.
+      const savedRot = robot.rotation.y, savedPos = robot.position.clone();
+      robot.rotation.y = 0; robot.position.set(0, 0, 0);
+      robot.updateMatrixWorld(true);
+      const pb = new THREE.Box3().setFromObject(robot);
+      robot.rotation.y = savedRot; robot.position.copy(savedPos);
+      const wrapped = assetLib.fit(model, pb.max.y - pb.min.y);
+      robot.traverse(o => { if (o.isMesh) o.visible = false; });
+      // Base of the GLB at the procedural feet. bodyGroup rests at
+      // y 0.22 in the robot frame (buildRobot), so subtract that.
+      wrapped.position.y = pb.min.y - ud.bodyGroup.position.y;
+      ud.bodyGroup.add(wrapped);
+      // Optional articulated arms.
+      for (const side of ['L', 'R']) {
+        const arm = model.getObjectByName('arm_' + side);
+        const pivot = ud.armPivots && ud.armPivots[side === 'L' ? 0 : 1];
+        if (arm && pivot) pivot.attach(arm);
+      }
+      wrapped.traverse(o => { if (o.isMesh) o.visible = !/^COL_/i.test(o.name); });
+      ud.glb = wrapped;
+      console.log('[asset] robot ' + letter + ' upgraded to GLB');
+    });
+  }
+  for (let i = 0; i < robots.length; i++) upgradeRobotVisual(robots[i], robotConfigs[i].letter);
+
+  // ============================================================
+  // INTERACTION (v0.5.0) — one system owns "use the thing in front
+  // of you". Replaces three that fought over the same prompt every
+  // frame (Flyer, refill panel, wreck scan) and each listened for E,
+  // so one keypress could fire two actions. Also replaces pointer
+  // dragging (stabiliser, plating, battery pack, regolith chunk):
+  // parts are now CARRIED — E picks up, E puts down / seats.
+  //
+  // Selection: candidates within reach, scored by distance and by
+  // how squarely the camera faces them; the current focus is sticky
+  // (hysteresis) so it doesn't flicker between neighbours.
+  // Feedback: focused object glows, a marker hovers over it, the
+  // prompt shows the key and verb, hold actions fill a ring, and
+  // every action clicks.
+  //
+  // Candidate: { x, z, y?, r, label, fire(), hold?, mesh?, info? }
+  // ============================================================
+  const POINTER_DRAG_ENABLED = false;   // legacy drag puzzles (v0.4.3–0.4.7) — superseded by carry
+  const interact = {
+    focus: null, focusKey: null,
+    down: false, holdT: 0, firedThisPress: false,
+    carry: null,              // { mesh, kind:'stab'|'extra', name }
+    _glowMesh: null,
+  };
+
+  // Marker — small hovering chevron ring over the focused thing.
+  const interactMarker = (function () {
+    const g = new THREE.Group();
+    const mat = new THREE.MeshBasicMaterial({ color: 0xffa62b, transparent: true, opacity: 0.95,
+      depthTest: false, depthWrite: false });
+    mat.toneMapped = false;                    // ACES washed it to pale cream
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.032, 6, 28), mat);
+    ring.rotation.x = Math.PI / 2;
+    g.add(ring);
+    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.18, 4), mat);
+    tip.rotation.x = Math.PI; tip.position.y = -0.2;
+    g.add(tip);
+    g.renderOrder = 999; ring.renderOrder = 999; tip.renderOrder = 999;
+    g.visible = false;
+    scene.add(g);
+    return g;
+  })();
+
+  // Human names for carried parts.
+  (function nameCarryables() {
+    const p = wreckInterior.parts || {};
+    if (p.plateA) p.plateA.userData.carryName = 'debris plate';
+    if (p.plateB) p.plateB.userData.carryName = 'debris plate';
+    if (p.battery) p.battery.userData.carryName = 'battery';
+    if (p.plug) p.plug.userData.carryName = 'cable plug';
+    if (s4.panel) s4.panel.userData.carryName = 'loose plating';
+    if (s6.batt) s6.batt.userData.carryName = 'battery pack';
+    if (s6.chunk) s6.chunk.userData.carryName = 'regolith chunk';
+  })();
+
+  // ── UI sounds ──
+  function sndUi(kind) {
+    if (!audioCtx) return;
+    const t0 = audioCtx.currentTime;
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    const f = { tick: 1250, confirm: 660, done: 880, deny: 220 }[kind] || 900;
+    o.type = kind === 'deny' ? 'square' : 'sine';
+    o.frequency.setValueAtTime(f, t0);
+    if (kind === 'confirm') o.frequency.exponentialRampToValueAtTime(f * 1.5, t0 + 0.08);
+    if (kind === 'done') o.frequency.setValueAtTime(f * 1.26, t0 + 0.09);
+    const peak = kind === 'tick' ? 0.025 : 0.07, dur = kind === 'done' ? 0.22 : 0.10;
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(peak, t0 + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g); g.connect(masterGain);
+    o.start(t0); o.stop(t0 + dur + 0.02);
+  }
+
+  // ── Carry ──
+  function _carryKind(m) { return m.userData.dragKind === 'extra' ? 'extra' : 'stab'; }
+  function _carryGateOK() {
+    const c = interact.carry;
+    if (!c) return false;
+    if (controlMode !== 'walking' || oxygen.dead || shackletonMemory.isActive()) return false;
+    const ud = c.mesh.userData;
+    if (c.kind === 'stab') {
+      if (wreckInterior.solved) return false;
+      return Math.hypot(player.pos.x - STAB_POS.x, player.pos.z - STAB_POS.z) < 7;
+    }
+    if (ud.enabled && !ud.enabled()) return false;
+    return Math.hypot(player.pos.x - ud.homeX, player.pos.z - ud.homeZ) < 8;
+  }
+  function pickUp(mesh) {
+    if (interact.carry || reach.active) return;
+    reachStart(mesh.getWorldPosition(new THREE.Vector3()), {
+      onContact() {
+        scene.attach(mesh);                  // world-space from here on
+        interact.carry = { mesh, kind: _carryKind(mesh), name: mesh.userData.carryName || 'part' };
+        reachStart(mesh.position, { follow: mesh });
+        sndUi('confirm');
+      },
+    });
+  }
+  // Put the carried part at (x,z) and let the puzzle's own drop
+  // logic judge it (snap radii, "clear of the work area", etc.).
+  function putDown(x, z) {
+    const c = interact.carry;
+    if (!c) return;
+    interact.carry = null;
+    reachRelease();
+    c.mesh.position.x = x; c.mesh.position.z = z;
+    stabDrag.mesh = c.mesh;
+    _stabDrop();                              // stab parts and extras both route here
+    sndUi('confirm');
+  }
+  function updateCarry(dt) {
+    const c = interact.carry;
+    if (!c) return;
+    if (!_carryGateOK()) {
+      const f = _fwd();
+      putDown(player.pos.x + f.x * 0.8, player.pos.z + f.z * 0.8);
+      speak('SUIT', c.kind === 'stab' && c.mesh.userData.stabKey === 'plug'
+        ? 'cable at full stretch — plug dropped' : 'part set down', 2.0, { kind: 'system' });
+      return;
+    }
+    // Held in front at chest height, swaying with the walk.
+    const f = _fwd();
+    const tx = player.pos.x + Math.sin(player.heading) * 0.62;
+    const tz = player.pos.z + Math.cos(player.heading) * 0.62;
+    const ty = player.pos.y + 1.05 + Math.sin(performance.now() * 0.004) * 0.02;
+    const k = Math.min(1, dt * 12);
+    c.mesh.position.x += (tx - c.mesh.position.x) * k;
+    c.mesh.position.y += (ty - c.mesh.position.y) * k;
+    c.mesh.position.z += (tz - c.mesh.position.z) * k;
+    c.mesh.rotation.y += (player.heading - c.mesh.rotation.y) * k;
+    if (c.mesh.userData.stabKey === 'plug') {
+      _stabRebuildCable(c.mesh.position);
+      if (Math.hypot(c.mesh.position.x - STAB_SOCKET.x, c.mesh.position.z - STAB_SOCKET.z) > 3.6) {
+        putDown(c.mesh.position.x, c.mesh.position.z);
+        speak('SUIT', 'cable at full stretch', 1.8, { kind: 'system' });
+      }
+    }
+    void f;
+  }
+  // Camera-forward on the ground plane (what the player is "looking at").
+  const _fwdV = { x: 0, z: 1 };
+  function _fwd() {
+    camera.getWorldDirection(_camDir);
+    const l = Math.hypot(_camDir.x, _camDir.z) || 1;
+    _fwdV.x = _camDir.x / l; _fwdV.z = _camDir.z / l;
+    return _fwdV;
+  }
+
+  // ── Candidate gathering ──
+  function _gatherCandidates() {
+    const out = [];
+    const pushIt = (it) => { if (it) out.push(it); };
+    // Hands full → the only verbs are "seat it" and "put it down".
+    // (v0.5.0 playtest: carrying the battery past the hatch, E closed
+    // the hatch instead of setting the battery down.)
+    if (interact.carry) return _carryCandidates(out);
+    // Inside the wreck level only the level's own verbs exist.
+    if (level.id === 'wreck') { wreckLevelCandidates(out); return out; }
+    wreckLevelCandidates(out);
+    // Scene interactables (pin, brace, install, reflector crank …)
+    for (const it of worldInteractables) {
+      if (it.hidden && it.hidden()) continue;
+      out.push({ key: it, x: it.x, z: it.z, r: it.r, label: it.label, fire: () => it.fire(), hold: it.hold });
+    }
+    // Hatch touchpad (replaced by "enter the wreck" in the ?wreck2 blockout)
+    if (!WRECK_LEVEL_ENABLED) {
+      out.push({ key: hatchInteract, x: hatchInteract.x, z: hatchInteract.z, r: hatchInteract.r,
+        label: hatchInteract.label,
+        fire: () => { if (!reach.active) reachStart(hatchAssembly.padWorld, { onContact: toggleHatch }); } });
+    }
+    // O₂ station
+    if (refillPanel && !oxygen.dead) {
+      const p = refillPanel.position;
+      const full = oxygen.percent >= oxygen.capacity - 0.5;
+      out.push({ key: refillPanel, x: p.x, z: p.z, y: p.y + 1.1, r: REFILL_PANEL_RADIUS,
+        label: refill.connected ? 'disconnect the O₂ hose'
+             : (full ? 'O₂ full' : 'connect the O₂ hose'),
+        info: !refill.connected && full,
+        hold: refill.connected ? 0 : 0.35,
+        mesh: refillPanel.userData.statusLight,
+        fire: requestRefillToggle });
+    }
+    // Flyer
+    if (typeof flyerHeading !== 'undefined' && flyerHeading.visible) {
+      const fp = flyerHeading.position;
+      if (flyerRepair.installed) {
+        out.push({ key: flyer, x: fp.x, z: fp.z, y: fp.y + 1.6, r: 4.5, label: 'board the Flyer', fire: beginBoarding });
+      } else if (!scene4.braceHeld && !scene5.installing) {
+        out.push({ key: flyer, x: fp.x, z: fp.z, y: fp.y + 1.6, r: 4.5, info: true,
+          label: 'frame buckled — structural brace required' });
+      }
+    }
+    {
+      // Loose parts that can be picked up.
+      // Parts that have done their job stop offering "pick up".
+      const finished = (m) => (m === s4.panel && scene4.panelDone) ||
+                              (m === s6.batt && scene6.power) ||
+                              (m === s6.chunk && scene6.cleared);
+      const parts = (_stabCanInteract() ? _stabDraggables() : [])
+        .concat(extraDraggables.filter(m => m.visible && !finished(m) &&
+                                            (!m.userData.enabled || m.userData.enabled())));
+      for (const m of parts) {
+        const wp = m.getWorldPosition(new THREE.Vector3());
+        out.push({ key: m, x: wp.x, z: wp.z, y: wp.y + 0.35, r: 1.9, mesh: m,
+          label: 'pick up the ' + (m.userData.carryName || 'part'), fire: () => pickUp(m) });
+      }
+    }
+    void pushIt;
+    return out;
+  }
+  function _carryCandidates(out) {
+    {
+      // Sockets for what's in hand.
+      const m = interact.carry.mesh, fy = (wreckInterior.parts || {}).floorY;
+      if (m.userData.stabKey === 'battery')
+        out.push({ key: 'rack', x: STAB_RACK.x, z: STAB_RACK.z, y: fy + 1.73, r: 2.4, label: 'seat the battery',
+          fire: () => putDown(STAB_RACK.x, STAB_RACK.z) });
+      if (m.userData.stabKey === 'plug')
+        out.push({ key: 'socket', x: STAB_SOCKET.x, z: STAB_SOCKET.z, y: fy + 1.11, r: 2.4, label: 'plug in the cable',
+          fire: () => putDown(STAB_SOCKET.x, STAB_SOCKET.z) });
+      if (m === s6.batt && !scene6.power)
+        out.push({ key: 's6socket', x: s6.socket.position.x, z: s6.socket.position.z,
+          y: s6.socket.position.y + 0.3, r: 2.0, label: 'connect the battery pack', mesh: s6.socket,
+          fire: () => putDown(s6.socket.position.x, s6.socket.position.z) });
+    }
+    return out;
+  }
+
+  function _score(c, f) {
+    const dx = c.x - player.pos.x, dz = c.z - player.pos.z;
+    const d = Math.hypot(dx, dz);
+    if (d > c.r) return Infinity;
+    // Facing = the better of camera-forward and body-forward: orbiting
+    // the camera to look at something counts, and so does simply
+    // standing square to it while the chase cam is still swinging round.
+    const hx = Math.sin(player.heading), hz = Math.cos(player.heading);
+    const cos = d > 1e-3 ? Math.max(dx * f.x + dz * f.z, dx * hx + dz * hz) / d : 1;
+    if (cos < 0.15 && d > 1.0) return Infinity;            // behind you
+    return (d + 0.3) * (1 + (1 - cos) * 1.6) + (c.info ? 2 : 0);  // info items rank last
+  }
+
+  function _setGlow(mesh) {
+    if (interact._glowMesh === mesh) return;
+    const prev = interact._glowMesh;
+    if (prev && prev.material && prev.material.emissive && prev.userData._glowOrig != null) {
+      prev.material.emissive.setHex(prev.userData._glowOrig);
+    }
+    interact._glowMesh = mesh || null;
+    if (mesh && mesh.material && mesh.material.emissive) {
+      if (mesh.userData._glowOrig == null) mesh.userData._glowOrig = mesh.material.emissive.getHex();
+    }
+  }
+
+  function _renderPrompt(c, holdK) {
+    const el = $('interact-prompt');
+    if (!el) return;
+    if (!c && !interact.carry) { el.classList.remove('on'); return; }
+    let html;
+    if (c && c.info) {
+      html = '<span class="ip-info">' + c.label + '</span>';
+    } else if (c) {
+      const lbl = (typeof c.label === 'function') ? c.label() : c.label;
+      const ring = c.hold ? ' style="--hold:' + Math.round(holdK * 100) + '%"' : '';
+      html = '<span class="ip-key' + (c.hold ? ' ip-hold' : '') + '"' + ring + '>E</span>' +
+             (c.hold ? '<span class="ip-verb">hold · </span>' : '') + lbl;
+    } else {
+      html = '<span class="ip-key">E</span>put down the ' + interact.carry.name;
+    }
+    if (el._html !== html) { el.innerHTML = html; el._html = html; }
+    el.classList.add('on');
+  }
+
+  function _fire(c) {
+    if (c) {
+      if (c.info || !c.fire) { sndUi('deny'); return; }
+      sndUi('confirm');
+      c.fire();
+    } else if (interact.carry) {
+      const f = _fwd();
+      putDown(player.pos.x + Math.sin(player.heading) * 0.85, player.pos.z + Math.cos(player.heading) * 0.85);
+      void f;
+    }
+  }
+
+  function updateInteract(dt) {
+    const active = controlMode === 'walking' && !oxygen.dead && !shackletonMemory.isActive() &&
+                   !(typeof opening !== 'undefined' && opening.active);
+    if (!active) {
+      interactMarker.visible = false; _setGlow(null);
+      const el = $('interact-prompt'); if (el) el.classList.remove('on');
+      interact.focus = null; interact.down = false; interact.holdT = 0;
+      return;
+    }
+    updateCarry(dt);
+    const f = _fwd();
+    const cands = _gatherCandidates();
+    let best = null, bestS = Infinity, cur = null, curS = Infinity;
+    for (const c of cands) {
+      const s = _score(c, f);
+      if (s < bestS) { bestS = s; best = c; }
+      if (interact.focusKey && c.key === interact.focusKey) { cur = c; curS = s; }
+    }
+    if (cur && curS < Infinity && curS <= bestS * 1.25) best = cur;   // sticky focus
+    if ((best ? best.key : null) !== interact.focusKey) {
+      interact.focusKey = best ? best.key : null;
+      interact.holdT = 0; interact.firedThisPress = interact.down;   // no carry-over of a held key
+      if (best && !best.info) sndUi('tick');
+    }
+    interact.focus = best;
+
+    // Hold / press.
+    let holdK = 0;
+    if (interact.down && !interact.firedThisPress) {
+      if (best && best.hold) {
+        interact.holdT += dt;
+        holdK = Math.min(1, interact.holdT / best.hold);
+        if (holdK >= 1) { interact.firedThisPress = true; _fire(best); }
+      } else {
+        interact.firedThisPress = true; _fire(best);
+      }
+    }
+    if (!interact.down) interact.holdT = 0;
+
+    // Feedback: marker + glow + prompt.
+    if (best && !best.info) {
+      const y = best.y != null ? best.y : (playerGroundY(best.x, best.z, player.pos.y + 2) + 1.3);
+      interactMarker.visible = true;
+      interactMarker.position.set(best.x, y + 0.35 + Math.sin(performance.now() * 0.005) * 0.05, best.z);
+      interactMarker.rotation.y += dt * 2.0;
+      _setGlow(best.mesh || null);
+      if (interact._glowMesh && interact._glowMesh.material.emissive) {
+        const pulse = 0.5 + 0.5 * Math.sin(performance.now() * 0.008);
+        interact._glowMesh.material.emissive.setRGB(0.32 * pulse + 0.1, 0.22 * pulse + 0.06, 0.02);
+      }
+    } else {
+      interactMarker.visible = false; _setGlow(null);
+    }
+    _renderPrompt(best, holdK);
+  }
+
+  // Input: E (keyboard) and the prompt itself (touch / mouse).
+  window.addEventListener('keydown', (e) => {
+    if (e.key.toLowerCase() !== 'e' || controlMode !== 'walking') return;
+    if (!e.repeat) { interact.down = true; interact.firedThisPress = false; interact.holdT = 0; }
+  });
+  window.addEventListener('keyup', (e) => {
+    if (e.key.toLowerCase() === 'e') interact.down = false;
+  });
+  (function () {
+    const el = $('interact-prompt');
+    if (!el) return;
+    el.addEventListener('pointerdown', (ev) => {
+      ev.stopPropagation(); ev.preventDefault();
+      interact.down = true; interact.firedThisPress = false; interact.holdT = 0;
+    });
+    const up = () => { interact.down = false; };
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointerleave', up);
+    el.addEventListener('pointercancel', up);
+  })();
+
+  // ============================================================
+  // O₂ STATION FEEDBACK (v0.5.0)
+  //   - fill time is fixed (~O2_FILL_SECONDS for a full tank) instead
+  //     of a flat 4%/s, which meant a 30s wait at capacity 120
+  //   - hiss while gas flows; click + "O₂ full" + auto-release at the
+  //     ceiling (v0.4.x stayed connected at full — players couldn't
+  //     tell it had finished)
+  //   - a gauge on the panel face mirrors the suit level
+  //   - HUD bar animates while filling
+  // ============================================================
+  const O2_FILL_SECONDS = 4.0;
+  const o2Station = { hiss: null, hissGain: null, fullT: 0 };
+  const o2Gauge = (function () {
+    const g = new THREE.Group();
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.42, 0.02),
+      new THREE.MeshBasicMaterial({ color: 0x15171b }));
+    g.add(frame);
+    const fillMat = new THREE.MeshBasicMaterial({ color: 0x6ad28e });
+    const fill = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.38, 0.022), fillMat);
+    fill.geometry.translate(0, 0.19, 0);
+    fill.position.y = -0.19;
+    g.add(fill);
+    g.position.set(0, 0.72, 0.185);          // front face of the control pillar
+    refillPanel.add(g);
+    return { g, fill, fillMat };
+  })();
+  function _o2HissSet(on) {
+    if (!audioCtx) return;
+    if (!o2Station.hiss) {
+      const len = audioCtx.sampleRate * 2;
+      const buf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      const src = audioCtx.createBufferSource(); src.buffer = buf; src.loop = true;
+      const bp = audioCtx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 3200; bp.Q.value = 0.8;
+      const g = audioCtx.createGain(); g.gain.value = 0;
+      src.connect(bp); bp.connect(g); g.connect(masterGain); src.start();
+      o2Station.hiss = src; o2Station.hissGain = g;
+    }
+    o2Station.hissGain.gain.setTargetAtTime(on ? 0.05 : 0, audioCtx.currentTime, on ? 0.05 : 0.12);
+  }
+  function updateO2Station(dt) {
+    const flowing = refill.connected && oxygen.percent < oxygen.capacity - 0.01;
+    _o2HissSet(flowing && controlMode === 'walking');
+    // Gauge mirrors the suit while connected, the tank's readiness otherwise.
+    const k = refill.connected ? oxygen.percent / Math.max(1, oxygen.capacity) : 1;
+    o2Gauge.fill.scale.y = Math.max(0.02, k);
+    o2Gauge.fillMat.color.setHex(refill.connected ? (flowing ? 0x6ad28e : 0xbff5cf) : 0x3a5a44);
+    const hud = $('oxygen-hud');
+    if (hud) hud.classList.toggle('filling', flowing);
+    // Full → auto-release after a short beat so the player sees it land.
+    if (refill.connected && !flowing && !rescueSit.active) {
+      o2Station.fullT += dt;
+      if (o2Station.fullT > 0.6) {
+        o2Station.fullT = 0;
+        refill.connected = false;
+        sndUi('done');
+        speak('SUIT', 'O₂ full — hose released', 2.2, { kind: 'system' });
+      }
+    } else {
+      o2Station.fullT = 0;
+    }
+  }
+
+  // ============================================================
+  // WRECK INTERIOR — ITS OWN LEVEL (v0.6.0 blockout)
+  //
+  // The hatch no longer opens onto rooms built into the crater scene:
+  // it fades to black and loads the interior as a separate level with
+  // its own floor, walls, lights and SET CAMERAS. Plain shapes only —
+  // this build exists to walk the layout and judge the cameras before
+  // any detail goes in.
+  //
+  //   colour key   grey = structure · blue = device / puzzle station
+  //                orange = loose part to carry · purple = memory spot
+  //                red = blocked
+  //
+  // Lives 3 km from the crater (WL_ORIGIN) so nothing distance-based
+  // in the crater (interactables, robots, panels) can reach in; the
+  // crater's top-level objects and sun are hidden while inside.
+  //
+  // Enabled with ?wreck2 (hatch → this level). ?wreck2=in starts here.
+  // Without the flag the v0.5 hull and its puzzles are untouched, so
+  // the main progression keeps working while the blockout is judged.
+  //
+  // Layout along the hull (local +X, 0 → 42 m), floor y = 0 is the
+  // collapsed decking 1.2 m above the curved hull bottom; hull radius
+  // 4.5 m → walkable chord ±3.05 m, ~7.8 m to the hull top.
+  //   S0  0–7    breach — the side rip you came in through
+  //   S1  7–17   corridor between fallen deck plates
+  //   S2  17–25  life support — O₂ stabiliser (scene 3)
+  //   S3  25–36  cargo bay — structural brace (scene 4)
+  //   S4  36–41  crew quarters — memory spot
+  //   S5  41     tail bulkhead — sealed (engine bay)
+  // ============================================================
+  const WRECK_LEVEL_FLAG = (location.search.match(/[?&]wreck2(=(\w+))?/) || null);
+  const WRECK_LEVEL_ENABLED = !!WRECK_LEVEL_FLAG;
+  const WL_ORIGIN = new THREE.Vector3(3000, 0, 3000);
+  const WL_R = 4.5, WL_AXIS_Y = 3.3, WL_HALF_W = 3.05, WL_LEN = 42;
+  const level = { id: 'crater', fading: false };
+
+  const wreckLevel = (function () {
+    const root = new THREE.Group();
+    root.position.copy(WL_ORIGIN);
+    root.visible = false;
+    root.name = 'wreckLevel';
+    scene.add(root);
+
+    const M = (c) => new THREE.MeshPhongMaterial({ color: c, flatShading: true, shininess: 0 });
+    const matHull = M(0x5d6066), matWall = M(0x7b7f86), matFloor = M(0x4a4d52);
+    const matDev = M(0x3f78c8), matPart = M(0xe0832f), matMem = M(0x8a5cc8), matBlock = M(0xb3393a);
+    const boxes = [];   // local colliders → registered on enter
+
+    function box(w, h, d, x, y, z, mat, opts) {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+      m.position.set(x, y + h / 2, z);
+      if (opts && opts.ry) m.rotation.y = opts.ry;
+      m.castShadow = true; m.receiveShadow = true;
+      root.add(m);
+      if (!opts || opts.solid !== false) {
+        boxes.push({ x, z, hx: w / 2, hz: d / 2, yaw: (opts && opts.ry) || 0,
+                     y0: y, y1: y + h, walkable: !!(opts && opts.walk) });
+      }
+      return m;
+    }
+    // Floating label for the walkthrough.
+    function label(text, x, y, z, col) {
+      const c = document.createElement('canvas'); c.width = 512; c.height = 96;
+      const g = c.getContext('2d');
+      g.fillStyle = 'rgba(10,12,16,0.72)'; g.fillRect(0, 0, 512, 96);
+      g.fillStyle = col || '#f0c674'; g.font = '30px monospace'; g.textAlign = 'center';
+      g.fillText(text, 256, 60);
+      const tex = new THREE.CanvasTexture(c);
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
+      sp.scale.set(2.6, 0.49, 1); sp.position.set(x, y, z); sp.renderOrder = 997;
+      root.add(sp);
+      return sp;
+    }
+
+    // ── Hull: 14-sided tube seen from inside, lying along X ──
+    const hullGeo = new THREE.CylinderGeometry(WL_R, WL_R, WL_LEN, 14, 1, true);
+    hullGeo.rotateZ(Math.PI / 2);
+    const hull = new THREE.Mesh(hullGeo, new THREE.MeshPhongMaterial({
+      color: 0x5d6066, flatShading: true, shininess: 0, side: THREE.BackSide }));
+    hull.position.set(WL_LEN / 2, WL_AXIS_Y, 0);
+    hull.receiveShadow = true;
+    root.add(hull);
+    // Decking floor + side walls (the chord edges) + end caps.
+    box(WL_LEN, 0.2, WL_HALF_W * 2, WL_LEN / 2, -0.2, 0, matFloor, { solid: false });
+    box(WL_LEN, 8, 0.2, WL_LEN / 2, 0, WL_HALF_W + 0.1, matHull, { solid: true });
+    box(WL_LEN, 8, 0.2, WL_LEN / 2, 0, -WL_HALF_W - 0.1, matHull, { solid: true });
+    box(0.3, 8, WL_HALF_W * 2, -0.15, 0, 0, matHull);
+    // Ring frames every 3 m — the rhythm of the hull.
+    for (let x = 3; x < WL_LEN; x += 3) {
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(WL_R - 0.12, 0.12, 4, 14), matWall);
+      ring.rotation.y = Math.PI / 2;
+      ring.position.set(x, WL_AXIS_Y, 0);
+      root.add(ring);
+    }
+    // Bulkheads with a doorway (1.7 wide × 2.4 high) at each section break.
+    function bulkhead(x, doorZ) {
+      const dz = doorZ || 0, half = 0.85;
+      const leftW = (WL_HALF_W + dz) - half, rightW = (WL_HALF_W - dz) - half;
+      box(0.25, 7.6, leftW, x, 0, -WL_HALF_W + leftW / 2, matWall);
+      box(0.25, 7.6, rightW, x, 0, WL_HALF_W - rightW / 2, matWall);
+      box(0.25, 5.2, half * 2, x, 2.4, dz, matWall, { solid: false });   // lintel
+    }
+    bulkhead(7, -0.6); bulkhead(17, 0.4); bulkhead(25, 0); bulkhead(36, -0.8);
+    // S5 sealed tail
+    box(0.4, 8, WL_HALF_W * 2, 41.2, 0, 0, matBlock);
+    label('S5 · tail bulkhead — sealed (engine bay)', 40.6, 2.6, 0, '#ff8a80');
+
+    // ── S0 breach: the rip you came through, on the −Z wall ──
+    const breach = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 3.2),
+      new THREE.MeshBasicMaterial({ color: 0xe8ecf2 }));
+    breach.position.set(3.2, 1.6, -WL_HALF_W + 0.02);
+    root.add(breach);
+    box(1.2, 0.5, 0.9, 5.4, 0, 1.4, matWall, { walk: true });            // fallen locker
+    label('S0 · breach — way out', 3.2, 3.6, -2.2);
+
+    // ── S1 corridor: fallen deck plates narrow it to ~3 m ──
+    box(10, 6.5, 0.25, 12, 0, 1.55, matWall);                             // deck plate (was a floor)
+    box(4, 6.5, 0.25, 9, 0, -1.45, matWall);
+    box(3.5, 6.5, 0.25, 15.2, 0, -1.45, matWall);
+    box(1.6, 0.42, 1.2, 11.6, 0, 0.2, matWall, { walk: true });          // debris to step over
+    box(0.2, 0.2, 3.0, 13.9, 1.9, 0, matWall, { solid: false });          // ladder, now horizontal
+    label('S1 · corridor', 12, 3.4, 0);
+
+    // ── S2 life support (scene 3: O₂ stabiliser) ──
+    box(1.4, 1.6, 1.0, 21, 0, -2.4, matDev);                              // stabiliser
+    box(0.9, 0.5, 0.6, 23.2, 1.3, -2.6, matDev, { solid: false });        // battery rack (high)
+    box(0.5, 0.35, 0.4, 19.1, 0, 1.9, matPart);                           // loose battery
+    box(1.1, 0.12, 0.8, 20.6, 0, 0.6, matPart);                           // debris plate
+    box(0.9, 0.12, 0.7, 22.1, 0, -0.9, matPart);                          // debris plate
+    label('S2 · O₂ stabiliser (scene 3)', 21, 2.6, -2.2, '#9cc4ff');
+
+    // ── S3 cargo bay (scene 4: structural brace) ──
+    box(2.2, 1.6, 1.4, 27.4, 0, 2.0, matWall, { walk: false });           // cargo crates
+    box(1.4, 0.8, 1.4, 29.6, 0, 2.2, matWall, { walk: true });            // climbable step
+    box(3.4, 0.25, 1.0, 32.0, 0.35, -1.9, matPart, { solid: false });     // the brace
+    box(3.6, 0.3, 1.5, 32.0, 0.6, -1.9, matWall, { solid: false });       // plating pinning it
+    box(0.25, 0.9, 0.25, 30.1, 0, -1.2, matDev);                          // locking pin
+    label('S3 · cargo bay — structural brace (scene 4)', 31, 3.4, -1.5, '#9cc4ff');
+
+    // ── S4 crew quarters (memory) ──
+    box(2.0, 0.6, 0.8, 38.4, 2.4, 2.6, matWall, { solid: false });        // bunks, on the wall now
+    box(2.0, 0.6, 0.8, 38.4, 4.0, 2.6, matWall, { solid: false });
+    box(0.8, 1.9, 0.6, 39.6, 0, -2.6, matMem);                            // personal locker
+    label('S4 · crew quarters — memory', 38.6, 3.0, -1.6, '#d2b6ff');
+
+    // ── Lights: dark interior, emergency red/amber, daylight at the rip ──
+    const lights = [];
+    function pl(c, i, d, x, y, z) {
+      const l = new THREE.PointLight(c, i, d, 2);
+      l.position.set(x, y, z); root.add(l); lights.push(l); return l;
+    }
+    const amb = new THREE.AmbientLight(0x30343c, 0.55); root.add(amb);
+    pl(0xff3b2f, 1.6, 9, 9.5, 5.5, 0);
+    pl(0xffb347, 1.7, 9, 21, 4.8, -0.5);
+    pl(0xff3b2f, 1.4, 10, 30, 5.8, 0.5);
+    pl(0xffb347, 1.2, 7, 38.6, 4.6, 0);
+    const day = new THREE.SpotLight(0xf4f6ff, 2.2, 16, 0.55, 0.4, 1.5);
+    day.position.set(3.2, 2.4, -6); day.target.position.set(4.2, 0, 1.5);
+    day.castShadow = true; day.shadow.mapSize.set(512, 512);
+    root.add(day); root.add(day.target);
+    // Helmet lamp — follows the astronaut's head, casts the only moving shadows.
+    const lamp = new THREE.SpotLight(0xfff4dc, 1.6, 15, 0.52, 0.55, 1.6);
+    lamp.castShadow = true; lamp.shadow.mapSize.set(512, 512);
+    lamp.shadow.camera.near = 0.3;
+    lamp.visible = false;
+    scene.add(lamp); scene.add(lamp.target);
+
+    // ── Set cameras, one zone per section ──
+    // fixed: camera holds a position and turns to keep him framed.
+    // rail:  camera slides along X with him, from the side.
+    const zones = [
+      { name: 'S0', x0: -1, x1: 7,   mode: 'fixed', pos: [6.4, 3.9, 2.5] },
+      { name: 'S1', x0: 7,  x1: 17,  mode: 'rail',  y: 2.5, z: 0.1, back: 4.2, clamp: [6.2, 13.8] },
+      { name: 'S2', x0: 17, x1: 25,  mode: 'fixed', pos: [17.6, 5.3, 2.5] },
+      { name: 'S3', x0: 25, x1: 36,  mode: 'fixed', pos: [35.3, 5.8, 2.5] },
+      { name: 'S4', x0: 36, x1: 42,  mode: 'fixed', pos: [36.6, 4.2, 2.3] },
+    ];
+    const SPAWN = { x: 2.6, z: -1.6, heading: Math.PI / 2 };
+    const EXIT = { x: 3.2, z: -2.2 };
+    return { root, boxes, zones, lights, lamp, SPAWN, EXIT };
+  })();
+
+  // ── Level switch ──
+  const _hiddenForWreck = [];
+  let _wlSavedCrater = null;
+  function _wlFade(toBlack) {
+    let el = $('level-fade');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'level-fade';
+      el.style.cssText = 'position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;' +
+        'transition:opacity 0.35s ease;z-index:60';
+      document.body.appendChild(el);
+    }
+    el.style.opacity = toBlack ? '1' : '0';
+  }
+  function _wlRegisterBoxes() {
+    for (const b of wreckLevel.boxes) {
+      const c = addBoxCollider({ x: b.x + WL_ORIGIN.x, z: b.z + WL_ORIGIN.z, hx: b.hx, hz: b.hz,
+        yaw: b.yaw, y0: b.y0 + WL_ORIGIN.y, y1: b.y1 + WL_ORIGIN.y, walkable: b.walkable, tag: 'wreckLevel' });
+      c.level = 'wreck';
+    }
+  }
+  function enterWreckLevel() {
+    if (level.id === 'wreck' || level.fading) return;
+    level.fading = true;
+    _wlFade(true);
+    setTimeout(() => {
+      _wlSavedCrater = { x: player.pos.x, y: player.pos.y, z: player.pos.z, heading: player.heading };
+      // Unplug and stand: the station hose stays in the crater.
+      refill.connected = false; rescueSit.active = false; astroSeat.want = false;
+      if (o2Hose && o2Hose.mesh) { o2Hose.t = 0; o2Hose.mesh.visible = false; }
+      if (interact.carry) putDown(player.pos.x, player.pos.z);   // parts stay in the crater
+      // Hide every crater top-level object (terrain, wreck exterior, robots,
+      // sun, sky dome…) except the astronaut and the shared UI helpers.
+      _hiddenForWreck.length = 0;
+      const keep = new Set([astronautRoot, wreckLevel.root, interactMarker, wreckLevel.lamp, wreckLevel.lamp.target, camera]);
+      for (const o of scene.children) {
+        if (keep.has(o) || !o.visible) continue;
+        o.visible = false; _hiddenForWreck.push(o);
+      }
+      wreckLevel.root.visible = true;
+      wreckLevel.lamp.visible = true;
+      scene.background = new THREE.Color(0x000000);
+      if (!boxColliders.some(b => b.tag === 'wreckLevel')) _wlRegisterBoxes();
+      level.id = 'wreck';
+      const s = wreckLevel.SPAWN;
+      player.pos.set(WL_ORIGIN.x + s.x, WL_ORIGIN.y, WL_ORIGIN.z + s.z);
+      player.vel.set(0, 0, 0);
+      player.heading = s.heading;
+      wreckCam.zone = null;
+      updateWreckCamera(0, true);
+      level.fading = false;
+      _wlFade(false);
+    }, 380);
+  }
+  function exitWreckLevel() {
+    if (level.id !== 'wreck' || level.fading) return;
+    level.fading = true;
+    _wlFade(true);
+    setTimeout(() => {
+      for (const o of _hiddenForWreck) o.visible = true;
+      _hiddenForWreck.length = 0;
+      wreckLevel.root.visible = false;
+      wreckLevel.lamp.visible = false;
+      level.id = 'crater';
+      const zl = $('zone-label'); if (zl) zl.textContent = '';
+      const s = _wlSavedCrater || { x: hatchInteract.x, z: hatchInteract.z + 1.5, heading: 0 };
+      // Step back out of the doorway, facing away from the hull.
+      const hx = hatchInteract.x, hz = hatchInteract.z;
+      const ax = s.x - hx, az = s.z - hz, al = Math.hypot(ax, az) || 1;
+      const ox = hx + ax / al * 2.2, oz = hz + az / al * 2.2;
+      player.pos.set(ox, shackletonScene.getGroundY(ox, oz), oz);
+      player.vel.set(0, 0, 0);
+      player.heading = Math.atan2(ax, az);
+      camYaw = player.heading;
+      level.fading = false;
+      _wlFade(false);
+    }, 380);
+  }
+
+  // ── Set-camera director ──
+  // Movement is camera-relative; on a cut the stick direction would flip
+  // mid-step. So the movement basis (wreckCam.basisYaw) only re-reads
+  // the camera once the player lets go of the stick — classic fixed-
+  // camera control latching.
+  const wreckCam = { zone: null, basisYaw: 0, look: new THREE.Vector3(), pos: new THREE.Vector3() };
+  function updateWreckCamera(dt, snap) {
+    const lx = player.pos.x - WL_ORIGIN.x;
+    let z = wreckCam.zone;
+    if (!z || lx < z.x0 - 0.3 || lx > z.x1 + 0.3) {          // hysteresis at boundaries
+      z = wreckLevel.zones.find(q => lx >= q.x0 && lx < q.x1) || wreckLevel.zones[0];
+      if (z !== wreckCam.zone) { wreckCam.zone = z; snap = true; }
+    }
+    const O = WL_ORIGIN;
+    if (z.mode === 'fixed') {
+      wreckCam.pos.set(O.x + z.pos[0], O.y + z.pos[1], O.z + z.pos[2]);
+    } else {
+      const cx = Math.max(z.clamp[0], Math.min(z.clamp[1], lx - z.back));
+      const want = new THREE.Vector3(O.x + cx, O.y + z.y, O.z + z.z);
+      if (snap) wreckCam.pos.copy(want);
+      else wreckCam.pos.lerp(want, Math.min(1, dt * 4));
+    }
+    const lookT = new THREE.Vector3(player.pos.x, player.pos.y + 1.1, player.pos.z);
+    if (snap) wreckCam.look.copy(lookT); else wreckCam.look.lerp(lookT, Math.min(1, dt * 6));
+    camera.position.copy(wreckCam.pos);
+    camera.lookAt(wreckCam.look);
+    const moving = Math.abs(input.forward) > 0.05 || Math.abs(input.strafe) > 0.05;
+    if (!moving || snap && !wreckCam._latched) {
+      camera.getWorldDirection(_camDir);
+      wreckCam.basisYaw = Math.atan2(_camDir.x, _camDir.z);
+    }
+    wreckCam._latched = moving;
+    // Helmet lamp from the head, along the body heading, tilted down.
+    const L = wreckLevel.lamp, b = (astroSeat.bones || _seatBones());
+    if (b) b.Head.getWorldPosition(L.position); else L.position.set(player.pos.x, player.pos.y + 1.6, player.pos.z);
+    L.target.position.set(L.position.x + Math.sin(player.heading) * 4, L.position.y - 1.2,
+                          L.position.z + Math.cos(player.heading) * 4);
+    const zl = $('zone-label');
+    if (zl) zl.textContent = WRECK_LEVEL_ENABLED ? ('wreck blockout · camera ' + z.name + ' · ' + z.mode) : '';
+  }
+
+  // Interaction candidates for the level switch.
+  function wreckLevelCandidates(out) {
+    if (!WRECK_LEVEL_ENABLED) return;
+    if (level.id === 'crater') {
+      out.push({ key: 'enterWreck', x: hatchInteract.x, z: hatchInteract.z, r: hatchInteract.r + 0.6,
+        label: 'enter the wreck', fire: enterWreckLevel });
+    } else {
+      out.push({ key: 'exitWreck', x: WL_ORIGIN.x + wreckLevel.EXIT.x, z: WL_ORIGIN.z + wreckLevel.EXIT.z,
+        y: WL_ORIGIN.y + 1.6, r: 2.2, label: 'leave the wreck', fire: exitWreckLevel });
+    }
+  }
+  if (WRECK_LEVEL_FLAG && WRECK_LEVEL_FLAG[2] === 'in') {
+    // Skip straight in once the opening hands over.
+    const t = setInterval(() => {
+      // opening.phase 'done' — not merely "not active": the title screen
+      // is also not-active, and entering then let the opening re-seat
+      // him at the bottles afterwards.
+      if (typeof opening !== 'undefined' && opening.phase === 'done' && !opening.active && astronautRoot) {
+        clearInterval(t);
+        rescueSit.active = false; astroSeat.want = false; refill.connected = false;
+        enterWreckLevel();
+      }
+    }, 300);
+  }
+
+  // ============================================================
+  // SURFACE LITTER (v0.7.3) — the reference soil is strewn with small
+  // stones and clods, a few to a square metre. 9,000 instanced rocks,
+  // 3–16 cm, half-buried, denser in MASCON's rock fields and round
+  // crater rims. One draw call; too small to need colliders.
+  // ============================================================
+  (function scatterLitter() {
+    const N = 9000;
+    const im = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 0), boulderMat, N);
+    const d = new THREE.Object3D();
+    let n = 0;
+    for (let k = 0; n < N && k < N * 6; k++) {
+      const a = rng(k + 0.11) * Math.PI * 2, r = Math.sqrt(rng(k + 0.37)) * (CRATER_FLOOR - 3);
+      const x = Math.cos(a) * r, z = Math.sin(a) * r;
+      if (x > 5 && x < 39 && z > -8 && z < 5) continue;                       // inside the wreck hull
+      if (Math.hypot(x - PEAK_CENTER_X, z - PEAK_CENTER_Z) < PEAK_BASE_R) continue;
+      if (rng(k + 0.59) > 0.22 + 0.78 * lunarFloor.rockAt(x, z)) continue;
+      const big = rng(k + 0.71);
+      const sz = big > 0.93 ? 0.09 + rng(k + 0.83) * 0.08 : 0.025 + rng(k + 0.83) * 0.05;
+      d.position.set(x, shackletonScene.getGroundY(x, z) + sz * 0.15, z);
+      d.rotation.set(rng(k + 0.2) * 6.28, rng(k + 0.3) * 6.28, rng(k + 0.4) * 6.28);
+      d.scale.set(sz * (0.7 + rng(k + 0.5) * 0.6), sz * (0.45 + rng(k + 0.6) * 0.4), sz * (0.7 + rng(k + 0.7) * 0.6));
+      d.updateMatrix();
+      im.setMatrixAt(n++, d.matrix);
+    }
+    im.count = n;
+    im.castShadow = true; im.receiveShadow = true;
+    im.name = 'surface-litter';
+    im.frustumCulled = false;
+    scene.add(im);
+  })();
+
+  // ============================================================
   // RENDER LOOP
   // ============================================================
   const clock = new THREE.Clock();
+  // frame(dt) is one simulation + render step; loop() drives it from
+  // requestAnimationFrame. Split (v0.5.0) so the headless test harness
+  // can step the game deterministically at a fixed dt.
   function loop() {
-    const dt = Math.min(0.05, clock.getDelta());
+    frame(Math.min(0.05, clock.getDelta()));
+    requestAnimationFrame(loop);
+  }
+  function frame(dt) {
     if (opening.active) {
+      // Clears any prompt left over from behind the title screen
+      // (updateInteract hides itself while the opening runs).
+      updateInteract(dt);
       // Face-down wake cinematic — drives astronaut pose, camera,
       // HUD overlays, and keeps the robots simulating so the world
       // reads as alive behind the player.
@@ -12923,7 +14366,9 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
           updateRefillProximity();
           updateWreckInterior(dt);
           updateScenes(dt);
+          updateO2Station(dt);
         }
+        updateLunarDust(dt);
         updateOxygen(dt);
       } else if (controlMode === 'boarding') {
         updateBoarding(dt);
@@ -12971,7 +14416,9 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
           mat.emissive.setHex(0xff8833);
         }
       }
-      if (!shackletonMemory.isActive()) updateCamera(dt);   // camera holds during fragments (spec §8)
+      updateInteract(dt);                                   // v0.5.0 — after scene state, before camera
+      if (level.id === 'wreck') updateWreckCamera(dt);      // v0.6 set cameras indoors
+      else if (!shackletonMemory.isActive()) updateCamera(dt);   // camera holds during fragments (spec §8)
       // Shadow frustum follows the active subject — astronaut on
       // foot, Flyer in flight — texel-snapped inside updateSunFollow.
       if (controlMode === 'flying' && typeof flyerHeading !== 'undefined' && flyerHeading) {
@@ -12982,7 +14429,9 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     } else if (_gameStarted) {
       updateCinematic(dt);
     }
+    applyLope();                     // v0.7.2 — stride arc + clip phase lock
     if (mixer) mixer.update(dt);
+    if (astroSeat.want || astroSeat.w > 0) applySeatedPose(dt);   // bones AFTER the mixer stamp
     updateReach(dt);                 // arm override AFTER the mixer stamp
     updateEntities(dt);              // entity registry — additive pass
     updateHose(dt);                  // O₂ umbilical — no-op unless connected
@@ -12992,7 +14441,6 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     processSpeech(dt);
     earth.rotation.y += dt * 0.03;
     renderer.render(scene, camera);
-    requestAnimationFrame(loop);
   }
 
   // Initial camera placement
@@ -13023,6 +14471,44 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       oh.classList.add('on');
     }
   });
+
+  if (WRECK_LEVEL_ENABLED) {
+    const zl = document.createElement('div');
+    zl.id = 'zone-label';
+    zl.style.cssText = 'position:fixed;left:50%;bottom:14px;transform:translateX(-50%);font:11px monospace;' +
+      'letter-spacing:2px;color:#f0c674;opacity:0.8;pointer-events:none;z-index:40';
+    document.body.appendChild(zl);
+  }
+
+  // ── DEBUG HOOK (v0.5.0) ── only with ?debug in the URL. A direct
+  // eval inside this closure, so the automated test harness (and the
+  // console) can read and drive game state: __shk('player.pos').
+  if (/[?&]debug\b/.test(location.search)) {
+    window.__shk = (src) => eval(src);
+    // ?debug&colliders — wireframe every box collider (refreshed 2×/s
+    // so colliders added by late-loading GLBs show up).
+    if (/[?&]colliders\b/.test(location.search)) {
+      const grp = new THREE.Group(); scene.add(grp);
+      const mat = new THREE.LineBasicMaterial({ color: 0xff00ff, depthTest: false });
+      setInterval(() => {
+        while (grp.children.length) grp.remove(grp.children[0]);
+        for (const b of boxColliders) {
+          const e = new THREE.LineSegments(new THREE.EdgesGeometry(
+            new THREE.BoxGeometry(b.hx * 2, b.y1 - b.y0, b.hz * 2)), mat);
+          e.position.set(b.x, (b.y0 + b.y1) / 2, b.z);
+          e.rotation.y = Math.atan2(b.s, b.c);
+          e.renderOrder = 998;
+          grp.add(e);
+        }
+      }, 500);
+    }
+    // Fixed-step advance without rendering each step (fast in headless).
+    window.__step = (n, dt) => {
+      const r = renderer.render; renderer.render = () => {};
+      try { for (let i = 0; i < n; i++) frame(dt || 1 / 30); } finally { renderer.render = r; }
+    };
+    console.log('[debug] __shk hook enabled');
+  }
 })();
 </script>
 </body>
