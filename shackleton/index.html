@@ -6,6 +6,9 @@
 <title>SHACKLETON</title>
 <style>
 * { box-sizing: border-box; }
+/* v0.10.1: no page zoom, text selection or long-press menus on phones */
+html { touch-action: none; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+* { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
 body { margin: 0; padding: 0; background: #050608; color: #e8e9ec; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; overflow: hidden; touch-action: none; }
 .stage { position: fixed; inset: 0; }
 .stage canvas { display: block; width: 100%; height: 100%; cursor: grab; }
@@ -593,7 +596,7 @@ body.in-wreck .cam-buttons { display: none; }
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.10.0';  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.10.1';  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -7912,6 +7915,31 @@ body.in-wreck .cam-buttons { display: none; }
     btn.addEventListener('pointercancel', release);
   }
   document.querySelectorAll('.pad button, .jump-btn').forEach(bindBtn);
+  // ── v0.10.1: stop the phone browser zooming the page ──
+  // iOS Safari ignores user-scalable=no, so block its pinch gesture and
+  // double-tap zoom directly, and snap back if the page is ever zoomed.
+  (function () {
+    const stop = (e) => { e.preventDefault(); };
+    ['gesturestart', 'gesturechange', 'gestureend'].forEach(t => document.addEventListener(t, stop, { passive: false }));
+    document.addEventListener('dblclick', stop, { passive: false });
+    document.addEventListener('touchmove', (e) => { if (e.touches.length > 1 || (e.scale && e.scale !== 1)) e.preventDefault(); }, { passive: false });
+    let lastEnd = 0;
+    document.addEventListener('touchend', (e) => {
+      const now = Date.now();
+      if (now - lastEnd < 320 && e.touches.length === 0) e.preventDefault();   // second tap of a double-tap
+      lastEnd = now;
+    }, { passive: false });
+    document.addEventListener('contextmenu', stop);
+    document.addEventListener('selectstart', stop);
+    const vv = window.visualViewport, meta = document.querySelector('meta[name="viewport"]');
+    const BASE = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
+    function unzoom() {
+      if (!vv || !meta || vv.scale <= 1.01) return;
+      meta.setAttribute('content', BASE + ', minimum-scale=1.0');
+      setTimeout(() => meta.setAttribute('content', BASE), 60);
+    }
+    if (vv) vv.addEventListener('resize', unzoom);
+  })();
   // ── Virtual joystick (v0.9.0) ──
   // Analogue walking comes from joy.x / joy.y. The WASD flags are also
   // mirrored so the Flyer and anything else that reads keys[] still works.
