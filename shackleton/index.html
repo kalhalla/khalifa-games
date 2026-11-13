@@ -593,7 +593,7 @@ body.in-wreck .cam-buttons { display: none; }
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.9.7';  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.10.0';  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -9933,6 +9933,7 @@ body.in-wreck .cam-buttons { display: none; }
     g.add(beaconLight);
     wreckInterior.beaconLight = beaconLight;
     wreckInterior.beaconLamp = beaconLamp;
+    wreckInterior.group = g;          // v0.10.0: moved into the wreck level when ?wreck2 is on
 
     scene.add(g);
 
@@ -9980,6 +9981,7 @@ body.in-wreck .cam-buttons { display: none; }
   const STAB_SOCKET = { x: 19.10, z: -1.26 };        // cable socket (y 1.11)
   const STAB_SNAP_R = 0.6;                           // drop-snap radius
   const STAB_CLEAR_R = 1.6;                          // plates count as "clear"
+  const STAB_LIM = { z0: -5.5, z1: 1.4, x0: 18.55, x1: 33.5 };   // drag area (moved with the puzzle, v0.10.0)
 
   function _stabTask(key) {
     return wreckInterior.interactables.find(i => i.key === key);
@@ -10017,9 +10019,9 @@ body.in-wreck .cam-buttons { display: none; }
     const ddx = out.x - STAB_POS.x, ddz = out.z - STAB_POS.z;
     const dd = Math.hypot(ddx, ddz);
     if (dd > 3.4) { out.x = STAB_POS.x + ddx / dd * 3.4; out.z = STAB_POS.z + ddz / dd * 3.4; }
-    out.z = Math.max(-5.5, Math.min(1.4, out.z));
+    out.z = Math.max(STAB_LIM.z0, Math.min(STAB_LIM.z1, out.z));
     // Lower x bound sits at the deck disc — parts stay in the room.
-    out.x = Math.max(18.55, Math.min(33.5, out.x));
+    out.x = Math.max(STAB_LIM.x0, Math.min(STAB_LIM.x1, out.x));
     return true;
   }
 
@@ -10133,8 +10135,8 @@ body.in-wreck .cam-buttons { display: none; }
     const hits = stabDrag.raycaster.intersectObjects(cands, false);
     if (!hits.length) return;
     stabDrag.mesh = hits[0].object;
-    stabDrag.planeY = shackletonScene.getGroundY(
-      stabDrag.mesh.position.x, stabDrag.mesh.position.z) + 0.55;
+    stabDrag.planeY = (level.id === 'wreck' ? WL_ORIGIN.y : shackletonScene.getGroundY(
+      stabDrag.mesh.position.x, stabDrag.mesh.position.z)) + 0.55;
     stabDrag.bobT = 0;
     if (stabDrag.hover) { stabDrag.hover.material.emissive.setHex(0x000000); stabDrag.hover = null; }
     // Hand tracks the held part for the whole drag.
@@ -10233,7 +10235,8 @@ body.in-wreck .cam-buttons { display: none; }
 
     // Inside-hull detection — generous bounds, first entry only.
     const p = player.pos;
-    const inside = p.x > 9 && p.x < 35 && Math.abs(p.z + 2) < 3.6;   // widened for WRECK_SCALE 2.0
+    const inside = WRECK_LEVEL_FLAG ? level.id === 'wreck'
+                                    : (p.x > 9 && p.x < 35 && Math.abs(p.z + 2) < 3.6);   // widened for WRECK_SCALE 2.0
     if (inside && !wreckInterior.entered) {
       wreckInterior.entered = true;
       speak('SUIT', 'signal detected — source: internal emergency reserve', 3.6,
@@ -13815,7 +13818,7 @@ body.in-wreck .cam-buttons { display: none; }
     // the hatch instead of setting the battery down.)
     if (interact.carry) return _carryCandidates(out);
     // Inside the wreck level only the level's own verbs exist.
-    if (level.id === 'wreck') { wreckLevelCandidates(out); return out; }
+    if (level.id === 'wreck') { wreckLevelCandidates(out); _loosePartCandidates(out); return out; }   // v0.10.0: puzzle parts indoors
     wreckLevelCandidates(out);
     // Scene interactables (pin, brace, install, reflector crank …)
     for (const it of worldInteractables) {
@@ -13866,6 +13869,22 @@ body.in-wreck .cam-buttons { display: none; }
       }
     }
     void pushIt;
+    return out;
+  }
+  // Loose puzzle parts that can be picked up (same rule as outdoors).
+  function _loosePartCandidates(out) {
+    const finished = (m) => (m === s4.panel && scene4.panelDone) ||
+                            (m === s6.batt && scene6.power) ||
+                            (m === s6.chunk && scene6.cleared);
+    const parts = (_stabCanInteract() ? _stabDraggables() : [])
+      .concat(extraDraggables.filter(m => m.visible && !finished(m) &&
+                                          (!m.userData.enabled || m.userData.enabled())));
+    for (const m of parts) {
+      const wp = m.getWorldPosition(new THREE.Vector3());
+      if (Math.hypot(wp.x - player.pos.x, wp.z - player.pos.z) > 12) continue;
+      out.push({ key: m, x: wp.x, z: wp.z, y: wp.y + 0.35, r: 1.9, mesh: m,
+        label: 'pick up the ' + (m.userData.carryName || 'part'), fire: () => pickUp(m) });
+    }
     return out;
   }
   function _carryCandidates(out) {
@@ -14233,12 +14252,7 @@ body.in-wreck .cam-buttons { display: none; }
 
     // ── Life support (Scene 3, Puzzle A): converted, floor panels down ──
     box(8.6, 0.05, 5.7, 18.5, -0.04, 0, matPanel, { solid: false });          // habitat floor panels
-    box(1.4, 1.6, 1.0, 18.5, 0, -2.4, matDev);                            // stabiliser
-    box(0.9, 0.5, 0.6, 20.7, 1.3, -2.6, matDev, { solid: false });        // battery rack (high)
-    box(0.5, 0.35, 0.4, 16.4, 0, 1.9, matPart);                           // loose battery
-    box(1.1, 0.12, 0.8, 18.1, 0, 0.6, matPart, { walk: true });                           // debris plate
-    box(0.9, 0.12, 0.7, 19.6, 0, -0.9, matPart, { walk: true });                          // debris plate
-    label('Puzzle A: O₂ stabiliser', 18.5, 2.6, -2.2, '#9cc4ff');
+    label('Puzzle A: O₂ stabiliser', 14.9, 2.6, 1.6, '#9cc4ff');
 
     // ── Airlock and suit bay (new): the way in. Converted. ──
     box(6.6, 0.05, 5.7, 26.5, -0.04, 0, matPanel, { solid: false });          // habitat floor panels
@@ -14332,6 +14346,26 @@ body.in-wreck .cam-buttons { display: none; }
     return { root, boxes, zones, lights, lamp, flare, labels, SPAWN, EXIT };
   })();
 
+  // ── v0.10.0: Puzzle A (oxygen stabiliser) lives in the wreck level ──
+  // The puzzle was built in crater coordinates, mounted sideways on the
+  // old wreck's deck disc (deck plane x = 18.42, unit at z = −1.5). With
+  // ?wreck2 the whole set is translated so that deck plane lands on the
+  // crew-quarters bulkhead, life-support side, clear of the doorway.
+  // Every part, target and drag limit moves by the same offset, so the
+  // drag puzzle itself is untouched.
+  if (WRECK_LEVEL_ENABLED && wreckInterior.group) (function () {
+    const D = new THREE.Vector3(
+      WL_ORIGIN.x + 14 * WL_K + 0.19 - 18.42,
+      WL_ORIGIN.y - wreckInterior.parts.floorY,
+      WL_ORIGIN.z + 2.3 + 1.5);
+    for (const c of wreckInterior.group.children) if (c !== wreckInterior.parts.cable) c.position.add(D);
+    for (const o of [STAB_POS, STAB_RACK, STAB_SOCKET]) { o.x += D.x; o.z += D.z; }
+    wreckInterior.parts.floorY += D.y;
+    STAB_LIM.x0 += D.x; STAB_LIM.x1 = WL_ORIGIN.x + 23 * WL_K - 0.6;
+    STAB_LIM.z0 = WL_ORIGIN.z - 1.2; STAB_LIM.z1 = WL_ORIGIN.z + WL_HALF_W * WL_K - 0.4;
+    _stabRebuildCable(wreckInterior.parts.plug.position);
+  })();
+
   // ── Level switch ──
   const _hiddenForWreck = [];
   let _wlSavedCrater = null;
@@ -14367,6 +14401,7 @@ body.in-wreck .cam-buttons { display: none; }
       // sun, sky dome…) except the astronaut and the shared UI helpers.
       _hiddenForWreck.length = 0;
       const keep = new Set([astronautRoot, wreckLevel.root, interactMarker, wreckLevel.lamp, wreckLevel.lamp.target, wreckLevel.flare, camera]);
+      if (WRECK_LEVEL_FLAG && wreckInterior.group) keep.add(wreckInterior.group);
       for (const o of scene.children) {
         if (keep.has(o) || !o.visible) continue;
         o.visible = false; _hiddenForWreck.push(o);
