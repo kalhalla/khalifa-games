@@ -6,6 +6,9 @@
 <title>SHACKLETON</title>
 <style>
 * { box-sizing: border-box; }
+/* v0.10.1: no page zoom, text selection or long-press menus on phones */
+html { touch-action: none; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+* { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
 body { margin: 0; padding: 0; background: #050608; color: #e8e9ec; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; overflow: hidden; touch-action: none; }
 .stage { position: fixed; inset: 0; }
 .stage canvas { display: block; width: 100%; height: 100%; cursor: grab; }
@@ -425,6 +428,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
 #interact-prompt .ip-info { opacity: 0.75; font-style: italic; }
 /* O₂ HUD: clear of the controls card; animated while gas flows */
 #oxygen-hud { top: 170px !important; }
+body.in-wreck .cam-buttons { display: none; }
 /* v0.9.0: phone landscape — the key legend is useless on touch, and the gauge must clear the joystick */
 @media (max-height: 480px) { .legend { display: none; } #oxygen-hud { top: 56px !important; } }
 #oxygen-hud.filling #oxygen-bar-fill {
@@ -592,7 +596,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.9.0';  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.10.7';  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -1195,6 +1199,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // ============================================================
   const boxColliders = [];
   const BOX_STEP_UP = 0.45;
+  const stepVis = { off: 0 };     // drawn body height minus player.pos.y (v0.9.5 step smoothing)
   const BOX_PLAYER_R = 0.35;
   function addBoxCollider(o) {
     const yaw = o.yaw || 0;
@@ -2632,6 +2637,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   const GRAVITY = 1.62;          // m/s² (real lunar)
   const WALK_SPEED = 2.6;        // m/s ground speed (walk)
   const RUN_SPEED = 5.0;         // m/s ground speed (run)
+  const WRECK_WALK_SPEED = 1.6;  // m/s inside the wreck (v0.9.3): matches the walk clip, no foot slide
   const ACCEL_GROUND = 12;       // m/s² horizontal accel when on ground
   const ACCEL_AIR = 4;           // m/s² horizontal accel when airborne (limited)
   const GRIP = 8;                // friction coefficient when on ground with no input
@@ -2651,6 +2657,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   const TAKEOFF_HOLD_TIME = 1.10;    // clip time of the extended takeoff pose
   const LANDING_START_TIME = 1.70;   // clip time where the landing motion begins
   let jumpPhase = null;              // null | 'windup' | 'airborne' | 'landing'
+  let runJump = false;               // v0.10.6: this jump was taken from a run (no wind-up, no landing crouch)
   let landingStartedAt = 0;          // performance.now() when 'landing' phase began (safety-net timeout)
   let jumpStartTime = 0;
   let jumpAction = null;             // reference to the Jump AnimationAction
@@ -2707,9 +2714,20 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
 
     // Ground check (v0.5.0: terrain OR a walkable box top)
     const groundY = playerGroundY(player.pos.x, player.pos.z, player.pos.y);
+    // v0.9.5 step-down: walking off a low box (or any small ledge indoors)
+    // keeps him on the ground instead of starting a fall and the Jump clip.
+    // The body is eased down by stepVis, below.
+    const _drop = player.pos.y - groundY;
+    const stepDown = player.grounded && jumpPhase === null && player.vel.y <= 0 &&
+                     _drop > 0.02 && _drop <= BOX_STEP_UP + 0.06 &&
+                     (level.id === 'wreck' || player.onBox);
+    if (stepDown) { stepVis.off += _drop; player.pos.y = groundY; }
+    const _terrainY = level.id === 'wreck' ? WL_ORIGIN.y : shackletonScene.getGroundY(player.pos.x, player.pos.z);
+    player.onBox = groundY > _terrainY + 0.01;
     const onGround = player.pos.y <= groundY + 0.02;
     if (onGround && player.vel.y <= 0) {
       const wasAirborne = !player.grounded;
+      if (!wasAirborne && groundY - player.pos.y > 0.03) stepVis.off -= (groundY - player.pos.y);   // stepped up
       player.pos.y = groundY;
       player.vel.y = 0;
       player.grounded = true;
@@ -2750,7 +2768,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     // speed/clip-rate/bob read as stuttering, not as a lope. The
     // lunar feel now comes solely from the 0.78× gait timescale in
     // setAnimation: original movement, slightly slow limbs.
-    const targetSpeed = input.run ? RUN_SPEED : WALK_SPEED;
+    const targetSpeed = level.id === 'wreck' ? WRECK_WALK_SPEED : (input.run ? RUN_SPEED : WALK_SPEED);
     const accel = player.grounded ? ACCEL_GROUND : ACCEL_AIR;
 
     // Slope check — sample the local gradient via finite differences
@@ -2852,6 +2870,25 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     // Jump state machine
     // Press jump when grounded + jumpAvailable: enter windup phase, play clip,
     // wait for the launch frame to fire the impulse.
+    // v0.10.6 running jump: pressed while moving, he takes off at once from
+    // the stride — no stop, no crouch — carrying his speed, and on landing
+    // goes straight back into the run. Standing still, the full wind-up
+    // jump below is unchanged.
+    if (input.jump && player.grounded && player.jumpAvailable && jumpPhase === null &&
+        Math.hypot(player.vel.x, player.vel.z) >= 1.0 && level.id !== 'wreck') {
+      player.jumpAvailable = false;
+      player.vel.y = JUMP_VELOCITY;
+      player.grounded = false;
+      jumpPhase = 'airborne';
+      runJump = true;
+      setAnimation('Jump');
+      if (jumpAction) {             // v0.10.7: go straight to the held, legs-extended pose —
+        jumpAction.time = TAKEOFF_HOLD_TIME;   // none of the clip's crouch-and-spring plays in mid-air
+        jumpAction.paused = true;
+      }
+      sndJump();
+      kickDust(player.pos.x, player.pos.y, player.pos.z, 260, 2.2);
+    }
     if (input.jump && player.grounded && player.jumpAvailable && jumpPhase === null) {
       jumpPhase = 'windup';
       jumpStartTime = performance.now();
@@ -2898,6 +2935,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     const newGroundY = playerGroundY(player.pos.x, player.pos.z, player.pos.y);
     if (player.pos.y < newGroundY) {
       const wasAirborne = !player.grounded;
+      if (!wasAirborne && newGroundY - player.pos.y > 0.03) stepVis.off -= (newGroundY - player.pos.y);   // stepped up
       player.pos.y = newGroundY;
       if (player.vel.y < 0 && wasAirborne) {
         sndLand();
@@ -3078,16 +3116,35 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
         if (vR > 0) { player.vel.x -= vR * nx; player.vel.z -= vR * nz; }
       }
     }
-    // World boundary (crater only — the wreck level sits 3 km out)
-    if (dC > 140 && level.id !== 'wreck') {
-      const sc = 140 / dC;
-      player.pos.x *= sc; player.pos.z *= sc;
-      player.vel.x *= -0.3; player.vel.z *= -0.3;
-    }
+    // v0.10.2: the old invisible "world boundary" at 140 m from the crater
+    // centre is gone. The floor runs to the wall at CRATER_FLOOR (200 m)
+    // and the crater-wall collision just above already stops him there,
+    // where he can see why. The 140 m ring stopped him 60 m short, on
+    // open ground, and bounced him back.
 
+    // v0.9.5 step up / step down. player.pos.y still snaps (collision is
+    // unchanged); stepVis.off is how far the drawn body is from it.
+    //   - look ahead 0.5 m along the direction of travel: if a step he can
+    //     climb is coming, start rising now, so he is already at its height
+    //     when his feet reach the edge (no legs cutting through the box)
+    //   - after a snap up or down, the body eases to the new height
+    {
+      const sp = Math.hypot(player.vel.x, player.vel.z);
+      let want = 0;
+      if (player.grounded && jumpPhase === null && sp > 0.3) {
+        const ax = player.pos.x + player.vel.x / sp * 0.5, az = player.pos.z + player.vel.z / sp * 0.5;
+        const ahead = playerGroundY(ax, az, player.pos.y) - player.pos.y;
+        if (ahead > 0.05 && ahead <= BOX_STEP_UP && (level.id === 'wreck' || player.onBox || boxTopAt(ax, az, player.pos.y) > -Infinity)) want = ahead;
+      }
+      const rate = stepVis.off < want ? 7 : 5.5;            // up a touch quicker than down
+      stepVis.off += (want - stepVis.off) * Math.min(1, dt * rate);
+      if (Math.abs(stepVis.off) < 0.002 && want === 0) stepVis.off = 0;
+      if (!player.grounded) stepVis.off *= Math.max(0, 1 - dt * 10);
+    }
     // Update model position + rotation
     if (astronautRoot) {
       astronautRoot.position.copy(player.pos);
+      astronautRoot.position.y += stepVis.off;
       astronautRoot.rotation.y = player.heading;
     }
 
@@ -3095,7 +3152,22 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     // airborne, and landing phases. (When phase is null and player.grounded,
     // we fall through to walk/run/idle.)
     const speed = Math.hypot(player.vel.x, player.vel.z);
-    if (jumpPhase || !player.grounded) {
+    // v0.10.5: the stride itself is exactly as in v0.10.2. The only change
+    // is what plays when the ground drops away and he has NOT jumped: the
+    // gait clip stays, held in its open hop pose (see applyLope), instead
+    // of the Jump clip. A fall of more than 1.8 s still becomes a Jump.
+    if (runJump && player.grounded && jumpPhase !== 'airborne') {   // landed from a running jump: no crouch
+      jumpPhase = null; runJump = false;
+      if (jumpAction) jumpAction.paused = false;
+    }
+    airHold.t = player.grounded ? 0 : airHold.t + dt;
+    const slopeAir = !player.grounded && jumpPhase === null && level.id !== 'wreck' &&
+                     speed >= 0.4 && airHold.t < 1.8 &&
+                     (activeAction === animClips['Walk_Loop'] || activeAction === animClips['Run_Loop']);
+    airHold.on = slopeAir;
+    if (slopeAir) {
+      /* keep the current gait clip */
+    } else if (jumpPhase || !player.grounded) {
       setAnimation('Jump');
     } else if (speed > RUN_THRESHOLD) {
       setAnimation('Run_Loop');
@@ -5177,9 +5249,16 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   //   - landing: thud + print under that foot + small splash;
   //     push-off: a fan of dust thrown back, 1–2 s in flight
   // ============================================================
-  const LOPE_CONTACT = 0.26;      // s on the ground per stride
+  const LOPE_CONTACT = 0.26;      // s on the ground per stride (default; see lope.contact)
+  // v0.9.3 — no foot sliding. Measured from the rig: in Walk_Loop the
+  // planted foot travels 0.58 m back over 0.42 of the cycle, so the clip
+  // covers LOPE_FOOT_M metres of ground per full cycle of stance motion.
+  // While a foot is down, the clip is advanced exactly as far as the body
+  // travels; the rest of the half-cycle plays during the float. Contact
+  // time shortens with speed so that stays inside the clip's stance.
+  const LOPE_FOOT_M = 1.37, LOPE_STANCE_MAX = 0.36;
   const LOPE_DIP = 0.035;         // m of knee-bend during contact
-  const lope = { phase: 0, parity: 0, w: 0, y: 0, pushed: false, fresh: true, period: 0.95 };
+  const lope = { phase: 0, parity: 0, w: 0, y: 0, pushed: false, fresh: true, period: 0.95, contact: LOPE_CONTACT, dc: 0.2 };
   function _lopeLand(speed) {
     sndFootstep(speed);
     const b = (typeof _seatBones === 'function') ? _seatBones() : null;
@@ -5193,10 +5272,17 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     lope.w += ((active ? 1 : 0) - lope.w) * Math.min(1, dt * (active ? 10 : 7));
     if (active) {
       const t = Math.max(0, Math.min(1, (speed - WALK_SPEED) / (RUN_SPEED - WALK_SPEED)));
-      lope.period = 0.95 + 0.10 * t;
+      // Indoors (v0.9.4): an ordinary brisk walk on a hard deck — the step
+      // time is what the clip's own stride needs at this speed, plus 10%,
+      // so the legs turn over quickly and there is almost no float.
+      lope.period = level.id === 'wreck'
+        ? Math.max(0.36, Math.min(0.70, 0.55 * LOPE_FOOT_M / speed))
+        : 0.95 + 0.10 * t;
+      lope.contact = Math.max(0.16, Math.min(0.30, LOPE_STANCE_MAX * LOPE_FOOT_M / speed));
+      lope.dc = Math.max(0.08, Math.min(LOPE_STANCE_MAX, speed * lope.contact / LOPE_FOOT_M));
       if (lope.fresh) { lope.fresh = false; lope.phase = 0; lope.pushed = false; _lopeLand(speed); }
       lope.phase += dt / lope.period;
-      const cf = LOPE_CONTACT / lope.period;
+      const cf = lope.contact / lope.period;
       if (!lope.pushed && lope.phase >= cf) {
         lope.pushed = true;
         const p = spawnFootprint.last;
@@ -5213,24 +5299,46 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       lope.w = 0; lope.fresh = true;
     }
     // Height of the body on the stride: dip in contact, parabola in flight.
-    const cf = LOPE_CONTACT / lope.period, ph = lope.phase;
-    const tf = lope.period - LOPE_CONTACT;
+    const cf = lope.contact / lope.period, ph = lope.phase;
+    const tf = lope.period - lope.contact;
     const apex = MOON_G * tf * tf / 8 * Math.min(1, speed / WALK_SPEED + 0.25);
     let y;
-    if (ph < cf) y = -LOPE_DIP * Math.sin(Math.PI * ph / cf);
+    const dip = level.id === 'wreck' ? 0 : LOPE_DIP;                  // no sinking into a hard deck
+    if (ph < cf) y = -dip * Math.sin(Math.PI * ph / cf);
     else { const u = (ph - cf) / (1 - cf); y = 4 * apex * u * (1 - u); }
-    lope.y = y * lope.w;
+    // The walk clip's toe dips 1.6 cm below the root at push-off; lift by that indoors.
+    lope.y = (y + (level.id === 'wreck' ? 0.016 : 0)) * lope.w;
   }
   // Called just before mixer.update: put the body on the arc and lock
   // the gait clip to the stride phase.
+  const airHold = { on: false, t: 0, f: 0 };
   function applyLope() {
     if (!astronautRoot || controlMode !== 'walking') return;
+    // Hop pose while sailing down a slope: ease the gait clip to the open
+    // point of the current stride and hold it there. Runs even after the
+    // lope has faded out, so the legs never free-run in the air.
+    {
+      const a = activeAction;
+      if (airHold.on && a && (a === animClips['Walk_Loop'] || a === animClips['Run_Loop'])) {
+        const D = a.getClip().duration;
+        const target = 0.97 + 0.5 * lope.parity + 0.25;            // mid-flight of this stride
+        let cur = a.time / D, d = target - cur; d -= Math.round(d); // shortest way round the loop
+        cur += d * Math.min(1, 0.12);
+        cur -= Math.floor(cur);
+        a.time = cur * D;
+        astronautRoot.position.y = player.pos.y + lope.y + stepVis.off;
+        return;
+      }
+    }
     if (lope.w <= 0) return;
-    astronautRoot.position.y = player.pos.y + lope.y;
+    astronautRoot.position.y = player.pos.y + lope.y + stepVis.off;
     const a = activeAction;
     if (a && (a === animClips['Walk_Loop'] || a === animClips['Run_Loop']) && player.grounded) {
-      const cf = LOPE_CONTACT / lope.period;
-      let f = 0.97 + 0.5 * (lope.parity + lope.phase) - 0.25 * cf;
+      const cf = lope.contact / lope.period, dc = lope.dc, ph = lope.phase;
+      // Foot down: clip moves with the ground. Foot up: the rest of the half-cycle.
+      const within = ph < cf ? (ph / cf - 0.5) * dc
+                             : dc * 0.5 + (ph - cf) / (1 - cf) * (0.5 - dc);
+      let f = 0.97 + 0.5 * lope.parity + within;
       f -= Math.floor(f);
       a.time = f * a.getClip().duration;
     }
@@ -7858,6 +7966,31 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     btn.addEventListener('pointercancel', release);
   }
   document.querySelectorAll('.pad button, .jump-btn').forEach(bindBtn);
+  // ── v0.10.1: stop the phone browser zooming the page ──
+  // iOS Safari ignores user-scalable=no, so block its pinch gesture and
+  // double-tap zoom directly, and snap back if the page is ever zoomed.
+  (function () {
+    const stop = (e) => { e.preventDefault(); };
+    ['gesturestart', 'gesturechange', 'gestureend'].forEach(t => document.addEventListener(t, stop, { passive: false }));
+    document.addEventListener('dblclick', stop, { passive: false });
+    document.addEventListener('touchmove', (e) => { if (e.touches.length > 1 || (e.scale && e.scale !== 1)) e.preventDefault(); }, { passive: false });
+    let lastEnd = 0;
+    document.addEventListener('touchend', (e) => {
+      const now = Date.now();
+      if (now - lastEnd < 320 && e.touches.length === 0) e.preventDefault();   // second tap of a double-tap
+      lastEnd = now;
+    }, { passive: false });
+    document.addEventListener('contextmenu', stop);
+    document.addEventListener('selectstart', stop);
+    const vv = window.visualViewport, meta = document.querySelector('meta[name="viewport"]');
+    const BASE = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
+    function unzoom() {
+      if (!vv || !meta || vv.scale <= 1.01) return;
+      meta.setAttribute('content', BASE + ', minimum-scale=1.0');
+      setTimeout(() => meta.setAttribute('content', BASE), 60);
+    }
+    if (vv) vv.addEventListener('resize', unzoom);
+  })();
   // ── Virtual joystick (v0.9.0) ──
   // Analogue walking comes from joy.x / joy.y. The WASD flags are also
   // mirrored so the Flyer and anything else that reads keys[] still works.
@@ -7873,7 +8006,10 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       knob.style.transform = 'translate(' + (nx * R) + 'px,' + (ny * R) + 'px)';
       const mm = Math.min(1, m);
       const live = mm > DEAD ? (mm - DEAD) / (1 - DEAD) : 0;
-      const k = mm > 0 ? live / mm : 0;
+      // v0.9.5: once past the dead zone the stick never asks for less than
+      // half speed, so he is always moving fast enough for the walk clip
+      // (a feather touch used to slide him along in the idle pose).
+      const k = mm > 0 && live > 0 ? (0.5 + 0.5 * live) / mm : 0;
       joy.x = nx * k; joy.y = -ny * k;
       joy.active = live > 0;
       joy.run = mm >= RUN_AT;
@@ -9876,6 +10012,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     g.add(beaconLight);
     wreckInterior.beaconLight = beaconLight;
     wreckInterior.beaconLamp = beaconLamp;
+    wreckInterior.group = g;          // v0.10.0: moved into the wreck level when ?wreck2 is on
 
     scene.add(g);
 
@@ -9923,6 +10060,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   const STAB_SOCKET = { x: 19.10, z: -1.26 };        // cable socket (y 1.11)
   const STAB_SNAP_R = 0.6;                           // drop-snap radius
   const STAB_CLEAR_R = 1.6;                          // plates count as "clear"
+  const STAB_LIM = { z0: -5.5, z1: 1.4, x0: 18.55, x1: 33.5 };   // drag area (moved with the puzzle, v0.10.0)
 
   function _stabTask(key) {
     return wreckInterior.interactables.find(i => i.key === key);
@@ -9960,9 +10098,9 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     const ddx = out.x - STAB_POS.x, ddz = out.z - STAB_POS.z;
     const dd = Math.hypot(ddx, ddz);
     if (dd > 3.4) { out.x = STAB_POS.x + ddx / dd * 3.4; out.z = STAB_POS.z + ddz / dd * 3.4; }
-    out.z = Math.max(-5.5, Math.min(1.4, out.z));
+    out.z = Math.max(STAB_LIM.z0, Math.min(STAB_LIM.z1, out.z));
     // Lower x bound sits at the deck disc — parts stay in the room.
-    out.x = Math.max(18.55, Math.min(33.5, out.x));
+    out.x = Math.max(STAB_LIM.x0, Math.min(STAB_LIM.x1, out.x));
     return true;
   }
 
@@ -10076,8 +10214,8 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     const hits = stabDrag.raycaster.intersectObjects(cands, false);
     if (!hits.length) return;
     stabDrag.mesh = hits[0].object;
-    stabDrag.planeY = shackletonScene.getGroundY(
-      stabDrag.mesh.position.x, stabDrag.mesh.position.z) + 0.55;
+    stabDrag.planeY = (level.id === 'wreck' ? WL_ORIGIN.y : shackletonScene.getGroundY(
+      stabDrag.mesh.position.x, stabDrag.mesh.position.z)) + 0.55;
     stabDrag.bobT = 0;
     if (stabDrag.hover) { stabDrag.hover.material.emissive.setHex(0x000000); stabDrag.hover = null; }
     // Hand tracks the held part for the whole drag.
@@ -10176,7 +10314,8 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
 
     // Inside-hull detection — generous bounds, first entry only.
     const p = player.pos;
-    const inside = p.x > 9 && p.x < 35 && Math.abs(p.z + 2) < 3.6;   // widened for WRECK_SCALE 2.0
+    const inside = WRECK_LEVEL_FLAG ? level.id === 'wreck'
+                                    : (p.x > 9 && p.x < 35 && Math.abs(p.z + 2) < 3.6);   // widened for WRECK_SCALE 2.0
     if (inside && !wreckInterior.entered) {
       wreckInterior.entered = true;
       speak('SUIT', 'signal detected — source: internal emergency reserve', 3.6,
@@ -13758,7 +13897,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     // the hatch instead of setting the battery down.)
     if (interact.carry) return _carryCandidates(out);
     // Inside the wreck level only the level's own verbs exist.
-    if (level.id === 'wreck') { wreckLevelCandidates(out); return out; }
+    if (level.id === 'wreck') { wreckLevelCandidates(out); _loosePartCandidates(out); return out; }   // v0.10.0: puzzle parts indoors
     wreckLevelCandidates(out);
     // Scene interactables (pin, brace, install, reflector crank …)
     for (const it of worldInteractables) {
@@ -13809,6 +13948,22 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       }
     }
     void pushIt;
+    return out;
+  }
+  // Loose puzzle parts that can be picked up (same rule as outdoors).
+  function _loosePartCandidates(out) {
+    const finished = (m) => (m === s4.panel && scene4.panelDone) ||
+                            (m === s6.batt && scene6.power) ||
+                            (m === s6.chunk && scene6.cleared);
+    const parts = (_stabCanInteract() ? _stabDraggables() : [])
+      .concat(extraDraggables.filter(m => m.visible && !finished(m) &&
+                                          (!m.userData.enabled || m.userData.enabled())));
+    for (const m of parts) {
+      const wp = m.getWorldPosition(new THREE.Vector3());
+      if (Math.hypot(wp.x - player.pos.x, wp.z - player.pos.z) > 12) continue;
+      out.push({ key: m, x: wp.x, z: wp.z, y: wp.y + 0.35, r: 1.9, mesh: m,
+        label: 'pick up the ' + (m.userData.carryName || 'part'), fire: () => pickUp(m) });
+    }
     return out;
   }
   function _carryCandidates(out) {
@@ -14060,7 +14215,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   const WRECK_LEVEL_FLAG = (location.search.match(/[?&]wreck2(=(\w+))?/) || null);
   const WRECK_LEVEL_ENABLED = !!WRECK_LEVEL_FLAG;
   const WL_ORIGIN = new THREE.Vector3(3000, 0, 3000);
-  const WL_R = 4.5, WL_AXIS_Y = 3.3, WL_HALF_W = 3.05, WL_LEN = 42;
+  const WL_R = 4.5, WL_AXIS_Y = 3.3, WL_HALF_W = 3.05, WL_LEN = 44;
   // v0.9.0 "TARDIS": the interior is laid out in the design units above,
   // then every plan dimension (X and Z, positions and sizes) is multiplied
   // by WL_K so there is room to move. Heights stay real, except walls.
@@ -14079,6 +14234,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     const M = (c) => new THREE.MeshPhongMaterial({ color: c, flatShading: true, shininess: 0 });
     const matHull = M(0x5d6066), matWall = M(0x7b7f86), matFloor = M(0x4a4d52);
     const matDev = M(0x3f78c8), matPart = M(0xe0832f), matMem = M(0x8a5cc8), matBlock = M(0xb3393a);
+    const matPanel = M(0x8f959c), matSeat = M(0x2f3136);
     const boxes = [];   // local colliders → registered on enter
 
     function box(w, h, d, x, y, z, mat, opts) {
@@ -14096,16 +14252,23 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       return m;
     }
     // Floating label for the walkthrough.
+    // Blockout notes. v0.9.6: the tag is sized to its text (long ones were
+    // being cropped), drawn at one constant on-screen size from every
+    // camera, and only shown when he is near it.
+    const labels = [];
     function label(text, x, y, z, col) {
-      const c = document.createElement('canvas'); c.width = 512; c.height = 96;
-      const g = c.getContext('2d');
-      g.fillStyle = 'rgba(10,12,16,0.72)'; g.fillRect(0, 0, 512, 96);
+      const c = document.createElement('canvas');
+      let g = c.getContext('2d'); g.font = '30px monospace';
+      c.width = Math.ceil(g.measureText(text).width) + 36; c.height = 56;
+      g = c.getContext('2d');
+      g.fillStyle = 'rgba(10,12,16,0.78)'; g.fillRect(0, 0, c.width, c.height);
       g.fillStyle = col || '#f0c674'; g.font = '30px monospace'; g.textAlign = 'center';
-      g.fillText(text, 256, 60);
+      g.fillText(text, c.width / 2, 39);
       const tex = new THREE.CanvasTexture(c);
-      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
-      sp.scale.set(2.6, 0.49, 1); sp.position.set(x * WL_K, y, z * WL_K); sp.renderOrder = 997;
-      root.add(sp);
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true, sizeAttenuation: false }));
+      const hgt = 0.03;
+      sp.scale.set(hgt * c.width / c.height, hgt, 1); sp.position.set(x * WL_K, y, z * WL_K); sp.renderOrder = 997;
+      root.add(sp); labels.push(sp);
       return sp;
     }
 
@@ -14137,48 +14300,61 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       box(0.25, 7.6, rightW, x, 0, WL_HALF_W - rightW / 2, matWall);
       box(0.25, 5.2, half * 2, x, 2.4, dz, matWall, { solid: false });   // lintel
     }
-    bulkhead(7, -0.6); bulkhead(17, 0.4); bulkhead(25, 0); bulkhead(36, -0.8);
-    // S5 sealed tail
-    box(0.4, 8, WL_HALF_W * 2, 41.2, 0, 0, matBlock);
-    label('S5 · tail bulkhead — sealed (engine bay)', 40.6, 2.6, 0, '#ff8a80');
+    // v0.9.2 layout, nose (x = 0) to tail. Upright, this was top to bottom:
+    // flight deck, crew quarters, life support, airlock, cargo, engines.
+    // The ship was meant to be tipped over as a habitat and crashed
+    // half-converted: life support and the airlock have their habitat
+    // floor panels down (tidy); the rest is still in flight layout, sideways.
+    bulkhead(7, 0.5); bulkhead(14, -0.6); bulkhead(23, 0.4); bulkhead(30, -0.4);
+    box(0.4, 8, WL_HALF_W * 2, 43.2, 0, 0, matBlock);
+    label('sealed: engine bay', 42.4, 2.6, 0, '#ff8a80');
 
-    // ── S0 breach: the rip you came through, on the −Z wall ──
+    // ── Flight deck (new): crushed nose, seats on the wall, the radio ──
+    box(1.6, 5.5, 3.4, 0.9, 0, -1.2, matHull, { ry: 0.35 });              // crushed nose structure
+    box(1.2, 5.5, 2.6, 0.8, 0, 1.9, matHull, { ry: -0.3 });
+    box(1.6, 1.0, 0.8, 3.0, 0, -2.3, matDev);                             // radio console
+    box(0.9, 1.1, 0.9, 4.4, 2.3, 2.55, matSeat, { solid: false });        // flight seats, bolted to the wall,
+    box(0.9, 1.1, 0.9, 4.4, 4.0, 2.55, matSeat, { solid: false });        //   facing the nose
+    box(1.3, 0.4, 1.0, 5.3, 0, 0.9, matWall, { walk: true });             // fallen panel
+    label('radio', 3.4, 3.0, -1.4, '#9cc4ff');
+    label('flight seats', 4.4, 5.4, 1.9, '#c8ccd2');
+
+    // ── Crew quarters: unconverted, a fallen deck plate pinches the way ──
+    box(4, 6.5, 0.25, 9.5, 0, -1.3, matWall);                             // deck plate (was a floor)
+    box(1.4, 0.42, 1.1, 10.6, 0, 0.6, matWall, { walk: true });           // debris to step over
+    box(6.2, 0.16, 0.5, 10.5, 2.9, 0.1, matWall, { solid: false });       // deck ladder, now horizontal
+    box(2.0, 0.6, 0.8, 11.2, 2.4, 2.6, matWall, { solid: false });        // bunks, on the wall
+    box(2.0, 0.6, 0.8, 11.2, 4.0, 2.6, matWall, { solid: false });
+    box(1.6, 0.1, 1.0, 8.6, 3.3, 1.6, matWall, { solid: false });         // fold-down table, hanging
+    box(0.8, 1.9, 0.6, 12.8, 0, -2.6, matMem);                            // personal locker — M08 site, dormant in the demo
+    label('locker (memory)', 11.4, 3.3, -1.7, '#d2b6ff');
+
+    // ── Life support (Scene 3, Puzzle A): converted, floor panels down ──
+    box(8.6, 0.05, 5.7, 18.5, -0.04, 0, matPanel, { solid: false });          // habitat floor panels
+    label('Puzzle A: O₂ stabiliser', 14.9, 2.6, 1.6, '#9cc4ff');
+
+    // ── Airlock and suit bay (new): the way in. Converted. ──
+    box(6.6, 0.05, 5.7, 26.5, -0.04, 0, matPanel, { solid: false });          // habitat floor panels
     const breach = new THREE.Mesh(new THREE.PlaneGeometry(2.6 * WL_K, 3.2),
       new THREE.MeshBasicMaterial({ color: 0xe8ecf2 }));
-    breach.position.set(3.2 * WL_K, 1.6, -WL_HALF_W * WL_K + 0.02);
+    breach.position.set(26.5 * WL_K, 1.6, -WL_HALF_W * WL_K + 0.02);
     root.add(breach);
-    box(1.2, 0.5, 0.9, 5.4, 0, 1.4, matWall, { walk: true });            // fallen locker
-    label('S0 · breach — way out', 3.2, 3.6, -2.2);
+    box(0.7, 1.9, 0.5, 24.3, 0, 2.7, matWall);                            // suit racks
+    box(0.7, 1.9, 0.5, 25.3, 0, 2.7, matWall);
+    box(0.7, 1.9, 0.5, 26.3, 0, 2.7, matWall);
+    box(0.8, 1.4, 0.6, 28.6, 0, 2.65, matDev);                            // suit O₂ refill point
+    box(1.2, 0.5, 0.9, 28.4, 0, -1.4, matWall, { walk: true });           // fallen locker
+    label('way out', 26.5, 3.6, -2.2);
+    label('← nose        tail →', 26.5, 4.5, 2.4, '#c8ccd2');
 
-    // ── S1 corridor: fallen deck plates narrow it to ~3 m ──
-    box(10, 6.5, 0.25, 12, 0, 1.55, matWall);                             // deck plate (was a floor)
-    box(4, 6.5, 0.25, 9, 0, -1.45, matWall);
-    box(3.5, 6.5, 0.25, 15.2, 0, -1.45, matWall);
-    box(1.6, 0.42, 1.2, 11.6, 0, 0.2, matWall, { walk: true });          // debris to step over
-    box(0.2, 0.2, 3.0, 13.9, 1.9, 0, matWall, { solid: false });          // ladder, now horizontal
-    label('S1 · corridor', 12, 3.4, 0);
-
-    // ── S2 life support (scene 3: O₂ stabiliser) ──
-    box(1.4, 1.6, 1.0, 21, 0, -2.4, matDev);                              // stabiliser
-    box(0.9, 0.5, 0.6, 23.2, 1.3, -2.6, matDev, { solid: false });        // battery rack (high)
-    box(0.5, 0.35, 0.4, 19.1, 0, 1.9, matPart);                           // loose battery
-    box(1.1, 0.12, 0.8, 20.6, 0, 0.6, matPart);                           // debris plate
-    box(0.9, 0.12, 0.7, 22.1, 0, -0.9, matPart);                          // debris plate
-    label('S2 · O₂ stabiliser (scene 3)', 21, 2.6, -2.2, '#9cc4ff');
-
-    // ── S3 cargo bay (scene 4: structural brace) ──
-    box(2.2, 1.6, 1.4, 27.4, 0, 2.0, matWall, { walk: false });           // cargo crates
-    box(1.4, 0.8, 1.4, 29.6, 0, 2.2, matWall, { walk: true });            // climbable step
-    box(3.4, 0.25, 1.0, 32.0, 0.35, -1.9, matPart, { solid: false });     // the brace
-    box(3.6, 0.3, 1.5, 32.0, 0.6, -1.9, matWall, { solid: false });       // plating pinning it
-    box(0.25, 0.9, 0.25, 30.1, 0, -1.2, matDev);                          // locking pin
-    label('S3 · cargo bay — structural brace (scene 4)', 31, 3.4, -1.5, '#9cc4ff');
-
-    // ── S4 crew quarters (memory) ──
-    box(2.0, 0.6, 0.8, 38.4, 2.4, 2.6, matWall, { solid: false });        // bunks, on the wall now
-    box(2.0, 0.6, 0.8, 38.4, 4.0, 2.6, matWall, { solid: false });
-    box(0.8, 1.9, 0.6, 39.6, 0, -2.6, matMem);                            // personal locker
-    label('S4 · crew quarters — memory', 38.6, 3.0, -1.6, '#d2b6ff');
+    // ── Cargo bay (Scene 4, Puzzle B): unconverted ──
+    box(2.2, 1.6, 1.4, 33.4, 0, 2.0, matWall, { walk: false });           // cargo crates
+    box(1.4, 0.8, 1.4, 35.6, 0, 2.2, matWall, { walk: true });            // climbable step
+    box(4.4, 0.25, 0.9, 38.0, 0.3, -1.9, matPart, { solid: false });      // the brace, ends showing under the plating
+    box(3.6, 0.9, 1.5, 38.0, 0, -1.9, matWall);                           // plating pinning it (solid to the deck, v0.9.6)
+    box(0.25, 0.9, 0.25, 36.1, 0, -1.2, matDev);                          // locking pin
+    box(11.5, 0.07, 0.3, 36.8, 0, 0.3, matWall, { solid: false });        // cargo lift rail, along the floor
+    label('Puzzle B: brace', 37, 3.4, -1.5, '#9cc4ff');
 
     // ── Lights: dark interior, emergency red/amber, daylight at the rip ──
     const lights = [];
@@ -14187,30 +14363,56 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       l.position.set(x * WL_K, y, z * WL_K); root.add(l); lights.push(l); return l;
     }
     const amb = new THREE.AmbientLight(0x30343c, 0.55); root.add(amb);
-    pl(0xff3b2f, 1.6, 9, 9.5, 5.5, 0);
-    pl(0xffb347, 1.7, 9, 21, 4.8, -0.5);
-    pl(0xff3b2f, 1.4, 10, 30, 5.8, 0.5);
-    pl(0xffb347, 1.2, 7, 38.6, 4.6, 0);
+    pl(0xff3b2f, 1.5, 8, 3.6, 5.2, 0);
+    pl(0xff3b2f, 1.5, 8, 10.5, 5.5, 0);
+    pl(0xdfe8ff, 1.5, 9, 18.5, 5.0, -0.3);                               // converted rooms: cool white
+    pl(0xdfe8ff, 1.2, 8, 27.0, 5.0, 0.8);
+    pl(0xff3b2f, 1.4, 10, 34, 5.8, 0.5);
+    pl(0xffb347, 1.2, 9, 40, 4.8, 0);
     const day = new THREE.SpotLight(0xf4f6ff, 2.2, 16 * WL_K, 0.55, 0.4, 1.5);
-    day.position.set(3.2 * WL_K, 2.4, -6 * WL_K); day.target.position.set(4.2 * WL_K, 0, 1.5 * WL_K);
+    day.position.set(26.5 * WL_K, 2.4, -6 * WL_K); day.target.position.set(26.5 * WL_K, 0, 1.5 * WL_K);
     day.castShadow = true; day.shadow.mapSize.set(512, 512);
     root.add(day); root.add(day.target);
     // Helmet lamp — follows the astronaut's head, casts the only moving shadows.
     const lamp = new THREE.SpotLight(0xfff4dc, 1.6, 15, 0.52, 0.55, 1.6);
-    lamp.castShadow = true; lamp.shadow.mapSize.set(512, 512);
+    lamp.shadow.mapSize.set(512, 512);
     lamp.shadow.camera.near = 0.3;
-    lamp.visible = false;
+    // v0.9.1: the lamp is a chest light and is on outdoors too. It only
+    // casts shadows indoors (a second shadow pass over the whole crater
+    // is too dear on phones). It stays visible so entering the wreck does
+    // not change the light count; "off" is intensity 0.
+    lamp.castShadow = false;
     scene.add(lamp); scene.add(lamp.target);
+    // Glare seen when the camera looks into the lamp.
+    const flare = (function () {
+      const c = document.createElement('canvas'); c.width = c.height = 256;
+      const g = c.getContext('2d');
+      let gr = g.createRadialGradient(128, 128, 0, 128, 128, 128);
+      gr.addColorStop(0, 'rgba(255,252,240,1)'); gr.addColorStop(0.06, 'rgba(255,246,220,0.95)');
+      gr.addColorStop(0.2, 'rgba(255,225,170,0.32)'); gr.addColorStop(0.5, 'rgba(255,200,130,0.08)');
+      gr.addColorStop(1, 'rgba(255,190,120,0)');
+      g.fillStyle = gr; g.fillRect(0, 0, 256, 256);
+      g.save(); g.translate(128, 128); g.scale(1, 0.045);            // thin horizontal streak
+      gr = g.createRadialGradient(0, 0, 0, 0, 0, 128);
+      gr.addColorStop(0, 'rgba(255,250,235,0.9)'); gr.addColorStop(1, 'rgba(255,230,190,0)');
+      g.fillStyle = gr; g.beginPath(); g.arc(0, 0, 128, 0, Math.PI * 2); g.fill(); g.restore();
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c),
+        blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, opacity: 0, fog: false, toneMapped: false }));
+      sp.renderOrder = 996; sp.visible = false;
+      scene.add(sp);
+      return sp;
+    })();
 
     // ── Set cameras, one zone per section ──
     // fixed: camera holds a position and turns to keep him framed.
     // rail:  camera slides along X with him, from the side.
     const zones = [
-      { name: 'S0', x0: -1, x1: 7,   mode: 'fixed', pos: [6.4, 3.9, 2.5] },
-      { name: 'S1', x0: 7,  x1: 17,  mode: 'rail',  y: 2.5, z: 0.1, back: 4.2, clamp: [6.2, 13.8] },
-      { name: 'S2', x0: 17, x1: 25,  mode: 'fixed', pos: [17.6, 5.3, 2.5] },
-      { name: 'S3', x0: 25, x1: 36,  mode: 'fixed', pos: [35.3, 5.8, 2.5] },
-      { name: 'S4', x0: 36, x1: 42,  mode: 'fixed', pos: [36.6, 4.2, 2.3] },
+      { name: 'flight deck',   x0: -1, x1: 7,  mode: 'fixed', pos: [6.3, 4.2, 2.4] },
+      { name: 'crew quarters', x0: 7,  x1: 14, mode: 'fixed', pos: [13.4, 4.6, 2.4] },
+      { name: 'life support',  x0: 14, x1: 23, mode: 'fixed', pos: [22.4, 5.3, 2.5] },
+      { name: 'airlock',       x0: 23, x1: 30, mode: 'fixed', pos: [29.4, 4.6, 2.5] },
+      { name: 'cargo bay',     x0: 30, x1: 37, mode: 'fixed', pos: [30.6, 5.8, 2.5] },
+      { name: 'cargo bay aft', x0: 37, x1: 45, mode: 'fixed', pos: [34.5, 5.2, 2.5] },
     ];
     // Zones are written in design units; convert to metres here.
     for (const q of zones) {
@@ -14218,9 +14420,29 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       if (q.pos) { q.pos[0] *= WL_K; q.pos[2] *= WL_K; }
       if (q.clamp) { q.clamp[0] *= WL_K; q.clamp[1] *= WL_K; q.z *= WL_K; q.back *= 1.2; }
     }
-    const SPAWN = { x: 2.6 * WL_K, z: -1.6 * WL_K, heading: Math.PI / 2 };
-    const EXIT = { x: 3.2 * WL_K, z: -2.2 * WL_K };
-    return { root, boxes, zones, lights, lamp, SPAWN, EXIT };
+    const SPAWN = { x: 26.5 * WL_K, z: -1.7 * WL_K, heading: 0 };
+    const EXIT = { x: 26.5 * WL_K, z: -2.2 * WL_K };
+    return { root, boxes, zones, lights, lamp, flare, labels, SPAWN, EXIT };
+  })();
+
+  // ── v0.10.0: Puzzle A (oxygen stabiliser) lives in the wreck level ──
+  // The puzzle was built in crater coordinates, mounted sideways on the
+  // old wreck's deck disc (deck plane x = 18.42, unit at z = −1.5). With
+  // ?wreck2 the whole set is translated so that deck plane lands on the
+  // crew-quarters bulkhead, life-support side, clear of the doorway.
+  // Every part, target and drag limit moves by the same offset, so the
+  // drag puzzle itself is untouched.
+  if (WRECK_LEVEL_ENABLED && wreckInterior.group) (function () {
+    const D = new THREE.Vector3(
+      WL_ORIGIN.x + 14 * WL_K + 0.19 - 18.42,
+      WL_ORIGIN.y - wreckInterior.parts.floorY,
+      WL_ORIGIN.z + 2.3 + 1.5);
+    for (const c of wreckInterior.group.children) if (c !== wreckInterior.parts.cable) c.position.add(D);
+    for (const o of [STAB_POS, STAB_RACK, STAB_SOCKET]) { o.x += D.x; o.z += D.z; }
+    wreckInterior.parts.floorY += D.y;
+    STAB_LIM.x0 += D.x; STAB_LIM.x1 = WL_ORIGIN.x + 23 * WL_K - 0.6;
+    STAB_LIM.z0 = WL_ORIGIN.z - 1.2; STAB_LIM.z1 = WL_ORIGIN.z + WL_HALF_W * WL_K - 0.4;
+    _stabRebuildCable(wreckInterior.parts.plug.position);
   })();
 
   // ── Level switch ──
@@ -14257,16 +14479,18 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       // Hide every crater top-level object (terrain, wreck exterior, robots,
       // sun, sky dome…) except the astronaut and the shared UI helpers.
       _hiddenForWreck.length = 0;
-      const keep = new Set([astronautRoot, wreckLevel.root, interactMarker, wreckLevel.lamp, wreckLevel.lamp.target, camera]);
+      const keep = new Set([astronautRoot, wreckLevel.root, interactMarker, wreckLevel.lamp, wreckLevel.lamp.target, wreckLevel.flare, camera]);
+      if (WRECK_LEVEL_FLAG && wreckInterior.group) keep.add(wreckInterior.group);
       for (const o of scene.children) {
         if (keep.has(o) || !o.visible) continue;
         o.visible = false; _hiddenForWreck.push(o);
       }
       wreckLevel.root.visible = true;
-      wreckLevel.lamp.visible = true;
+      wreckLevel.lamp.castShadow = true;
       scene.background = new THREE.Color(0x000000);
       if (!boxColliders.some(b => b.tag === 'wreckLevel')) _wlRegisterBoxes();
       level.id = 'wreck';
+      document.body.classList.add('in-wreck');        // hides the outdoor camera-mode buttons
       const s = wreckLevel.SPAWN;
       player.pos.set(WL_ORIGIN.x + s.x, WL_ORIGIN.y, WL_ORIGIN.z + s.z);
       player.vel.set(0, 0, 0);
@@ -14285,8 +14509,9 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       for (const o of _hiddenForWreck) o.visible = true;
       _hiddenForWreck.length = 0;
       wreckLevel.root.visible = false;
-      wreckLevel.lamp.visible = false;
+      wreckLevel.lamp.castShadow = false;
       level.id = 'crater';
+      document.body.classList.remove('in-wreck');
       const zl = $('zone-label'); if (zl) zl.textContent = '';
       const s = _wlSavedCrater || { x: hatchInteract.x, z: hatchInteract.z + 1.5, heading: 0 };
       // Step back out of the doorway, facing away from the hull.
@@ -14308,7 +14533,39 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
   // the camera once the player lets go of the stick — classic fixed-
   // camera control latching.
   const wreckCam = { zone: null, basisYaw: 0, look: new THREE.Vector3(), pos: new THREE.Vector3() };
+  // Chest lamp + glare (v0.9.1). Runs every frame, indoors and out.
+  const _lampToCam = new THREE.Vector3();
+  function updateSuitLamp() {
+    const L = wreckLevel.lamp, F = wreckLevel.flare;
+    const on = controlMode === 'walking' && astronautRoot && astronautRoot.visible &&
+               !(typeof opening !== 'undefined' && (opening.pending || opening.active));
+    if (!on) { L.intensity = 0; F.visible = false; return; }
+    const indoors = level.id === 'wreck';
+    L.intensity = indoors ? 1.6 : 1.25;
+    const b = (astroSeat.bones || _seatBones());
+    const fx = Math.sin(player.heading), fz = Math.cos(player.heading);
+    if (b) b.Spine2.getWorldPosition(L.position); else L.position.set(player.pos.x, player.pos.y + 1.25, player.pos.z);
+    L.position.x += fx * 0.24; L.position.z += fz * 0.24; L.position.y += 0.06;
+    L.target.position.set(L.position.x + fx * 4, L.position.y - 0.9, L.position.z + fz * 4);
+    // Glare: strongest when the lamp points at the camera.
+    _lampToCam.copy(camera.position).sub(L.position);
+    const dist = _lampToCam.length() || 1;
+    _lampToCam.multiplyScalar(1 / dist);
+    const facing = fx * _lampToCam.x * 0.975 - 0.22 * _lampToCam.y + fz * _lampToCam.z * 0.975;
+    const v = _ss(0.2, 0.85, facing);
+    F.visible = v > 0.01;
+    if (F.visible) {
+      F.position.copy(L.position).addScaledVector(_lampToCam, 0.3);
+      F.material.opacity = v * (indoors ? 1.0 : 0.8);
+      const sc = (0.5 + 1.5 * v) * (0.6 + dist * 0.07);
+      F.scale.set(sc, sc, 1);
+    }
+  }
   function updateWreckCamera(dt, snap) {
+    for (const sp of wreckLevel.labels) {                      // notes fade out beyond about 10 m
+      const d = Math.hypot(sp.position.x + WL_ORIGIN.x - player.pos.x, sp.position.z + WL_ORIGIN.z - player.pos.z);
+      sp.material.opacity = 1 - _ss(8, 12, d); sp.visible = sp.material.opacity > 0.02;
+    }
     const lx = player.pos.x - WL_ORIGIN.x;
     let z = wreckCam.zone;
     if (!z || lx < z.x0 - 0.3 || lx > z.x1 + 0.3) {          // hysteresis at boundaries
@@ -14317,7 +14574,23 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
     }
     const O = WL_ORIGIN;
     if (z.mode === 'fixed') {
-      wreckCam.pos.set(O.x + z.pos[0], O.y + z.pos[1], O.z + z.pos[2]);
+      // v0.9.3: drag swings the set camera round him (and up/down) so no
+      // corner of a room is hidden. It resets on entering the next room
+      // and is kept inside the room's walls.
+      if (snap || wreckCam.yaw0 === undefined) { wreckCam.yaw0 = camYaw; wreckCam.pitch0 = camPitch; }
+      let oy = camYaw - wreckCam.yaw0, op = camPitch - wreckCam.pitch0;
+      if (oy > 1.5) { oy = 1.5; camYaw = wreckCam.yaw0 + 1.5; } else if (oy < -1.5) { oy = -1.5; camYaw = wreckCam.yaw0 - 1.5; }
+      if (op > 0.5) { op = 0.5; camPitch = wreckCam.pitch0 + 0.5; } else if (op < -0.5) { op = -0.5; camPitch = wreckCam.pitch0 - 0.5; }
+      const bx = O.x + z.pos[0] - player.pos.x, bz = O.z + z.pos[2] - player.pos.z;
+      const cs = Math.cos(oy), sn = Math.sin(oy);
+      let wx = player.pos.x + bx * cs + bz * sn, wz = player.pos.z - bx * sn + bz * cs;
+      let wy = O.y + z.pos[1] + op * 5;
+      const lim = WL_HALF_W * WL_K - 0.6;
+      wx = Math.max(O.x + Math.max(z.x0, 1.6 * WL_K) + 0.7, Math.min(O.x + Math.min(z.x1, 43 * WL_K) - 0.7, wx));
+      wz = Math.max(O.z - lim, Math.min(O.z + lim, wz));
+      wy = Math.max(O.y + 1.5, Math.min(O.y + 7.5, wy));
+      if (snap) wreckCam.pos.set(wx, wy, wz);
+      else { const k = Math.min(1, dt * 7); wreckCam.pos.x += (wx - wreckCam.pos.x) * k; wreckCam.pos.y += (wy - wreckCam.pos.y) * k; wreckCam.pos.z += (wz - wreckCam.pos.z) * k; }
     } else {
       const cx = Math.max(z.clamp[0], Math.min(z.clamp[1], lx - z.back));
       const want = new THREE.Vector3(O.x + cx, O.y + z.y, O.z + z.z);
@@ -14334,11 +14607,6 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       wreckCam.basisYaw = Math.atan2(_camDir.x, _camDir.z);
     }
     wreckCam._latched = moving;
-    // Helmet lamp from the head, along the body heading, tilted down.
-    const L = wreckLevel.lamp, b = (astroSeat.bones || _seatBones());
-    if (b) b.Head.getWorldPosition(L.position); else L.position.set(player.pos.x, player.pos.y + 1.6, player.pos.z);
-    L.target.position.set(L.position.x + Math.sin(player.heading) * 4, L.position.y - 1.2,
-                          L.position.z + Math.cos(player.heading) * 4);
     const zl = $('zone-label');
     if (zl) zl.textContent = WRECK_LEVEL_ENABLED ? ('wreck blockout · camera ' + z.name + ' · ' + z.mode) : '';
   }
@@ -14489,6 +14757,7 @@ body.memory-active .world-canvas { filter: saturate(55%) blur(3px); transition: 
       updateInteract(dt);                                   // v0.5.0 — after scene state, before camera
       if (level.id === 'wreck') updateWreckCamera(dt);      // v0.6 set cameras indoors
       else if (!shackletonMemory.isActive()) updateCamera(dt);   // camera holds during fragments (spec §8)
+      updateSuitLamp();
       // Shadow frustum follows the active subject — astronaut on
       // foot, Flyer in flight — texel-snapped inside updateSunFollow.
       if (controlMode === 'flying' && typeof flyerHeading !== 'undefined' && flyerHeading) {
