@@ -8,12 +8,12 @@
 <meta name="description" content="I build Three.js games that run right in the browser. No installs, no engines, no launchers. Fly a glider, jump a canyon, win the league, walk on the Moon, lead a squad, build a factory on the Moon, run a getaway at dusk, race a flying boat round the pylons — just press play." />
 <meta property="og:type" content="website" />
 <meta property="og:title" content="Khalifa Games — browser games built with Three.js" />
-<meta property="og:description" content="Nine worlds, one browser. Glider, Stuntmania '76, Fitba Crazy, Shackleton, Grunt Squad, MASCON, the MU-S1K groovebox, Sunset City: Getaway and Rosso di Mare — no install, just press play." />
+<meta property="og:description" content="Ten worlds, one browser. Glider, Stuntmania '76, Fitba Crazy, Shackleton, Grunt Squad, MASCON, the MU-S1K groovebox, Sunset City: Getaway, Rosso di Mare and The Lock-In — no install, just press play." />
 <meta property="og:url" content="https://khalifa.games/" />
 <meta property="og:image" content="https://khalifa.games/glider/title.png" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="Khalifa Games — browser games built with Three.js" />
-<meta name="twitter:description" content="Nine worlds, one browser. No install, just press play." />
+<meta name="twitter:description" content="Ten worlds, one browser. No install, just press play." />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b1030'/%3E%3Cpath d='M5 20 L27 8 L17 24 L14.5 17.5 Z' fill='%23ffb84d'/%3E%3C/svg%3E" />
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -294,7 +294,7 @@
 <body>
 <script>document.body.classList.add('js');</script>
 
-<canvas id="scene" aria-label="Interactive 3D map of Khalifa's games — nine floating islands, one per game"></canvas>
+<canvas id="scene" aria-label="Interactive 3D map of Khalifa's games — ten floating islands, one per game"></canvas>
 
 <div id="loading" aria-hidden="true">LOADING WORLDS…</div>
 
@@ -306,7 +306,7 @@
   </div>
 
   <div id="intro">
-    <h1>NINE WORLDS.<br>ONE <em>BROWSER.</em></h1>
+    <h1>TEN WORLDS.<br>ONE <em>BROWSER.</em></h1>
     <p>Games built with Three.js. No installs, no engines, no launchers.<br>Even this page is one — drag to look around.</p>
     <span class="press">▸ TAP AN ISLAND TO VISIT ◂</span>
   </div>
@@ -328,7 +328,7 @@
 <!-- ============ static fallback: no JS, no WebGL, crawlers ============ -->
 <section id="static">
   <header>
-    <h1>NINE WORLDS.<br>ONE <em>BROWSER.</em></h1>
+    <h1>TEN WORLDS.<br>ONE <em>BROWSER.</em></h1>
     <p class="lede">I'm Khalifa. I build Three.js games that run right in the browser — no installs, no engines, no launchers. Pick a world and press play.</p>
     <a class="dm-link" href="https://x.com/khalbuildsapps" target="_blank" rel="noopener">DM me on X — @khalbuildsapps ↗</a>
   </header>
@@ -405,6 +405,14 @@
         <a class="btn-play" href="/rosso-di-mare/">▶ PLAY</a>
       </div>
     </article>
+    <article class="scard" style="--ac:#e2b566">
+      <a href="/lock-in/"><img src="/lock-in/title.png" alt="The Lock-In — three pub regulars holding off the undead" width="1200" height="630" loading="lazy"></a>
+      <div class="sbody">
+        <h2>THE LOCK-IN</h2>
+        <p>A third-person shooter in a pub. Three regulars at the Canterbury Ales, a shotgun, a rifle and a revolver between them, and five waves of thirsty undead coming through every door and window. Swap between the three, grab the pints, and keep the place open until last orders.</p>
+        <a class="btn-play" href="/lock-in/">▶ PLAY</a>
+      </div>
+    </article>
   </div>
   <footer>KHALIFA.GAMES · built with Three.js · <a href="https://x.com/khalbuildsapps" target="_blank" rel="noopener">@khalbuildsapps</a></footer>
 </section>
@@ -446,6 +454,10 @@ const GAMES = [
   {
     slug: "rosso", name: "ROSSO DI MARE", url: "/rosso-di-mare/", accent: "#ff5a4d",
     desc: "Fly a red flying boat over a turquoise archipelago. Race four rivals round the pylons, run parcels between the cays, and find the spaceport."
+  },
+  {
+    slug: "lockin", name: "THE LOCK-IN", url: "/lock-in/", accent: "#e2b566",
+    desc: "Three regulars, one pub, five waves of thirsty undead. A third-person shooter: swap between shotgun, rifle and revolver and hold the Canterbury Ales until last orders."
   }
 ];
 
@@ -3008,10 +3020,74 @@ async function boot() {
     scene.add(cloudLayer);
   }
 
+  // THE LOCK-IN — the Canterbury Ales with its front wall off: three regulars at the bar, the undead shuffling in
+  function buildLockIn() {
+    const g = blockBase([[0.35, 0x4a5240], [0.4, 0x6b4a33], [2.3, 0x3a2c26]]);
+    const TOP = 0.72;
+    // the pub: boards, back wall, two wings, the bar and its shelf
+    g.add(box(8.4, 0.14, 5.6, 0x6b4426, 0, TOP + 0.07, -2.4, 0.14),
+      box(8.6, 3.4, 0.3, 0x5c1622, 0, TOP + 1.7, -5.2, 0.08), box(8.6, 1.0, 0.36, 0x3b2114, 0, TOP + 0.5, -5.18, 0.1),
+      box(0.3, 3.4, 3.2, 0x5c1622, -4.3, TOP + 1.7, -3.7, 0.08), box(0.3, 3.4, 3.2, 0x5c1622, 4.3, TOP + 1.7, -3.7, 0.08),
+      box(9.2, 0.22, 0.5, 0x24130b, 0, TOP + 3.5, -5.2, 0.06), box(0.4, 0.22, 3.4, 0x24130b, -4.3, TOP + 3.5, -3.7, 0.06), box(0.4, 0.22, 3.4, 0x24130b, 4.3, TOP + 3.5, -3.7, 0.06),
+      box(5.6, 0.85, 0.7, 0x4a2a17, 0, TOP + 0.56, -3.9, 0.1), box(5.9, 0.1, 0.95, 0x8a5630, 0, TOP + 1.03, -3.9, 0.08),
+      box(5.4, 0.08, 0.3, 0x2e1a10, 0, TOP + 1.75, -4.95, 0.06));
+    [0x3f7d3a, 0x8a4b1e, 0xd9c27a, 0x2f5f8a, 0x9a2b2b].forEach((c, k) => {
+      for (let j = 0; j < 3; j++) g.add(cyl(0.07, 0.08, 0.34, 6, c, -2.4 + (k * 3 + j) * 0.35, TOP + 1.96, -4.95, 0.1));
+    });
+    const board = sign("CANTERBURY ALES", 5.6, 0.95, "#4a0f1c", "#fdeecf");
+    board.position.set(0, TOP + 2.75, -5.03);
+    g.add(board);
+    [[-2.9, -1.4], [2.9, -1.2]].forEach(([x, z]) => g.add(cyl(0.55, 0.55, 0.08, 10, 0x7a4a26, x, TOP + 0.72, z), cyl(0.07, 0.1, 0.6, 6, 0x2e1a10, x, TOP + 0.42, z),
+      cyl(0.07, 0.06, 0.2, 8, 0xd98a1e, x + 0.15, TOP + 0.86, z, 0.05)));
+    const lampMat = emis(0xffc060, 2.4);
+    [-2.2, 2.2].forEach(x => g.add(lit(new THREE.SphereGeometry(0.16, 8, 6), lampMat, x, TOP + 2.6, -2.6), box(0.03, 0.9, 0.03, 0x24130b, x, TOP + 3.1, -2.6, 0.02)));
+    const glow = new THREE.PointLight(0xffb45a, 5, 10, 1.6);
+    glow.position.set(0, TOP + 2.4, -2.2);
+    g.add(glow);
+    // the regulars, backs to the bar, and their muzzle flashes
+    const flashMat = new THREE.MeshBasicMaterial({ color: 0xffe9a8 });
+    const flashes = [[-1.7, 0x1c1a1c, 0x2a2422], [0, 0x2b3156, 0x22264a], [1.7, 0x18181a, 0x6f6d6e]].map(([x, coat, hat], k) => {
+      const p = person(coat, 0x26222a, 1.7);
+      p.add(box(0.3, 0.1, 0.3, hat, 0, 1.2, 0, 0.06), box(0.1, 0.1, 0.5, 0x222222, 0.1, 0.72, 0.3, 0.04));
+      if (k === 0) p.add(box(0.44, 0.08, 0.3, 0xc0202a, 0, 0.93, 0, 0.04));
+      if (k === 1) p.add(box(0.26, 0.05, 0.2, hat, 0, 1.17, 0.22, 0.04));
+      p.position.set(x, TOP + 0.14, -2.3 + (k === 1 ? 0.5 : 0));
+      p.rotation.y = (k - 1) * -0.35;
+      g.add(p);
+      const f = lit(new THREE.SphereGeometry(0.14, 6, 4), flashMat, x + 0.17 - (k - 1) * 0.35, TOP + 1.36, -1.25 + (k === 1 ? 0.5 : 0));
+      g.add(f);
+      return f;
+    });
+    // the undead: a slow, endless shuffle up from the edge of the block
+    const ZC = [0x7fa36a, 0x8fb07a, 0x6f9a7a], ZS = [0x5a4a3a, 0x3f4a5a, 0x6a3a3a, 0x4a5a3f];
+    const dead = [-4.6, -3.2, -1.9, -0.6, 0.7, 2.0, 3.3, 4.7].map((x, k) => {
+      const z = new THREE.Group();
+      z.add(box(0.3, 0.42, 0.22, 0x2c2a28, 0, 0.21, 0, 0.06), box(0.38, 0.46, 0.26, ZS[k % 4], 0, 0.64, 0, 0.1), box(0.24, 0.24, 0.24, ZC[k % 3], 0, 1.0, 0, 0.08),
+        box(0.1, 0.1, 0.5, ZC[k % 3], -0.24, 0.74, -0.26, 0.06), box(0.1, 0.1, 0.5, ZC[k % 3], 0.24, 0.74, -0.26, 0.06));
+      bake(z);
+      dyn(z).userData.x = x;
+      g.add(z);
+      return z;
+    });
+    return {
+      group: g,
+      animate(t) {
+        dead.forEach((z, k) => {
+          const u = (t * 0.07 + k * 0.371) % 1, fall = smooth((u - 0.86) / 0.1);
+          z.position.set(z.userData.x * (1 - u * 0.45) + Math.sin(t * 1.3 + k) * 0.12, TOP + 0.02 - fall * 0.5, 6.1 - u * 5.4);
+          z.rotation.set(-fall * 1.4, Math.sin(t * 2 + k * 1.7) * 0.15, Math.sin(t * 2.6 + k) * 0.1);
+          z.scale.setScalar(Math.min(1, u * 12) * (1 - smooth((u - 0.95) / 0.05)) + 0.001);
+        });
+        flashes.forEach((f, k) => { f.visible = fract(t * (2.1 + k * 0.7) + k * 0.4) < 0.12; });
+        lampMat.emissiveIntensity = 2.2 + Math.sin(t * 9) * 0.15;
+      }
+    };
+  }
+
   // ---------- place islands ----------
-  // nine islands, evenly spaced; the ring widens with each one so neighbours keep their breathing room
-  const R = 37;
-  const STEP = Math.PI * 2 / 9;
+  // ten islands, evenly spaced; the ring widens with each one so neighbours keep their breathing room
+  const R = 41;
+  const STEP = Math.PI * 2 / 10;
   const layout = [
     { angle: -4 * STEP, y: 2.0 },   // glider
     { angle: -3 * STEP, y: -1.2 },  // stuntmania
@@ -3021,9 +3097,10 @@ async function boot() {
     { angle: 1 * STEP, y: -0.6 },   // mascon
     { angle: 2 * STEP, y: 1.4 },    // mu-s1k
     { angle: 3 * STEP, y: -0.8 },   // sunset city
-    { angle: 4 * STEP, y: 0.9 }     // rosso di mare
+    { angle: 4 * STEP, y: 0.9 },    // rosso di mare
+    { angle: 5 * STEP, y: -1.0 }    // the lock-in
   ];
-  const builders = [buildGlider, buildStunt, buildFitba, buildMoon, buildGrunt, buildMascon, buildMusik, buildSunset, buildSeaplane];
+  const builders = [buildGlider, buildStunt, buildFitba, buildMoon, buildGrunt, buildMascon, buildMusik, buildSunset, buildSeaplane, buildLockIn];
   const islands = [];
 
   GAMES.forEach((game, i) => {
@@ -3153,7 +3230,7 @@ async function boot() {
     if (e.key === "Escape") backToTour();
     else if (e.key === "Enter" && current >= 0 && !e.target.closest("a,button")) {
       window.location.href = GAMES[current].url;
-    } else if (/^[1-9]$/.test(e.key) && Number(e.key) <= GAMES.length) selectIsland(Number(e.key) - 1);
+    } else if (/^[0-9]$/.test(e.key) && (Number(e.key) || 10) <= GAMES.length) selectIsland((Number(e.key) || 10) - 1);
     else if (e.key === "ArrowRight") selectIsland(((current < 0 ? -1 : current) + 1) % GAMES.length);
     else if (e.key === "ArrowLeft") selectIsland(((current < 0 ? 1 : current) + GAMES.length - 1) % GAMES.length);
   });

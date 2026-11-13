@@ -11,6 +11,7 @@
     { "source": "/mascon",                "destination": "/mascon/",               "permanent": true },
     { "source": "/mu-s1k",                "destination": "/mu-s1k/",               "permanent": true },
     { "source": "/sunset-city",           "destination": "/sunset-city/",          "permanent": true },
+    { "source": "/lock-in",               "destination": "/lock-in/",              "permanent": true },
     { "source": "/rosso-di-mare",         "destination": "/rosso-di-mare/",        "permanent": true }
   ],
   "rewrites": [

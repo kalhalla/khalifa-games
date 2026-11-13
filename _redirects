@@ -11,6 +11,7 @@
 /mascon  /mascon/  301
 /mu-s1k  /mu-s1k/  301
 /sunset-city  /sunset-city/  301
+/lock-in  /lock-in/  301
 /rosso-di-mare  /rosso-di-mare/  301
 # Rosso di Mare is NOT in this repo. It is served from its own repository (kalhalla/rosso-di-mare) and its own
 # deployment; worker.js forwards /rosso-di-mare/* to it (run_worker_first in wrangler.jsonc).
