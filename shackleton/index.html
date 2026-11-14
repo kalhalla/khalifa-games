@@ -630,7 +630,7 @@ body.in-wreck .cam-buttons { display: none; }
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.13.5';  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.14.0';  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -1212,7 +1212,71 @@ body.in-wreck .cam-buttons { display: none; }
   const root = new THREE.Group();
   scene.add(root);
   const colliders = [];
-  function addCollider(x, z, r, h) { colliders.push({ x, z, r, h }); }
+  function addCollider(x, z, r, h) { const c = { x, z, r, h }; colliders.push(c); return c; }
+
+  // ============================================================
+  // ROCK FIELDS (v0.14.0) — big boulders collide as their real shape
+  //
+  // A round collider let him walk through a boulder's corners, stopped
+  // him short of its flat sides, and gave him nothing to stand on. Each
+  // big boulder now gets a small height map of its own top surface,
+  // made once at load by casting rays straight down through the actual
+  // mesh on a 0.25 m grid. From that:
+  //   - rockTopAt(x, z) is the height of rock under a point, so he can
+  //     land on a boulder, stand on it and walk across it
+  //   - rockResolvePlayer stops him where rock rises more than a step
+  //     above his feet, which is the boulder's real outline
+  // ============================================================
+  const ROCK_CELL = 0.25, ROCK_NONE = -1e9, ROCK_BUCKET = 8;
+  const rockFields = [];
+  const _rockBuckets = new Map();
+  const _rockRay = new THREE.Raycaster();
+  const _rockDown = new THREE.Vector3(0, -1, 0), _rockFrom = new THREE.Vector3();
+  function addRockField(mesh, reach) {
+    mesh.updateMatrixWorld(true);
+    const cx = mesh.position.x, cz = mesh.position.z;
+    const n = Math.ceil(reach * 2 / ROCK_CELL) + 1;
+    const f = { x0: cx - reach, z0: cz - reach, n, h: new Float32Array(n * n), top: ROCK_NONE };
+    const topY = mesh.position.y + reach + 1;
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+      _rockFrom.set(f.x0 + i * ROCK_CELL, topY, f.z0 + j * ROCK_CELL);
+      _rockRay.set(_rockFrom, _rockDown);
+      const hit = _rockRay.intersectObject(mesh, false);
+      const y = hit.length ? hit[0].point.y : ROCK_NONE;
+      f.h[j * n + i] = y;
+      if (y > f.top) f.top = y;
+    }
+    rockFields.push(f);
+    const b0x = Math.floor(f.x0 / ROCK_BUCKET), b1x = Math.floor((cx + reach) / ROCK_BUCKET);
+    const b0z = Math.floor(f.z0 / ROCK_BUCKET), b1z = Math.floor((cz + reach) / ROCK_BUCKET);
+    for (let bz = b0z; bz <= b1z; bz++) for (let bx = b0x; bx <= b1x; bx++) {
+      const k = bx + ',' + bz;
+      if (!_rockBuckets.has(k)) _rockBuckets.set(k, []);
+      _rockBuckets.get(k).push(f);
+    }
+    return f;
+  }
+  // Height of rock under (x, z), or ROCK_NONE where there is none.
+  function rockTopAt(x, z) {
+    const list = _rockBuckets.get(Math.floor(x / ROCK_BUCKET) + ',' + Math.floor(z / ROCK_BUCKET));
+    if (!list) return ROCK_NONE;
+    let best = ROCK_NONE;
+    for (const f of list) {
+      const gx = (x - f.x0) / ROCK_CELL, gz = (z - f.z0) / ROCK_CELL;
+      const i = Math.floor(gx), j = Math.floor(gz);
+      if (i < 0 || j < 0 || i >= f.n - 1 || j >= f.n - 1) continue;
+      const n = f.n, a = f.h[j * n + i], b = f.h[j * n + i + 1], c = f.h[(j + 1) * n + i], d = f.h[(j + 1) * n + i + 1];
+      let y;
+      if (a > ROCK_NONE && b > ROCK_NONE && c > ROCK_NONE && d > ROCK_NONE) {
+        const tx = gx - i, tz = gz - j;                       // smooth across a face
+        y = (a * (1 - tx) + b * tx) * (1 - tz) + (c * (1 - tx) + d * tx) * tz;
+      } else {                                                 // at the outline: nearest sample only
+        y = f.h[Math.round(gz) * n + Math.round(gx)];
+      }
+      if (y > best) best = y;
+    }
+    return best;
+  }
 
   // ============================================================
   // BOX COLLIDERS (v0.5.0) — the collision half of the asset
@@ -1276,9 +1340,35 @@ body.in-wreck .cam-buttons { display: none; }
   }
   // Terrain or box top, whichever is higher — the player's floor.
   function playerGroundY(x, z, y) {
-    const t = level.id === 'wreck' ? WL_ORIGIN.y : shackletonScene.getGroundY(x, z);
+    let t = level.id === 'wreck' ? WL_ORIGIN.y : shackletonScene.getGroundY(x, z);
+    if (level.id !== 'wreck') {                 // rock he is on, or can step up onto
+      const r = rockTopAt(x, z);
+      if (r > t && r <= y + BOX_STEP_UP) t = r;
+    }
     if (!boxColliders.length) return t;
     return Math.max(t, boxTopAt(x, z, y));
+  }
+  // Stop the player where rock stands more than a step above his feet.
+  // (px, pz) is where he was before this frame's move. Tested at his
+  // centre and 0.35 m ahead, so a steep face stops him however slowly he
+  // creeps at it; he slides along the face if one axis is clear.
+  function _rockBlocked(x, z, y, dx, dz) {
+    const lim = y + BOX_STEP_UP;
+    if (rockTopAt(x, z) > lim) return true;
+    return rockTopAt(x + dx * 0.35, z + dz * 0.35) > lim;
+  }
+  function rockResolvePlayer(px, pz) {
+    const p = player.pos;
+    let mx = p.x - px, mz = p.z - pz;
+    const m = Math.hypot(mx, mz);
+    if (m < 1e-6) return;
+    const dx = mx / m, dz = mz / m, y = p.y;
+    if (!_rockBlocked(p.x, p.z, y, dx, dz)) return;
+    if (rockTopAt(px, pz) > y + BOX_STEP_UP) return;      // already inside rock (a teleport, a spawn): let him walk out
+    const sx = Math.sign(mx), sz = Math.sign(mz);
+    if (Math.abs(mx) > 1e-6 && !_rockBlocked(p.x, pz, y, sx, 0)) { p.z = pz; player.vel.z = 0; return; }   // slide along x
+    if (Math.abs(mz) > 1e-6 && !_rockBlocked(px, p.z, y, 0, sz)) { p.x = px; player.vel.x = 0; return; }   // slide along z
+    p.x = px; p.z = pz; player.vel.x = 0; player.vel.z = 0;
   }
   // Push the player cylinder out of every box it overlaps at its
   // current height. Boxes the player is standing on (or can step
@@ -2023,7 +2113,10 @@ body.in-wreck .cam-buttons { display: none; }
       // applied at check time in updatePlayer.
       const cR = Math.max(sx, sz) * 0.55;
       const cH = surfaceY + sy * 0.3 + sy * 0.5;   // boulder top, world Y
-      addCollider(x, z, cR, cH);
+      const col = addCollider(x, z, cR, cH);
+      // v0.14.0: big boulders collide with the player as their real shape
+      // (rock field); the round collider stays for anything else that reads it.
+      if (sy >= 0.5) { addRockField(m, Math.max(sx, sy, sz) * 1.05); col.rock = true; }
       // Larger boulders also act as camera occluders so the chase cam
       // pulls in when the player walks behind one. Threshold higher
       // than collide threshold — small rocks block feet but not view.
@@ -2993,6 +3086,7 @@ body.in-wreck .cam-buttons { display: none; }
     }
 
     // Integrate
+    const _rpx = player.pos.x, _rpz = player.pos.z;      // where he was, for the rock test
     player.pos.addScaledVector(player.vel, dt);
 
     // Re-check ground after integration
@@ -3034,6 +3128,7 @@ body.in-wreck .cam-buttons { display: none; }
     // passable. Tuned together with placeBoulder's collider radius
     // factor (0.55) so the silhouette and the collision agree.
     for (const c of colliders) {
+      if (c.rock) continue;                      // big boulders: rock field, below
       if (player.pos.y > c.h + 0.4) continue;
       const dx = player.pos.x - c.x, dz = player.pos.z - c.z;
       const distSq = dx*dx + dz*dz;
@@ -3048,6 +3143,8 @@ body.in-wreck .cam-buttons { display: none; }
         if (vR < 0) { player.vel.x -= vR * nx; player.vel.z -= vR * nz; }
       }
     }
+
+    if (level.id !== 'wreck') rockResolvePlayer(_rpx, _rpz);   // v0.14.0 big boulders, real shape
 
     // Collision with robots — horizontal cylinder collider, ~0.75m combined
     // radius. Astronaut gets pushed; robots continue their waddle unaffected.
@@ -3198,7 +3295,7 @@ body.in-wreck .cam-buttons { display: none; }
       if (player.grounded && jumpPhase === null && sp > 0.3) {
         const ax = player.pos.x + player.vel.x / sp * 0.5, az = player.pos.z + player.vel.z / sp * 0.5;
         const ahead = playerGroundY(ax, az, player.pos.y) - player.pos.y;
-        if (ahead > 0.05 && ahead <= BOX_STEP_UP && (level.id === 'wreck' || player.onBox || boxTopAt(ax, az, player.pos.y) > -Infinity)) want = ahead;
+        if (ahead > 0.05 && ahead <= BOX_STEP_UP && (level.id === 'wreck' || player.onBox || boxTopAt(ax, az, player.pos.y) > -Infinity || rockTopAt(ax, az) > ROCK_NONE)) want = ahead;
       }
       const rate = stepVis.off < want ? 7 : 5.5;            // up a touch quicker than down
       stepVis.off += (want - stepVis.off) * Math.min(1, dt * rate);
