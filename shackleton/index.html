@@ -584,6 +584,7 @@ body.in-wreck .cam-buttons { display: none; }
 <!-- three.js r187 (ES modules). r128 was the last release with the global
      examples/js builds this file was written against; the bridge below
      rebuilds that global THREE namespace so the game code is unchanged. -->
+<script src="/shackleton/o2-panel.js?v=0.13.0"></script>   <!-- oxygen stabiliser panel (also playable at /shackleton/panel/) -->
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js",
@@ -629,7 +630,7 @@ body.in-wreck .cam-buttons { display: none; }
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.12.0';  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.13.0';  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -2700,11 +2701,12 @@ body.in-wreck .cam-buttons { display: none; }
   // v0.9.0: virtual joystick. x = right, y = forward, each −1…1 with the
   // dead zone already removed; run = pushed to the rim.
   const joy = { x: 0, y: 0, active: false, run: false };
+  let uiPanelOpen = false;          // v0.13.0: a full-screen puzzle panel has the player's attention
   function setInputFromKeys() {
     input.forward = (keys['w']||keys['arrowup'] ? 1 : 0) + (keys['s']||keys['arrowdown'] ? -1 : 0);
     input.strafe = (keys['d']||keys['arrowright'] ? 1 : 0) + (keys['a']||keys['arrowleft'] ? -1 : 0);
     input.run = !!keys['shift'];
-    if (demoEnd.active) { input.forward = 0; input.strafe = 0; input.run = false; input.jump = false; return; }
+    if (demoEnd.active || uiPanelOpen) { input.forward = 0; input.strafe = 0; input.run = false; input.jump = false; return; }
     if (joy.active) {
       input.forward = joy.y; input.strafe = joy.x;
       input.run = joy.run && level.id !== 'wreck';     // no running indoors
@@ -10178,7 +10180,7 @@ body.in-wreck .cam-buttons { display: none; }
       speak('SUIT', 'power path restored', 2.2, { kind: 'system' });
     }
     if (wreckInterior.interactables.every(i => i.done)) {
-      setTimeout(_wreckInteriorSolved, 900);
+      setTimeout(_stabTasksDone, 900);
     }
   }
 
@@ -10301,6 +10303,27 @@ body.in-wreck .cam-buttons { display: none; }
   window.addEventListener('pointerup', () => { if (POINTER_DRAG_ENABLED) _stabDrop(); }, true);
   window.addEventListener('pointercancel', () => { if (POINTER_DRAG_ENABLED) _stabDrop(); }, true);
 
+  // v0.13.0: the three hands-on jobs power the unit up, but the manifold
+  // is still out of line. The close-up panel (o2-panel.js) is the last
+  // step; solving it is what stabilises the oxygen.
+  function _stabTasksDone() {
+    if (wreckInterior.panelReady || wreckInterior.solved) return;
+    if (!window.O2Panel) { _wreckInteriorSolved(); return; }      // panel script missing: do not strand the player
+    wreckInterior.panelReady = true;
+    wreckInterior.statusLamp.material.color.setHex(0xffb347);
+    speak('SUIT', 'power restored — manifold out of line', 2.8, { kind: 'system' });
+    setObjective('open the stabiliser panel');
+  }
+  function openStabPanel() {
+    if (window.O2Panel.isOpen()) return;
+    uiPanelOpen = true;
+    for (const k in keys) keys[k] = false;
+    window.O2Panel.open({
+      size: 5, seed: 4111, resume: true,
+      onSolved() { uiPanelOpen = false; _wreckInteriorSolved(); },
+      onClose() { uiPanelOpen = false; },
+    });
+  }
   function _wreckInteriorSolved() {
     wreckInterior.solved = true;
     wreckInterior.statusLamp.material.color.setHex(0x30ff70);
@@ -10388,7 +10411,7 @@ body.in-wreck .cam-buttons { display: none; }
     it.done = true;
     it.action();
     if (wreckInterior.interactables.every(i => i.done)) {
-      setTimeout(_wreckInteriorSolved, 900);
+      setTimeout(_stabTasksDone, 900);
     }
   }
   // (v0.5.0: the prompt's tap handler lives in the interaction system.)
@@ -10404,6 +10427,12 @@ body.in-wreck .cam-buttons { display: none; }
   // memory system.
   // ============================================================
   const worldInteractables = [];   // {x, z, r, label, fire(), hidden()}
+  worldInteractables.push({                       // v0.13.0: the stabiliser's close-up panel
+    get x() { return STAB_POS.x + 0.9; }, get z() { return STAB_POS.z; }, r: 2.4,
+    label: 'open the stabiliser panel',
+    hidden: () => !wreckInterior.panelReady || wreckInterior.solved,
+    fire() { openStabPanel(); },
+  });
   const flyerRepair = { installed: false, k: 1 };   // k: 1 = damaged … 0 = repaired
   const scene4 = { active: false, pinDone: false, panelDone: false,
                    pulled: false, pullT: 0, braceHeld: false, entered: false };
