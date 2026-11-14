@@ -630,7 +630,7 @@ body.in-wreck .cam-buttons { display: none; }
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.18.2';  // wreck: four landing legs in housings (two intact, two buckled), half-size blackened nozzles. was v0.18.1;  // wreck: sealed middle/nose, rear-only damage + tanks, doorway recess, NASA stacked, regolith imprint. was v0.18.0;  // wreck exterior: painted skin, round hull, ogive nose, engine bells, landing legs. was v0.17.3;  // robot eyes blink and look; gestures: wave, hand up, tap-and-point. was v0.17.2;  // robot legs: piston shins, hinged toes, less body sway. was v0.17.1;  // built tools on the Meshy robots: drill + saw, gripper, three-finger claws. was v0.17.0;  // Meshy robots, cut into jointed parts and driven by the walk rig. was v0.16.0;  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.18.3';  // engine nozzles 25% larger. was v0.18.2;  // wreck: four landing legs in housings (two intact, two buckled), half-size blackened nozzles. was v0.18.1;  // wreck: sealed middle/nose, rear-only damage + tanks, doorway recess, NASA stacked, regolith imprint. was v0.18.0;  // wreck exterior: painted skin, round hull, ogive nose, engine bells, landing legs. was v0.17.3;  // robot eyes blink and look; gestures: wave, hand up, tap-and-point. was v0.17.2;  // robot legs: piston shins, hinged toes, less body sway. was v0.17.1;  // built tools on the Meshy robots: drill + saw, gripper, three-finger claws. was v0.17.0;  // Meshy robots, cut into jointed parts and driven by the walk rig. was v0.16.0;  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -9232,12 +9232,12 @@ body.in-wreck .cam-buttons { display: none; }
       skirt.position.y = -0.4; g.add(skirt);
       const bulk = new THREE.Mesh(new THREE.CircleGeometry(HULL_R * 0.9, SEGS * 3), metalDark);
       bulk.rotation.x = Math.PI / 2; bulk.position.y = -0.55; g.add(bulk);
-      const bellG = bellGeometry(0.13, 0.37, 0.8, 20);   // v0.18.2: half the size, blackened
+      const bellG = bellGeometry(0.1625, 0.4625, 1.0, 20);   // v0.18.3: 25% up from v0.18.2's half size, blackened
       const bellMat = new THREE.MeshPhongMaterial({ shininess: 0, color: 0xffffff, vertexColors: true, flatShading: true, side: THREE.DoubleSide });
       const MOUNTS = [Math.PI * 0.25, Math.PI * 0.75, Math.PI * 1.25, Math.PI * 1.75];
       MOUNTS.forEach((a, i) => {
         const mx = Math.cos(a) * 0.98, mz = Math.sin(a) * 0.98;
-        const mount = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.21, 0.18, 10), metalDark);
+        const mount = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.26, 0.2, 10), metalDark);
         mount.position.set(mx, -0.66, mz); g.add(mount);
         if (i === 0) {   // empty mount: torn feed lines
           for (let k = 0; k < 3; k++) {
@@ -9247,11 +9247,11 @@ body.in-wreck .cam-buttons { display: none; }
           return;
         }
         const bell = new THREE.Mesh(bellG, bellMat);
-        bell.position.set(mx, -0.74, mz);
+        bell.position.set(mx, -0.75, mz);
         if (i === 2) bell.rotation.set(0.28, 0, -0.22);   // knocked askew on impact
         bell.castShadow = true; g.add(bell);
-        const ring = new THREE.Mesh(new THREE.TorusGeometry(0.37, 0.02, 4, 20), new THREE.MeshPhongMaterial({ shininess: 0, color: 0x0c0c0e, flatShading: true }));
-        ring.rotation.x = Math.PI / 2; ring.position.y = -0.8; bell.add(ring);
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(0.4625, 0.025, 4, 20), new THREE.MeshPhongMaterial({ shininess: 0, color: 0x0c0c0e, flatShading: true }));
+        ring.rotation.x = Math.PI / 2; ring.position.y = -1.0; bell.add(ring);
       });
     }
     // Landing legs (v0.18.2) — four, a quarter of the way round from
@@ -11715,14 +11715,14 @@ body.in-wreck .cam-buttons { display: none; }
     const metal = new THREE.MeshPhongMaterial({ shininess: 0, color: 0x55585f, flatShading: true, side: THREE.DoubleSide });
     const legMat = new THREE.MeshPhongMaterial({ shininess: 0, color: 0x9a9ca1, flatShading: true });
     // the engine cluster behind the tail is solid
-    addBoxCollider({ x: STARSHIP_X - 0.8 * WRECK_SCALE, z: STARSHIP_Z, hx: 0.8 * WRECK_SCALE, hz: 1.45 * WRECK_SCALE,
+    addBoxCollider({ x: STARSHIP_X - 0.9 * WRECK_SCALE, z: STARSHIP_Z, hx: 0.9 * WRECK_SCALE, hz: 1.5 * WRECK_SCALE,
       y0: -CRATER_DEPTH - 1, y1: -CRATER_DEPTH + 4.4 * WRECK_SCALE, walkable: false, tag: 'engines' });
     const bx = STARSHIP_X - 7.5, bz = STARSHIP_Z - 7.5, by = shackletonScene.getGroundY(bx, bz);   // far side: clear of the O2 station
-    const bell = new THREE.Mesh(bellGeometry(0.13 * WRECK_SCALE, 0.37 * WRECK_SCALE, 0.8 * WRECK_SCALE, 20),
+    const bell = new THREE.Mesh(bellGeometry(0.1625 * WRECK_SCALE, 0.4625 * WRECK_SCALE, 1.0 * WRECK_SCALE, 20),
       new THREE.MeshPhongMaterial({ shininess: 0, color: 0xffffff, vertexColors: true, flatShading: true, side: THREE.DoubleSide }));
-    bell.rotation.set(Math.PI / 2 - 0.25, 0.9, 0); bell.position.set(bx, by + 0.3 * WRECK_SCALE, bz);
+    bell.rotation.set(Math.PI / 2 - 0.25, 0.9, 0); bell.position.set(bx, by + 0.38 * WRECK_SCALE, bz);
     bell.castShadow = true; bell.receiveShadow = true; scene.add(bell);
-    addBoxCollider({ x: bx + 0.45, z: bz + 0.3, hx: 0.7, hz: 0.7, y0: by - 0.2, y1: by + 0.8, walkable: false, tag: 'bell' });
+    addBoxCollider({ x: bx + 0.55, z: bz + 0.4, hx: 0.9, hz: 0.9, y0: by - 0.2, y1: by + 1.0, walkable: false, tag: 'bell' });
     // (v0.18.2: the loose landing leg is gone — all four legs are on the hull.)
   }
 
