@@ -630,7 +630,7 @@ body.in-wreck .cam-buttons { display: none; }
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.13.3';  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.13.4';  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -3224,19 +3224,16 @@ body.in-wreck .cam-buttons { display: none; }
     // is what plays when the ground drops away and he has NOT jumped: the
     // gait clip stays, held in its open hop pose (see applyLope), instead
     // of the Jump clip. A fall of more than 1.8 s still becomes a Jump.
-    // Landed from a running jump (v0.13.1): a short, quick knee-bend from the
-    // Jump clip's landing section while he keeps his speed, then straight
-    // back into the stride. (v0.10.6 skipped the landing entirely.)
+    // Landed from a running jump (v0.13.4): straight back into the run clip,
+    // so his legs are already stepping, with the landing crouch
+    // (applyLandPose) laid over the top of the stride. He comes down, takes
+    // a step or two bent low with the momentum, and rises as he goes.
+    // (v0.13.1–3 played the Jump clip's feet-together landing here, which
+    // is why he crouched on the spot while still sliding forward.)
     if (runJump && player.grounded && jumpPhase !== 'airborne') {
-      if (!runJumpLandAt) {
-        runJumpLandAt = performance.now();
-        if (jumpAction) { jumpAction.paused = false; jumpAction.setEffectiveTimeScale(1.25); }
-        kickDust(player.pos.x, player.pos.y, player.pos.z, 320, 2.4);
-      }
-      if (performance.now() - runJumpLandAt > 480 || jumpPhase === null) {
-        jumpPhase = null; runJump = false; runJumpLandAt = 0;
-        if (jumpAction) jumpAction.setEffectiveTimeScale(1);
-      }
+      jumpPhase = null; runJump = false; runJumpLandAt = 0;
+      if (jumpAction) { jumpAction.paused = false; jumpAction.setEffectiveTimeScale(1); }
+      kickDust(player.pos.x, player.pos.y, player.pos.z, 320, 2.4);
     }
     airHold.t = player.grounded ? 0 : airHold.t + dt;
     const slopeAir = !player.grounded && jumpPhase === null && level.id !== 'wreck' &&
@@ -5373,6 +5370,16 @@ body.in-wreck .cam-buttons { display: none; }
       // down, so the legs keep travelling through the air instead of
       // hanging in one pose between steps.
       lope.dc += (Math.min(lope.dc, 0.20) - lope.dc) * lope.jog;
+      // v0.13.4: the same at walking pace. Matching the planted foot to the
+      // ground exactly (v0.9.3) used up most of each half-cycle during
+      // contact, so through the hop the legs and arms barely moved: the
+      // stiff, held look. The clip is now spread much more evenly across
+      // contact and hop. The price is a little foot slide in the dust.
+      if (level.id !== 'wreck') {
+        const low = 1 - _ss(2.2, 3.0, speed);
+        const even = 0.55 * lope.contact / lope.period;
+        lope.dc += (Math.min(lope.dc, even) - lope.dc) * 0.75 * low;
+      }
       if (lope.fresh) { lope.fresh = false; lope.phase = 0; lope.pushed = false; _lopeLand(speed); }
       lope.phase += dt / lope.period;
       const cf = lope.contact / lope.period;
@@ -5435,10 +5442,18 @@ body.in-wreck .cam-buttons { display: none; }
     const b = astroSeat.bones || _seatBones();
     if (!b) return;
     const c = Math.cos(Math.PI * (lope.parity + lope.phase));   // +1 as the right foot comes down in front
-    b.LeftArm.rotation.z  += 0.20 * k * c;      // left arm forward with the right leg
-    b.RightArm.rotation.z += 0.20 * k * c;      // right arm back (its forward is −z)
-    b.RightUpLeg.rotation.z += 0.09 * k * c;
-    b.LeftUpLeg.rotation.z  -= 0.09 * k * c;
+    b.LeftArm.rotation.z  += 0.26 * k * c;      // left arm forward with the right leg
+    b.RightArm.rotation.z += 0.26 * k * c;      // right arm back (its forward is −z)
+    b.RightUpLeg.rotation.z += 0.10 * k * c;
+    b.LeftUpLeg.rotation.z  -= 0.10 * k * c;
+    // v0.13.4: through the hop, the leg that is coming forward tucks at the
+    // knee and the forearms lift a little, peaking at the top of the hop.
+    const cf = lope.contact / lope.period;
+    const up = lope.phase > cf ? Math.sin(Math.PI * (lope.phase - cf) / (1 - cf)) : 0;
+    const swing = lope.parity ? b.RightLeg : b.LeftLeg;    // parity 0 = right foot planted
+    swing.rotation.z -= 0.34 * k * up;
+    b.LeftForeArm.rotation.z  += 0.16 * k * up;
+    b.RightForeArm.rotation.z -= 0.16 * k * up;
   }
 
   // v0.13.3 landing: a real crouch, not a squash. Knees bend, the hips
