@@ -630,7 +630,7 @@ body.in-wreck .cam-buttons { display: none; }
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.18.3';  // engine nozzles 25% larger. was v0.18.2;  // wreck: four landing legs in housings (two intact, two buckled), half-size blackened nozzles. was v0.18.1;  // wreck: sealed middle/nose, rear-only damage + tanks, doorway recess, NASA stacked, regolith imprint. was v0.18.0;  // wreck exterior: painted skin, round hull, ogive nose, engine bells, landing legs. was v0.17.3;  // robot eyes blink and look; gestures: wave, hand up, tap-and-point. was v0.17.2;  // robot legs: piston shins, hinged toes, less body sway. was v0.17.1;  // built tools on the Meshy robots: drill + saw, gripper, three-finger claws. was v0.17.0;  // Meshy robots, cut into jointed parts and driven by the walk rig. was v0.16.0;  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.18.4';  // robot gait: bird-like stance/swing, bigger leg swing, pistons follow, body dip, feet planted. was v0.18.3;  // engine nozzles 25% larger. was v0.18.2;  // wreck: four landing legs in housings (two intact, two buckled), half-size blackened nozzles. was v0.18.1;  // wreck: sealed middle/nose, rear-only damage + tanks, doorway recess, NASA stacked, regolith imprint. was v0.18.0;  // wreck exterior: painted skin, round hull, ogive nose, engine bells, landing legs. was v0.17.3;  // robot eyes blink and look; gestures: wave, hand up, tap-and-point. was v0.17.2;  // robot legs: piston shins, hinged toes, less body sway. was v0.17.1;  // built tools on the Meshy robots: drill + saw, gripper, three-finger claws. was v0.17.0;  // Meshy robots, cut into jointed parts and driven by the walk rig. was v0.16.0;  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -7863,40 +7863,41 @@ body.in-wreck .cam-buttons { display: none; }
   // Walking pose driver — extracted so the emergence cinematic can drive
   // the same pose without the AI position-tracking. `phase` is the walk
   // cycle phase in radians (0..2π wrapping).
+  // v0.18.4 — bird-like gait. Each leg spends 62% of the cycle planted
+  // (stance: the foot stays put while the leg sweeps from front to back)
+  // and 38% in the air (swing: piston pulls up hard, toes hang, leg
+  // reaches forward). The body dips as each foot takes the weight and
+  // rises at mid-stride. Leg angle sign: negative rotation.x = foot
+  // forward (the robot faces +Z). ud.gait carries the numbers to the
+  // GLB rig (syncRobotGlbs), which turns them into piston travel.
+  const GAIT_A = 0.62, GAIT_BETA = 0.62, GAIT_DIP = 0.055;
+  function gaitLeg(u) {
+    if (u < GAIT_BETA) { const sP = u / GAIT_BETA; return { th: GAIT_A * (1 - 2 * sP), lift: 0, stance: true }; }
+    const w = (u - GAIT_BETA) / (1 - GAIT_BETA), e = w * w * (3 - 2 * w);
+    return { th: -GAIT_A + 2 * GAIT_A * e, lift: Math.pow(Math.sin(Math.PI * w), 0.8), stance: false };
+  }
   function applyWalkingPose(ud, phase) {
-    const legSwing = Math.sin(phase) * 0.52;
-    ud.legPivots[0].rotation.x =  legSwing;
-    ud.legPivots[1].rotation.x = -legSwing;
-
-    const leftLift  = Math.max(0, -Math.cos(phase));
-    const rightLift = Math.max(0,  Math.cos(phase));
-
-    const leftShinScale  = 0.80 - leftLift  * 0.50;
-    const rightShinScale = 0.80 - rightLift * 0.50;
-    ud.shinAssemblies[0].scale.y = leftShinScale;
-    ud.shinAssemblies[1].scale.y = rightShinScale;
-
-    const leftRotX  = ud.legPivots[0].rotation.x;
-    const rightRotX = ud.legPivots[1].rotation.x;
-    ud.footPivots[0].position.y = (-0.005 - 0.20 * leftShinScale)  / Math.max(0.5, Math.cos(leftRotX));
-    ud.footPivots[1].position.y = (-0.005 - 0.20 * rightShinScale) / Math.max(0.5, Math.cos(rightRotX));
-
-    // v0.17.2: the legs do the work now; the body only waddles a little.
-    ud.bodyGroup.rotation.y = Math.sin(phase) * 0.07;
-
-    const leftToeDrop  = leftLift  * 0.55;
-    const rightToeDrop = rightLift * 0.55;
-    ud.toeDropPivots[0].forEach(t => { t.rotation.x = leftToeDrop; });
-    ud.toeDropPivots[1].forEach(t => { t.rotation.x = rightToeDrop; });
-
-    ud.bodyGroup.rotation.z = -Math.sin(phase) * 0.06;
-    ud.bodyGroup.position.y = 0.22 - Math.abs(Math.sin(phase)) * 0.018;
-    ud.bodyGroup.rotation.x = 0.04;
-
-    ud.armPivots[0].rotation.x = -legSwing * 0.55;
-    ud.armPivots[1].rotation.x =  legSwing * 0.55;
+    const base = phase / (Math.PI * 2), fr = (v) => v - Math.floor(v);
+    const legs = [gaitLeg(fr(base)), gaitLeg(fr(base + 0.5))];
+    for (let i = 0; i < 2; i++) {
+      const L = legs[i];
+      ud.legPivots[i].rotation.x = -L.th;                          // + th = foot forward
+      ud.shinAssemblies[i].scale.y = 0.80 - L.lift * 0.50;
+      ud.footPivots[i].position.y = (-0.005 - 0.20 * ud.shinAssemblies[i].scale.y) / Math.max(0.5, Math.cos(L.th));
+      ud.toeDropPivots[i].forEach(t => { t.rotation.x = L.lift * 0.55; });
+    }
+    // body: dips just after each foot strike, rises at mid-stride; small waddle; slight forward lean
+    const dip = GAIT_DIP * (0.5 + 0.5 * Math.cos(Math.PI * 4 * base - 0.9));
+    ud.bodyGroup.position.y = 0.22 - dip;
+    ud.bodyGroup.rotation.x = 0.07 + 0.03 * Math.cos(Math.PI * 4 * base - 0.9);
+    ud.bodyGroup.rotation.y = Math.sin(phase) * 0.05;
+    ud.bodyGroup.rotation.z = -Math.sin(phase) * 0.05;
+    // arms swing against the leg on the same side
+    ud.armPivots[0].rotation.x = -ud.legPivots[0].rotation.x * 0.5;
+    ud.armPivots[1].rotation.x = -ud.legPivots[1].rotation.x * 0.5;
     ud.elbowPivots[0].rotation.x = 0;
     ud.elbowPivots[1].rotation.x = 0;
+    ud.gait = { time: performance.now(), th: [legs[0].th, legs[1].th], lift: [legs[0].lift, legs[1].lift], dip };
   }
 
   function updateRobot(robot, r, dt) {
@@ -8006,7 +8007,7 @@ body.in-wreck .cam-buttons { display: none; }
       r.heading += dH * Math.min(1, dt * 4);
       r.pos.x += (dx / dist) * walkSpeed * dt;
       r.pos.z += (dz / dist) * walkSpeed * dt;
-      r.walkPhase += dt * Math.PI * 2 * 1.3;
+      r.walkPhase += dt * Math.PI * 2 * (robot.userData.gaitCadence || 1.3);   // v0.18.4: matched to stride so planted feet don't slide
       r.distSinceFootprint = (r.distSinceFootprint || 0) + walkSpeed * dt;
       if (r.distSinceFootprint > 0.42) {
         r.distSinceFootprint = 0;
@@ -14711,9 +14712,17 @@ body.in-wreck .cam-buttons { display: none; }
           const dir = new THREE.Vector3(m[1] === 'x' ? 1 : 0, 0, m[1] === 'z' ? 1 : 0).multiplyScalar(m[2] === 'n' ? -1 : 1);
           toes.push({ node: t, axis: dir.clone().cross(new THREE.Vector3(0, -1, 0)).normalize() });
         });
-        pistons.push({ shin, y0: shin.position.y, travel: (shin.userData && shin.userData.travel) || 0.08, toes, src: ud.shinAssemblies && ud.shinAssemblies[i] });
+        shin.geometry.computeBoundingBox();
+        const Lm = -(shin.position.y + shin.geometry.boundingBox.min.y);   // hip to sole, model units
+        pistons.push({ shin, y0: shin.position.y, travel: (shin.userData && shin.userData.travel) || 0.08, toes, src: ud.shinAssemblies && ud.shinAssemblies[i], Lm });
       });
       ud.glbRig = { joints, legs, pistons, k: model.scale.y || 1 };
+      // v0.18.4: stride from real leg length → cadence that keeps planted feet still at the 0.40 m/s walk
+      if (pistons.length) {
+        const legW = pistons[0].Lm * ud.glbRig.k, stride = 2 * legW * Math.sin(GAIT_A);
+        ud.gaitCadence = THREE.MathUtils.clamp(GAIT_BETA * 0.40 / Math.max(0.05, stride), 0.6, 1.4);
+      }
+      wrapped.position.y -= 0.04;   // v0.18.4: sits into the regolith
       fitRobotTools(model, letter, robotConfigs.find(c => c.letter === letter).color, model.scale.y || 1);
       robot.updateMatrixWorld(true); setupRobotEyes(robot, model, letter);
       wrapped.traverse(o => { if (o.isMesh && !/^(hand_|forearm_)/.test(o.name)) o.visible = !/^COL_/i.test(o.name); });
@@ -14873,12 +14882,26 @@ body.in-wreck .cam-buttons { display: none; }
       const ud = robots[i].userData, rig = ud.glbRig;
       if (!rig) continue;
       for (const j of rig.joints) j.node.quaternion.copy(j.rest).multiply(j.src.quaternion);
+      const walking = ud.gait && performance.now() - ud.gait.time < 120;
       const bob = (ud.bodyGroup.position.y - 0.22) / rig.k;
-      for (const l of rig.legs) l.node.position.y = l.y0 - bob;
-      for (const pz of rig.pistons) {
-        const lift = pz.src ? Math.min(1, Math.max(0, (0.80 - pz.src.scale.y) / 0.50)) : 0;
-        pz.shin.position.y = pz.y0 + lift * pz.travel;
-        for (const t of pz.toes) t.node.quaternion.setFromAxisAngle(t.axis, lift * 1.05);
+      if (walking) {
+        // v0.18.4: legs ride with the body; the pistons take up the dip and
+        // the hip swing so planted feet stay on the ground, then pull up in swing
+        for (const l of rig.legs) l.node.position.y = l.y0;
+        rig.pistons.forEach((pz, i) => {
+          const th = ud.gait.th[i], lift = ud.gait.lift[i];
+          const give = ud.gait.dip / rig.k;                                   // body dipped → piston slides in
+          const reach = pz.Lm * (1 / Math.max(0.6, Math.cos(th)) - 1);        // swung out → piston stretches
+          pz.shin.position.y = pz.y0 + give - reach + lift * pz.travel * 1.25;
+          for (const t of pz.toes) t.node.quaternion.setFromAxisAngle(t.axis, lift * 1.05);
+        });
+      } else {
+        for (const l of rig.legs) l.node.position.y = l.y0 - bob;
+        for (const pz of rig.pistons) {
+          const lift = pz.src ? Math.min(1, Math.max(0, (0.80 - pz.src.scale.y) / 0.50)) : 0;
+          pz.shin.position.y = pz.y0 + lift * pz.travel;
+          for (const t of pz.toes) t.node.quaternion.setFromAxisAngle(t.axis, lift * 1.05);
+        }
       }
     }
   }
