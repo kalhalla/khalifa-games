@@ -630,7 +630,7 @@ body.in-wreck .cam-buttons { display: none; }
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.13.2';  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.13.3';  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -3197,27 +3197,18 @@ body.in-wreck .cam-buttons { display: none; }
       if (Math.abs(stepVis.off) < 0.002 && want === 0) stepVis.off = 0;
       if (!player.grounded) stepVis.off *= Math.max(0, 1 - dt * 10);
     }
-    // v0.13.2 landing compression. Every real landing (a jump, a drop off
-    // a ledge or crater lip) squashes the whole figure onto its feet in
-    // proportion to how hard he came down, then springs back with a small
-    // overshoot. Strides do not trigger it: they never leave the ground
-    // as far as the physics is concerned.
+    // Landing compression (v0.13.3 replaces v0.13.2's whole-figure squash).
+    // Every real landing (a jump, a drop off a ledge or crater lip) starts
+    // a crouch whose depth follows how hard he came down: see applyLandPose.
+    // Strides do not trigger it: they never leave the ground as far as the
+    // physics is concerned.
     if (!player.grounded) landSq.vy = player.vel.y;
     else if (!landSq.wasGrounded && landSq.vy < -0.9 && controlMode === 'walking') {
       landSq.a = Math.min(1, (-landSq.vy - 0.9) / 2.2) * 0.26;
       landSq.t = 0;
     }
     landSq.wasGrounded = player.grounded;
-    if (landSq.a > 0 && astronautRoot) {
-      landSq.t += dt;
-      const t = landSq.t;
-      let q;
-      if (t < 0.08) { const u = t / 0.08; q = u * u * (3 - 2 * u); }
-      else { const v = t - 0.08; q = Math.exp(-v * 5.2) * Math.cos(v * 8.5); }
-      q *= landSq.a;
-      if (t > 1.0) { landSq.a = 0; q = 0; }
-      astronautRoot.scale.set(0.5 * (1 + q * 0.55), 0.5 * (1 - q), 0.5 * (1 + q * 0.55));
-    }
+    if (landSq.a > 0) { landSq.t += dt; if (landSq.t > 0.95) landSq.a = 0; }   // the pose itself is applied after the mixer (applyLandPose)
     // Update model position + rotation
     if (astronautRoot) {
       astronautRoot.position.copy(player.pos);
@@ -5345,7 +5336,7 @@ body.in-wreck .cam-buttons { display: none; }
   // time shortens with speed so that stays inside the clip's stance.
   const LOPE_FOOT_M = 1.37, LOPE_STANCE_MAX = 0.36;
   const LOPE_DIP = 0.035;         // m of knee-bend during contact
-  const lope = { phase: 0, parity: 0, w: 0, y: 0, pushed: false, fresh: true, period: 0.95, contact: LOPE_CONTACT, dc: 0.2, jog: 0 };
+  const lope = { phase: 0, parity: 0, w: 0, y: 0, pushed: false, fresh: true, period: 0.95, contact: LOPE_CONTACT, dc: 0.2, jog: 0, speed: 0 };
   function _lopeLand(speed) {
     sndFootstep(speed);
     const b = (typeof _seatBones === 'function') ? _seatBones() : null;
@@ -5371,7 +5362,7 @@ body.in-wreck .cam-buttons { display: none; }
             //        so arms and legs swing more and each push-off is low
             //   run, 4.8 m/s and up — the long high lope, unchanged
             const jog = _ss(2.2, 3.0, speed) * (1 - _ss(4.0, 4.8, speed));
-            lope.jog = jog;
+            lope.jog = jog; lope.speed = speed;
             const base = 0.95 + 0.10 * t;
             return base + (0.64 - base) * jog;
           })();
@@ -5430,7 +5421,75 @@ body.in-wreck .cam-buttons { display: none; }
     b.Spine1.rotation.y += 0.10 * k * sw;
     b.Spine2.rotation.y += 0.10 * k * sw;
     b.Hips.rotation.y   -= 0.08 * k * sw;
-    b.Spine.rotation.x  += 0.07 * k;
+    b.Spine.rotation.z  -= 0.07 * k;          // lean into it (z is this rig's forward/back hinge; x is sideways)
+  }
+
+  // v0.13.3: a little more arm and leg at the low speeds (shuffle and
+  // walk, under about 2.5 m/s). Added to the clip in step with the stride:
+  // each arm swings against its own leg, each thigh reaches a touch further.
+  // Rig axes measured in the harness: rotation.z is the forward/back hinge
+  // for arms, thighs, knees and spine; +z swings a hanging limb forward.
+  function applyLowSpeedLimbs() {
+    const k = lope.w * (1 - _ss(2.2, 3.0, lope.speed));
+    if (k < 0.01 || controlMode !== 'walking' || !player.grounded || level.id === 'wreck') return;
+    const b = astroSeat.bones || _seatBones();
+    if (!b) return;
+    const c = Math.cos(Math.PI * (lope.parity + lope.phase));   // +1 as the right foot comes down in front
+    b.LeftArm.rotation.z  += 0.20 * k * c;      // left arm forward with the right leg
+    b.RightArm.rotation.z += 0.20 * k * c;      // right arm back (its forward is −z)
+    b.RightUpLeg.rotation.z += 0.09 * k * c;
+    b.LeftUpLeg.rotation.z  -= 0.09 * k * c;
+  }
+
+  // v0.13.3 landing: a real crouch, not a squash. Knees bend, the hips
+  // drop to keep the feet on the ground, the body hinges forward at the
+  // waist and the arms come forward to catch the balance — a stumble —
+  // then he straightens up into the stride again. Depth scales with the
+  // impact (landSq.a: 0 … 0.26).
+  const _lpA = new THREE.Vector3(), _lpB = new THREE.Vector3();
+  function applyLandPose() {
+    if (!landSq.hipOff && landSq.a <= 0) return;      // nothing to do (and do not look for bones before the model has loaded)
+    const b = astroSeat.bones || _seatBones();
+    if (!b) return;
+    // If the clip in play does not key the hip position, last frame's drop
+    // is still there: take it back off before doing anything else.
+    if (landSq.hipOff) {
+      if (b.Hips.position.distanceToSquared(landSq.hipLast) < 1e-10) b.Hips.position.sub(landSq.hipOff);
+      landSq.hipOff = null;
+    }
+    if (landSq.a <= 0 || controlMode !== 'walking') return;
+    const t = landSq.t;
+    let q;                                               // 0 → 1 fast, brief hold, ease back up
+    if (t < 0.10) { const u = t / 0.10; q = u * u * (3 - 2 * u); }
+    else if (t < 0.24) q = 1;
+    else { const u = Math.min(1, (t - 0.24) / 0.62); q = 1 - u * u * (3 - 2 * u); }
+    q *= landSq.a / 0.26;
+    const al = 0.78 * q;                                 // thigh forward / shin back, radians
+    // Ankle height before the pose, so the hips can be dropped by exactly
+    // what the bent legs lose and the feet stay where they were.
+    astronautRoot.updateMatrixWorld(true);
+    const ank0 = Math.min(b.LeftFoot.getWorldPosition(_lpA).y, b.RightFoot.getWorldPosition(_lpB).y);
+    b.LeftUpLeg.rotation.z  += al;  b.RightUpLeg.rotation.z += al;
+    b.LeftLeg.rotation.z    -= 2 * al; b.RightLeg.rotation.z -= 2 * al;
+    b.LeftFoot.rotation.z   += al;  b.RightFoot.rotation.z  += al;      // soles stay on the ground
+    // Measured, not calculated: the rig's legs are not straight at rest.
+    // Worked in world space and converted, because the hip bone's own
+    // units are not metres.
+    astronautRoot.updateMatrixWorld(true);
+    const rise = Math.min(b.LeftFoot.getWorldPosition(_lpA).y, b.RightFoot.getWorldPosition(_lpB).y) - ank0;
+    const par = b.Hips.parent;
+    _lpA.copy(b.Hips.position);
+    _lpB.copy(b.Hips.position).applyMatrix4(par.matrixWorld);
+    _lpB.y -= rise;
+    par.worldToLocal(_lpB);
+    b.Hips.position.copy(_lpB);
+    landSq.hipOff = _lpB.clone().sub(_lpA);
+    landSq.hipLast = _lpB.clone();
+    b.Spine.rotation.z  -= 0.34 * q;                     // hinge forward at the waist
+    b.Spine1.rotation.z -= 0.22 * q;
+    b.Neck.rotation.z   += 0.26 * q;                     // head stays up
+    b.LeftArm.rotation.z  += 0.95 * q;                   // arms forward
+    b.RightArm.rotation.z -= 0.95 * q;
   }
   const airHold = { on: false, t: 0, f: 0, held: false, inHold: false };
   function applyLope() {
@@ -15022,6 +15081,8 @@ body.in-wreck .cam-buttons { display: none; }
     if (mixer) mixer.update(dt);
     if (astroSeat.want || astroSeat.w > 0) applySeatedPose(dt);   // bones AFTER the mixer stamp
     applyJogBody();                  // v0.13.2 — torso and arm swing in the jog, also after the mixer
+    applyLowSpeedLimbs();            // v0.13.3 — a little more arm and leg at low speed
+    applyLandPose();                 // v0.13.3 — crouch on landing
     updateReach(dt);                 // arm override AFTER the mixer stamp
     updateEntities(dt);              // entity registry — additive pass
     updateHose(dt);                  // O₂ umbilical — no-op unless connected
