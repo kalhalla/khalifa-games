@@ -17,7 +17,11 @@ Upload a robot here and it replaces the built-in robot the next time the page lo
 - Size and position don't matter. The game scales each model to the height of the robot it replaces and stands it on the ground.
 - Textures are fine. Materials are converted to the game's flat, matte look.
 
-## Optional: moving arms
+## Current models (v0.17.0)
+
+The three GLBs here are Meshy models cut into jointed parts by script: `body`, `arm_L`/`arm_R` (origin at the shoulder), `forearm_L`/`forearm_R` (elbow), `leg_L`/`leg_R` (hip), about 16k triangles each, 1024 px texture. The game copies the built-in robot's joint rotations onto those parts every frame, so all existing walks and gestures drive them.
+
+## Optional: moving arms (older single-mesh route)
 
 A single-mesh model moves as one rigid body; it still bobs as it walks. If you split each arm off as its own object named **`arm_L`** and **`arm_R`** (in Blender, or in Meshy if it allows), the game attaches them to the robot's existing arm joints so they swing.
 
