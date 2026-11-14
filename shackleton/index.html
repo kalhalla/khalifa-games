@@ -630,7 +630,7 @@ body.in-wreck .cam-buttons { display: none; }
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.17.2';  // robot legs: piston shins, hinged toes, less body sway. was v0.17.1;  // built tools on the Meshy robots: drill + saw, gripper, three-finger claws. was v0.17.0;  // Meshy robots, cut into jointed parts and driven by the walk rig. was v0.16.0;  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.17.3';  // robot eyes blink and look; gestures: wave, hand up, tap-and-point. was v0.17.2;  // robot legs: piston shins, hinged toes, less body sway. was v0.17.1;  // built tools on the Meshy robots: drill + saw, gripper, three-finger claws. was v0.17.0;  // Meshy robots, cut into jointed parts and driven by the walk rig. was v0.16.0;  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -7882,6 +7882,11 @@ body.in-wreck .cam-buttons { display: none; }
   }
 
   function updateRobot(robot, r, dt) {
+    updateRobotCore(robot, r, dt);
+    robotEmoteTick(robot, r, dt);
+    robotFaceTick(robot, r, dt);
+  }
+  function updateRobotCore(robot, r, dt) {
     // v0.15.0: a robot can be pinned in place (wedged in the rescue stack).
     if (r.pinned) {
       r.pos.copy(r.pinned.pos);
@@ -10952,6 +10957,7 @@ body.in-wreck .cam-buttons { display: none; }
             rs.pos.set(top.x - 1.6, top.y1, top.z - 1.4);      // set down beside the player, then it makes its own way
             rs.pos.set(C.cx - 11, G(C.cx - 11, C.cz - 5), C.cz - 5);
             rs.state = 'idle'; rs.stateTimer = 2;
+            setTimeout(() => { if (typeof hatchInteract !== 'undefined') robotEmote(0, 'tapPoint', new THREE.Vector3(hatchInteract.x, rs.pos.y, hatchInteract.z)); }, 1500);   // v0.17.3: 'path.' — and points
             spawnDust(top.x, top.y1 + 0.4, top.z, 8, { speed: 0.8, upVel: 0.6, upVar: 0.5, life: 1.0 });
             speak('P-03', 'clear.', 2.0, { kind: 'robot', delay: 0.6 });
             speak('P-03', 'path.', 2.0, { kind: 'robot', delay: 3.0 });
@@ -14459,12 +14465,159 @@ body.in-wreck .cam-buttons { display: none; }
       });
       ud.glbRig = { joints, legs, pistons, k: model.scale.y || 1 };
       fitRobotTools(model, letter, robotConfigs.find(c => c.letter === letter).color, model.scale.y || 1);
+      robot.updateMatrixWorld(true); setupRobotEyes(robot, model, letter);
       wrapped.traverse(o => { if (o.isMesh && !/^(hand_|forearm_)/.test(o.name)) o.visible = !/^COL_/i.test(o.name); });
       ud.glb = wrapped;
       console.log('[asset] robot ' + letter + ' upgraded to GLB');
     });
   }
   for (let i = 0; i < robots.length; i++) upgradeRobotVisual(robots[i], robotConfigs[i].letter);
+  // ============================================================
+  // ROBOT FACES + GESTURES (v0.17.3)
+  // The two glowing squares are the robots' eyes. They are drawn over
+  // the Meshy visor texture: a black visor panel hides the painted eyes,
+  // two glowing quads sit on top and can blink (squash to a line) and
+  // slide inside the visor to look at things.
+  // Gestures are a short layer on top of whatever the robot is doing:
+  //   wave · attention (hand up) · tapPoint (tap own chest, turn, point)
+  // robotEmote(i, kind, target?) starts one.
+  // ============================================================
+  const ROBOT_EYES = {   // model units, measured off the front view
+    L: { eyes: [[-0.090, 0.240], [0.100, 0.240]], size: 0.090, visor: [-0.205, 0.215, 0.180, 0.345], color: 0xf6e47a },
+    M: { eyes: [[-0.098, 0.360], [0.120, 0.360]], size: 0.105, visor: [-0.240, 0.250, 0.280, 0.490], color: 0xf7f1b8 },
+    P: { eyes: [[-0.120, 0.210], [0.122, 0.210]], size: 0.112, visor: [-0.275, 0.275, 0.125, 0.350], color: 0x92e6f2 },
+  };
+  function setupRobotEyes(robot, model, letter) {
+    const cfg = ROBOT_EYES[letter], body = model.getObjectByName('body');
+    if (!cfg || !body) return;
+    const ray = new THREE.Raycaster();
+    const vx = (cfg.visor[0] + cfg.visor[1]) / 2, vy = (cfg.visor[2] + cfg.visor[3]) / 2;
+    const o = model.localToWorld(new THREE.Vector3(vx, vy, 3)), t = model.localToWorld(new THREE.Vector3(vx, vy, -3));
+    ray.set(o, t.sub(o).normalize());
+    const hit = ray.intersectObject(body, false)[0];
+    if (!hit) { console.warn('[eyes] no face found for', letter); return; }
+    const inv = new THREE.Matrix4().copy(model.matrixWorld).invert();
+    const P = hit.point.clone().applyMatrix4(inv);
+    const nW = hit.face.normal.clone().transformDirection(body.matrixWorld);
+    const N = nW.transformDirection(inv).normalize();
+    if (N.z < 0) N.negate();
+    const U = new THREE.Vector3(0, 1, 0).addScaledVector(N, -N.y).normalize();
+    const R = new THREE.Vector3().crossVectors(U, N).normalize();
+    const face = new THREE.Group();
+    face.matrixAutoUpdate = false;
+    face.matrix.makeBasis(R, U, N).setPosition(P);
+    model.add(face);
+    const basic = (c) => { const m = new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide }); m.toneMapped = false; return m; };
+    const sy = 1 / U.y;   // front-view heights → distance up the slanted face
+    const vw = cfg.visor[1] - cfg.visor[0], vh = (cfg.visor[3] - cfg.visor[2]) * sy;
+    const panel = new THREE.Mesh(new THREE.PlaneGeometry(vw, vh), basic(0x07080a));
+    panel.position.z = 0.004; face.add(panel);
+    const eyes = cfg.eyes.map(([ex, ey]) => {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(cfg.size, cfg.size * sy), basic(cfg.color));
+      m.position.set(ex - vx, (ey - vy) * sy, 0.008); face.add(m);
+      return { mesh: m, x0: m.position.x, y0: m.position.y };
+    });
+    const room = { x: vw / 2 - cfg.size / 2 - Math.max(...cfg.eyes.map(e => Math.abs(e[0] - vx))) - 0.012,
+                   y: vh / 2 - cfg.size * sy / 2 - Math.max(...cfg.eyes.map(e => Math.abs(e[1] - vy) * sy)) - 0.010 };
+    robot.userData.face = { group: face, eyes, room, model,
+      blinkT: 1 + Math.random() * 3, blink: 0, look: new THREE.Vector2(), lookGoal: new THREE.Vector2(), glanceT: 0 };
+  }
+  const _fv = new THREE.Vector3();
+  function robotFaceTick(robot, r, dt) {
+    const f = robot.userData.face; if (!f) return;
+    // blink: a quick squash to a line; sometimes a double blink
+    f.blinkT -= dt;
+    if (f.blinkT <= 0) { f.blink = 0.16; f.blinkT = Math.random() < 0.2 ? 0.28 : 2.2 + Math.random() * 4.5; }
+    let open = 1;
+    if (f.blink > 0) { f.blink -= dt; const k = Math.max(0, f.blink) / 0.16; open = 0.1 + 0.9 * Math.abs(k * 2 - 1); }
+    // gaze: what the gesture points at > the astronaut nearby > idle glances
+    let tgt = null;
+    if (r.emote && r.emote.target) tgt = r.emote.target;
+    else if (typeof player !== 'undefined' && player.pos && robot.position.distanceTo(player.pos) < 11) tgt = _fv.copy(player.pos).setY(player.pos.y + 1.5);
+    if (tgt) {
+      const l = f.model.worldToLocal(_fv.copy(tgt));
+      const yaw = Math.atan2(l.x, Math.max(0.05, l.z)), pitch = Math.atan2(l.y - 0.25, Math.hypot(l.x, l.z));
+      f.lookGoal.set(THREE.MathUtils.clamp(yaw / 0.7, -1, 1), THREE.MathUtils.clamp(pitch / 0.5, -1, 1));
+    } else {
+      f.glanceT -= dt;
+      if (f.glanceT <= 0) { f.glanceT = 1.5 + Math.random() * 3;
+        f.lookGoal.set(Math.random() < 0.35 ? 0 : (Math.random() * 2 - 1) * 0.85, (Math.random() * 2 - 1) * 0.5); }
+    }
+    f.look.lerp(f.lookGoal, Math.min(1, dt * 10));   // eyes dart, not drift
+    for (const e of f.eyes) {
+      e.mesh.position.x = e.x0 + f.look.x * f.room.x;
+      e.mesh.position.y = e.y0 + f.look.y * f.room.y;
+      e.mesh.scale.y = open;
+    }
+  }
+  const EMOTE_LEN = { wave: 2.4, attention: 2.0, tapPoint: 3.8 };
+  function robotEmote(i, kind, target) {
+    const r = robotStates[i]; if (!r || !EMOTE_LEN[kind]) return false;
+    if (r.emote) return false;
+    r.emote = { kind, t: 0, len: EMOTE_LEN[kind], target: target ? target.clone() : null };
+    if (!r.pinned && !r.scripted) { r.state = 'idle'; r.stateTimer = Math.max(r.stateTimer || 0, EMOTE_LEN[kind] + 0.5); }
+    return true;
+  }
+  function robotEmoteTick(robot, r, dt) {
+    const e = r.emote; if (!e) return;
+    e.t += dt;
+    if (e.t >= e.len) { r.emote = null; return; }
+    const ud = robot.userData, t = e.t;
+    const w = Math.min(1, t / 0.3, (e.len - t) / 0.35);
+    const a = 1, s = 1;                        // right arm (L-07 has no left forearm)
+    let sx = 0, sz = 0, el = 0, sy = 0;
+    if (e.kind === 'wave') { sx = -0.3; sz = s * 2.5; el = 0.6 + 0.45 * Math.sin(t * 9); }
+    else if (e.kind === 'attention') { sx = -2.85; sz = s * 0.25; el = 0.18 * Math.sin(t * 6); }
+    else if (e.kind === 'tapPoint') {
+      if (t < 1.4) { sx = -0.25; sz = -s * 0.10; sy = -s * 1.15; el = -1.45 - 0.30 * Math.max(0, Math.sin(t * 11)); }   // forearm flexed in to tap its own chest (negative = flex)
+      else {
+        sx = r.number === 2 ? -0.30 : -1.5; sz = 0; el = 0.05;   // point (L-07's gripper boom already points forward off a hanging forearm)
+        if (e.target && !r.pinned) {
+          const th = Math.atan2(e.target.x - r.pos.x, e.target.z - r.pos.z);
+          let dH = th - r.heading; while (dH > Math.PI) dH -= Math.PI * 2; while (dH < -Math.PI) dH += Math.PI * 2;
+          r.heading += dH * Math.min(1, dt * 4); robot.rotation.y = r.heading;
+        }
+      }
+    }
+    const L = (cur, goal) => cur + (goal - cur) * w;
+    ud.armPivots[a].rotation.x = L(ud.armPivots[a].rotation.x, sx);
+    ud.armPivots[a].rotation.z = L(ud.armPivots[a].rotation.z, sz);
+    ud.elbowPivots[a].rotation.x = L(ud.elbowPivots[a].rotation.x, el);
+    ud.armPivots[a].rotation.y = sy * w;   // twist only used by gestures; nothing else drives it
+  }
+  // Who gestures when.
+  const robotCues = { greeted: [false, false, false], nudgeT: 30, pinnedT: 3 };
+  function updateRobotCues(dt) {
+    if (typeof player === 'undefined' || !player.pos) return;
+    if (typeof opening !== 'undefined' && (opening.active || opening.phase !== 'done')) return;
+    if (level.id !== 'crater') return;
+    // P-03 stuck on the stack: hand up / wave while the astronaut is in sight
+    const p0 = robotStates[0];
+    if (p0.pinned && robots[0].position.distanceTo(player.pos) < 32) {
+      robotCues.pinnedT -= dt;
+      if (robotCues.pinnedT <= 0) { robotCues.pinnedT = 6 + Math.random() * 3;
+        robotEmote(0, Math.random() < 0.6 ? 'attention' : 'wave', player.pos.clone().setY(player.pos.y + 1.5)); }
+    }
+    // first close meeting: a wave
+    for (let i = 0; i < robots.length; i++) {
+      const r = robotStates[i];
+      if (robotCues.greeted[i] || r.pinned || r.scripted) continue;
+      if (robots[i].position.distanceTo(player.pos) < 5) { robotCues.greeted[i] = true; robotEmote(i, 'wave', player.pos.clone().setY(player.pos.y + 1.5)); }
+    }
+    // lost? the nearest free robot taps its chest and points at the hatch
+    robotCues.nudgeT -= dt;
+    const objEl = $('objective-hud');
+    const objText = objEl ? objEl.textContent : '';
+    if (robotCues.nudgeT <= 0 && /enter the wreck/.test(objText) && typeof hatchInteract !== 'undefined') {
+      const hatch = new THREE.Vector3(hatchInteract.x, player.pos.y, hatchInteract.z);
+      if (hatch.distanceTo(player.pos) > 22) {
+        let best = -1, bd = 9;
+        for (let i = 0; i < robots.length; i++) { const r = robotStates[i]; if (r.pinned || r.scripted || r.emote) continue;
+          const d = robots[i].position.distanceTo(player.pos); if (d < bd) { bd = d; best = i; } }
+        if (best >= 0 && robotEmote(best, 'tapPoint', hatch)) robotCues.nudgeT = 45;
+      }
+    }
+  }
   function syncRobotGlbs() {
     for (let i = 0; i < robots.length; i++) {
       const ud = robots[i].userData, rig = ud.glbRig;
@@ -15559,6 +15712,8 @@ body.in-wreck .cam-buttons { display: none; }
     updateGasParticles(dt);
     processSpeech(dt);
     earth.rotation.y += dt * 0.03;
+    try { updateRobotCues(Math.min(0.1, (performance.now() - (updateRobotCues._t || performance.now())) / 1000)); } catch (e) { }
+    updateRobotCues._t = performance.now();
     syncRobotGlbs();
     renderer.render(scene, camera);
   }
