@@ -630,7 +630,7 @@ body.in-wreck .cam-buttons { display: none; }
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.18.5';  // robot toes bend to stay on the ground through stance. was v0.18.4;  // robot gait: bird-like stance/swing, bigger leg swing, pistons follow, body dip, feet planted. was v0.18.3;  // engine nozzles 25% larger. was v0.18.2;  // wreck: four landing legs in housings (two intact, two buckled), half-size blackened nozzles. was v0.18.1;  // wreck: sealed middle/nose, rear-only damage + tanks, doorway recess, NASA stacked, regolith imprint. was v0.18.0;  // wreck exterior: painted skin, round hull, ogive nose, engine bells, landing legs. was v0.17.3;  // robot eyes blink and look; gestures: wave, hand up, tap-and-point. was v0.17.2;  // robot legs: piston shins, hinged toes, less body sway. was v0.17.1;  // built tools on the Meshy robots: drill + saw, gripper, three-finger claws. was v0.17.0;  // Meshy robots, cut into jointed parts and driven by the walk rig. was v0.16.0;  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.18.6';  // robot ankles: foot pad on a ball joint, kept level while planted. was v0.18.5;  // robot toes bend to stay on the ground through stance. was v0.18.4;  // robot gait: bird-like stance/swing, bigger leg swing, pistons follow, body dip, feet planted. was v0.18.3;  // engine nozzles 25% larger. was v0.18.2;  // wreck: four landing legs in housings (two intact, two buckled), half-size blackened nozzles. was v0.18.1;  // wreck: sealed middle/nose, rear-only damage + tanks, doorway recess, NASA stacked, regolith imprint. was v0.18.0;  // wreck exterior: painted skin, round hull, ogive nose, engine bells, landing legs. was v0.17.3;  // robot eyes blink and look; gestures: wave, hand up, tap-and-point. was v0.17.2;  // robot legs: piston shins, hinged toes, less body sway. was v0.17.1;  // built tools on the Meshy robots: drill + saw, gripper, three-finger claws. was v0.17.0;  // Meshy robots, cut into jointed parts and driven by the walk rig. was v0.16.0;  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -14707,7 +14707,18 @@ body.in-wreck .cam-buttons { display: none; }
         const shin = model.getObjectByName('shin_' + sd);
         if (!shin) return;
         const toes = [];
-        shin.children.forEach(t => {
+        // v0.18.6: the foot pad is its own part (foot_L/R, origin at the
+        // ankle) and the toes hang off it; older GLBs hung them off the shin
+        const foot = model.getObjectByName('foot_' + sd);
+        if (foot) {
+          foot.geometry.computeBoundingBox();
+          const fb = foot.geometry.boundingBox;
+          const r = 0.42 * Math.min(fb.max.x - fb.min.x, fb.max.z - fb.min.z);
+          const ball = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 9),
+            new THREE.MeshPhongMaterial({ shininess: 0, color: 0x3a3c42, flatShading: true }));
+          ball.position.copy(foot.position); ball.castShadow = true; shin.add(ball);   // the ankle ball joint
+        }
+        (foot || shin).children.forEach(t => {
           const m = /^toe_[LR]_(x|z)(n|p)$/.exec(t.name); if (!m) return;
           const dir = new THREE.Vector3(m[1] === 'x' ? 1 : 0, 0, m[1] === 'z' ? 1 : 0).multiplyScalar(m[2] === 'n' ? -1 : 1);
           t.geometry.computeBoundingBox();
@@ -14715,15 +14726,16 @@ body.in-wreck .cam-buttons { display: none; }
           const len = m[1] === 'x' ? (m[2] === 'p' ? bb.max.x : -bb.min.x) : (m[2] === 'p' ? bb.max.z : -bb.min.z);
           toes.push({ node: t, dir, len, axis: dir.clone().cross(new THREE.Vector3(0, -1, 0)).normalize() });
         });
-        shin.geometry.computeBoundingBox();
-        const Lm = -(shin.position.y + shin.geometry.boundingBox.min.y);   // hip to sole, model units
-        pistons.push({ shin, y0: shin.position.y, travel: (shin.userData && shin.userData.travel) || 0.08, toes, src: ud.shinAssemblies && ud.shinAssemblies[i], Lm });
+        const sole = foot || shin; sole.geometry.computeBoundingBox();
+        const Lm = -(shin.position.y + (foot ? foot.position.y : 0) + sole.geometry.boundingBox.min.y);   // hip to sole, model units
+        const La = foot ? -(shin.position.y + foot.position.y) : Lm;   // hip to ankle: the part that swings
+        pistons.push({ shin, foot, La, y0: shin.position.y, travel: (shin.userData && shin.userData.travel) || 0.08, toes, src: ud.shinAssemblies && ud.shinAssemblies[i], Lm });
       });
       ud.glbRig = { joints, legs, pistons, k: model.scale.y || 1 };
       // v0.18.4: stride from real leg length → cadence that keeps planted feet still at the 0.40 m/s walk
       if (pistons.length) {
-        const legW = pistons[0].Lm * ud.glbRig.k, stride = 2 * legW * Math.sin(GAIT_A);
-        ud.gaitCadence = THREE.MathUtils.clamp(GAIT_BETA * 0.40 / Math.max(0.05, stride), 0.6, 1.4);
+        const legW = pistons[0].La * ud.glbRig.k, stride = 2 * legW * Math.sin(GAIT_A);   // the level foot travels with the ankle
+        ud.gaitCadence = THREE.MathUtils.clamp(GAIT_BETA * 0.40 / Math.max(0.05, stride), 0.6, 1.8);
       }
       wrapped.position.y -= 0.04;   // v0.18.4: sits into the regolith
       fitRobotTools(model, letter, robotConfigs.find(c => c.letter === letter).color, model.scale.y || 1);
@@ -14890,8 +14902,24 @@ body.in-wreck .cam-buttons { display: none; }
   // Better than "flat": aim each tip at 2 cm below the ground, so a toe
   // whose hinge rode up reaches down and one whose hinge dipped lifts.
   const _tD = new THREE.Vector3(), _tW = new THREE.Vector3(), _tDown = new THREE.Vector3(0, -1, 0), _tH = new THREE.Vector3();
+  // Ankle: keep the pad level (only the robot's heading) while the foot is
+  // down; in the air it follows the piston more, tipping with the swing.
+  const _aQ = new THREE.Quaternion(), _aP = new THREE.Quaternion(), _aE = new THREE.Euler(), _aI = new THREE.Quaternion();
+  function levelFoot(pz, yaw, lift, pinned) {
+    if (!pz.foot) return;
+    if (pinned) { pz.foot.quaternion.identity(); pz.foot.updateWorldMatrix(false, false); return; }
+    pz.shin.getWorldQuaternion(_aP);
+    _aQ.setFromEuler(_aE.set(0, yaw, 0));
+    _aQ.premultiply(_aP.invert());                       // local = parent⁻¹ · level
+    let t = Math.min(1, Math.max(0, 1 - lift * 0.7));
+    const ang = 2 * Math.acos(Math.min(1, Math.abs(_aQ.w)));         // ankle can bend at most 0.8 rad
+    if (ang > 0.8) t *= 0.8 / ang;
+    pz.foot.quaternion.copy(_aI).slerp(_aQ, t);
+    if (!Number.isFinite(pz.foot.quaternion.w)) pz.foot.quaternion.identity();
+    pz.foot.updateWorldMatrix(false, false);
+  }
   function setToes(pz, lift, k) {
-    const m = pz.shin.matrixWorld;
+    const m = (pz.foot || pz.shin).matrixWorld;
     _tW.copy(_tDown).transformDirection(m);
     for (const t of pz.toes) {
       _tD.copy(t.dir).transformDirection(m);
@@ -14921,12 +14949,13 @@ body.in-wreck .cam-buttons { display: none; }
         // v0.18.4: legs ride with the body; the pistons take up the dip and
         // the hip swing so planted feet stay on the ground, then pull up in swing
         for (const l of rig.legs) l.node.position.y = l.y0;
-        rig.pistons.forEach((pz, i) => {
-          const th = ud.gait.th[i], lift = ud.gait.lift[i];
+        rig.pistons.forEach((pz, li) => {
+          const th = ud.gait.th[li], lift = ud.gait.lift[li];
           const give = ud.gait.dip / rig.k;                                   // body dipped → piston slides in
-          const reach = pz.Lm * (1 / Math.max(0.6, Math.cos(th)) - 1);        // swung out → piston stretches
+          const reach = pz.La * (1 / Math.max(0.6, Math.cos(th)) - 1);        // swung out → piston stretches (the level foot hangs below the ankle)
           pz.shin.position.y = pz.y0 + give - reach + lift * pz.travel * 1.25;
           pz.shin.updateWorldMatrix(true, false);
+          levelFoot(pz, robots[i].rotation.y, lift, false);
           setToes(pz, lift, rig.k);
         });
       } else {
@@ -14935,6 +14964,7 @@ body.in-wreck .cam-buttons { display: none; }
           const lift = pz.src ? Math.min(1, Math.max(0, (0.80 - pz.src.scale.y) / 0.50)) : 0;
           pz.shin.position.y = pz.y0 + lift * pz.travel;
           pz.shin.updateWorldMatrix(true, false);
+          levelFoot(pz, robots[i].rotation.y, lift, !!robotStates[i].pinned);
           setToes(pz, lift, rig.k);
         }
       }
