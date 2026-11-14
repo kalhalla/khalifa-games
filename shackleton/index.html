@@ -630,7 +630,7 @@ body.in-wreck .cam-buttons { display: none; }
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.14.0';  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.15.0';  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -7881,6 +7881,13 @@ body.in-wreck .cam-buttons { display: none; }
   }
 
   function updateRobot(robot, r, dt) {
+    // v0.15.0: a robot can be pinned in place (wedged in the rescue stack).
+    if (r.pinned) {
+      r.pos.copy(r.pinned.pos);
+      robot.position.copy(r.pos);
+      robot.rotation.set(0, r.pinned.yaw, r.pinned.tilt + Math.sin(performance.now() * 0.004) * 0.05);   // a feeble rocking
+      return;
+    }
     r.stateTimer -= dt;
 
     // ── Scripted override (v0.4.5) ──
@@ -10833,6 +10840,96 @@ body.in-wreck .cam-buttons { display: none; }
     extraDraggables.push(s4.panel);
   }
 
+  // ============================================================
+  // RESCUE BLOCKOUT (v0.15.0, behind ?rescue) — "save the cat"
+  //
+  // P-03 is wedged on top of a stack of rock, thrown there after the
+  // crash. The player climbs four big steps by jumping (each a 1.2 m
+  // rise, landing areas 5 m across, because a jump is long and cannot
+  // be steered) and frees it. Plain boxes for now, like the wreck
+  // interior: this is to try the climb before any of it is modelled.
+  // ============================================================
+  const RESCUE_FLAG = /[?&]rescue\b/.test(location.search);
+  const rescue = { active: RESCUE_FLAG, done: false, hailed: false, cx: 40, cz: 30, top: null };
+  if (RESCUE_FLAG) (function () {
+    const G = shackletonScene.getGroundY;
+    // Pick the site: the flattest, most boulder-free patch 28–50 m from
+    // the robots' work area (inside the early oxygen range), clear of the
+    // wreck and the Flyer. Deterministic: the terrain and boulders are.
+    let best = 1e9;
+    for (let x = -50; x <= 60; x += 3) for (let z = -52; z <= 60; z += 3) {
+      const d = Math.hypot(x - 8, z - 8);
+      if (d < 28 || d > 50) continue;
+      if (x > -22 && x < 52 && Math.abs(z + 2) < 16) continue;            // wreck and its debris (with the stack's own reach)
+      if (Math.hypot(x + 3, z - 17) < 22) continue;                       // Flyer site
+      let rocks = 0, lo = 1e9, hi = -1e9;
+      for (let dx = -22; dx <= 11; dx += 1) for (let dz = -9; dz <= 10; dz += 1) {
+        if (rockTopAt(x + dx, z + dz) > ROCK_NONE) rocks++;
+        const g = G(x + dx, z + dz); if (g < lo) lo = g; if (g > hi) hi = g;
+      }
+      const score = rocks * 5 + (hi - lo);
+      if (score < best) { best = score; rescue.cx = x; rescue.cz = z; }
+    }
+    const C = rescue, g0 = G(C.cx, C.cz);
+    const mat = new THREE.MeshPhongMaterial({ color: 0x55585e, shininess: 0, flatShading: true });
+    const matTop = new THREE.MeshPhongMaterial({ color: 0x6d7077, shininess: 0, flatShading: true });
+    const matPinch = new THREE.MeshPhongMaterial({ color: 0x3c3f45, shininess: 0, flatShading: true });
+    function block(dx, dz, w, d, rise, m, walkable) {
+      const x = C.cx + dx, z = C.cz + dz, y1 = g0 + rise, y0 = g0 - 2.5;
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, y1 - y0, d), m);
+      mesh.position.set(x, (y0 + y1) / 2, z);
+      mesh.castShadow = true; mesh.receiveShadow = true;
+      scene.add(mesh);
+      addBoxCollider({ x, z, hx: w / 2, hz: d / 2, y0, y1, walkable: walkable !== false, tag: 'rescue' });
+      cameraOccluders.push(mesh);
+      return { x, z, y1 };
+    }
+    block(-8.0,  0.0, 5, 5, 1.2, mat);          // step 1
+    block(-3.5,  4.6, 5, 5, 2.4, mat);          // step 2
+    block( 2.6,  3.6, 5, 5, 3.6, mat);          // step 3
+    const top = block(4.6, -2.6, 6, 6, 4.8, matTop);   // the top
+    // Two blocks pinching the robot
+    for (const s of [-1, 1]) {
+      const x = top.x + s * 0.85, z = top.z + 0.2, y0 = top.y1, y1 = top.y1 + 0.9;
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.9, 1.5), matPinch);
+      mesh.position.set(x, (y0 + y1) / 2, z); mesh.castShadow = true;
+      scene.add(mesh);
+      addBoxCollider({ x, z, hx: 0.35, hz: 0.75, y0, y1, walkable: false, tag: 'rescue' });
+    }
+    rescue.top = top;
+    const rs = robotStates[0];                 // P-03, blue
+    rs.pinned = { pos: new THREE.Vector3(top.x, top.y1 + 0.05, top.z + 0.2), yaw: 0.6, tilt: 0.95 };
+    rs.pos.copy(rs.pinned.pos);
+    worldInteractables.push({
+      x: top.x, z: top.z + 0.2, r: 2.4,
+      label: 'free P-03',
+      hidden: () => rescue.done || player.pos.y < top.y1 - 0.5,
+      fire() {
+        if (reach.active) return;
+        reachStart(rs.pinned.pos.clone().setY(top.y1 + 0.6), {
+          onContact() {
+            rescue.done = true;
+            rs.pinned = null;
+            robots[0].rotation.set(0, 0, 0);
+            rs.pos.set(top.x - 1.6, top.y1, top.z - 1.4);      // set down beside the player, then it makes its own way
+            rs.pos.set(C.cx - 11, G(C.cx - 11, C.cz - 5), C.cz - 5);
+            rs.state = 'idle'; rs.stateTimer = 2;
+            spawnDust(top.x, top.y1 + 0.4, top.z, 8, { speed: 0.8, upVel: 0.6, upVar: 0.5, life: 1.0 });
+            speak('P-03', 'clear.', 2.0, { kind: 'robot', delay: 0.6 });
+            speak('P-03', 'path.', 2.0, { kind: 'robot', delay: 3.0 });
+          },
+        });
+      },
+    });
+  })();
+  function updateRescue() {
+    if (!rescue.active || rescue.done || rescue.hailed || level.id === 'wreck') return;
+    if (Math.hypot(player.pos.x - rescue.cx, player.pos.z - rescue.cz) < 26) {
+      rescue.hailed = true;
+      speak('P-03', 'stuck.', 2.2, { kind: 'robot' });
+    }
+  }
+
   // Pin pull — reach gesture
   worldInteractables.push(s4.pinIx = {
     x: 13.95, z: -2.05, r: 2.0,
@@ -11162,6 +11259,7 @@ body.in-wreck .cam-buttons { display: none; }
   // ── Per-frame scene logic: brace pull anim, weld, coaching hints ──
   let _s5SparkT = 0;
   function updateScenes(dt) {
+    updateRescue();
     // Scene 4: engine-bay entry beat
     if (scene4.active && !scene4.entered &&
         (WRECK_LEVEL_ENABLED ? (level.id === 'wreck' && player.pos.x - WL_ORIGIN.x > 30 * WL_K + 0.8)
