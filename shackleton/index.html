@@ -630,7 +630,7 @@ body.in-wreck .cam-buttons { display: none; }
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.16.0';  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.17.0';  // Meshy robots, cut into jointed parts and driven by the walk rig. was v0.16.0;  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -14333,18 +14333,40 @@ body.in-wreck .cam-buttons { display: none; }
       // y 0.22 in the robot frame (buildRobot), so subtract that.
       wrapped.position.y = pb.min.y - ud.bodyGroup.position.y;
       ud.bodyGroup.add(wrapped);
-      // Optional articulated arms.
-      for (const side of ['L', 'R']) {
-        const arm = model.getObjectByName('arm_' + side);
-        const pivot = ud.armPivots && ud.armPivots[side === 'L' ? 0 : 1];
-        if (arm && pivot) pivot.attach(arm);
-      }
+      // Articulated parts (v0.17.0). The GLB is cut into rigid pieces,
+      // each a node whose origin sits on its joint: arm_L/R (shoulder),
+      // forearm_L/R (elbow), leg_L/R (hip). They are not re-parented:
+      // each frame syncRobotGlbs() copies the matching procedural
+      // pivot's rotation onto them, so every existing walk, gesture
+      // and cinematic pose drives the model with no further changes.
+      // L = the robot's -x side = pivot index 0.
+      const joints = [];
+      const bind = (name, src) => {
+        const node = model.getObjectByName(name);
+        if (node && src) joints.push({ node, src, rest: node.quaternion.clone() });
+      };
+      bind('arm_L', ud.armPivots && ud.armPivots[0]);     bind('arm_R', ud.armPivots && ud.armPivots[1]);
+      bind('forearm_L', ud.elbowPivots && ud.elbowPivots[0]); bind('forearm_R', ud.elbowPivots && ud.elbowPivots[1]);
+      bind('leg_L', ud.legPivots && ud.legPivots[0]);     bind('leg_R', ud.legPivots && ud.legPivots[1]);
+      // Legs hang off the bobbing body in the GLB but stand on the
+      // ground in the rig: cancel the bob on them (model units).
+      const legs = joints.filter(j => /^leg_/.test(j.node.name)).map(j => ({ node: j.node, y0: j.node.position.y }));
+      ud.glbRig = { joints, legs, k: model.scale.y || 1 };
       wrapped.traverse(o => { if (o.isMesh) o.visible = !/^COL_/i.test(o.name); });
       ud.glb = wrapped;
       console.log('[asset] robot ' + letter + ' upgraded to GLB');
     });
   }
   for (let i = 0; i < robots.length; i++) upgradeRobotVisual(robots[i], robotConfigs[i].letter);
+  function syncRobotGlbs() {
+    for (let i = 0; i < robots.length; i++) {
+      const ud = robots[i].userData, rig = ud.glbRig;
+      if (!rig) continue;
+      for (const j of rig.joints) j.node.quaternion.copy(j.rest).multiply(j.src.quaternion);
+      const bob = (ud.bodyGroup.position.y - 0.22) / rig.k;
+      for (const l of rig.legs) l.node.position.y = l.y0 - bob;
+    }
+  }
 
   // ============================================================
   // INTERACTION (v0.5.0) — one system owns "use the thing in front
@@ -15425,6 +15447,7 @@ body.in-wreck .cam-buttons { display: none; }
     updateGasParticles(dt);
     processSpeech(dt);
     earth.rotation.y += dt * 0.03;
+    syncRobotGlbs();
     renderer.render(scene, camera);
   }
 
