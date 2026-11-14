@@ -69,6 +69,23 @@ body { margin: 0; padding: 0; background: #050608; color: #e8e9ec; font-family: 
 .pad .b-d { grid-column: 3; grid-row: 2; }
 .pad .b-shift { grid-column: 1; grid-row: 3; font-size: 8px; }
 .pad .b-shift.held { font-size: 9px; }
+/* v0.12.0: demo ending */
+#demo-end { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0); pointer-events: none; transition: background 2s ease; }
+#demo-end.black { background: rgba(3,4,6,0.94); }
+#demo-end .de-inner { opacity: 0; transform: translateY(8px); transition: opacity 1.6s ease, transform 1.6s ease; text-align: center; font-family: 'Courier New', monospace; color: #e8e9ec; padding: 24px; max-width: 420px; }
+#demo-end.on { pointer-events: auto; }
+#demo-end.on .de-inner { opacity: 1; transform: none; }
+#demo-end .de-title { letter-spacing: 0.5em; font-size: 15px; color: #f0c674; margin-bottom: 26px; }
+#demo-end .de-line { font-size: 13px; letter-spacing: 0.16em; color: #9aa0ab; }
+#demo-end .de-big { font-size: 30px; letter-spacing: 0.12em; margin: 10px 0 22px; }
+#demo-end .de-parts { list-style: none; padding: 0; margin: 0 auto 26px; text-align: left; display: inline-block; font-size: 13px; letter-spacing: 0.08em; line-height: 2; }
+#demo-end .de-parts li::before { content: '○  '; color: #6b7280; }
+#demo-end .de-parts li.got { color: #7fd69a; } #demo-end .de-parts li.got::before { content: '●  '; color: #7fd69a; }
+#demo-end .de-parts span { color: #6b7280; margin-left: 8px; }
+#demo-end .de-note { font-size: 11px; letter-spacing: 0.3em; color: #6b7280; text-transform: uppercase; margin-bottom: 14px; }
+#demo-end .de-wish { font-size: 13px; letter-spacing: 0.1em; color: #f0c674; border: 0.5px solid #854f0b; padding: 12px 16px; margin-bottom: 14px; }
+#demo-end button { font: inherit; font-size: 12px; letter-spacing: 0.14em; color: #c8ccd2; background: none; border: 0.5px solid #2a3550; padding: 11px 18px; cursor: pointer; }
+body.demo-ending .cam-buttons, body.demo-ending .tele, body.demo-ending .stick, body.demo-ending .jump-btn, body.demo-ending .legend, body.demo-ending #oxygen-hud, body.demo-ending #interact-prompt { opacity: 0; pointer-events: none; transition: opacity 1s ease; }
 /* v0.9.0: virtual joystick replaces the arrow pad */
 .stick { position: fixed; bottom: 14px; left: 14px; width: 136px; height: 136px; border-radius: 50%; background: rgba(15, 18, 30, 0.45); border: 0.5px solid #2a3550; z-index: 3; touch-action: none; user-select: none; -webkit-user-select: none; }
 .stick::after { content: ''; position: absolute; inset: 9px; border-radius: 50%; border: 0.5px dashed rgba(240, 198, 116, 0.22); pointer-events: none; }
@@ -529,6 +546,22 @@ body.in-wreck .cam-buttons { display: none; }
     <div class="row"><span class="key">DRAG</span><span class="lbl">ROTATE CAM</span></div>
   </div>
   <div class="hint" id="hint">STICK OR WASD TO WALK · PUSH TO THE RIM TO RUN · DRAG TO LOOK AROUND</div>
+  <div id="demo-end">
+    <div class="de-inner">
+      <div class="de-title">SHACKLETON</div>
+      <div class="de-line">Flyer frame stabilised</div>
+      <div class="de-big">3 parts missing</div>
+      <ul class="de-parts">
+        <li class="got">Structural brace</li>
+        <li>Nav core <span>the tunnel</span></li>
+        <li>Power relay <span>central peak</span></li>
+        <li>Control CPU <span>the rim</span></li>
+      </ul>
+      <div class="de-note">End of the demo</div>
+      <div class="de-wish">Wishlist on Steam — coming soon</div>
+      <button id="de-keep" type="button">Keep exploring</button>
+    </div>
+  </div>
   <div class="stick" id="stick"><div class="stick-knob" id="stick-knob"></div></div>
   <button class="jump-btn" id="jump-btn" data-key=" "><span id="jump-btn-label">▲<br>JUMP</span></button>
   <button class="exit-flyer-btn" id="exit-flyer-btn">⏏ EXIT FLYER</button>
@@ -596,7 +629,7 @@ body.in-wreck .cam-buttons { display: none; }
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.11.0';  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.12.0';  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -2671,6 +2704,7 @@ body.in-wreck .cam-buttons { display: none; }
     input.forward = (keys['w']||keys['arrowup'] ? 1 : 0) + (keys['s']||keys['arrowdown'] ? -1 : 0);
     input.strafe = (keys['d']||keys['arrowright'] ? 1 : 0) + (keys['a']||keys['arrowleft'] ? -1 : 0);
     input.run = !!keys['shift'];
+    if (demoEnd.active) { input.forward = 0; input.strafe = 0; input.run = false; input.jump = false; return; }
     if (joy.active) {
       input.forward = joy.y; input.strafe = joy.x;
       input.run = joy.run && level.id !== 'wreck';     // no running indoors
@@ -7967,6 +8001,7 @@ body.in-wreck .cam-buttons { display: none; }
     btn.addEventListener('pointercancel', release);
   }
   document.querySelectorAll('.pad button, .jump-btn').forEach(bindBtn);
+  $('de-keep').addEventListener('click', () => demoEndDismiss());
   // ── v0.10.1: stop the phone browser zooming the page ──
   // iOS Safari ignores user-scalable=no, so block its pinch gesture and
   // double-tap zoom directly, and snap back if the page is ever zoomed.
@@ -10596,12 +10631,9 @@ body.in-wreck .cam-buttons { display: none; }
     flyerRepair.installed = true;
     applyFlyerDamage(0);
     speak('SUIT', 'Flyer frame stabilised — 3 parts missing', 3.4, { kind: 'system' });
-    // Michel — Transmission 02, still broken.
-    speak('HOUSTON', '...Elias, this is Michel...', 3.0, { kind: 'houston', delay: 4.5 });
-    speak('HOUSTON', '...we are still calling...', 2.8, { kind: 'houston', delay: 8.2 });
-    speak('HOUSTON', '...if your receiver survived...', 2.8, { kind: 'houston', delay: 11.4 });
-    speak('HOUSTON', '...do not try to climb yet...', 3.0, { kind: 'houston', delay: 14.6 });
-    setTimeout(() => setObjective('find the ice pocket — north-west wall'), 19000);
+    // Michel's Transmission 02 used to play here. From v0.12.0 it closes
+    // the demo instead (see demoEnd): it lands after the ice-pocket memory.
+    setTimeout(() => setObjective('find the ice pocket — north-west wall'), 5000);
     // Release the work party; P-03 is sent ahead to the ice.
     robotStates[1].scripted = null;
     robotStates[2].scripted = null;
@@ -10755,7 +10787,59 @@ body.in-wreck .cam-buttons { display: none; }
     oxygen.capacity = 160;
     setObjective('explore the crater');
     // MEMORY M02 — "Cold room".
-    setTimeout(() => shackletonMemory.fire('M02_COLD_ROOM'), 9500);
+    setTimeout(() => { shackletonMemory.fire('M02_COLD_ROOM'); demoEnd.armed = true; }, 9500);
+  }
+
+  // ============================================================
+  // DEMO ENDING (v0.12.0)
+  // After the "Cold room" memory (which ends on "…your brother"), control
+  // is taken, the camera lifts off him to a high view of the whole crater,
+  // and Michel's broken second transmission plays, cutting out on "do not
+  // try to climb yet…". Fade to a card: what is fixed, what is missing.
+  // "Keep exploring" hands the game back.
+  // ============================================================
+  const demoEnd = { armed: false, active: false, t: 0, done: false, card: false,
+                    p0: new THREE.Vector3(), l0: new THREE.Vector3(),
+                    p1: new THREE.Vector3(), l1: new THREE.Vector3(), look: new THREE.Vector3() };
+  const DEMO_END_RISE = 15.5, DEMO_END_FADE = 17.0, DEMO_END_CARD = 19.0;
+  function demoEndStart() {
+    demoEnd.armed = false; demoEnd.active = true; demoEnd.t = 0;
+    demoEnd.p0.copy(camera.position);
+    camera.getWorldDirection(demoEnd.l0).multiplyScalar(12).add(camera.position);
+    // High over the north-west wall, looking back across the floor to the
+    // central peak and the wreck: everything still to do is in the frame.
+    const fy = -CRATER_DEPTH;
+    demoEnd.p1.set(ICE_POCKET.x * 1.25, fy + 78, ICE_POCKET.z * 1.25);
+    demoEnd.l1.set((PEAK_CENTER_X + 20) * 0.5, fy + 4, (PEAK_CENTER_Z - 2) * 0.5);
+    for (const k in keys) keys[k] = false;
+    player.vel.set(0, player.vel.y, 0);
+    document.body.classList.add('demo-ending');
+    setObjective('');
+    speak('HOUSTON', '...Elias, this is Michel...', 3.0, { kind: 'houston', delay: 2.0 });
+    speak('HOUSTON', '...we are still calling...', 2.8, { kind: 'houston', delay: 5.6 });
+    speak('HOUSTON', '...if your receiver survived...', 2.8, { kind: 'houston', delay: 8.8 });
+    speak('HOUSTON', '...do not try to climb yet...', 3.2, { kind: 'houston', delay: 12.0 });
+  }
+  function demoEndDismiss() {
+    demoEnd.active = false; demoEnd.done = true; demoEnd.card = false;
+    const el = $('demo-end'); el.classList.remove('on', 'black');
+    document.body.classList.remove('demo-ending');
+    setObjective('explore the crater');
+  }
+  // Returns true while it owns the camera.
+  function updateDemoEnd(dt) {
+    if (demoEnd.armed && !demoEnd.done && shackletonMemory.hasFired('M02_COLD_ROOM') &&
+        !shackletonMemory.isActive() && controlMode === 'walking' && level.id !== 'wreck') demoEndStart();
+    if (!demoEnd.active) return false;
+    demoEnd.t += dt;
+    const k = Math.min(1, demoEnd.t / DEMO_END_RISE), e = k * k * k * (k * (k * 6 - 15) + 10);
+    camera.position.lerpVectors(demoEnd.p0, demoEnd.p1, e);
+    demoEnd.look.lerpVectors(demoEnd.l0, demoEnd.l1, Math.min(1, e * 1.6));
+    camera.lookAt(demoEnd.look);
+    const el = $('demo-end');
+    if (demoEnd.t > DEMO_END_FADE) el.classList.add('black');
+    if (demoEnd.t > DEMO_END_CARD && !demoEnd.card) { demoEnd.card = true; el.classList.add('on'); }
+    return true;
   }
 
   // ── Per-frame scene logic: brace pull anim, weld, coaching hints ──
@@ -14783,6 +14867,7 @@ body.in-wreck .cam-buttons { display: none; }
       }
       updateInteract(dt);                                   // v0.5.0 — after scene state, before camera
       if (level.id === 'wreck') updateWreckCamera(dt);      // v0.6 set cameras indoors
+      else if (updateDemoEnd(dt)) { /* demo ending owns the camera */ }
       else if (!shackletonMemory.isActive()) updateCamera(dt);   // camera holds during fragments (spec §8)
       updateSuitLamp();
       // Shadow frustum follows the active subject — astronaut on
