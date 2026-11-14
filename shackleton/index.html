@@ -630,7 +630,7 @@ body.in-wreck .cam-buttons { display: none; }
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.13.1';  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.13.2';  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -1233,6 +1233,7 @@ body.in-wreck .cam-buttons { display: none; }
   // ============================================================
   const boxColliders = [];
   const BOX_STEP_UP = 0.45;
+  const landSq = { a: 0, t: 0, vy: 0, wasGrounded: true };   // v0.13.2 landing squash
   const stepVis = { off: 0 };     // drawn body height minus player.pos.y (v0.9.5 step smoothing)
   const BOX_PLAYER_R = 0.35;
   function addBoxCollider(o) {
@@ -3196,6 +3197,27 @@ body.in-wreck .cam-buttons { display: none; }
       if (Math.abs(stepVis.off) < 0.002 && want === 0) stepVis.off = 0;
       if (!player.grounded) stepVis.off *= Math.max(0, 1 - dt * 10);
     }
+    // v0.13.2 landing compression. Every real landing (a jump, a drop off
+    // a ledge or crater lip) squashes the whole figure onto its feet in
+    // proportion to how hard he came down, then springs back with a small
+    // overshoot. Strides do not trigger it: they never leave the ground
+    // as far as the physics is concerned.
+    if (!player.grounded) landSq.vy = player.vel.y;
+    else if (!landSq.wasGrounded && landSq.vy < -0.9 && controlMode === 'walking') {
+      landSq.a = Math.min(1, (-landSq.vy - 0.9) / 2.2) * 0.26;
+      landSq.t = 0;
+    }
+    landSq.wasGrounded = player.grounded;
+    if (landSq.a > 0 && astronautRoot) {
+      landSq.t += dt;
+      const t = landSq.t;
+      let q;
+      if (t < 0.08) { const u = t / 0.08; q = u * u * (3 - 2 * u); }
+      else { const v = t - 0.08; q = Math.exp(-v * 5.2) * Math.cos(v * 8.5); }
+      q *= landSq.a;
+      if (t > 1.0) { landSq.a = 0; q = 0; }
+      astronautRoot.scale.set(0.5 * (1 + q * 0.55), 0.5 * (1 - q), 0.5 * (1 + q * 0.55));
+    }
     // Update model position + rotation
     if (astronautRoot) {
       astronautRoot.position.copy(player.pos);
@@ -3217,10 +3239,10 @@ body.in-wreck .cam-buttons { display: none; }
     if (runJump && player.grounded && jumpPhase !== 'airborne') {
       if (!runJumpLandAt) {
         runJumpLandAt = performance.now();
-        if (jumpAction) { jumpAction.paused = false; jumpAction.setEffectiveTimeScale(1.6); }
+        if (jumpAction) { jumpAction.paused = false; jumpAction.setEffectiveTimeScale(1.25); }
         kickDust(player.pos.x, player.pos.y, player.pos.z, 320, 2.4);
       }
-      if (performance.now() - runJumpLandAt > 300 || jumpPhase === null) {
+      if (performance.now() - runJumpLandAt > 480 || jumpPhase === null) {
         jumpPhase = null; runJump = false; runJumpLandAt = 0;
         if (jumpAction) jumpAction.setEffectiveTimeScale(1);
       }
@@ -5323,7 +5345,7 @@ body.in-wreck .cam-buttons { display: none; }
   // time shortens with speed so that stays inside the clip's stance.
   const LOPE_FOOT_M = 1.37, LOPE_STANCE_MAX = 0.36;
   const LOPE_DIP = 0.035;         // m of knee-bend during contact
-  const lope = { phase: 0, parity: 0, w: 0, y: 0, pushed: false, fresh: true, period: 0.95, contact: LOPE_CONTACT, dc: 0.2 };
+  const lope = { phase: 0, parity: 0, w: 0, y: 0, pushed: false, fresh: true, period: 0.95, contact: LOPE_CONTACT, dc: 0.2, jog: 0 };
   function _lopeLand(speed) {
     sndFootstep(speed);
     const b = (typeof _seatBones === 'function') ? _seatBones() : null;
@@ -5349,11 +5371,17 @@ body.in-wreck .cam-buttons { display: none; }
             //        so arms and legs swing more and each push-off is low
             //   run, 4.8 m/s and up — the long high lope, unchanged
             const jog = _ss(2.2, 3.0, speed) * (1 - _ss(4.0, 4.8, speed));
+            lope.jog = jog;
             const base = 0.95 + 0.10 * t;
             return base + (0.64 - base) * jog;
           })();
       lope.contact = Math.max(0.16, Math.min(0.30, LOPE_STANCE_MAX * LOPE_FOOT_M / speed));
       lope.dc = Math.max(0.08, Math.min(LOPE_STANCE_MAX, speed * lope.contact / LOPE_FOOT_M));
+      if (level.id === 'wreck') lope.jog = 0;
+      // v0.13.2: in the jog, less of the clip is spent while the foot is
+      // down, so the legs keep travelling through the air instead of
+      // hanging in one pose between steps.
+      lope.dc += (Math.min(lope.dc, 0.20) - lope.dc) * lope.jog;
       if (lope.fresh) { lope.fresh = false; lope.phase = 0; lope.pushed = false; _lopeLand(speed); }
       lope.phase += dt / lope.period;
       const cf = lope.contact / lope.period;
@@ -5385,7 +5413,26 @@ body.in-wreck .cam-buttons { display: none; }
   }
   // Called just before mixer.update: put the body on the arc and lock
   // the gait clip to the stride phase.
-  const airHold = { on: false, t: 0, f: 0 };
+  // v0.13.2: the jog's upper body. Added on top of the clip, after the
+  // mixer: the chest twists against the hips once per pair of steps, with
+  // a slight forward lean. Because it follows the stride phase, which
+  // never stops, it keeps moving through the float between steps, and it
+  // carries the arms with it so they swing further.
+  function applyJogBody() {
+    const inAir = airHold.on && airHold.t >= 0.15;
+    const k = (inAir ? 1 : lope.w) * lope.jog;
+    if (k < 0.01 || controlMode !== 'walking' || !(player.grounded || airHold.on)) return;
+    const b = astroSeat.bones || _seatBones();
+    if (!b) return;
+    // In a held pose the sway carries on at its own slow pace.
+    const th = Math.PI * (lope.parity + lope.phase) + (inAir ? airHold.t * 2.6 : 0), sw = Math.sin(th);
+    b.Spine.rotation.y  += 0.10 * k * sw;
+    b.Spine1.rotation.y += 0.10 * k * sw;
+    b.Spine2.rotation.y += 0.10 * k * sw;
+    b.Hips.rotation.y   -= 0.08 * k * sw;
+    b.Spine.rotation.x  += 0.07 * k;
+  }
+  const airHold = { on: false, t: 0, f: 0, held: false, inHold: false };
   function applyLope() {
     if (!astronautRoot || controlMode !== 'walking') return;
     // Hop pose while sailing down a slope: ease the gait clip to the open
@@ -5393,13 +5440,36 @@ body.in-wreck .cam-buttons { display: none; }
     // lope has faded out, so the legs never free-run in the air.
     {
       const a = activeAction;
-      if (airHold.on && a && (a === animClips['Walk_Loop'] || a === animClips['Run_Loop'])) {
+      // v0.13.2: coming back down out of a held pose, pick the stride up
+      // from that same pose (mid-float) so the legs do not snap.
+      if (player.grounded && airHold.held) {
+        airHold.held = false; airHold.inHold = false;
+        const cf = lope.contact / lope.period, dc = lope.dc;
+        let w = 0.25;                                   // where in the half-cycle the legs are right now
+        if (a && (a === animClips['Walk_Loop'] || a === animClips['Run_Loop'])) {
+          w = airHold.f - 0.97 - 0.5 * lope.parity;
+          w -= Math.floor(w); if (w > 0.75) w -= 1;
+        }
+        w = Math.max(dc * 0.5, Math.min(0.5 - dc * 0.5, w));
+        lope.phase = Math.min(0.98, cf + (1 - cf) * (w - dc * 0.5) / Math.max(0.05, 0.5 - dc));
+      }
+      // A blip of air (under 0.15 s, every ripple in the ground) is not a
+      // hold: the stride just carries on. Only a real drop takes the pose.
+      if (airHold.on && airHold.t >= 0.15 && a && (a === animClips['Walk_Loop'] || a === animClips['Run_Loop'])) {
+        airHold.held = true;
         const D = a.getClip().duration;
-        const target = 0.97 + 0.5 * lope.parity + 0.25;            // mid-flight of this stride
-        let cur = a.time / D, d = target - cur; d -= Math.round(d); // shortest way round the loop
-        cur += d * Math.min(1, 0.12);
-        cur -= Math.floor(cur);
-        a.time = cur * D;
+        // Mid-flight of this stride, with a slow scissor of the legs so
+        // the held pose is never completely still.
+        const target = 0.97 + 0.5 * lope.parity + 0.25 + 0.045 * Math.sin(airHold.t * 4.5);
+        // The pose is kept in airHold.f, not read back from the clip: the
+        // mixer advances the clip a little every frame, and easing towards
+        // the target from that moving value never arrived (it sat about a
+        // third of a cycle late, and jittered).
+        if (!airHold.inHold) { airHold.inHold = true; airHold.f = a.time / D; }
+        let d = target - airHold.f; d -= Math.round(d);            // shortest way round the loop
+        airHold.f += d * 0.14;
+        airHold.f -= Math.floor(airHold.f);
+        a.time = airHold.f * D;
         astronautRoot.position.y = player.pos.y + lope.y + stepVis.off;
         return;
       }
@@ -5407,7 +5477,7 @@ body.in-wreck .cam-buttons { display: none; }
     if (lope.w <= 0) return;
     astronautRoot.position.y = player.pos.y + lope.y + stepVis.off;
     const a = activeAction;
-    if (a && (a === animClips['Walk_Loop'] || a === animClips['Run_Loop']) && player.grounded) {
+    if (a && (a === animClips['Walk_Loop'] || a === animClips['Run_Loop']) && (player.grounded || airHold.on)) {
       const cf = lope.contact / lope.period, dc = lope.dc, ph = lope.phase;
       // Foot down: clip moves with the ground. Foot up: the rest of the half-cycle.
       const within = ph < cf ? (ph / cf - 0.5) * dc
@@ -14951,6 +15021,7 @@ body.in-wreck .cam-buttons { display: none; }
     applyLope();                     // v0.7.2 — stride arc + clip phase lock
     if (mixer) mixer.update(dt);
     if (astroSeat.want || astroSeat.w > 0) applySeatedPose(dt);   // bones AFTER the mixer stamp
+    applyJogBody();                  // v0.13.2 — torso and arm swing in the jog, also after the mixer
     updateReach(dt);                 // arm override AFTER the mixer stamp
     updateEntities(dt);              // entity registry — additive pass
     updateHose(dt);                  // O₂ umbilical — no-op unless connected
