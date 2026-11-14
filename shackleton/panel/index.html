@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>O₂ Manifold — a Shackleton puzzle</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #04060a; touch-action: manipulation; }
+</style>
+</head>
+<body>
+<!-- The oxygen stabiliser panel from Shackleton, playable on its own.
+     ?size=5|6|7 picks the grid; ?seed=N replays a layout. -->
+<script src="../o2-panel.js?v=0.13.0"></script>
+<script>
+  (function () {
+    var q = new URLSearchParams(location.search);
+    var size = Math.max(4, Math.min(8, parseInt(q.get('size') || '5', 10) || 5));
+    var seed = q.has('seed') ? parseInt(q.get('seed'), 10) : undefined;
+    O2Panel.open({ size: size, seed: seed, allowNew: true, allowClose: false, autoClose: false });
+  })();
+</script>
+</body>
+</html>

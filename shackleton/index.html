@@ -69,6 +69,23 @@ body { margin: 0; padding: 0; background: #050608; color: #e8e9ec; font-family: 
 .pad .b-d { grid-column: 3; grid-row: 2; }
 .pad .b-shift { grid-column: 1; grid-row: 3; font-size: 8px; }
 .pad .b-shift.held { font-size: 9px; }
+/* v0.12.0: demo ending */
+#demo-end { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0); pointer-events: none; transition: background 2s ease; }
+#demo-end.black { background: rgba(3,4,6,0.94); }
+#demo-end .de-inner { opacity: 0; transform: translateY(8px); transition: opacity 1.6s ease, transform 1.6s ease; text-align: center; font-family: 'Courier New', monospace; color: #e8e9ec; padding: 24px; max-width: 420px; }
+#demo-end.on { pointer-events: auto; }
+#demo-end.on .de-inner { opacity: 1; transform: none; }
+#demo-end .de-title { letter-spacing: 0.5em; font-size: 15px; color: #f0c674; margin-bottom: 26px; }
+#demo-end .de-line { font-size: 13px; letter-spacing: 0.16em; color: #9aa0ab; }
+#demo-end .de-big { font-size: 30px; letter-spacing: 0.12em; margin: 10px 0 22px; }
+#demo-end .de-parts { list-style: none; padding: 0; margin: 0 auto 26px; text-align: left; display: inline-block; font-size: 13px; letter-spacing: 0.08em; line-height: 2; }
+#demo-end .de-parts li::before { content: '○  '; color: #6b7280; }
+#demo-end .de-parts li.got { color: #7fd69a; } #demo-end .de-parts li.got::before { content: '●  '; color: #7fd69a; }
+#demo-end .de-parts span { color: #6b7280; margin-left: 8px; }
+#demo-end .de-note { font-size: 11px; letter-spacing: 0.3em; color: #6b7280; text-transform: uppercase; margin-bottom: 14px; }
+#demo-end .de-wish { font-size: 13px; letter-spacing: 0.1em; color: #f0c674; border: 0.5px solid #854f0b; padding: 12px 16px; margin-bottom: 14px; }
+#demo-end button { font: inherit; font-size: 12px; letter-spacing: 0.14em; color: #c8ccd2; background: none; border: 0.5px solid #2a3550; padding: 11px 18px; cursor: pointer; }
+body.demo-ending .cam-buttons, body.demo-ending .tele, body.demo-ending .stick, body.demo-ending .jump-btn, body.demo-ending .legend, body.demo-ending #oxygen-hud, body.demo-ending #interact-prompt { opacity: 0; pointer-events: none; transition: opacity 1s ease; }
 /* v0.9.0: virtual joystick replaces the arrow pad */
 .stick { position: fixed; bottom: 14px; left: 14px; width: 136px; height: 136px; border-radius: 50%; background: rgba(15, 18, 30, 0.45); border: 0.5px solid #2a3550; z-index: 3; touch-action: none; user-select: none; -webkit-user-select: none; }
 .stick::after { content: ''; position: absolute; inset: 9px; border-radius: 50%; border: 0.5px dashed rgba(240, 198, 116, 0.22); pointer-events: none; }
@@ -529,6 +546,22 @@ body.in-wreck .cam-buttons { display: none; }
     <div class="row"><span class="key">DRAG</span><span class="lbl">ROTATE CAM</span></div>
   </div>
   <div class="hint" id="hint">STICK OR WASD TO WALK · PUSH TO THE RIM TO RUN · DRAG TO LOOK AROUND</div>
+  <div id="demo-end">
+    <div class="de-inner">
+      <div class="de-title">SHACKLETON</div>
+      <div class="de-line">Flyer frame stabilised</div>
+      <div class="de-big">3 parts missing</div>
+      <ul class="de-parts">
+        <li class="got">Structural brace</li>
+        <li>Nav core <span>the tunnel</span></li>
+        <li>Power relay <span>central peak</span></li>
+        <li>Control CPU <span>the rim</span></li>
+      </ul>
+      <div class="de-note">End of the demo</div>
+      <div class="de-wish">Wishlist on Steam — coming soon</div>
+      <button id="de-keep" type="button">Keep exploring</button>
+    </div>
+  </div>
   <div class="stick" id="stick"><div class="stick-knob" id="stick-knob"></div></div>
   <button class="jump-btn" id="jump-btn" data-key=" "><span id="jump-btn-label">▲<br>JUMP</span></button>
   <button class="exit-flyer-btn" id="exit-flyer-btn">⏏ EXIT FLYER</button>
@@ -551,6 +584,7 @@ body.in-wreck .cam-buttons { display: none; }
 <!-- three.js r187 (ES modules). r128 was the last release with the global
      examples/js builds this file was written against; the bridge below
      rebuilds that global THREE namespace so the game code is unchanged. -->
+<script src="/shackleton/o2-panel.js?v=0.13.0"></script>   <!-- oxygen stabiliser panel (also playable at /shackleton/panel/) -->
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js",
@@ -596,7 +630,7 @@ body.in-wreck .cam-buttons { display: none; }
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.10.7';  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.15.2';  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -1178,7 +1212,71 @@ body.in-wreck .cam-buttons { display: none; }
   const root = new THREE.Group();
   scene.add(root);
   const colliders = [];
-  function addCollider(x, z, r, h) { colliders.push({ x, z, r, h }); }
+  function addCollider(x, z, r, h) { const c = { x, z, r, h }; colliders.push(c); return c; }
+
+  // ============================================================
+  // ROCK FIELDS (v0.14.0) — big boulders collide as their real shape
+  //
+  // A round collider let him walk through a boulder's corners, stopped
+  // him short of its flat sides, and gave him nothing to stand on. Each
+  // big boulder now gets a small height map of its own top surface,
+  // made once at load by casting rays straight down through the actual
+  // mesh on a 0.25 m grid. From that:
+  //   - rockTopAt(x, z) is the height of rock under a point, so he can
+  //     land on a boulder, stand on it and walk across it
+  //   - rockResolvePlayer stops him where rock rises more than a step
+  //     above his feet, which is the boulder's real outline
+  // ============================================================
+  const ROCK_CELL = 0.25, ROCK_NONE = -1e9, ROCK_BUCKET = 8;
+  const rockFields = [];
+  const _rockBuckets = new Map();
+  const _rockRay = new THREE.Raycaster();
+  const _rockDown = new THREE.Vector3(0, -1, 0), _rockFrom = new THREE.Vector3();
+  function addRockField(mesh, reach) {
+    mesh.updateMatrixWorld(true);
+    const cx = mesh.position.x, cz = mesh.position.z;
+    const n = Math.ceil(reach * 2 / ROCK_CELL) + 1;
+    const f = { x0: cx - reach, z0: cz - reach, n, h: new Float32Array(n * n), top: ROCK_NONE };
+    const topY = mesh.position.y + reach + 1;
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+      _rockFrom.set(f.x0 + i * ROCK_CELL, topY, f.z0 + j * ROCK_CELL);
+      _rockRay.set(_rockFrom, _rockDown);
+      const hit = _rockRay.intersectObject(mesh, false);
+      const y = hit.length ? hit[0].point.y : ROCK_NONE;
+      f.h[j * n + i] = y;
+      if (y > f.top) f.top = y;
+    }
+    rockFields.push(f);
+    const b0x = Math.floor(f.x0 / ROCK_BUCKET), b1x = Math.floor((cx + reach) / ROCK_BUCKET);
+    const b0z = Math.floor(f.z0 / ROCK_BUCKET), b1z = Math.floor((cz + reach) / ROCK_BUCKET);
+    for (let bz = b0z; bz <= b1z; bz++) for (let bx = b0x; bx <= b1x; bx++) {
+      const k = bx + ',' + bz;
+      if (!_rockBuckets.has(k)) _rockBuckets.set(k, []);
+      _rockBuckets.get(k).push(f);
+    }
+    return f;
+  }
+  // Height of rock under (x, z), or ROCK_NONE where there is none.
+  function rockTopAt(x, z) {
+    const list = _rockBuckets.get(Math.floor(x / ROCK_BUCKET) + ',' + Math.floor(z / ROCK_BUCKET));
+    if (!list) return ROCK_NONE;
+    let best = ROCK_NONE;
+    for (const f of list) {
+      const gx = (x - f.x0) / ROCK_CELL, gz = (z - f.z0) / ROCK_CELL;
+      const i = Math.floor(gx), j = Math.floor(gz);
+      if (i < 0 || j < 0 || i >= f.n - 1 || j >= f.n - 1) continue;
+      const n = f.n, a = f.h[j * n + i], b = f.h[j * n + i + 1], c = f.h[(j + 1) * n + i], d = f.h[(j + 1) * n + i + 1];
+      let y;
+      if (a > ROCK_NONE && b > ROCK_NONE && c > ROCK_NONE && d > ROCK_NONE) {
+        const tx = gx - i, tz = gz - j;                       // smooth across a face
+        y = (a * (1 - tx) + b * tx) * (1 - tz) + (c * (1 - tx) + d * tx) * tz;
+      } else {                                                 // at the outline: nearest sample only
+        y = f.h[Math.round(gz) * n + Math.round(gx)];
+      }
+      if (y > best) best = y;
+    }
+    return best;
+  }
 
   // ============================================================
   // BOX COLLIDERS (v0.5.0) — the collision half of the asset
@@ -1199,6 +1297,7 @@ body.in-wreck .cam-buttons { display: none; }
   // ============================================================
   const boxColliders = [];
   const BOX_STEP_UP = 0.45;
+  const landSq = { a: 0, t: 0, vy: 0, wasGrounded: true };   // v0.13.2 landing squash
   const stepVis = { off: 0 };     // drawn body height minus player.pos.y (v0.9.5 step smoothing)
   const BOX_PLAYER_R = 0.35;
   function addBoxCollider(o) {
@@ -1241,9 +1340,35 @@ body.in-wreck .cam-buttons { display: none; }
   }
   // Terrain or box top, whichever is higher — the player's floor.
   function playerGroundY(x, z, y) {
-    const t = level.id === 'wreck' ? WL_ORIGIN.y : shackletonScene.getGroundY(x, z);
+    let t = level.id === 'wreck' ? WL_ORIGIN.y : shackletonScene.getGroundY(x, z);
+    if (level.id !== 'wreck') {                 // rock he is on, or can step up onto
+      const r = rockTopAt(x, z);
+      if (r > t && r <= y + BOX_STEP_UP) t = r;
+    }
     if (!boxColliders.length) return t;
     return Math.max(t, boxTopAt(x, z, y));
+  }
+  // Stop the player where rock stands more than a step above his feet.
+  // (px, pz) is where he was before this frame's move. Tested at his
+  // centre and 0.35 m ahead, so a steep face stops him however slowly he
+  // creeps at it; he slides along the face if one axis is clear.
+  function _rockBlocked(x, z, y, dx, dz) {
+    const lim = y + BOX_STEP_UP;
+    if (rockTopAt(x, z) > lim) return true;
+    return rockTopAt(x + dx * 0.35, z + dz * 0.35) > lim;
+  }
+  function rockResolvePlayer(px, pz) {
+    const p = player.pos;
+    let mx = p.x - px, mz = p.z - pz;
+    const m = Math.hypot(mx, mz);
+    if (m < 1e-6) return;
+    const dx = mx / m, dz = mz / m, y = p.y;
+    if (!_rockBlocked(p.x, p.z, y, dx, dz)) return;
+    if (rockTopAt(px, pz) > y + BOX_STEP_UP) return;      // already inside rock (a teleport, a spawn): let him walk out
+    const sx = Math.sign(mx), sz = Math.sign(mz);
+    if (Math.abs(mx) > 1e-6 && !_rockBlocked(p.x, pz, y, sx, 0)) { p.z = pz; player.vel.z = 0; return; }   // slide along x
+    if (Math.abs(mz) > 1e-6 && !_rockBlocked(px, p.z, y, 0, sz)) { p.x = px; player.vel.x = 0; return; }   // slide along z
+    p.x = px; p.z = pz; player.vel.x = 0; player.vel.z = 0;
   }
   // Push the player cylinder out of every box it overlaps at its
   // current height. Boxes the player is standing on (or can step
@@ -1988,7 +2113,10 @@ body.in-wreck .cam-buttons { display: none; }
       // applied at check time in updatePlayer.
       const cR = Math.max(sx, sz) * 0.55;
       const cH = surfaceY + sy * 0.3 + sy * 0.5;   // boulder top, world Y
-      addCollider(x, z, cR, cH);
+      const col = addCollider(x, z, cR, cH);
+      // v0.14.0: big boulders collide with the player as their real shape
+      // (rock field); the round collider stays for anything else that reads it.
+      if (sy >= 0.5) { addRockField(m, Math.max(sx, sy, sz) * 1.05); col.rock = true; }
       // Larger boulders also act as camera occluders so the chase cam
       // pulls in when the player walks behind one. Threshold higher
       // than collide threshold — small rocks block feet but not view.
@@ -2644,7 +2772,8 @@ body.in-wreck .cam-buttons { display: none; }
   const JUMP_VELOCITY = 3.0;     // apex ≈ 2.8m — was 4.2 (5.4m), which read as a moonshot
   const TURN_SPEED = 7;          // how fast astronaut turns to face movement direction
   const PLAYER_HEIGHT = 1.7;     // collision capsule height
-  const RUN_THRESHOLD = 3.2;     // velocity threshold for run animation
+  const RUN_THRESHOLD = 2.6;     // velocity threshold for run animation (v0.13.1: the jog uses the Run clip too)
+  const JOG_SPEED = 3.5;         // m/s — the middle gait (v0.13.1): stick pushed most of the way, or W on a keyboard
 
   // Jump state machine
   // The Jump clip is 2.467s long. Looking at the Hips Y motion:
@@ -2657,7 +2786,8 @@ body.in-wreck .cam-buttons { display: none; }
   const TAKEOFF_HOLD_TIME = 1.10;    // clip time of the extended takeoff pose
   const LANDING_START_TIME = 1.70;   // clip time where the landing motion begins
   let jumpPhase = null;              // null | 'windup' | 'airborne' | 'landing'
-  let runJump = false;               // v0.10.6: this jump was taken from a run (no wind-up, no landing crouch)
+  let runJump = false;               // v0.10.6: this jump was taken from a run (no wind-up)
+  let runJumpLandAt = 0;             // v0.13.1: when its short landing knee-bend began
   let landingStartedAt = 0;          // performance.now() when 'landing' phase began (safety-net timeout)
   let jumpStartTime = 0;
   let jumpAction = null;             // reference to the Jump AnimationAction
@@ -2667,10 +2797,12 @@ body.in-wreck .cam-buttons { display: none; }
   // v0.9.0: virtual joystick. x = right, y = forward, each −1…1 with the
   // dead zone already removed; run = pushed to the rim.
   const joy = { x: 0, y: 0, active: false, run: false };
+  let uiPanelOpen = false;          // v0.13.0: a full-screen puzzle panel has the player's attention
   function setInputFromKeys() {
     input.forward = (keys['w']||keys['arrowup'] ? 1 : 0) + (keys['s']||keys['arrowdown'] ? -1 : 0);
     input.strafe = (keys['d']||keys['arrowright'] ? 1 : 0) + (keys['a']||keys['arrowleft'] ? -1 : 0);
     input.run = !!keys['shift'];
+    if (demoEnd.active || uiPanelOpen) { input.forward = 0; input.strafe = 0; input.run = false; input.jump = false; return; }
     if (joy.active) {
       input.forward = joy.y; input.strafe = joy.x;
       input.run = joy.run && level.id !== 'wreck';     // no running indoors
@@ -2768,8 +2900,16 @@ body.in-wreck .cam-buttons { display: none; }
     // speed/clip-rate/bob read as stuttering, not as a lope. The
     // lunar feel now comes solely from the 0.78× gait timescale in
     // setAnimation: original movement, slightly slow limbs.
-    const targetSpeed = level.id === 'wreck' ? WRECK_WALK_SPEED : (input.run ? RUN_SPEED : WALK_SPEED);
+    const targetSpeed = level.id === 'wreck' ? WRECK_WALK_SPEED : (input.run ? RUN_SPEED : JOG_SPEED);
     const accel = player.grounded ? ACCEL_GROUND : ACCEL_AIR;
+    // v0.13.5: no steering in the air. Once he has left the ground on a
+    // jump (or has been falling for more than a moment) he is a
+    // projectile: the stick neither pushes nor turns him, and he lands
+    // where his take-off speed carries him. Standing jump: straight up and
+    // down. Walking or running jump: an arc along the way he was going.
+    // The first 0.15 s off the ground still steers, so running over
+    // ripples in the ground does not make the controls feel dead.
+    const ballistic = !player.grounded && (jumpPhase === 'airborne' || runJump || airHold.t >= 0.15);
 
     // Slope check — sample the local gradient via finite differences
     // on getGroundY. If the slope exceeds the cutoff, the surface
@@ -2790,7 +2930,24 @@ body.in-wreck .cam-buttons { display: none; }
       const gradZ = (yN - yS) / (2 * eps);
       const slopeMag = Math.hypot(gradX, gradZ);
       const slopeAngle = Math.atan(slopeMag);
+      // v0.13.1: a slope only counts as too steep if it is still steep
+      // (over 40°) measured across 3.6 m as well. The 1.2 m sample alone
+      // tripped on the lip of every small crater, and the slide code then
+      // spun him to face downhill for a moment: the 180° flick at the top.
+      let sustained = false;
       if (slopeAngle > SLOPE_CUTOFF) {
+        const e2 = 1.8, G = shackletonScene.getGroundY;
+        const gx2 = (G(player.pos.x + e2, player.pos.z) - G(player.pos.x - e2, player.pos.z)) / (2 * e2);
+        const gz2 = (G(player.pos.x, player.pos.z + e2) - G(player.pos.x, player.pos.z - e2)) / (2 * e2);
+        sustained = Math.atan(Math.hypot(gx2, gz2)) > Math.PI / 180 * 40;
+      }
+      // The slide rule exists for the central peak's flanks and the crater
+      // wall. Out on the floor it only ever fired on the inner lips of small
+      // craters, where it stopped him and turned him round (measured: up to
+      // 180° at 17 such lips). So it now applies only near the peak or wall.
+      const nearPeak = Math.hypot(player.pos.x - PEAK_CENTER_X, player.pos.z - PEAK_CENTER_Z) < PEAK_BASE_R + 3;
+      const nearWall = Math.hypot(player.pos.x, player.pos.z) > CRATER_FLOOR - 32;
+      if (slopeAngle > SLOPE_CUTOFF && sustained && (nearPeak || nearWall)) {
         tooSteep = true;
         // Slide down the gradient. Down-gradient direction is
         // -gradient normalized. (Gradient points uphill; we want
@@ -2836,7 +2993,7 @@ body.in-wreck .cam-buttons { display: none; }
       while (delta > Math.PI) delta -= Math.PI * 2;
       while (delta < -Math.PI) delta += Math.PI * 2;
       player.heading += delta * Math.min(1, dt * TURN_SPEED * 1.5);
-    } else if (pureBack) {
+    } else if (pureBack && !ballistic) {
       // Walk backward in astronaut's local frame. Heading unchanged;
       // the camera-follow code (separately) lerps its target to
       // player.heading + π so the camera swings 180° around to the
@@ -2848,7 +3005,7 @@ body.in-wreck .cam-buttons { display: none; }
       player.vel.x += (tvx - player.vel.x) * Math.min(1, dt * accel);
       player.vel.z += (tvz - player.vel.z) * Math.min(1, dt * accel);
       // No heading update — preserves facing direction.
-    } else if (inMag > 0.05) {
+    } else if (inMag > 0.05 && !ballistic) {
       // Accelerate toward target velocity
       const tvx = inX * targetSpeed;
       const tvz = inZ * targetSpeed;
@@ -2929,6 +3086,7 @@ body.in-wreck .cam-buttons { display: none; }
     }
 
     // Integrate
+    const _rpx = player.pos.x, _rpz = player.pos.z;      // where he was, for the rock test
     player.pos.addScaledVector(player.vel, dt);
 
     // Re-check ground after integration
@@ -2970,6 +3128,7 @@ body.in-wreck .cam-buttons { display: none; }
     // passable. Tuned together with placeBoulder's collider radius
     // factor (0.55) so the silhouette and the collision agree.
     for (const c of colliders) {
+      if (c.rock) continue;                      // big boulders: rock field, below
       if (player.pos.y > c.h + 0.4) continue;
       const dx = player.pos.x - c.x, dz = player.pos.z - c.z;
       const distSq = dx*dx + dz*dz;
@@ -2984,6 +3143,8 @@ body.in-wreck .cam-buttons { display: none; }
         if (vR < 0) { player.vel.x -= vR * nx; player.vel.z -= vR * nz; }
       }
     }
+
+    if (level.id !== 'wreck') rockResolvePlayer(_rpx, _rpz);   // v0.14.0 big boulders, real shape
 
     // Collision with robots — horizontal cylinder collider, ~0.75m combined
     // radius. Astronaut gets pushed; robots continue their waddle unaffected.
@@ -3134,13 +3295,25 @@ body.in-wreck .cam-buttons { display: none; }
       if (player.grounded && jumpPhase === null && sp > 0.3) {
         const ax = player.pos.x + player.vel.x / sp * 0.5, az = player.pos.z + player.vel.z / sp * 0.5;
         const ahead = playerGroundY(ax, az, player.pos.y) - player.pos.y;
-        if (ahead > 0.05 && ahead <= BOX_STEP_UP && (level.id === 'wreck' || player.onBox || boxTopAt(ax, az, player.pos.y) > -Infinity)) want = ahead;
+        if (ahead > 0.05 && ahead <= BOX_STEP_UP && (level.id === 'wreck' || player.onBox || boxTopAt(ax, az, player.pos.y) > -Infinity || rockTopAt(ax, az) > ROCK_NONE)) want = ahead;
       }
       const rate = stepVis.off < want ? 7 : 5.5;            // up a touch quicker than down
       stepVis.off += (want - stepVis.off) * Math.min(1, dt * rate);
       if (Math.abs(stepVis.off) < 0.002 && want === 0) stepVis.off = 0;
       if (!player.grounded) stepVis.off *= Math.max(0, 1 - dt * 10);
     }
+    // Landing compression (v0.13.3 replaces v0.13.2's whole-figure squash).
+    // Every real landing (a jump, a drop off a ledge or crater lip) starts
+    // a crouch whose depth follows how hard he came down: see applyLandPose.
+    // Strides do not trigger it: they never leave the ground as far as the
+    // physics is concerned.
+    if (!player.grounded) landSq.vy = player.vel.y;
+    else if (!landSq.wasGrounded && landSq.vy < -0.9 && controlMode === 'walking') {
+      landSq.a = Math.min(1, (-landSq.vy - 0.9) / 2.2) * 0.26;
+      landSq.t = 0;
+    }
+    landSq.wasGrounded = player.grounded;
+    if (landSq.a > 0) { landSq.t += dt; if (landSq.t > 0.95) landSq.a = 0; }   // the pose itself is applied after the mixer (applyLandPose)
     // Update model position + rotation
     if (astronautRoot) {
       astronautRoot.position.copy(player.pos);
@@ -3156,9 +3329,16 @@ body.in-wreck .cam-buttons { display: none; }
     // is what plays when the ground drops away and he has NOT jumped: the
     // gait clip stays, held in its open hop pose (see applyLope), instead
     // of the Jump clip. A fall of more than 1.8 s still becomes a Jump.
-    if (runJump && player.grounded && jumpPhase !== 'airborne') {   // landed from a running jump: no crouch
-      jumpPhase = null; runJump = false;
-      if (jumpAction) jumpAction.paused = false;
+    // Landed from a running jump (v0.13.4): straight back into the run clip,
+    // so his legs are already stepping, with the landing crouch
+    // (applyLandPose) laid over the top of the stride. He comes down, takes
+    // a step or two bent low with the momentum, and rises as he goes.
+    // (v0.13.1–3 played the Jump clip's feet-together landing here, which
+    // is why he crouched on the spot while still sliding forward.)
+    if (runJump && player.grounded && jumpPhase !== 'airborne') {
+      jumpPhase = null; runJump = false; runJumpLandAt = 0;
+      if (jumpAction) { jumpAction.paused = false; jumpAction.setEffectiveTimeScale(1); }
+      kickDust(player.pos.x, player.pos.y, player.pos.z, 320, 2.4);
     }
     airHold.t = player.grounded ? 0 : airHold.t + dt;
     const slopeAir = !player.grounded && jumpPhase === null && level.id !== 'wreck' &&
@@ -5258,7 +5438,7 @@ body.in-wreck .cam-buttons { display: none; }
   // time shortens with speed so that stays inside the clip's stance.
   const LOPE_FOOT_M = 1.37, LOPE_STANCE_MAX = 0.36;
   const LOPE_DIP = 0.035;         // m of knee-bend during contact
-  const lope = { phase: 0, parity: 0, w: 0, y: 0, pushed: false, fresh: true, period: 0.95, contact: LOPE_CONTACT, dc: 0.2 };
+  const lope = { phase: 0, parity: 0, w: 0, y: 0, pushed: false, fresh: true, period: 0.95, contact: LOPE_CONTACT, dc: 0.2, jog: 0, speed: 0 };
   function _lopeLand(speed) {
     sndFootstep(speed);
     const b = (typeof _seatBones === 'function') ? _seatBones() : null;
@@ -5277,9 +5457,34 @@ body.in-wreck .cam-buttons { display: none; }
       // so the legs turn over quickly and there is almost no float.
       lope.period = level.id === 'wreck'
         ? Math.max(0.36, Math.min(0.70, 0.55 * LOPE_FOOT_M / speed))
-        : 0.95 + 0.10 * t;
+        : (function () {
+            // Three outdoor gaits by speed (v0.13.1):
+            //   shuffle, under about 2.2 m/s — unchanged
+            //   JOG, about 3 to 4 m/s — quick steps (0.64 s) on the Run clip,
+            //        so arms and legs swing more and each push-off is low
+            //   run, 4.8 m/s and up — the long high lope, unchanged
+            const jog = _ss(2.2, 3.0, speed) * (1 - _ss(4.0, 4.8, speed));
+            lope.jog = jog; lope.speed = speed;
+            const base = 0.95 + 0.10 * t;
+            return base + (0.64 - base) * jog;
+          })();
       lope.contact = Math.max(0.16, Math.min(0.30, LOPE_STANCE_MAX * LOPE_FOOT_M / speed));
       lope.dc = Math.max(0.08, Math.min(LOPE_STANCE_MAX, speed * lope.contact / LOPE_FOOT_M));
+      if (level.id === 'wreck') lope.jog = 0;
+      // v0.13.2: in the jog, less of the clip is spent while the foot is
+      // down, so the legs keep travelling through the air instead of
+      // hanging in one pose between steps.
+      lope.dc += (Math.min(lope.dc, 0.20) - lope.dc) * lope.jog;
+      // v0.13.4: the same at walking pace. Matching the planted foot to the
+      // ground exactly (v0.9.3) used up most of each half-cycle during
+      // contact, so through the hop the legs and arms barely moved: the
+      // stiff, held look. The clip is now spread much more evenly across
+      // contact and hop. The price is a little foot slide in the dust.
+      if (level.id !== 'wreck') {
+        const low = 1 - _ss(2.2, 3.0, speed);
+        const even = 0.55 * lope.contact / lope.period;
+        lope.dc += (Math.min(lope.dc, even) - lope.dc) * 0.75 * low;
+      }
       if (lope.fresh) { lope.fresh = false; lope.phase = 0; lope.pushed = false; _lopeLand(speed); }
       lope.phase += dt / lope.period;
       const cf = lope.contact / lope.period;
@@ -5311,7 +5516,102 @@ body.in-wreck .cam-buttons { display: none; }
   }
   // Called just before mixer.update: put the body on the arc and lock
   // the gait clip to the stride phase.
-  const airHold = { on: false, t: 0, f: 0 };
+  // v0.13.2: the jog's upper body. Added on top of the clip, after the
+  // mixer: the chest twists against the hips once per pair of steps, with
+  // a slight forward lean. Because it follows the stride phase, which
+  // never stops, it keeps moving through the float between steps, and it
+  // carries the arms with it so they swing further.
+  function applyJogBody() {
+    const inAir = airHold.on && airHold.t >= 0.15;
+    const k = (inAir ? 1 : lope.w) * lope.jog;
+    if (k < 0.01 || controlMode !== 'walking' || !(player.grounded || airHold.on)) return;
+    const b = astroSeat.bones || _seatBones();
+    if (!b) return;
+    // In a held pose the sway carries on at its own slow pace.
+    const th = Math.PI * (lope.parity + lope.phase) + (inAir ? airHold.t * 2.6 : 0), sw = Math.sin(th);
+    b.Spine.rotation.y  += 0.10 * k * sw;
+    b.Spine1.rotation.y += 0.10 * k * sw;
+    b.Spine2.rotation.y += 0.10 * k * sw;
+    b.Hips.rotation.y   -= 0.08 * k * sw;
+    b.Spine.rotation.z  -= 0.07 * k;          // lean into it (z is this rig's forward/back hinge; x is sideways)
+  }
+
+  // v0.13.3: a little more arm and leg at the low speeds (shuffle and
+  // walk, under about 2.5 m/s). Added to the clip in step with the stride:
+  // each arm swings against its own leg, each thigh reaches a touch further.
+  // Rig axes measured in the harness: rotation.z is the forward/back hinge
+  // for arms, thighs, knees and spine; +z swings a hanging limb forward.
+  function applyLowSpeedLimbs() {
+    const k = lope.w * (1 - _ss(2.2, 3.0, lope.speed));
+    if (k < 0.01 || controlMode !== 'walking' || !player.grounded || level.id === 'wreck') return;
+    const b = astroSeat.bones || _seatBones();
+    if (!b) return;
+    const c = Math.cos(Math.PI * (lope.parity + lope.phase));   // +1 as the right foot comes down in front
+    b.LeftArm.rotation.z  += 0.26 * k * c;      // left arm forward with the right leg
+    b.RightArm.rotation.z += 0.26 * k * c;      // right arm back (its forward is −z)
+    b.RightUpLeg.rotation.z += 0.10 * k * c;
+    b.LeftUpLeg.rotation.z  -= 0.10 * k * c;
+    // v0.13.4: through the hop, the leg that is coming forward tucks at the
+    // knee and the forearms lift a little, peaking at the top of the hop.
+    const cf = lope.contact / lope.period;
+    const up = lope.phase > cf ? Math.sin(Math.PI * (lope.phase - cf) / (1 - cf)) : 0;
+    const swing = lope.parity ? b.RightLeg : b.LeftLeg;    // parity 0 = right foot planted
+    swing.rotation.z -= 0.34 * k * up;
+    b.LeftForeArm.rotation.z  += 0.16 * k * up;
+    b.RightForeArm.rotation.z -= 0.16 * k * up;
+  }
+
+  // v0.13.3 landing: a real crouch, not a squash. Knees bend, the hips
+  // drop to keep the feet on the ground, the body hinges forward at the
+  // waist and the arms come forward to catch the balance — a stumble —
+  // then he straightens up into the stride again. Depth scales with the
+  // impact (landSq.a: 0 … 0.26).
+  const _lpA = new THREE.Vector3(), _lpB = new THREE.Vector3();
+  function applyLandPose() {
+    if (!landSq.hipOff && landSq.a <= 0) return;      // nothing to do (and do not look for bones before the model has loaded)
+    const b = astroSeat.bones || _seatBones();
+    if (!b) return;
+    // If the clip in play does not key the hip position, last frame's drop
+    // is still there: take it back off before doing anything else.
+    if (landSq.hipOff) {
+      if (b.Hips.position.distanceToSquared(landSq.hipLast) < 1e-10) b.Hips.position.sub(landSq.hipOff);
+      landSq.hipOff = null;
+    }
+    if (landSq.a <= 0 || controlMode !== 'walking') return;
+    const t = landSq.t;
+    let q;                                               // 0 → 1 fast, brief hold, ease back up
+    if (t < 0.10) { const u = t / 0.10; q = u * u * (3 - 2 * u); }
+    else if (t < 0.24) q = 1;
+    else { const u = Math.min(1, (t - 0.24) / 0.62); q = 1 - u * u * (3 - 2 * u); }
+    q *= landSq.a / 0.26;
+    const al = 0.78 * q;                                 // thigh forward / shin back, radians
+    // Ankle height before the pose, so the hips can be dropped by exactly
+    // what the bent legs lose and the feet stay where they were.
+    astronautRoot.updateMatrixWorld(true);
+    const ank0 = Math.min(b.LeftFoot.getWorldPosition(_lpA).y, b.RightFoot.getWorldPosition(_lpB).y);
+    b.LeftUpLeg.rotation.z  += al;  b.RightUpLeg.rotation.z += al;
+    b.LeftLeg.rotation.z    -= 2 * al; b.RightLeg.rotation.z -= 2 * al;
+    b.LeftFoot.rotation.y   += al;  b.RightFoot.rotation.y  += al;      // soles stay level (v0.13.5: y is the foot's toe-up axis on this rig; z twisted the foot sideways)
+    // Measured, not calculated: the rig's legs are not straight at rest.
+    // Worked in world space and converted, because the hip bone's own
+    // units are not metres.
+    astronautRoot.updateMatrixWorld(true);
+    const rise = Math.min(b.LeftFoot.getWorldPosition(_lpA).y, b.RightFoot.getWorldPosition(_lpB).y) - ank0;
+    const par = b.Hips.parent;
+    _lpA.copy(b.Hips.position);
+    _lpB.copy(b.Hips.position).applyMatrix4(par.matrixWorld);
+    _lpB.y -= rise;
+    par.worldToLocal(_lpB);
+    b.Hips.position.copy(_lpB);
+    landSq.hipOff = _lpB.clone().sub(_lpA);
+    landSq.hipLast = _lpB.clone();
+    b.Spine.rotation.z  -= 0.34 * q;                     // hinge forward at the waist
+    b.Spine1.rotation.z -= 0.22 * q;
+    b.Neck.rotation.z   += 0.26 * q;                     // head stays up
+    b.LeftArm.rotation.z  += 0.95 * q;                   // arms forward
+    b.RightArm.rotation.z -= 0.95 * q;
+  }
+  const airHold = { on: false, t: 0, f: 0, held: false, inHold: false };
   function applyLope() {
     if (!astronautRoot || controlMode !== 'walking') return;
     // Hop pose while sailing down a slope: ease the gait clip to the open
@@ -5319,13 +5619,36 @@ body.in-wreck .cam-buttons { display: none; }
     // lope has faded out, so the legs never free-run in the air.
     {
       const a = activeAction;
-      if (airHold.on && a && (a === animClips['Walk_Loop'] || a === animClips['Run_Loop'])) {
+      // v0.13.2: coming back down out of a held pose, pick the stride up
+      // from that same pose (mid-float) so the legs do not snap.
+      if (player.grounded && airHold.held) {
+        airHold.held = false; airHold.inHold = false;
+        const cf = lope.contact / lope.period, dc = lope.dc;
+        let w = 0.25;                                   // where in the half-cycle the legs are right now
+        if (a && (a === animClips['Walk_Loop'] || a === animClips['Run_Loop'])) {
+          w = airHold.f - 0.97 - 0.5 * lope.parity;
+          w -= Math.floor(w); if (w > 0.75) w -= 1;
+        }
+        w = Math.max(dc * 0.5, Math.min(0.5 - dc * 0.5, w));
+        lope.phase = Math.min(0.98, cf + (1 - cf) * (w - dc * 0.5) / Math.max(0.05, 0.5 - dc));
+      }
+      // A blip of air (under 0.15 s, every ripple in the ground) is not a
+      // hold: the stride just carries on. Only a real drop takes the pose.
+      if (airHold.on && airHold.t >= 0.15 && a && (a === animClips['Walk_Loop'] || a === animClips['Run_Loop'])) {
+        airHold.held = true;
         const D = a.getClip().duration;
-        const target = 0.97 + 0.5 * lope.parity + 0.25;            // mid-flight of this stride
-        let cur = a.time / D, d = target - cur; d -= Math.round(d); // shortest way round the loop
-        cur += d * Math.min(1, 0.12);
-        cur -= Math.floor(cur);
-        a.time = cur * D;
+        // Mid-flight of this stride, with a slow scissor of the legs so
+        // the held pose is never completely still.
+        const target = 0.97 + 0.5 * lope.parity + 0.25 + 0.045 * Math.sin(airHold.t * 4.5);
+        // The pose is kept in airHold.f, not read back from the clip: the
+        // mixer advances the clip a little every frame, and easing towards
+        // the target from that moving value never arrived (it sat about a
+        // third of a cycle late, and jittered).
+        if (!airHold.inHold) { airHold.inHold = true; airHold.f = a.time / D; }
+        let d = target - airHold.f; d -= Math.round(d);            // shortest way round the loop
+        airHold.f += d * 0.14;
+        airHold.f -= Math.floor(airHold.f);
+        a.time = airHold.f * D;
         astronautRoot.position.y = player.pos.y + lope.y + stepVis.off;
         return;
       }
@@ -5333,7 +5656,7 @@ body.in-wreck .cam-buttons { display: none; }
     if (lope.w <= 0) return;
     astronautRoot.position.y = player.pos.y + lope.y + stepVis.off;
     const a = activeAction;
-    if (a && (a === animClips['Walk_Loop'] || a === animClips['Run_Loop']) && player.grounded) {
+    if (a && (a === animClips['Walk_Loop'] || a === animClips['Run_Loop']) && (player.grounded || airHold.on)) {
       const cf = lope.contact / lope.period, dc = lope.dc, ph = lope.phase;
       // Foot down: clip moves with the ground. Foot up: the rest of the half-cycle.
       const within = ph < cf ? (ph / cf - 0.5) * dc
@@ -7558,6 +7881,13 @@ body.in-wreck .cam-buttons { display: none; }
   }
 
   function updateRobot(robot, r, dt) {
+    // v0.15.0: a robot can be pinned in place (wedged in the rescue stack).
+    if (r.pinned) {
+      r.pos.copy(r.pinned.pos);
+      robot.position.copy(r.pos);
+      robot.rotation.set(0, r.pinned.yaw, r.pinned.tilt + Math.sin(performance.now() * 0.004) * 0.05);   // a feeble rocking
+      return;
+    }
     r.stateTimer -= dt;
 
     // ── Scripted override (v0.4.5) ──
@@ -7725,7 +8055,8 @@ body.in-wreck .cam-buttons { display: none; }
     robot.position.z = r.pos.z;
     // Track terrain Y so the robot's feet plant on the actual ground when it
     // wanders onto the crater wall ramp, not just the flat floor.
-    r.pos.y = shackletonScene.getGroundY(r.pos.x, r.pos.z);
+    r.pos.y = Math.abs(r.pos.x - WL_ORIGIN.x) < 300 ? WL_ORIGIN.y            // inside the wreck level (v0.11.0)
+                                                    : shackletonScene.getGroundY(r.pos.x, r.pos.z);
     robot.position.y = r.pos.y;
     robot.rotation.y = r.heading;
 
@@ -7966,6 +8297,7 @@ body.in-wreck .cam-buttons { display: none; }
     btn.addEventListener('pointercancel', release);
   }
   document.querySelectorAll('.pad button, .jump-btn').forEach(bindBtn);
+  $('de-keep').addEventListener('click', () => demoEndDismiss());
   // ── v0.10.1: stop the phone browser zooming the page ──
   // iOS Safari ignores user-scalable=no, so block its pinch gesture and
   // double-tap zoom directly, and snap back if the page is ever zoomed.
@@ -8009,7 +8341,12 @@ body.in-wreck .cam-buttons { display: none; }
       // v0.9.5: once past the dead zone the stick never asks for less than
       // half speed, so he is always moving fast enough for the walk clip
       // (a feather touch used to slide him along in the idle pose).
-      const k = mm > 0 && live > 0 ? (0.5 + 0.5 * live) / mm : 0;
+      // v0.15.1: a curved response, so most of the stick's travel is walking.
+      // Speed still runs from the shuffle (1.3 m/s) to the jog (3.5 m/s), but
+      // as travel^2.5: walking pace (under 2.2 m/s) now fills the first 70%
+      // of the travel, where it used to fill 40%; the jog is the last
+      // quarter; and the rim is still the run.
+      const k = mm > 0 && live > 0 ? (0.37 + 0.63 * Math.pow(live, 2.5)) / mm : 0;
       joy.x = nx * k; joy.y = -ny * k;
       joy.active = live > 0;
       joy.run = mm >= RUN_AT;
@@ -10142,7 +10479,7 @@ body.in-wreck .cam-buttons { display: none; }
       speak('SUIT', 'power path restored', 2.2, { kind: 'system' });
     }
     if (wreckInterior.interactables.every(i => i.done)) {
-      setTimeout(_wreckInteriorSolved, 900);
+      setTimeout(_stabTasksDone, 900);
     }
   }
 
@@ -10265,6 +10602,27 @@ body.in-wreck .cam-buttons { display: none; }
   window.addEventListener('pointerup', () => { if (POINTER_DRAG_ENABLED) _stabDrop(); }, true);
   window.addEventListener('pointercancel', () => { if (POINTER_DRAG_ENABLED) _stabDrop(); }, true);
 
+  // v0.13.0: the three hands-on jobs power the unit up, but the manifold
+  // is still out of line. The close-up panel (o2-panel.js) is the last
+  // step; solving it is what stabilises the oxygen.
+  function _stabTasksDone() {
+    if (wreckInterior.panelReady || wreckInterior.solved) return;
+    if (!window.O2Panel) { _wreckInteriorSolved(); return; }      // panel script missing: do not strand the player
+    wreckInterior.panelReady = true;
+    wreckInterior.statusLamp.material.color.setHex(0xffb347);
+    speak('SUIT', 'power restored — manifold out of line', 2.8, { kind: 'system' });
+    setObjective('open the stabiliser panel');
+  }
+  function openStabPanel() {
+    if (window.O2Panel.isOpen()) return;
+    uiPanelOpen = true;
+    for (const k in keys) keys[k] = false;
+    window.O2Panel.open({
+      size: 5, seed: 4111, resume: true,
+      onSolved() { uiPanelOpen = false; _wreckInteriorSolved(); },
+      onClose() { uiPanelOpen = false; },
+    });
+  }
   function _wreckInteriorSolved() {
     wreckInterior.solved = true;
     wreckInterior.statusLamp.material.color.setHex(0x30ff70);
@@ -10352,7 +10710,7 @@ body.in-wreck .cam-buttons { display: none; }
     it.done = true;
     it.action();
     if (wreckInterior.interactables.every(i => i.done)) {
-      setTimeout(_wreckInteriorSolved, 900);
+      setTimeout(_stabTasksDone, 900);
     }
   }
   // (v0.5.0: the prompt's tap handler lives in the interaction system.)
@@ -10368,6 +10726,12 @@ body.in-wreck .cam-buttons { display: none; }
   // memory system.
   // ============================================================
   const worldInteractables = [];   // {x, z, r, label, fire(), hidden()}
+  worldInteractables.push({                       // v0.13.0: the stabiliser's close-up panel
+    get x() { return STAB_POS.x + 0.9; }, get z() { return STAB_POS.z; }, r: 2.4,
+    label: 'open the stabiliser panel',
+    hidden: () => !wreckInterior.panelReady || wreckInterior.solved,
+    fire() { openStabPanel(); },
+  });
   const flyerRepair = { installed: false, k: 1 };   // k: 1 = damaged … 0 = repaired
   const scene4 = { active: false, pinDone: false, panelDone: false,
                    pulled: false, pullT: 0, braceHeld: false, entered: false };
@@ -10433,6 +10797,7 @@ body.in-wreck .cam-buttons { display: none; }
 
   // ── Scene 4 set dressing (engine bay, x 10.3-18.4) ──
   const s4 = {};
+  const S4O = { x: 0, y: 0, z: 0 };   // v0.11.0: where the brace puzzle sits relative to its original crater position
   {
     const fy = -CRATER_DEPTH;
     const steel = new THREE.MeshPhongMaterial({ shininess: 0, color: 0x565a63, flatShading: true, side: THREE.DoubleSide });
@@ -10465,10 +10830,10 @@ body.in-wreck .cam-buttons { display: none; }
       dragKind: 'extra', homeX: 13.5, homeZ: -2.15,
       enabled: () => scene4.active,
       onDrop(m) {
-        m.position.y = shackletonScene.getGroundY(m.position.x, m.position.z) + 0.04;
+        m.position.y = (level.id === 'wreck' ? WL_ORIGIN.y : shackletonScene.getGroundY(m.position.x, m.position.z)) + 0.04;
         m.rotation.set(0, m.rotation.y, 0);
         if (!scene4.panelDone &&
-            Math.hypot(m.position.x - 13.0, m.position.z + 2.9) > 1.5) {
+            Math.hypot(m.position.x - (13.0 + S4O.x), m.position.z - (-2.9 + S4O.z)) > 1.5) {
           scene4.panelDone = true;
           speak('SUIT', 'plating clear', 2.0, { kind: 'system' });
           _scene4TryPull();
@@ -10479,18 +10844,169 @@ body.in-wreck .cam-buttons { display: none; }
     extraDraggables.push(s4.panel);
   }
 
+  // ============================================================
+  // RESCUE BLOCKOUT (v0.15.0, behind ?rescue) — "save the cat"
+  //
+  // P-03 is wedged on top of a stack of rock, thrown there after the
+  // crash. The player climbs four big steps by jumping (each a 1.2 m
+  // rise, landing areas 5 m across, because a jump is long and cannot
+  // be steered) and frees it. Plain boxes for now, like the wreck
+  // interior: this is to try the climb before any of it is modelled.
+  // ============================================================
+  const RESCUE_FLAG = /[?&]rescue\b/.test(location.search);
+  const rescue = { active: RESCUE_FLAG, done: false, hailed: false, cx: 40, cz: 30, top: null };
+  if (RESCUE_FLAG) (function () {
+    const G = shackletonScene.getGroundY;
+    // Pick the site: the flattest, most boulder-free patch 28–50 m from
+    // the robots' work area (inside the early oxygen range), clear of the
+    // wreck and the Flyer. Deterministic: the terrain and boulders are.
+    let best = 1e9;
+    for (let x = -50; x <= 60; x += 3) for (let z = -52; z <= 60; z += 3) {
+      const d = Math.hypot(x - 8, z - 8);
+      if (d < 28 || d > 50) continue;
+      if (x > -22 && x < 52 && Math.abs(z + 2) < 16) continue;            // wreck and its debris (with the stack's own reach)
+      if (Math.hypot(x + 3, z - 17) < 22) continue;                       // Flyer site
+      let rocks = 0, lo = 1e9, hi = -1e9;
+      for (let dx = -26; dx <= 13; dx += 1) for (let dz = -11; dz <= 13; dz += 1) {
+        if (rockTopAt(x + dx, z + dz) > ROCK_NONE) rocks++;
+        const g = G(x + dx, z + dz); if (g < lo) lo = g; if (g > hi) hi = g;
+      }
+      const score = rocks * 5 + (hi - lo);
+      if (score < best) { best = score; rescue.cx = x; rescue.cz = z; }
+    }
+    const C = rescue, g0 = G(C.cx, C.cz);
+    const mat = new THREE.MeshPhongMaterial({ color: 0x55585e, shininess: 0, flatShading: true });
+    const matTop = new THREE.MeshPhongMaterial({ color: 0x6d7077, shininess: 0, flatShading: true });
+    const matPinch = new THREE.MeshPhongMaterial({ color: 0x3c3f45, shininess: 0, flatShading: true });
+    function block(dx, dz, w, d, rise, m, walkable) {
+      const x = C.cx + dx, z = C.cz + dz, y1 = g0 + rise, y0 = g0 - 2.5;
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, y1 - y0, d), m);
+      mesh.position.set(x, (y0 + y1) / 2, z);
+      mesh.castShadow = true; mesh.receiveShadow = true;
+      scene.add(mesh);
+      addBoxCollider({ x, z, hx: w / 2, hz: d / 2, y0, y1, walkable: walkable !== false, tag: 'rescue' });
+      cameraOccluders.push(mesh);
+      return { x, z, y1 };
+    }
+    // v0.15.2: landing areas 7 m across (were 5 m), spaced to match.
+    block(-9.6,  0.0, 7, 7, 1.2, mat);          // step 1
+    block(-4.2,  5.6, 7, 7, 2.4, mat);          // step 2
+    block( 3.2,  4.4, 7, 7, 3.6, mat);          // step 3
+    const top = block(5.6, -3.2, 7, 7, 4.8, matTop);   // the top
+    // Two blocks pinching the robot
+    for (const s of [-1, 1]) {
+      const x = top.x + s * 0.85, z = top.z + 0.2, y0 = top.y1, y1 = top.y1 + 0.9;
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.9, 1.5), matPinch);
+      mesh.position.set(x, (y0 + y1) / 2, z); mesh.castShadow = true;
+      scene.add(mesh);
+      addBoxCollider({ x, z, hx: 0.35, hz: 0.75, y0, y1, walkable: false, tag: 'rescue' });
+    }
+    rescue.top = top;
+    const rs = robotStates[0];                 // P-03, blue
+    rs.pinned = { pos: new THREE.Vector3(top.x, top.y1 + 0.05, top.z + 0.2), yaw: 0.6, tilt: 0.95 };
+    rs.pos.copy(rs.pinned.pos);
+    worldInteractables.push({
+      x: top.x, z: top.z + 0.2, r: 2.4,
+      label: 'free P-03',
+      hidden: () => rescue.done || player.pos.y < top.y1 - 0.5,
+      fire() {
+        if (reach.active) return;
+        reachStart(rs.pinned.pos.clone().setY(top.y1 + 0.6), {
+          onContact() {
+            rescue.done = true;
+            rs.pinned = null;
+            robots[0].rotation.set(0, 0, 0);
+            rs.pos.set(top.x - 1.6, top.y1, top.z - 1.4);      // set down beside the player, then it makes its own way
+            rs.pos.set(C.cx - 11, G(C.cx - 11, C.cz - 5), C.cz - 5);
+            rs.state = 'idle'; rs.stateTimer = 2;
+            spawnDust(top.x, top.y1 + 0.4, top.z, 8, { speed: 0.8, upVel: 0.6, upVar: 0.5, life: 1.0 });
+            speak('P-03', 'clear.', 2.0, { kind: 'robot', delay: 0.6 });
+            speak('P-03', 'path.', 2.0, { kind: 'robot', delay: 3.0 });
+          },
+        });
+      },
+    });
+  })();
+  // ============================================================
+  // LANDING MARKER (v0.15.2)
+  // A jump cannot be steered once he is off the ground, so the player
+  // has to judge it before take-off. This ring shows where a jump from
+  // right now would come down: same launch speed as the real jump,
+  // same gravity, landing on ground, rock or a walkable block. Green
+  // when it lands on something raised, pale on plain ground. Shown in
+  // the air, on or near anything climbable, and around the rescue stack.
+  // ============================================================
+  const landMark = (function () {
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.6, 28),
+      new THREE.MeshBasicMaterial({ color: 0xbfffd0, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide, fog: false }));
+    ring.rotation.x = -Math.PI / 2; ring.renderOrder = 5; ring.visible = false;
+    const dot = new THREE.Mesh(new THREE.CircleGeometry(0.12, 14),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide, fog: false }));
+    dot.position.z = 0.001; ring.add(dot);
+    scene.add(ring);
+    return { ring, dot, o: 0 };
+  })();
+  function _surfaceTop(x, z) {                 // highest thing to land on at (x, z), and whether it is raised
+    let t = shackletonScene.getGroundY(x, z), raised = false;
+    const r = rockTopAt(x, z);
+    if (r > t) { t = r; raised = true; }
+    for (const b of boxColliders) {
+      if (!b.enabled || !b.walkable || (b.level || 'crater') !== 'crater' || b.y1 <= t) continue;
+      const dx = x - b.x, dz = z - b.z;
+      const lx = dx * b.c + dz * b.s, lz = -dx * b.s + dz * b.c;
+      if (Math.abs(lx) <= b.hx && Math.abs(lz) <= b.hz) { t = b.y1; raised = true; }
+    }
+    return { y: t, raised };
+  }
+  function updateLandMark(dt) {
+    const L = landMark;
+    let show = false, hx = 0, hy = 0, hz = 0, raised = false;
+    const sp = Math.hypot(player.vel.x, player.vel.z);
+    const inJump = !player.grounded && (jumpPhase === 'airborne' || runJump);
+    if (level.id !== 'wreck' && controlMode === 'walking' && !demoEnd.active &&
+        (inJump || (player.grounded && jumpPhase === null && sp >= 1.0))) {
+      // Fly the jump: from the ground it starts with the real launch speed.
+      let x = player.pos.x, y = player.pos.y, z = player.pos.z, vy = inJump ? player.vel.y : JUMP_VELOCITY;
+      const h = 0.04;
+      for (let i = 0; i < 160; i++) {
+        x += player.vel.x * h; z += player.vel.z * h; vy -= MOON_G * h; y += vy * h;
+        if (vy < 0) { const s = _surfaceTop(x, z); if (y <= s.y) { hx = x; hy = s.y; hz = z; raised = s.raised; show = true; break; } }
+      }
+      if (show && !inJump) {
+        const here = _surfaceTop(player.pos.x, player.pos.z).raised;
+        const nearStack = rescue.active && !rescue.done && Math.hypot(player.pos.x - rescue.cx, player.pos.z - rescue.cz) < 34;
+        show = raised || here || nearStack;
+      }
+    }
+    L.o += ((show ? 1 : 0) - L.o) * Math.min(1, dt * 9);
+    L.ring.visible = L.o > 0.02;
+    if (show) {
+      L.ring.position.set(hx, hy + 0.05, hz);
+      L.ring.material.color.setHex(raised ? 0x7dffa0 : 0xe8ecf2);
+    }
+    L.ring.material.opacity = 0.75 * L.o; L.dot.material.opacity = 0.6 * L.o;
+  }
+  function updateRescue() {
+    if (!rescue.active || rescue.done || rescue.hailed || level.id === 'wreck') return;
+    if (Math.hypot(player.pos.x - rescue.cx, player.pos.z - rescue.cz) < 26) {
+      rescue.hailed = true;
+      speak('P-03', 'stuck.', 2.2, { kind: 'robot' });
+    }
+  }
+
   // Pin pull — reach gesture
-  worldInteractables.push({
+  worldInteractables.push(s4.pinIx = {
     x: 13.95, z: -2.05, r: 2.0,
     label: 'pull the locking pin',
     hidden: () => !scene4.active || scene4.pinDone,
     fire() {
       if (reach.active) return;
-      reachStart(new THREE.Vector3(13.95, -CRATER_DEPTH + 0.62, -2.05), {
+      const pinAt = s4.pin.position.clone();
+      reachStart(pinAt, {
         onContact() {
           scene4.pinDone = true;
           s4.pin.position.x += 0.45;      // slides out
-          spawnDust(13.95, -CRATER_DEPTH + 0.6, -2.05, 3, { speed: 0.4, upVel: 0.3, upVar: 0.3, life: 0.7 });
+          spawnDust(pinAt.x, pinAt.y, pinAt.z, 3, { speed: 0.4, upVel: 0.3, upVar: 0.3, life: 0.7 });
           speak('SUIT', 'pressure released', 2.0, { kind: 'system' });
           _scene4TryPull();
         },
@@ -10499,7 +11015,7 @@ body.in-wreck .cam-buttons { display: none; }
   });
 
   // Brace pickup — appears once M-08 has pulled it free
-  worldInteractables.push({
+  worldInteractables.push(s4.braceIx = {
     x: 12.6, z: -1.55, r: 2.0,
     label: 'take the structural brace',
     hidden: () => !scene4.pulled || scene4.braceHeld,
@@ -10516,7 +11032,7 @@ body.in-wreck .cam-buttons { display: none; }
           setObjective('install the structural brace');
           // M-08 stands aside by the deck gap (robots have no hull
           // collision — keep its path inside the room).
-          robotStates[2].scripted = { x: 17.3, z: 0.6, faceX: 12.6, faceZ: -1.55 };
+          robotStates[2].scripted = { x: 17.3 + S4O.x, z: 0.6 + S4O.z, faceX: 12.6 + S4O.x, faceZ: -1.55 + S4O.z };
           // MEMORY M01 — "Hands". First wired memory in the game.
           shackletonMemory.fire('M01_HANDS');
         },
@@ -10539,8 +11055,9 @@ body.in-wreck .cam-buttons { display: none; }
     if (scene4.active) return;
     scene4.active = true;
     const rs = robotStates[2];                 // M-08, red
-    rs.pos.set(12.2, rs.pos.y, -3.6);
-    rs.scripted = { x: 12.35, z: -3.5, faceX: 13.0, faceZ: -2.95, manip: true };
+    rs.pos.set(12.2 + S4O.x, rs.pos.y, -3.6 + S4O.z);
+    rs.scripted = { x: 12.35 + S4O.x, z: -3.5 + S4O.z, faceX: 13.0 + S4O.x, faceZ: -2.95 + S4O.z, manip: true };
+    if (WRECK_LEVEL_ENABLED) robots[2].visible = level.id === 'wreck';   // he is in the cargo bay now
   }
 
   // ── Scene 5: install at the Flyer ──
@@ -10592,12 +11109,9 @@ body.in-wreck .cam-buttons { display: none; }
     flyerRepair.installed = true;
     applyFlyerDamage(0);
     speak('SUIT', 'Flyer frame stabilised — 3 parts missing', 3.4, { kind: 'system' });
-    // Michel — Transmission 02, still broken.
-    speak('HOUSTON', '...Elias, this is Michel...', 3.0, { kind: 'houston', delay: 4.5 });
-    speak('HOUSTON', '...we are still calling...', 2.8, { kind: 'houston', delay: 8.2 });
-    speak('HOUSTON', '...if your receiver survived...', 2.8, { kind: 'houston', delay: 11.4 });
-    speak('HOUSTON', '...do not try to climb yet...', 3.0, { kind: 'houston', delay: 14.6 });
-    setTimeout(() => setObjective('find the ice pocket — north-west wall'), 19000);
+    // Michel's Transmission 02 used to play here. From v0.12.0 it closes
+    // the demo instead (see demoEnd): it lands after the ice-pocket memory.
+    setTimeout(() => setObjective('find the ice pocket — north-west wall'), 5000);
     // Release the work party; P-03 is sent ahead to the ice.
     robotStates[1].scripted = null;
     robotStates[2].scripted = null;
@@ -10751,15 +11265,70 @@ body.in-wreck .cam-buttons { display: none; }
     oxygen.capacity = 160;
     setObjective('explore the crater');
     // MEMORY M02 — "Cold room".
-    setTimeout(() => shackletonMemory.fire('M02_COLD_ROOM'), 9500);
+    setTimeout(() => { shackletonMemory.fire('M02_COLD_ROOM'); demoEnd.armed = true; }, 9500);
+  }
+
+  // ============================================================
+  // DEMO ENDING (v0.12.0)
+  // After the "Cold room" memory (which ends on "…your brother"), control
+  // is taken, the camera lifts off him to a high view of the whole crater,
+  // and Michel's broken second transmission plays, cutting out on "do not
+  // try to climb yet…". Fade to a card: what is fixed, what is missing.
+  // "Keep exploring" hands the game back.
+  // ============================================================
+  const demoEnd = { armed: false, active: false, t: 0, done: false, card: false,
+                    p0: new THREE.Vector3(), l0: new THREE.Vector3(),
+                    p1: new THREE.Vector3(), l1: new THREE.Vector3(), look: new THREE.Vector3() };
+  const DEMO_END_RISE = 15.5, DEMO_END_FADE = 17.0, DEMO_END_CARD = 19.0;
+  function demoEndStart() {
+    demoEnd.armed = false; demoEnd.active = true; demoEnd.t = 0;
+    demoEnd.p0.copy(camera.position);
+    camera.getWorldDirection(demoEnd.l0).multiplyScalar(12).add(camera.position);
+    // High over the north-west wall, looking back across the floor to the
+    // central peak and the wreck: everything still to do is in the frame.
+    const fy = -CRATER_DEPTH;
+    demoEnd.p1.set(ICE_POCKET.x * 1.25, fy + 78, ICE_POCKET.z * 1.25);
+    demoEnd.l1.set((PEAK_CENTER_X + 20) * 0.5, fy + 4, (PEAK_CENTER_Z - 2) * 0.5);
+    for (const k in keys) keys[k] = false;
+    player.vel.set(0, player.vel.y, 0);
+    document.body.classList.add('demo-ending');
+    setObjective('');
+    speak('HOUSTON', '...Elias, this is Michel...', 3.0, { kind: 'houston', delay: 2.0 });
+    speak('HOUSTON', '...we are still calling...', 2.8, { kind: 'houston', delay: 5.6 });
+    speak('HOUSTON', '...if your receiver survived...', 2.8, { kind: 'houston', delay: 8.8 });
+    speak('HOUSTON', '...do not try to climb yet...', 3.2, { kind: 'houston', delay: 12.0 });
+  }
+  function demoEndDismiss() {
+    demoEnd.active = false; demoEnd.done = true; demoEnd.card = false;
+    const el = $('demo-end'); el.classList.remove('on', 'black');
+    document.body.classList.remove('demo-ending');
+    setObjective('explore the crater');
+  }
+  // Returns true while it owns the camera.
+  function updateDemoEnd(dt) {
+    if (demoEnd.armed && !demoEnd.done && shackletonMemory.hasFired('M02_COLD_ROOM') &&
+        !shackletonMemory.isActive() && controlMode === 'walking' && level.id !== 'wreck') demoEndStart();
+    if (!demoEnd.active) return false;
+    demoEnd.t += dt;
+    const k = Math.min(1, demoEnd.t / DEMO_END_RISE), e = k * k * k * (k * (k * 6 - 15) + 10);
+    camera.position.lerpVectors(demoEnd.p0, demoEnd.p1, e);
+    demoEnd.look.lerpVectors(demoEnd.l0, demoEnd.l1, Math.min(1, e * 1.6));
+    camera.lookAt(demoEnd.look);
+    const el = $('demo-end');
+    if (demoEnd.t > DEMO_END_FADE) el.classList.add('black');
+    if (demoEnd.t > DEMO_END_CARD && !demoEnd.card) { demoEnd.card = true; el.classList.add('on'); }
+    return true;
   }
 
   // ── Per-frame scene logic: brace pull anim, weld, coaching hints ──
   let _s5SparkT = 0;
   function updateScenes(dt) {
+    updateRescue();
+    updateLandMark(dt);
     // Scene 4: engine-bay entry beat
     if (scene4.active && !scene4.entered &&
-        player.pos.x < 18.42 && player.pos.x > 10.3 && Math.abs(player.pos.z + 2) < 3.6) {
+        (WRECK_LEVEL_ENABLED ? (level.id === 'wreck' && player.pos.x - WL_ORIGIN.x > 30 * WL_K + 0.8)
+                             : (player.pos.x < 18.42 && player.pos.x > 10.3 && Math.abs(player.pos.z + 2) < 3.6))) {
       scene4.entered = true;
       setObjective('recover the structural brace');
       speak('M-08', 'stuck.', 2.0, { kind: 'robot', delay: 1.0 });
@@ -10769,12 +11338,12 @@ body.in-wreck .cam-buttons { display: none; }
       scene4.pullT += dt;
       const k = Math.min(1, scene4.pullT / 1.4);
       const e = k * k * (3 - 2 * k);
-      s4.brace.position.x = 13.0 - 0.4 * e;
-      s4.brace.position.z = -2.95 + 1.4 * e;
+      s4.brace.position.x = 13.0 + S4O.x - 0.4 * e;
+      s4.brace.position.z = -2.95 + S4O.z + 1.4 * e;
       if (scene4.pullT >= 1.4) {
         // Done: M-08 stands aside, faces the player's likely approach.
-        robotStates[2].scripted = { x: 12.0, z: -0.9, faceX: 12.6, faceZ: -1.55 };
-        spawnDust(12.6, -CRATER_DEPTH + 0.2, -1.55, 6, { speed: 0.5, upVel: 0.4, upVar: 0.4, life: 0.9 });
+        robotStates[2].scripted = { x: 12.0 + S4O.x, z: -0.9 + S4O.z, faceX: 12.6 + S4O.x, faceZ: -1.55 + S4O.z };
+        spawnDust(12.6 + S4O.x, -CRATER_DEPTH + S4O.y + 0.2, -1.55 + S4O.z, 6, { speed: 0.5, upVel: 0.4, upVar: 0.4, life: 0.9 });
       }
     }
     // Scene 5: weld sequence
@@ -13897,7 +14466,15 @@ body.in-wreck .cam-buttons { display: none; }
     // the hatch instead of setting the battery down.)
     if (interact.carry) return _carryCandidates(out);
     // Inside the wreck level only the level's own verbs exist.
-    if (level.id === 'wreck') { wreckLevelCandidates(out); _loosePartCandidates(out); return out; }   // v0.10.0: puzzle parts indoors
+    if (level.id === 'wreck') {
+      wreckLevelCandidates(out); _loosePartCandidates(out);                 // v0.10.0: puzzle parts indoors
+      for (const it of worldInteractables) {                                // v0.11.0: pin, brace
+        if (it.hidden && it.hidden()) continue;
+        if (Math.hypot(it.x - player.pos.x, it.z - player.pos.z) > 12) continue;
+        out.push({ key: it, x: it.x, z: it.z, r: it.r, label: it.label, fire: () => it.fire(), hold: it.hold });
+      }
+      return out;
+    }
     wreckLevelCandidates(out);
     // Scene interactables (pin, brace, install, reflector crank …)
     for (const it of worldInteractables) {
@@ -14350,9 +14927,6 @@ body.in-wreck .cam-buttons { display: none; }
     // ── Cargo bay (Scene 4, Puzzle B): unconverted ──
     box(2.2, 1.6, 1.4, 33.4, 0, 2.0, matWall, { walk: false });           // cargo crates
     box(1.4, 0.8, 1.4, 35.6, 0, 2.2, matWall, { walk: true });            // climbable step
-    box(4.4, 0.25, 0.9, 38.0, 0.3, -1.9, matPart, { solid: false });      // the brace, ends showing under the plating
-    box(3.6, 0.9, 1.5, 38.0, 0, -1.9, matWall);                           // plating pinning it (solid to the deck, v0.9.6)
-    box(0.25, 0.9, 0.25, 36.1, 0, -1.2, matDev);                          // locking pin
     box(11.5, 0.07, 0.3, 36.8, 0, 0.3, matWall, { solid: false });        // cargo lift rail, along the floor
     label('Puzzle B: brace', 37, 3.4, -1.5, '#9cc4ff');
 
@@ -14425,6 +14999,19 @@ body.in-wreck .cam-buttons { display: none; }
     return { root, boxes, zones, lights, lamp, flare, labels, SPAWN, EXIT };
   })();
 
+  // ── v0.11.0: Puzzle B (structural brace) and M-08 live in the cargo bay ──
+  // Same idea as Puzzle A below: the set was built in crater coordinates
+  // (brace at 13.0, −2.95); with ?wreck2 everything moves by one offset,
+  // S4O, which the scene code adds wherever it used a literal position.
+  if (WRECK_LEVEL_ENABLED) (function () {
+    S4O.x = WL_ORIGIN.x + 38 * WL_K - 13.0;
+    S4O.y = WL_ORIGIN.y + CRATER_DEPTH;
+    S4O.z = WL_ORIGIN.z - 1.9 * WL_K + 2.95;
+    for (const m of [s4.plating, s4.brace, s4.pin, s4.panel]) { m.position.x += S4O.x; m.position.y += S4O.y; m.position.z += S4O.z; }
+    s4.panel.userData.homeX += S4O.x; s4.panel.userData.homeZ += S4O.z;
+    for (const it of [s4.pinIx, s4.braceIx]) { it.x += S4O.x; it.z += S4O.z; }
+  })();
+
   // ── v0.10.0: Puzzle A (oxygen stabiliser) lives in the wreck level ──
   // The puzzle was built in crater coordinates, mounted sideways on the
   // old wreck's deck disc (deck plane x = 18.42, unit at z = −1.5). With
@@ -14481,6 +15068,10 @@ body.in-wreck .cam-buttons { display: none; }
       _hiddenForWreck.length = 0;
       const keep = new Set([astronautRoot, wreckLevel.root, interactMarker, wreckLevel.lamp, wreckLevel.lamp.target, wreckLevel.flare, camera]);
       if (WRECK_LEVEL_FLAG && wreckInterior.group) keep.add(wreckInterior.group);
+      if (WRECK_LEVEL_ENABLED) {                                   // brace puzzle and M-08 (v0.11.0)
+        for (const m of [s4.plating, s4.pin, s4.panel, s4.brace]) keep.add(m);
+        if (Math.abs(robotStates[2].pos.x - WL_ORIGIN.x) < 300) keep.add(robots[2]);
+      }
       for (const o of scene.children) {
         if (keep.has(o) || !o.visible) continue;
         o.visible = false; _hiddenForWreck.push(o);
@@ -14756,6 +15347,7 @@ body.in-wreck .cam-buttons { display: none; }
       }
       updateInteract(dt);                                   // v0.5.0 — after scene state, before camera
       if (level.id === 'wreck') updateWreckCamera(dt);      // v0.6 set cameras indoors
+      else if (updateDemoEnd(dt)) { /* demo ending owns the camera */ }
       else if (!shackletonMemory.isActive()) updateCamera(dt);   // camera holds during fragments (spec §8)
       updateSuitLamp();
       // Shadow frustum follows the active subject — astronaut on
@@ -14771,6 +15363,9 @@ body.in-wreck .cam-buttons { display: none; }
     applyLope();                     // v0.7.2 — stride arc + clip phase lock
     if (mixer) mixer.update(dt);
     if (astroSeat.want || astroSeat.w > 0) applySeatedPose(dt);   // bones AFTER the mixer stamp
+    applyJogBody();                  // v0.13.2 — torso and arm swing in the jog, also after the mixer
+    applyLowSpeedLimbs();            // v0.13.3 — a little more arm and leg at low speed
+    applyLandPose();                 // v0.13.3 — crouch on landing
     updateReach(dt);                 // arm override AFTER the mixer stamp
     updateEntities(dt);              // entity registry — additive pass
     updateHose(dt);                  // O₂ umbilical — no-op unless connected
