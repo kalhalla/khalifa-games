@@ -630,7 +630,7 @@ body.in-wreck .cam-buttons { display: none; }
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.18.0';  // wreck exterior: painted skin, round hull, ogive nose, engine bells, landing legs. was v0.17.3;  // robot eyes blink and look; gestures: wave, hand up, tap-and-point. was v0.17.2;  // robot legs: piston shins, hinged toes, less body sway. was v0.17.1;  // built tools on the Meshy robots: drill + saw, gripper, three-finger claws. was v0.17.0;  // Meshy robots, cut into jointed parts and driven by the walk rig. was v0.16.0;  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.18.1';  // wreck: sealed middle/nose, rear-only damage + tanks, doorway recess, NASA stacked, regolith imprint. was v0.18.0;  // wreck exterior: painted skin, round hull, ogive nose, engine bells, landing legs. was v0.17.3;  // robot eyes blink and look; gestures: wave, hand up, tap-and-point. was v0.17.2;  // robot legs: piston shins, hinged toes, less body sway. was v0.17.1;  // built tools on the Meshy robots: drill + saw, gripper, three-finger claws. was v0.17.0;  // Meshy robots, cut into jointed parts and driven by the walk rig. was v0.16.0;  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -1682,7 +1682,25 @@ body.in-wreck .cam-buttons { display: none; }
     // near-level ground regardless of AMP tuning. Radius 30m around
     // the wreck at (8,-2); smooth ramp out over a further 20m.
     // (v0.7.1: the wreck apron is now FLOOR_PADS[0]; same 30m + 20m ramp.)
-    return (noise + lunarFloor.heightAt(x, z)) * tEdge * floorPadMask(x, z);
+    return (noise + lunarFloor.heightAt(x, z)) * tEdge * floorPadMask(x, z) + wreckImprint(x, z);
+  }
+  // v0.18.1: the toppled hull pressed into the regolith. Pushed-up
+  // berms along both flanks (crest ~4.6 m off the hull axis, just
+  // outside where the hull meets the ground), a ploughed mound ahead of
+  // the nose, a dip under the hull, and a cleared, level patch in front
+  // of the hatch so the doorway sits at ground level. Hull axis: z = -2,
+  // tail x ≈ 8, nose tip x ≈ 45 (STARSHIP_X / WRECK_SCALE are declared later).
+  function wreckImprint(x, z) {
+    if (/[?&]oldwreck\b/.test(location.search)) return 0;
+    const d = Math.abs(z + 2), ss = (a, b, v) => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
+    const along = ss(5, 10, x) * (1 - ss(41, 46, x));
+    const wob = 1 + 0.25 * Math.sin(x * 0.9 + (z > -2 ? 0 : 2)) + 0.15 * Math.sin(x * 2.3 + 1);
+    let h = along * 0.8 * wob * Math.exp(-Math.pow((d - 4.7) / 1.5, 2));
+    h -= along * 0.35 * (1 - ss(2.5, 3.8, d));                      // dip under the hull
+    h += 1.0 * Math.exp(-(Math.pow((x - 47.5) / 2.6, 2) + Math.pow(d / 3.6, 2)));   // ploughed mound at the nose
+    // cleared in front of the hatch (world x ≈ 20.5–23.6 on the +z flank)
+    if (z > -2) h *= 1 - ss(0, 1, 1 - Math.abs(x - 22) / 3.6) * (1 - ss(6.5, 8.5, d));
+    return h;
   }
 
   const craterContents = new THREE.Group();
@@ -8947,11 +8965,16 @@ body.in-wreck .cam-buttons { display: none; }
         x.fillStyle = color; x.fillText(txt, 0, 0);
         x.restore();
       };
-      // name along the length, both flanks, nose-ward of the hatch (hatch v ≈ .45–.55)
-      stencil('SHACKLETON', 0.305, 0.745, 150, 1, 'rgba(34,36,40,0.92)');
-      stencil('SHACKLETON', 0.695, 0.745, 150, -1, 'rgba(34,36,40,0.92)');
-      stencil('ISRU HAB · 02', 0.36, 0.745, 58, 1, 'rgba(34,36,40,0.8)');
-      stencil('ISRU HAB · 02', 0.64, 0.745, 58, -1, 'rgba(34,36,40,0.8)');
+      // v0.18.1: NASA, letters stacked as on a rocket standing on its
+      // tail — so on the toppled hull they lie on their sides.
+      const stackLetters = (u) => {
+        ['N', 'A', 'S', 'A'].forEach((ch, i) => {
+          x.save(); x.setTransform(-1, 0, 0, 1, U(u), V(0.86 - i * 0.068));   // glyph up = toward the nose; mirrored for the outside view
+          x.font = '900 190px "Arial Black", Arial, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
+          x.fillStyle = 'rgba(28,30,34,0.93)'; x.fillText(ch, 0, 0); x.restore();
+        });
+      };
+      stackLetters(0.29); stackLetters(0.71);
       // "UP" arrows: it was built to stand on its tail
       for (const [u, side] of [[0.30, 1], [0.70, -1]]) for (const v of [0.22, 0.36]) {
         stencil('UP ▲', u, v, 64, side, 'rgba(201,104,34,0.9)');
@@ -8967,7 +8990,7 @@ body.in-wreck .cam-buttons { display: none; }
   }
   // Panel cylinder with UVs and subdivision (same hole grid as
   // buildPanelCylinder: a hole removes a whole tile).
-  function buildSkinCylinder(radius, length, segs, rings, holeSet, mat, subA, subY) {
+  function buildSkinCylinder(radius, length, segs, rings, holeSet, mat, subA, subY, cut) {
     const cols = segs * subA, rowsN = rings * subY, pos = [], uv = [], idx = [];
     for (let r = 0; r <= rowsN; r++) for (let c = 0; c <= cols; c++) {
       const a = (c / cols) * Math.PI * 2, y = -length / 2 + (r / rowsN) * length;
@@ -8990,6 +9013,7 @@ body.in-wreck .cam-buttons { display: none; }
     }
     for (let r = 0; r < rowsN; r++) for (let c = 0; c < cols; c++) {
       if (holeSet.has(Math.floor(c / subA) + ',' + Math.floor(r / subY))) continue;
+      if (cut && cut(((c + 0.5) / cols) * 360, length * (r + 0.5) / rowsN)) continue;   // doorway (y from the tail end)
       const a = id(r, c), b = id(r, c + 1), cc = id(r + 1, c), d = id(r + 1, c + 1);
       idx.push(a, cc, b, b, cc, d);
     }
@@ -9044,20 +9068,18 @@ body.in-wreck .cam-buttons { display: none; }
     // (seg = SEGS/2 = 7) ends up facing UP, so holes around seg 5..9
     // are on the visible top. Sides of the cylinder (seg ≈ 3-4 and
     // 10-11) end up as the visible lateral faces.
+    // v0.18.1: damage only at the rear, over the fuel tanks (rings 0-2 =
+    // the first 3.5 m from the tail). The habitable middle and the nose
+    // are sealed — open to vacuum they would make no sense.
     const holes = new Set([
-      // Big top gash, near the middle of the body
-      '5,5', '6,5', '7,5', '8,5',
-      '5,6', '6,6', '7,6', '8,6',
-      '6,7', '7,7',
-      // Side hole, front-half
-      '3,3', '3,4', '4,3', '4,4',
-      // Side damage, opposite side
-      '10,7', '10,8', '11,7',
-      // Rear blow-out (engine end)
-      '5,11', '6,11', '7,11', '8,11', '9,11',
-      '6,10', '7,10', '8,10',
-      // A few isolated punctures
-      '1,2', '12,5', '2,8', '13,3'
+      // torn open on top over the tanks
+      '6,0', '7,0', '8,0', '9,0',
+      '6,1', '7,1', '8,1',
+      '7,2',
+      // far flank, near the tail
+      '10,0', '10,1', '11,1',
+      // a couple of low punctures
+      '1,2', '13,1',
     ]);
 
     // ──── DARK INTERIOR ────
@@ -9100,7 +9122,9 @@ body.in-wreck .cam-buttons { display: none; }
     // ──── HULL PANELS ────
     const skinTex = paintWreckSkin({ segs: SEGS, rings: RINGS, name: true, seed: 0 });
     const skinMat = new THREE.MeshPhongMaterial({ shininess: 0, color: 0xffffff, map: skinTex, flatShading: true, side: THREE.DoubleSide });
-    const hull = buildSkinCylinder(HULL_R, HULL_H, SEGS, RINGS, holes, skinMat, 3, 2);
+    // doorway (matches HATCH: 55–108°, y 6.35–7.75) cut a little larger so a dark frame shows round the door
+    const hull = buildSkinCylinder(HULL_R, HULL_H, SEGS, RINGS, holes, skinMat, 6, 8,
+      (adeg, y) => adeg > 50 && adeg < 113 && y > 6.2 && y < 7.9);
     hull.position.y = HULL_H / 2;
     hull.castShadow = true;
     hull.receiveShadow = true;
@@ -9116,6 +9140,22 @@ body.in-wreck .cam-buttons { display: none; }
       ring.position.y = ringY;
       ring.rotation.x = Math.PI / 2;
       g.add(ring);
+    }
+
+    // ──── FUEL TANKS (v0.18.1) ──── seen through the torn rear hull.
+    {
+      const tankMat = new THREE.MeshPhongMaterial({ shininess: 0, color: 0x8b8e95, flatShading: true });
+      const bandMat = new THREE.MeshPhongMaterial({ shininess: 0, color: 0x3b3e45, flatShading: true });
+      for (const [ty, tr] of [[0.95, 0.85], [2.75, 0.95]]) {
+        const tank = new THREE.Mesh(new THREE.SphereGeometry(tr, 14, 10), tankMat);
+        tank.position.set(-0.55, ty, 0); tank.scale.y = 0.95; g.add(tank);
+        const band = new THREE.Mesh(new THREE.TorusGeometry(tr * 0.99, 0.05, 4, 20), bandMat);
+        band.position.copy(tank.position); band.rotation.x = Math.PI / 2; g.add(band);
+      }
+      for (let k = 0; k < 4; k++) {               // feed lines, one snapped
+        const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, k === 3 ? 0.9 : 1.8, 6), bandMat);
+        pipe.position.set(-1.1 + k * 0.3, 1.85, 0.6 - k * 0.25); g.add(pipe);
+      }
     }
 
     // ──── NOSE (v0.18.0) ────
@@ -9289,10 +9329,15 @@ body.in-wreck .cam-buttons { display: none; }
       // Nose slot band — the reference's row of dark rectangular
       // openings near the nose. Thin dark plates seated just proud
       // of the hull on the visible upper quadrant, facing outward.
-      const slotMat = new THREE.MeshBasicMaterial({ color: 0x101218 });
-      const slotGeom = new THREE.BoxGeometry(0.55, 0.85, 0.05);
-      for (let s = 0; s < 6; s++) {
-        const a = Math.PI * 0.72 + s * 0.19;       // arc across the top face
+      // v0.18.1: four separate framed flight-deck windows (a solid dark
+      // band of six read as a hole in the hull)
+      const slotMat = new THREE.MeshBasicMaterial({ color: 0x172433 });
+      const slotGeom = new THREE.BoxGeometry(0.34, 0.5, 0.05);
+      const frameGeo = new THREE.BoxGeometry(0.46, 0.62, 0.03), frameMat2 = new THREE.MeshPhongMaterial({ shininess: 0, color: 0x6c6f76, flatShading: true });
+      for (let s = 0; s < 4; s++) {
+        const a = Math.PI * 0.78 + s * 0.15;       // arc across the top face
+        const fr = new THREE.Mesh(frameGeo, frameMat2);
+        fr.position.set(Math.cos(a) * (HULL_R + 0.012), 11.3, Math.sin(a) * (HULL_R + 0.012)); fr.lookAt(0, 11.3, 0); g.add(fr);
         const slot = new THREE.Mesh(slotGeom, slotMat);
         slot.position.set(Math.cos(a) * (HULL_R + 0.02), 11.3,
                           Math.sin(a) * (HULL_R + 0.02));
@@ -9728,7 +9773,7 @@ body.in-wreck .cam-buttons { display: none; }
     ramp.rotateZ(0.10);   // slight transverse twist — fallen, not placed
     ramp.castShadow = true;
     ramp.receiveShadow = true;
-    scene.add(ramp);
+    if (/[?&]oldwreck\b/.test(location.search)) scene.add(ramp);   // v0.18.1: led to a side hole that is now sealed
   }
 
   // Wreck end colliders — REMOVED (v0.4.6). The two legacy cylinders
@@ -10217,6 +10262,28 @@ body.in-wreck .cam-buttons { display: none; }
     pad.lookAt(0, PAD_Y, 0);
     grp.add(pad);
 
+    pad.scale.setScalar(1.6);   // v0.18.1: easier to see
+    // ── Doorway recess (v0.18.1) ── the skin is cut 50–113° × y 6.2–7.9;
+    // a dark back wall and jamb faces make it read as a door set into the hull.
+    {
+      const recMat = new THREE.MeshPhongMaterial({ shininess: 0, color: 0x1c1e23, flatShading: true, side: THREE.DoubleSide });
+      grp.add(new THREE.Mesh(_hatchArcStrip(1.96, 6.2, 7.9, 50, 113, 10), recMat));
+      for (const yy of [6.2, 7.9]) {             // head and sill faces
+        const pts = [], ix = [];
+        for (let i = 0; i <= 10; i++) { const a = (50 + 63 * i / 10) * Math.PI / 180;
+          pts.push(Math.cos(a) * 1.96, yy, Math.sin(a) * 1.96, Math.cos(a) * 2.21, yy, Math.sin(a) * 2.21); }
+        for (let i = 0; i < 10; i++) { const k = i * 2; ix.push(k, k + 1, k + 2, k + 2, k + 1, k + 3); }
+        const gg = new THREE.BufferGeometry(); gg.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3)); gg.setIndex(ix); gg.computeVertexNormals();
+        grp.add(new THREE.Mesh(gg, recMat));
+      }
+      for (const ad of [50, 113]) {              // jambs
+        const a = ad * Math.PI / 180, c = Math.cos(a), sn = Math.sin(a);
+        const gg = new THREE.BufferGeometry();
+        gg.setAttribute('position', new THREE.Float32BufferAttribute([c * 1.96, 6.2, sn * 1.96, c * 2.21, 6.2, sn * 2.21, c * 1.96, 7.9, sn * 1.96, c * 2.21, 7.9, sn * 2.21], 3));
+        gg.setIndex([0, 1, 2, 2, 1, 3]); gg.computeVertexNormals();
+        grp.add(new THREE.Mesh(gg, recMat));
+      }
+    }
     // ── Doorway spill light ── off while shut; warm interior glow open.
     const dlight = new THREE.PointLight(0xffc890, 0.0, 11);
     dlight.position.set(0.4, (HATCH.Y0 + HATCH.Y1) / 2, 1.3);
@@ -11618,12 +11685,12 @@ body.in-wreck .cam-buttons { display: none; }
     // the engine cluster behind the tail is solid
     addBoxCollider({ x: STARSHIP_X - 1.9 * WRECK_SCALE, z: STARSHIP_Z, hx: 1.05 * WRECK_SCALE, hz: 1.75 * WRECK_SCALE,
       y0: -CRATER_DEPTH - 1, y1: -CRATER_DEPTH + 4.4 * WRECK_SCALE, walkable: false, tag: 'engines' });
-    const bx = STARSHIP_X - 5.5, bz = STARSHIP_Z + 5.2, by = shackletonScene.getGroundY(bx, bz);
+    const bx = STARSHIP_X - 7.5, bz = STARSHIP_Z - 7.5, by = shackletonScene.getGroundY(bx, bz);   // far side: clear of the O2 station
     const bell = new THREE.Mesh(bellGeometry(0.26 * WRECK_SCALE, 0.74 * WRECK_SCALE, 1.6 * WRECK_SCALE, 22), metal);
     bell.rotation.set(Math.PI / 2 - 0.25, 0.9, 0); bell.position.set(bx, by + 0.55 * WRECK_SCALE, bz);
     bell.castShadow = true; bell.receiveShadow = true; scene.add(bell);
     addBoxCollider({ x: bx + 0.9, z: bz + 0.6, hx: 1.3, hz: 1.3, y0: by - 0.2, y1: by + 1.4, walkable: false, tag: 'bell' });
-    const lx = STARSHIP_X - 2.5, lz = STARSHIP_Z + 9.0, ly = shackletonScene.getGroundY(lx, lz);
+    const lx = STARSHIP_X + 1.5, lz = STARSHIP_Z - 11.5, ly = shackletonScene.getGroundY(lx, lz);
     const lg = new THREE.Group(); lg.position.set(lx, ly + 0.22, lz); lg.rotation.y = 0.45; scene.add(lg);
     const strut = new THREE.Mesh(new THREE.BoxGeometry(5.0, 0.4, 0.48), legMat); strut.rotation.z = 0.05; lg.add(strut);
     const foot = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.24, 0.28, 12), legMat); foot.position.set(2.6, 0.0, 0); foot.rotation.z = 0.25; lg.add(foot);
