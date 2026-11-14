@@ -630,7 +630,7 @@ body.in-wreck .cam-buttons { display: none; }
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.13.4';  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.13.5';  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -2809,6 +2809,14 @@ body.in-wreck .cam-buttons { display: none; }
     // setAnimation: original movement, slightly slow limbs.
     const targetSpeed = level.id === 'wreck' ? WRECK_WALK_SPEED : (input.run ? RUN_SPEED : JOG_SPEED);
     const accel = player.grounded ? ACCEL_GROUND : ACCEL_AIR;
+    // v0.13.5: no steering in the air. Once he has left the ground on a
+    // jump (or has been falling for more than a moment) he is a
+    // projectile: the stick neither pushes nor turns him, and he lands
+    // where his take-off speed carries him. Standing jump: straight up and
+    // down. Walking or running jump: an arc along the way he was going.
+    // The first 0.15 s off the ground still steers, so running over
+    // ripples in the ground does not make the controls feel dead.
+    const ballistic = !player.grounded && (jumpPhase === 'airborne' || runJump || airHold.t >= 0.15);
 
     // Slope check — sample the local gradient via finite differences
     // on getGroundY. If the slope exceeds the cutoff, the surface
@@ -2892,7 +2900,7 @@ body.in-wreck .cam-buttons { display: none; }
       while (delta > Math.PI) delta -= Math.PI * 2;
       while (delta < -Math.PI) delta += Math.PI * 2;
       player.heading += delta * Math.min(1, dt * TURN_SPEED * 1.5);
-    } else if (pureBack) {
+    } else if (pureBack && !ballistic) {
       // Walk backward in astronaut's local frame. Heading unchanged;
       // the camera-follow code (separately) lerps its target to
       // player.heading + π so the camera swings 180° around to the
@@ -2904,7 +2912,7 @@ body.in-wreck .cam-buttons { display: none; }
       player.vel.x += (tvx - player.vel.x) * Math.min(1, dt * accel);
       player.vel.z += (tvz - player.vel.z) * Math.min(1, dt * accel);
       // No heading update — preserves facing direction.
-    } else if (inMag > 0.05) {
+    } else if (inMag > 0.05 && !ballistic) {
       // Accelerate toward target velocity
       const tvx = inX * targetSpeed;
       const tvz = inZ * targetSpeed;
@@ -5486,7 +5494,7 @@ body.in-wreck .cam-buttons { display: none; }
     const ank0 = Math.min(b.LeftFoot.getWorldPosition(_lpA).y, b.RightFoot.getWorldPosition(_lpB).y);
     b.LeftUpLeg.rotation.z  += al;  b.RightUpLeg.rotation.z += al;
     b.LeftLeg.rotation.z    -= 2 * al; b.RightLeg.rotation.z -= 2 * al;
-    b.LeftFoot.rotation.z   += al;  b.RightFoot.rotation.z  += al;      // soles stay on the ground
+    b.LeftFoot.rotation.y   += al;  b.RightFoot.rotation.y  += al;      // soles stay level (v0.13.5: y is the foot's toe-up axis on this rig; z twisted the foot sideways)
     // Measured, not calculated: the rig's legs are not straight at rest.
     // Worked in world space and converted, because the hip bone's own
     // units are not metres.
