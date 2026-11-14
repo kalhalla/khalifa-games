@@ -630,7 +630,7 @@ body.in-wreck .cam-buttons { display: none; }
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.15.2';  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.16.0';  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -5347,7 +5347,7 @@ body.in-wreck .cam-buttons { display: none; }
         refill._everConnected = true;
         // Scene 2 → Scene 3 handoff: oxygen found, next beat is the
         // wreck. setObjective handles fade-out/fade-in.
-        setObjective('enter the wreck');
+        setObjective(rescue.active && !rescue.done ? 'free P-03' : 'enter the wreck');   // v0.16.0: the rescue comes first
       }
       // v0.5.0: a full tank takes O2_FILL_SECONDS whatever its size
       // (the flat 4%/s meant a 30s stand at capacity 120). The ice
@@ -10654,7 +10654,7 @@ body.in-wreck .cam-buttons { display: none; }
       speak('HOUSTON', '...respond...', 2.8, { kind: 'houston', delay: 9.8 });
       speak('SUIT', 'receive: unstable — transmit: offline', 3.4,
             { kind: 'system', delay: 13.4 });
-      setTimeout(() => setObjective('explore the wreck'), 18000);
+      setTimeout(() => { if (!scene4.entered) setObjective('explore the wreck'); }, 18000);   // v0.16.0: not if he is already at the brace
     }, 2600);
     // Scene 4 begins the moment the stabiliser hums: M-08 is placed in
     // the engine bay (hidden behind the deck disc), tugging the brace.
@@ -10672,7 +10672,7 @@ body.in-wreck .cam-buttons { display: none; }
 
     // Inside-hull detection — generous bounds, first entry only.
     const p = player.pos;
-    const inside = WRECK_LEVEL_FLAG ? level.id === 'wreck'
+    const inside = WRECK_LEVEL_ENABLED ? level.id === 'wreck'
                                     : (p.x > 9 && p.x < 35 && Math.abs(p.z + 2) < 3.6);   // widened for WRECK_SCALE 2.0
     if (inside && !wreckInterior.entered) {
       wreckInterior.entered = true;
@@ -10853,7 +10853,7 @@ body.in-wreck .cam-buttons { display: none; }
   // be steered) and frees it. Plain boxes for now, like the wreck
   // interior: this is to try the climb before any of it is modelled.
   // ============================================================
-  const RESCUE_FLAG = /[?&]rescue\b/.test(location.search);
+  const RESCUE_FLAG = !/[?&]norescue\b/.test(location.search);   // v0.16.0: part of the game; ?norescue switches it off
   const rescue = { active: RESCUE_FLAG, done: false, hailed: false, cx: 40, cz: 30, top: null };
   if (RESCUE_FLAG) (function () {
     const G = shackletonScene.getGroundY;
@@ -10878,9 +10878,41 @@ body.in-wreck .cam-buttons { display: none; }
     const mat = new THREE.MeshPhongMaterial({ color: 0x55585e, shininess: 0, flatShading: true });
     const matTop = new THREE.MeshPhongMaterial({ color: 0x6d7077, shininess: 0, flatShading: true });
     const matPinch = new THREE.MeshPhongMaterial({ color: 0x3c3f45, shininess: 0, flatShading: true });
+    // v0.16.0: each step is a boulder with a flat top. A subdivided box
+    // whose sides are pushed out unevenly (more towards the base), whose
+    // corners are knocked back, and whose top rim is chipped down a
+    // little. The top itself stays flat and at least as big as the
+    // collider, so what he stands on is what he sees.
+    function rockBlockGeometry(w, h, d, seed) {
+      const g = new THREE.BoxGeometry(w, h, d, 6, 4, 6);
+      const p = g.attributes.position;
+      const hash = (a, b, c) => { const v = Math.sin(a * 12.9898 + b * 78.233 + c * 37.719 + seed * 4.1) * 43758.5453; return v - Math.floor(v); };
+      for (let i = 0; i < p.count; i++) {
+        const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+        const kx = Math.round(x * 20), ky = Math.round(y * 20), kz = Math.round(z * 20);   // same key for coincident vertices
+        const onX = Math.abs(Math.abs(x) - w / 2) < 1e-4, onZ = Math.abs(Math.abs(z) - d / 2) < 1e-4;
+        const top = Math.abs(y - h / 2) < 1e-4;
+        if (!onX && !onZ) continue;                                   // interior of the top (and base): untouched
+        const t = (y + h / 2) / h;                                    // 0 at the base, 1 at the top
+        const n1 = hash(kx, ky, kz), n2 = hash(kz, kx, ky);
+        const corner = onX && onZ;
+        let out = (0.25 + 0.95 * n1) * (1.15 - 0.75 * t);             // bulge, biggest low down
+        if (corner) out -= 0.55 + 0.5 * n2;                           // knocked-back corners
+        if (top) out = 0.12 + 0.3 * n1 - (corner ? 0.35 : 0);         // the rim only just overhangs the flat top
+        const len = Math.hypot(onX ? x : 0, onZ ? z : 0) || 1;
+        p.setX(i, x + (onX ? x / len : 0) * out + (onZ && !onX ? (n2 - 0.5) * 0.5 : 0));
+        p.setZ(i, z + (onZ ? z / len : 0) * out + (onX && !onZ ? (n2 - 0.5) * 0.5 : 0));
+        if (top) p.setY(i, y - 0.06 - 0.22 * n2);                     // chipped rim
+        else if (t > 0.05) p.setY(i, y + (n2 - 0.5) * 0.35);
+      }
+      p.needsUpdate = true;
+      g.computeVertexNormals();
+      return g;
+    }
+    let _rockSeed = 1;
     function block(dx, dz, w, d, rise, m, walkable) {
       const x = C.cx + dx, z = C.cz + dz, y1 = g0 + rise, y0 = g0 - 2.5;
-      const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, y1 - y0, d), m);
+      const mesh = new THREE.Mesh(rockBlockGeometry(w, y1 - y0, d, _rockSeed++), boulderMat);
       mesh.position.set(x, (y0 + y1) / 2, z);
       mesh.castShadow = true; mesh.receiveShadow = true;
       scene.add(mesh);
@@ -10896,7 +10928,7 @@ body.in-wreck .cam-buttons { display: none; }
     // Two blocks pinching the robot
     for (const s of [-1, 1]) {
       const x = top.x + s * 0.85, z = top.z + 0.2, y0 = top.y1, y1 = top.y1 + 0.9;
-      const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.9, 1.5), matPinch);
+      const mesh = new THREE.Mesh(rockBlockGeometry(0.7, 0.9, 1.5, 20 + s).scale(1, 1, 1), boulderMat);
       mesh.position.set(x, (y0 + y1) / 2, z); mesh.castShadow = true;
       scene.add(mesh);
       addBoxCollider({ x, z, hx: 0.35, hz: 0.75, y0, y1, walkable: false, tag: 'rescue' });
@@ -10922,6 +10954,7 @@ body.in-wreck .cam-buttons { display: none; }
             spawnDust(top.x, top.y1 + 0.4, top.z, 8, { speed: 0.8, upVel: 0.6, upVar: 0.5, life: 1.0 });
             speak('P-03', 'clear.', 2.0, { kind: 'robot', delay: 0.6 });
             speak('P-03', 'path.', 2.0, { kind: 'robot', delay: 3.0 });
+            if (!wreckInterior.entered) setTimeout(() => setObjective('enter the wreck'), 4500);
           },
         });
       },
@@ -11088,6 +11121,9 @@ body.in-wreck .cam-buttons { display: none; }
             [0, { x: FP.x + 1.4, z: FP.z + 0.9, faceX: FP.x, faceZ: FP.z, manip: true }],  // P-03 welds
             [1, { x: FP.x - 0.2, z: FP.z - 2.1, faceX: FP.x, faceZ: FP.z }],               // L-07 holds the light
           ];
+          if (robotStates[0].pinned) {           // v0.16.0: the rescue was skipped — P-03 has worked itself loose
+            robotStates[0].pinned = null; robots[0].rotation.set(0, 0, 0); rescue.done = true;
+          }
           for (const [ri, s] of CONV) {
             const rs = robotStates[ri];
             if (Math.hypot(rs.pos.x - s.x, rs.pos.z - s.z) > 14) {
@@ -11323,6 +11359,7 @@ body.in-wreck .cam-buttons { display: none; }
   // ── Per-frame scene logic: brace pull anim, weld, coaching hints ──
   let _s5SparkT = 0;
   function updateScenes(dt) {
+    updateWreckDoorway();
     updateRescue();
     updateLandMark(dt);
     // Scene 4: engine-bay entry beat
@@ -12894,7 +12931,7 @@ body.in-wreck .cam-buttons { display: none; }
         if (t > 2.2) {
           const obj = $('objective-hud');
           if (obj && !obj.classList.contains('on')) {
-            obj.textContent = 'enter the wreck';
+            obj.textContent = rescue.active && !rescue.done ? 'free P-03' : 'enter the wreck';   // v0.16.0
             obj.classList.add('on');
           }
         }
@@ -14790,7 +14827,10 @@ body.in-wreck .cam-buttons { display: none; }
   //   S5  41     tail bulkhead — sealed (engine bay)
   // ============================================================
   const WRECK_LEVEL_FLAG = (location.search.match(/[?&]wreck2(=(\w+))?/) || null);
-  const WRECK_LEVEL_ENABLED = !!WRECK_LEVEL_FLAG;
+  // v0.16.0: the new interior is the game's wreck. Going in through the
+  // hatch (or walking in through any gap in the hull) loads it. ?oldwreck
+  // keeps the old walk-in interior for comparison.
+  const WRECK_LEVEL_ENABLED = !/[?&]oldwreck\b/.test(location.search);
   const WL_ORIGIN = new THREE.Vector3(3000, 0, 3000);
   const WL_R = 4.5, WL_AXIS_Y = 3.3, WL_HALF_W = 3.05, WL_LEN = 44;
   // v0.9.0 "TARDIS": the interior is laid out in the design units above,
@@ -15067,7 +15107,7 @@ body.in-wreck .cam-buttons { display: none; }
       // sun, sky dome…) except the astronaut and the shared UI helpers.
       _hiddenForWreck.length = 0;
       const keep = new Set([astronautRoot, wreckLevel.root, interactMarker, wreckLevel.lamp, wreckLevel.lamp.target, wreckLevel.flare, camera]);
-      if (WRECK_LEVEL_FLAG && wreckInterior.group) keep.add(wreckInterior.group);
+      if (WRECK_LEVEL_ENABLED && wreckInterior.group) keep.add(wreckInterior.group);
       if (WRECK_LEVEL_ENABLED) {                                   // brace puzzle and M-08 (v0.11.0)
         for (const m of [s4.plating, s4.pin, s4.panel, s4.brace]) keep.add(m);
         if (Math.abs(robotStates[2].pos.x - WL_ORIGIN.x) < 300) keep.add(robots[2]);
@@ -15097,6 +15137,7 @@ body.in-wreck .cam-buttons { display: none; }
     level.fading = true;
     _wlFade(true);
     setTimeout(() => {
+      if (interact.carry) putDown(player.pos.x, player.pos.z);   // loose parts stay in the wreck
       for (const o of _hiddenForWreck) o.visible = true;
       _hiddenForWreck.length = 0;
       wreckLevel.root.visible = false;
@@ -15104,11 +15145,13 @@ body.in-wreck .cam-buttons { display: none; }
       level.id = 'crater';
       document.body.classList.remove('in-wreck');
       const zl = $('zone-label'); if (zl) zl.textContent = '';
-      const s = _wlSavedCrater || { x: hatchInteract.x, z: hatchInteract.z + 1.5, heading: 0 };
-      // Step back out of the doorway, facing away from the hull.
+      // Step out beside the hatch on the outside of the hull, facing away
+      // from it. (v0.16.0: not back to where he came in from — he may have
+      // walked in through a gap, and that spot is inside the old hull.)
       const hx = hatchInteract.x, hz = hatchInteract.z;
-      const ax = s.x - hx, az = s.z - hz, al = Math.hypot(ax, az) || 1;
-      const ox = hx + ax / al * 2.2, oz = hz + az / al * 2.2;
+      const side = hz >= -2 ? 1 : -1;                       // the hull's centre line is z = −2
+      const ax = 0, az = side, al = 1;
+      const ox = hx, oz = -2 + side * Math.max(Math.abs(hz + 2) + 2.2, 6.0);
       player.pos.set(ox, shackletonScene.getGroundY(ox, oz), oz);
       player.vel.set(0, 0, 0);
       player.heading = Math.atan2(ax, az);
@@ -15212,6 +15255,14 @@ body.in-wreck .cam-buttons { display: none; }
       out.push({ key: 'exitWreck', x: WL_ORIGIN.x + wreckLevel.EXIT.x, z: WL_ORIGIN.z + wreckLevel.EXIT.z,
         y: WL_ORIGIN.y + 1.6, r: 2.2, label: 'leave the wreck', fire: exitWreckLevel });
     }
+  }
+  // Walking into the old hull by any route (the rip, an open hatch) is
+  // "going in": load the interior instead of showing the empty shell.
+  function updateWreckDoorway() {
+    if (!WRECK_LEVEL_ENABLED || level.id !== 'crater' || level.fading || controlMode !== 'walking') return;
+    if (typeof opening !== 'undefined' && (opening.active || opening.phase !== 'done')) return;
+    const p = player.pos;
+    if (p.x > 9.5 && p.x < 34.5 && Math.abs(p.z + 2) < 3.4 && p.y < -CRATER_DEPTH + 6) enterWreckLevel();
   }
   if (WRECK_LEVEL_FLAG && WRECK_LEVEL_FLAG[2] === 'in') {
     // Skip straight in once the opening hands over.
@@ -15406,7 +15457,7 @@ body.in-wreck .cam-buttons { display: none; }
     }
   });
 
-  if (WRECK_LEVEL_ENABLED) {
+  if (WRECK_LEVEL_FLAG || /[?&]debug\b/.test(location.search)) {      // camera-zone readout: development only
     const zl = document.createElement('div');
     zl.id = 'zone-label';
     zl.style.cssText = 'position:fixed;left:50%;bottom:14px;transform:translateX(-50%);font:11px monospace;' +
