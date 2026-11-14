@@ -452,6 +452,42 @@ body.in-wreck .cam-buttons { display: none; }
   background: repeating-linear-gradient(0deg, #6ad28e 0 6px, #9ff0bc 6px 12px) !important;
   background-size: 100% 24px !important; animation: o2flow 0.5s linear infinite; }
 @keyframes o2flow { from { background-position: 0 0; } to { background-position: 0 -24px; } }
+
+/* ============================================================
+   HELMET RADIO (v0.19.0) — every voice in the game arrives over the
+   suit radio: robots (short-range, clean), Michel (long-range, static),
+   the suit itself. Replaces the comic speech bubbles.
+   ============================================================ */
+.speech-stack { top: 100px; gap: 6px; max-width: 520px; align-items: center; }
+.speech-stack .speech { background: rgba(8,12,20,0.74); border: 0; border-left: 3px solid var(--rc, #9aa4b4);
+  border-radius: 3px; box-shadow: none; padding: 6px 12px; font-family: 'Courier New', monospace;
+  transform: none; display: flex; gap: 10px; align-items: baseline; opacity: 0; transition: opacity 0.25s; }
+.speech-stack .speech.show { opacity: 1; transform: none; }
+.speech-stack .speech::before, .speech-stack .speech::after { display: none; }
+.speech-stack .speech .src { color: var(--rc, #9aa4b4); font-size: 11px; letter-spacing: 2px; margin: 0; white-space: nowrap; }
+.speech-stack .speech .src::after { content: ' \25B8'; }
+.speech-stack .speech .txt { color: #e8ecf2; font-size: 15px; font-weight: normal; letter-spacing: 1px; line-height: 1.3; }
+.speech-stack .speech.houston { --rc: #ffffff; }
+.speech-stack .speech.houston.faint .txt { color: #c9ced8; animation: radioStatic 0.22s steps(2) infinite; }
+.speech-stack .speech.system { --rc: #7fc4e8; }
+.speech-stack .speech.robot.r-L { --rc: #e8c850; }
+.speech-stack .speech.robot.r-M { --rc: #f0604c; }
+.speech-stack .speech.robot.r-P { --rc: #5cb4f0; }
+.speech-stack .speech.robot .txt { color: #fff3d6; font-size: 16px; }
+.speech-stack .speech.pad { --rc: #8a93a3; background: rgba(8,12,20,0.5); }
+.speech-stack .speech.pad .txt { color: #aeb6c4; font-size: 13px; }
+.speech-stack .speech .dir { color: var(--rc); font-size: 13px; }
+@keyframes radioStatic { 0% { opacity: 1; } 50% { opacity: 0.78; } }
+/* Wrist pad — Elias asks by typing, never by voice */
+#wristpad { position: fixed; left: 50%; bottom: 178px; transform: translateX(-50%); z-index: 6;
+  background: rgba(8,12,20,0.86); border: 1px solid #3a4a62; border-radius: 6px; padding: 8px 10px 6px;
+  font-family: 'Courier New', monospace; min-width: 220px; display: none; pointer-events: auto; }
+#wristpad.on { display: block; }
+#wristpad .wp-head { color: #6f7c92; font-size: 10px; letter-spacing: 2px; margin-bottom: 6px; }
+#wristpad button { display: block; width: 100%; text-align: left; background: none; border: 0; border-top: 1px solid #1e2838;
+  color: #dfe6f0; font-family: inherit; font-size: 15px; letter-spacing: 1px; padding: 9px 4px; cursor: pointer; }
+#wristpad button:hover { color: #f0c674; }
+#wristpad button .k { color: #f0c674; font-size: 11px; margin-right: 8px; }
 </style>
 </head>
 <body>
@@ -469,6 +505,7 @@ body.in-wreck .cam-buttons { display: none; }
 <div class="fade-overlay" id="fade-overlay"></div>
 <!-- These overlays sit at body-level so their z-indexes compete with .scene2d -->
 <div class="speech-stack" id="speech-stack"></div>
+<div id="wristpad"></div>
 <div class="alt-readout" id="alt-readout">
   <div><span class="lbl">ALT</span><b id="cine-alt">2000</b><span class="lbl"> M</span></div>
   <div><span class="lbl">VEL</span><b id="cine-vel">0.0</b><span class="lbl"> M/S</span></div>
@@ -630,7 +667,7 @@ body.in-wreck .cam-buttons { display: none; }
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.18.7';  // robot legs double-sided with dark cores; toe flaps 1.6x. was v0.18.6;  // robot ankles: foot pad on a ball joint, kept level while planted. was v0.18.5;  // robot toes bend to stay on the ground through stance. was v0.18.4;  // robot gait: bird-like stance/swing, bigger leg swing, pistons follow, body dip, feet planted. was v0.18.3;  // engine nozzles 25% larger. was v0.18.2;  // wreck: four landing legs in housings (two intact, two buckled), half-size blackened nozzles. was v0.18.1;  // wreck: sealed middle/nose, rear-only damage + tanks, doorway recess, NASA stacked, regolith imprint. was v0.18.0;  // wreck exterior: painted skin, round hull, ogive nose, engine bells, landing legs. was v0.17.3;  // robot eyes blink and look; gestures: wave, hand up, tap-and-point. was v0.17.2;  // robot legs: piston shins, hinged toes, less body sway. was v0.17.1;  // built tools on the Meshy robots: drill + saw, gripper, three-finger claws. was v0.17.0;  // Meshy robots, cut into jointed parts and driven by the walk rig. was v0.16.0;  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.19.0';  // helmet radio for all voices; robot chirps + eye flash; wrist-pad questions to the robots. was v0.18.7;  // robot legs double-sided with dark cores; toe flaps 1.6x. was v0.18.6;  // robot ankles: foot pad on a ball joint, kept level while planted. was v0.18.5;  // robot toes bend to stay on the ground through stance. was v0.18.4;  // robot gait: bird-like stance/swing, bigger leg swing, pistons follow, body dip, feet planted. was v0.18.3;  // engine nozzles 25% larger. was v0.18.2;  // wreck: four landing legs in housings (two intact, two buckled), half-size blackened nozzles. was v0.18.1;  // wreck: sealed middle/nose, rear-only damage + tanks, doorway recess, NASA stacked, regolith imprint. was v0.18.0;  // wreck exterior: painted skin, round hull, ogive nose, engine bells, landing legs. was v0.17.3;  // robot eyes blink and look; gestures: wave, hand up, tap-and-point. was v0.17.2;  // robot legs: piston shins, hinged toes, less body sway. was v0.17.1;  // built tools on the Meshy robots: drill + saw, gripper, three-finger claws. was v0.17.0;  // Meshy robots, cut into jointed parts and driven by the walk rig. was v0.16.0;  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -12319,7 +12356,18 @@ body.in-wreck .cam-buttons { display: none; }
       const item = speechQueue.shift();
       const el = document.createElement('div');
       el.className = 'speech ' + item.kind;
-      el.innerHTML = '<div class="src">' + item.source + '</div><div class="txt">' + item.text + '</div>';
+      // v0.19.0 helmet radio: tag robots by colour, flicker Michel's broken lines,
+      // point an arrow at a robot that is off screen, chirp + eye flash
+      let dirMark = '';
+      const ri = ROBOT_RADIO_IDX[item.source];
+      if (item.kind === 'robot' && ri !== undefined) {
+        el.classList.add('r-' + item.source[0]);
+        dirMark = radioDirMark(ri);
+        robotChirp(item.source[0], item.text);
+        const f = robots[ri] && robots[ri].userData.face; if (f) f.flash = 0.8;
+      }
+      if (item.kind === 'houston') { radio.heardMichel = true; if (/\.\.\./.test(item.text)) el.classList.add('faint'); }
+      el.innerHTML = '<div class="src">' + item.source + '</div><div class="txt">' + item.text + '</div>' + (dirMark ? '<div class="dir">' + dirMark + '</div>' : '');
       speechStack.appendChild(el);
       // Force reflow then add show class for transition
       void el.offsetHeight;
@@ -12331,7 +12379,7 @@ body.in-wreck .cam-buttons { display: none; }
       // text-only by design (locked decision). Voicing them via
       // TTS would break the channel separation the whole script
       // is built on.
-      if (item.kind !== 'robot') speakAloud(item.text, item.kind);
+      if (item.kind !== 'robot' && item.kind !== 'pad') speakAloud(item.text, item.kind);   // Elias's pad is typed, never voiced
     }
     // Update active bubbles, fade out at end of life
     for (let i = activeSpeech.length - 1; i >= 0; i--) {
@@ -14809,7 +14857,7 @@ body.in-wreck .cam-buttons { display: none; }
     robot.userData.face = { group: face, eyes, room, model,
       blinkT: 1 + Math.random() * 3, blink: 0, look: new THREE.Vector2(), lookGoal: new THREE.Vector2(), glanceT: 0 };
   }
-  const _fv = new THREE.Vector3();
+  const _fv = new THREE.Vector3(), _white = new THREE.Color(1, 1, 1);
   function robotFaceTick(robot, r, dt) {
     const f = robot.userData.face; if (!f) return;
     // blink: a quick squash to a line; sometimes a double blink
@@ -14831,13 +14879,19 @@ body.in-wreck .cam-buttons { display: none; }
         f.lookGoal.set(Math.random() < 0.35 ? 0 : (Math.random() * 2 - 1) * 0.85, (Math.random() * 2 - 1) * 0.5); }
     }
     f.look.lerp(f.lookGoal, Math.min(1, dt * 10));   // eyes dart, not drift
+    // flash: brighten and swell slightly while this robot is on the radio
+    let fk = 0;
+    if (f.flash > 0) { f.flash -= dt; fk = Math.max(0, Math.min(1, f.flash / 0.3)); }
     for (const e of f.eyes) {
+      if (!e.base) e.base = e.mesh.material.color.clone();
+      e.mesh.material.color.copy(e.base).lerp(_white, fk * 0.7);
+      e.mesh.scale.x = 1 + fk * 0.15;
       e.mesh.position.x = e.x0 + f.look.x * f.room.x;
       e.mesh.position.y = e.y0 + f.look.y * f.room.y;
-      e.mesh.scale.y = open;
+      e.mesh.scale.y = open * (1 + fk * 0.15);
     }
   }
-  const EMOTE_LEN = { wave: 2.4, attention: 2.0, tapPoint: 3.8 };
+  const EMOTE_LEN = { wave: 2.4, attention: 2.0, tapPoint: 3.8, face: 2.2 };
   function robotEmote(i, kind, target) {
     const r = robotStates[i]; if (!r || !EMOTE_LEN[kind]) return false;
     if (r.emote) return false;
@@ -14855,6 +14909,14 @@ body.in-wreck .cam-buttons { display: none; }
     let sx = 0, sz = 0, el = 0, sy = 0;
     if (e.kind === 'wave') { sx = -0.3; sz = s * 2.5; el = 0.6 + 0.45 * Math.sin(t * 9); }
     else if (e.kind === 'attention') { sx = -2.85; sz = s * 0.25; el = 0.18 * Math.sin(t * 6); }
+    else if (e.kind === 'face') {
+      if (e.target && !r.pinned) {
+        const th = Math.atan2(e.target.x - r.pos.x, e.target.z - r.pos.z);
+        let dH = th - r.heading; while (dH > Math.PI) dH -= Math.PI * 2; while (dH < -Math.PI) dH += Math.PI * 2;
+        r.heading += dH * Math.min(1, dt * 4); robot.rotation.y = r.heading;
+      }
+      return;
+    }
     else if (e.kind === 'tapPoint') {
       if (t < 1.4) { sx = -0.25; sz = -s * 0.10; sy = -s * 1.15; el = -1.45 - 0.30 * Math.max(0, Math.sin(t * 11)); }   // forearm flexed in to tap its own chest (negative = flex)
       else {
@@ -14872,6 +14934,126 @@ body.in-wreck .cam-buttons { display: none; }
     ud.elbowPivots[a].rotation.x = L(ud.elbowPivots[a].rotation.x, el);
     ud.armPivots[a].rotation.y = sy * w;   // twist only used by gestures; nothing else drives it
   }
+  // ============================================================
+  // ROBOT RADIO + WRIST PAD (v0.19.0) — see claude/SHACKLETON_RADIO_PLAN.md
+  // Elias never speaks. He asks by typing short queries on his wrist pad,
+  // sent over a short-range link; robots answer over the helmet radio in
+  // one to three fragments, often with a gesture. Nothing here can reach
+  // Michel. Answers never reveal what a memory reveals later.
+  // ============================================================
+  const ROBOT_NAMES = ['P-03', 'L-07', 'M-08'];
+  const ROBOT_RADIO_IDX = { 'P-03': 0, 'L-07': 1, 'M-08': 2 };
+  const radio = { heardMichel: false };
+  const _rdV = new THREE.Vector3();
+  function radioDirMark(i) {
+    if (!robots[i] || typeof camera === 'undefined') return '';
+    _rdV.copy(robots[i].position); _rdV.y += 1; _rdV.project(camera);
+    const behind = _rdV.z > 1;
+    if (!behind && Math.abs(_rdV.x) < 0.95 && Math.abs(_rdV.y) < 0.95) return '';
+    const x = behind ? -_rdV.x : _rdV.x;
+    return x < 0 ? '◂' : '▸';
+  }
+  // Each robot's voice is a tone pattern, about one note per word.
+  const CHIRP = { L: { f: 880, type: 'sine', len: 0.11, gap: 0.05 },
+                  M: { f: 300, type: 'triangle', len: 0.17, gap: 0.08 },
+                  P: { f: 1300, type: 'square', len: 0.06, gap: 0.03 } };
+  function robotChirp(letter, text) {
+    if (!audioCtx || !masterGain || !CHIRP[letter]) return;
+    const c = CHIRP[letter], words = text.split(/\s+/).filter(Boolean);
+    const n = Math.max(1, Math.min(4, words.length));
+    let t = audioCtx.currentTime + 0.02;
+    for (let k = 0; k < n; k++) {
+      const w = words[k] || '', h = (w.charCodeAt(0) || 97) + (w.length * 7);
+      const f0 = c.f * (0.85 + (h % 7) * 0.05);
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.type = c.type; o.frequency.setValueAtTime(f0, t);
+      const up = /\?|:\)/.test(text) && k === n - 1;               // questions and :) rise at the end
+      o.frequency.linearRampToValueAtTime(f0 * (up ? 1.35 : 0.92), t + c.len);
+      const peak = c.type === 'square' ? 0.018 : 0.04;
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(peak, t + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + c.len);
+      o.connect(g); g.connect(masterGain); o.start(t); o.stop(t + c.len + 0.02);
+      t += c.len + c.gap;
+    }
+  }
+  // What now? — one word for the current objective, and where to point.
+  function _objectiveHint(i) {
+    const el = $('objective-hud'), txt = el ? el.textContent : '';
+    const P = (x, z) => new THREE.Vector3(x, player.pos.y, z);
+    if (/free P-03/.test(txt)) return { word: i === 0 ? 'stuck.' : 'P-03.', at: i === 0 ? null : robots[0].position.clone() };
+    if (/enter the wreck/.test(txt) && typeof hatchInteract !== 'undefined') return { word: 'wreck.', at: P(hatchInteract.x, hatchInteract.z) };
+    if (/install/.test(txt) && typeof flyerHeading !== 'undefined') return { word: 'flyer.', at: flyerHeading.position.clone() };
+    if (/ice|breathe/.test(txt) && typeof ICE_POCKET !== 'undefined') return { word: 'ice.', at: P(ICE_POCKET.x, ICE_POCKET.z) };
+    if (/oxygen|O₂/.test(txt) && typeof refillPanel !== 'undefined') return { word: 'air.', at: refillPanel.position.clone() };
+    return { word: ['work.', 'hold.', 'here.'][i] || 'hold.', at: null };
+  }
+  const ROBOT_QUERIES = [
+    { id: 'now', text: 'what now?', repeat: true },
+    { id: 'who', text: 'who are you?', ans: { L: ['L-07.', 'yours.'], M: ['M-08.'], P: ['P-03.', 'cutting.'] }, gesture: 'tapSelf' },
+    { id: 'where', text: 'where am I?', ans: { L: ['moon.', 'shackleton.'], M: ['crater.'], P: ['deep.'] }, gesture: 'rim' },
+    { id: 'what', text: 'what happened?', ans: { L: ['fell.'], M: ['loud.'], P: ['hull.', 'open.'] }, gesture: 'wreck' },
+    { id: 'whoami', text: 'who am I?', ans: { L: ['crew.'], M: ['ours.'], P: ['you.'] }, gesture: 'tapYou' },
+    { id: 'howlong', text: 'how long?', ans: { L: ['two days.'], M: ['two.'], P: ['48 hours.'] } },
+    { id: 'voice', text: 'the voice?', unlock: () => radio.heardMichel, ans: { L: ['calling.'], M: ['far.'], P: ['earth.'] }, gesture: 'sky' },
+    { id: 'leave', text: 'can we leave?', unlock: () => typeof scene5 !== 'undefined' && scene5.done, ans: { L: ['almost.'], M: ['home?'], P: ['parts.'] }, gesture: 'flyer' },
+  ];
+  const wristPad = { open: false, robot: -1, asked: [{}, {}, {}], busyUntil: 0, list: [] };
+  function _padChoices(i) {
+    const asked = wristPad.asked[i];
+    const fresh = ROBOT_QUERIES.filter(q => !q.repeat && !asked[q.id] && (!q.unlock || q.unlock()));
+    return [ROBOT_QUERIES[0]].concat(fresh.slice(0, 2));    // what now? + two new ones
+  }
+  function openWristPad(i) {
+    const el = $('wristpad'); if (!el) return;
+    if (wristPad.open) { closeWristPad(); return; }
+    wristPad.open = true; wristPad.robot = i; wristPad.list = _padChoices(i);
+    el.innerHTML = '<div class="wp-head">WRIST PAD ▸ ' + ROBOT_NAMES[i] + '</div>' +
+      wristPad.list.map((q, k) => '<button data-k="' + k + '"><span class="k">' + (k + 1) + '</span>' + q.text + '</button>').join('');
+    el.querySelectorAll('button').forEach(b => b.addEventListener('pointerdown', (ev) => { ev.preventDefault(); ev.stopPropagation(); askRobot(+b.dataset.k); }));
+    el.classList.add('on');
+    robotEmote(i, 'face', player.pos.clone().setY(player.pos.y + 1.5));
+  }
+  function closeWristPad() { wristPad.open = false; const el = $('wristpad'); if (el) el.classList.remove('on'); }
+  function askRobot(k) {
+    const i = wristPad.robot, q = wristPad.list[k]; if (!q) return;
+    closeWristPad();
+    const letter = ROBOT_NAMES[i][0], r = robotStates[i], me = player.pos.clone().setY(player.pos.y + 1.5);
+    speak('PAD', q.text, 2.2, { kind: 'pad' });
+    let lines, gesture = q.gesture, target = me;
+    if (q.id === 'now') {
+      const h = _objectiveHint(i); lines = [h.word];
+      if (h.at) { gesture = 'point'; target = h.at; }
+    } else {
+      wristPad.asked[i][q.id] = true;
+      lines = q.ans[letter] || ['...'];
+    }
+    // gesture
+    r.emote = null;
+    if (gesture === 'tapSelf') robotEmote(i, 'face', me);
+    else if (gesture === 'tapYou') robotEmote(i, 'tapPoint', me);
+    else if (gesture === 'wreck') robotEmote(i, 'tapPoint', starship.position.clone());
+    else if (gesture === 'rim') robotEmote(i, 'tapPoint', new THREE.Vector3(player.pos.x * 4 + 1, player.pos.y + 30, player.pos.z * 4 + 1));
+    else if (gesture === 'sky') robotEmote(i, 'attention', me);
+    else if (gesture === 'flyer' && typeof flyerHeading !== 'undefined') robotEmote(i, 'tapPoint', flyerHeading.position.clone());
+    else if (gesture === 'point') robotEmote(i, 'tapPoint', target);
+    else robotEmote(i, 'face', me);
+    lines.forEach((ln, n) => speak(ROBOT_NAMES[i], ln, 2.2, { kind: 'robot', delay: 0.9 + n * 1.7 }));
+  }
+  function updateWristPad() {
+    if (!wristPad.open) return;
+    const r = robots[wristPad.robot];
+    const gone = !r || r.position.distanceTo(player.pos) > 5 || controlMode !== 'walking' || level.id !== 'crater' ||
+      (typeof shackletonMemory !== 'undefined' && shackletonMemory.isActive()) ||
+      (typeof opening !== 'undefined' && opening.active);
+    if (gone) closeWristPad();
+  }
+  window.addEventListener('keydown', (e) => {
+    if (!wristPad.open) return;
+    if (e.key === 'Escape') { closeWristPad(); return; }
+    const k = parseInt(e.key, 10);
+    if (k >= 1 && k <= wristPad.list.length) askRobot(k - 1);
+  });
+
   // Who gestures when.
   const robotCues = { greeted: [false, false, false], nudgeT: 30, pinnedT: 3 };
   function updateRobotCues(dt) {
@@ -15197,6 +15379,16 @@ body.in-wreck .cam-buttons { display: none; }
         const wp = m.getWorldPosition(new THREE.Vector3());
         out.push({ key: m, x: wp.x, z: wp.z, y: wp.y + 0.35, r: 1.9, mesh: m,
           label: 'pick up the ' + (m.userData.carryName || 'part'), fire: () => pickUp(m) });
+      }
+    }
+    // v0.19.0: ask a nearby robot (wrist pad) — only when nothing else is in reach
+    if (level.id === 'crater' && !wristPad.open) {
+      const busy = out.some(c => !c.info && Math.hypot(c.x - player.pos.x, c.z - player.pos.z) < c.r);
+      if (!busy) for (let i = 0; i < robots.length; i++) {
+        const r = robotStates[i]; if (r.scripted) continue;
+        const rp = robots[i].position;
+        out.push({ key: 'ask' + i, x: rp.x, z: rp.z, y: rp.y + 1.5, r: 3.0,
+          label: 'ask ' + ROBOT_NAMES[i], fire: () => openWristPad(i) });
       }
     }
     void pushIt;
@@ -16065,6 +16257,7 @@ body.in-wreck .cam-buttons { display: none; }
     earth.rotation.y += dt * 0.03;
     try { updateRobotCues(Math.min(0.1, (performance.now() - (updateRobotCues._t || performance.now())) / 1000)); } catch (e) { }
     updateRobotCues._t = performance.now();
+    try { updateWristPad(); } catch (e) { }
     syncRobotGlbs();
     renderer.render(scene, camera);
   }
