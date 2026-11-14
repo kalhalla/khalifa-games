@@ -630,7 +630,7 @@ body.in-wreck .cam-buttons { display: none; }
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.17.0';  // Meshy robots, cut into jointed parts and driven by the walk rig. was v0.16.0;  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.17.1';  // built tools on the Meshy robots: drill + saw, gripper, three-finger claws. was v0.17.0;  // Meshy robots, cut into jointed parts and driven by the walk rig. was v0.16.0;  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -14314,6 +14314,95 @@ body.in-wreck .cam-buttons { display: none; }
   //   Rigid for now: a single-mesh Meshy model has no arm joints. If
   //   arms are exported as separate nodes named arm_L / arm_R they are
   //   re-parented onto the procedural arm pivots and swing with them.
+  // ── Robot tools (v0.17.1) ──
+  // Meshy could not model the tools, so its hands (nodes hand_L /
+  // hand_R, origin at the wrist) are hidden and built tools are fitted
+  // in their place, lined up with the forearm. Sizes are metres; the
+  // group is scaled by 1/k to cancel the model's fit scale.
+  //   P-03: drill (left), circular saw (right)
+  //   L-07: one forward gripper (right); left arm stops at the elbow
+  //   M-08: three-finger claws on both arms
+  const ROBOT_TOOLS = { P: { L: 'drill', R: 'saw' }, L: { L: 'stump', R: 'gripper' }, M: { L: 'claw', R: 'claw' } };
+  function buildRobotTool(kind, accent, side) {
+    const flat = (c) => new THREE.MeshPhongMaterial({ color: c, shininess: 0, flatShading: true });
+    const dark = flat(0x2c2d31), metal = flat(0x7d8087), steel = flat(0xb9bdc3), acc = flat(accent);
+    const g = new THREE.Group();
+    const add = (geo, mat, x, y, z, rx, ry, rz) => { const m = new THREE.Mesh(geo, mat);
+      m.position.set(x || 0, y || 0, z || 0); m.rotation.set(rx || 0, ry || 0, rz || 0);
+      m.castShadow = true; g.add(m); return m; };
+    const cyl = (r0, r1, h, n) => new THREE.CylinderGeometry(r0, r1, h, n || 8);
+    if (kind === 'drill') {
+      add(cyl(0.040, 0.040, 0.030), acc, 0, -0.012);          // mounting collar
+      add(cyl(0.036, 0.040, 0.095), dark, 0, -0.075);         // motor housing
+      for (let i = 0; i < 3; i++) add(cyl(0.041, 0.041, 0.006), metal, 0, -0.045 - i * 0.025);   // cooling rings
+      add(cyl(0.024, 0.030, 0.040, 6), metal, 0, -0.142);     // chuck
+      add(cyl(0.004, 0.012, 0.170, 6), steel, 0, -0.247);     // bit core
+      // helical flute: a tube wound round the bit, narrowing to the tip
+      const pts = [];
+      for (let i = 0; i <= 60; i++) { const t = i / 60, a = t * Math.PI * 9, r = 0.016 * (1 - t) + 0.004;
+        pts.push(new THREE.Vector3(Math.cos(a) * r, -0.165 - t * 0.155, Math.sin(a) * r)); }
+      add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 90, 0.0035, 4, false), steel);
+    } else if (kind === 'saw') {
+      add(new THREE.BoxGeometry(0.046, 0.030, 0.050), acc, 0, -0.010);      // wrist block
+      add(new THREE.BoxGeometry(0.026, 0.100, 0.034), dark, 0, -0.070);     // arm down to the hub
+      const disc = new THREE.Group(); disc.position.set(side * 0.030, -0.140, 0.020); g.add(disc);
+      // blade outline with 28 raked teeth, extruded thin; turned so it cuts in the robot's sagittal plane
+      const sh = new THREE.Shape(), N = 28, R = 0.105, r = 0.091;
+      for (let i = 0; i < N; i++) { const a0 = i / N * Math.PI * 2, a1 = (i + 0.72) / N * Math.PI * 2;
+        const f = (a, rr) => [Math.cos(a) * rr, Math.sin(a) * rr];
+        if (i === 0) sh.moveTo(...f(a0, r)); else sh.lineTo(...f(a0, r));
+        sh.lineTo(...f(a1, R)); }
+      sh.closePath();
+      const hole = new THREE.Path(); hole.absarc(0, 0, 0.014, 0, Math.PI * 2, true); sh.holes.push(hole);
+      const blade = new THREE.Mesh(new THREE.ExtrudeGeometry(sh, { depth: 0.006, bevelEnabled: false }), steel);
+      blade.rotation.y = Math.PI / 2; blade.position.x = -0.003; blade.castShadow = true; disc.add(blade);
+      const hub = new THREE.Mesh(cyl(0.024, 0.024, 0.030, 10), metal); hub.rotation.z = Math.PI / 2; disc.add(hub);
+      const nut = new THREE.Mesh(cyl(0.011, 0.011, 0.040, 6), dark); nut.rotation.z = Math.PI / 2; disc.add(nut);
+      // guard over the upper half of the blade
+      const guard = new THREE.Mesh(new THREE.CylinderGeometry(0.115, 0.115, 0.022, 20, 1, true, 0, Math.PI), acc);
+      guard.rotation.z = Math.PI / 2; guard.rotation.y = Math.PI / 2; guard.material.side = THREE.DoubleSide; disc.add(guard);
+      g.userData.spin = disc.children[0];
+    } else if (kind === 'gripper') {
+      add(new THREE.BoxGeometry(0.050, 0.040, 0.050), acc, 0, -0.018);      // wrist block
+      // telescoping boom pointing forward (+z = the robot's front)
+      add(new THREE.BoxGeometry(0.034, 0.034, 0.120), dark, 0, -0.030, 0.075);
+      add(new THREE.BoxGeometry(0.026, 0.026, 0.110), metal, 0, -0.030, 0.180);
+      add(new THREE.BoxGeometry(0.038, 0.012, 0.012), acc, 0, -0.030, 0.140);
+      add(new THREE.BoxGeometry(0.050, 0.044, 0.036), dark, 0, -0.030, 0.250);   // head
+      for (const sy of [-1, 1]) {                                                // two jaws, top and bottom
+        add(new THREE.BoxGeometry(0.040, 0.010, 0.060), metal, 0, -0.030 + sy * 0.018, 0.290, sy * -0.18);
+        add(new THREE.BoxGeometry(0.040, 0.010, 0.030), acc, 0, -0.030 + sy * 0.010, 0.330, sy * 0.35);
+      }
+    } else if (kind === 'claw') {
+      add(new THREE.BoxGeometry(0.046, 0.020, 0.046), acc, 0, -0.008);      // wrist band
+      add(cyl(0.030, 0.026, 0.050, 6), dark, 0, -0.042);                    // palm
+      for (let i = 0; i < 3; i++) {                                          // three fingers at 120°
+        const a = i / 3 * Math.PI * 2 + Math.PI / 2;
+        const f = new THREE.Group(); f.position.set(Math.cos(a) * 0.022, -0.064, Math.sin(a) * 0.022);
+        f.rotation.y = -a + Math.PI / 2; g.add(f);
+        const k1 = new THREE.Group(); k1.rotation.x = 0.35; f.add(k1);       // spread outward
+        const s1 = new THREE.Mesh(new THREE.BoxGeometry(0.014, 0.055, 0.014), metal); s1.position.y = -0.027; s1.castShadow = true; k1.add(s1);
+        const k2 = new THREE.Group(); k2.position.y = -0.055; k2.rotation.x = -0.75; k1.add(k2);   // curl in
+        const s2 = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.045, 0.012), acc); s2.position.y = -0.022; s2.castShadow = true; k2.add(s2);
+      }
+    }
+    return g;
+  }
+  function fitRobotTools(model, letter, accent, k) {
+    const spec = ROBOT_TOOLS[letter]; if (!spec) return;
+    for (const side of ['L', 'R']) {
+      const kind = spec[side], fore = model.getObjectByName('forearm_' + side), hand = model.getObjectByName('hand_' + side);
+      if (!fore || !hand) continue;
+      hand.visible = false;
+      if (kind === 'stump') { fore.visible = false; continue; }
+      const tool = buildRobotTool(kind, accent, side === 'L' ? -1 : 1);
+      tool.position.copy(hand.position);
+      tool.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), hand.position.clone().normalize());
+      tool.scale.setScalar(({ drill: 1.25, saw: 1.6, gripper: 1.5, claw: 1.8 }[kind] || 1) / k);
+      tool.name = 'tool_' + side;
+      fore.add(tool);
+    }
+  }
   const ROBOT_ASSET_KEYS = { P: 'robot_P03', L: 'robot_L07', M: 'robot_M08' };
   function upgradeRobotVisual(robot, letter) {
     const key = ROBOT_ASSET_KEYS[letter];
@@ -14352,7 +14441,8 @@ body.in-wreck .cam-buttons { display: none; }
       // ground in the rig: cancel the bob on them (model units).
       const legs = joints.filter(j => /^leg_/.test(j.node.name)).map(j => ({ node: j.node, y0: j.node.position.y }));
       ud.glbRig = { joints, legs, k: model.scale.y || 1 };
-      wrapped.traverse(o => { if (o.isMesh) o.visible = !/^COL_/i.test(o.name); });
+      fitRobotTools(model, letter, robotConfigs.find(c => c.letter === letter).color, model.scale.y || 1);
+      wrapped.traverse(o => { if (o.isMesh && !/^(hand_|forearm_)/.test(o.name)) o.visible = !/^COL_/i.test(o.name); });
       ud.glb = wrapped;
       console.log('[asset] robot ' + letter + ' upgraded to GLB');
     });
