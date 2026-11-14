@@ -630,7 +630,7 @@ body.in-wreck .cam-buttons { display: none; }
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.18.6';  // robot ankles: foot pad on a ball joint, kept level while planted. was v0.18.5;  // robot toes bend to stay on the ground through stance. was v0.18.4;  // robot gait: bird-like stance/swing, bigger leg swing, pistons follow, body dip, feet planted. was v0.18.3;  // engine nozzles 25% larger. was v0.18.2;  // wreck: four landing legs in housings (two intact, two buckled), half-size blackened nozzles. was v0.18.1;  // wreck: sealed middle/nose, rear-only damage + tanks, doorway recess, NASA stacked, regolith imprint. was v0.18.0;  // wreck exterior: painted skin, round hull, ogive nose, engine bells, landing legs. was v0.17.3;  // robot eyes blink and look; gestures: wave, hand up, tap-and-point. was v0.17.2;  // robot legs: piston shins, hinged toes, less body sway. was v0.17.1;  // built tools on the Meshy robots: drill + saw, gripper, three-finger claws. was v0.17.0;  // Meshy robots, cut into jointed parts and driven by the walk rig. was v0.16.0;  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.18.7';  // robot legs double-sided with dark cores; toe flaps 1.6x. was v0.18.6;  // robot ankles: foot pad on a ball joint, kept level while planted. was v0.18.5;  // robot toes bend to stay on the ground through stance. was v0.18.4;  // robot gait: bird-like stance/swing, bigger leg swing, pistons follow, body dip, feet planted. was v0.18.3;  // engine nozzles 25% larger. was v0.18.2;  // wreck: four landing legs in housings (two intact, two buckled), half-size blackened nozzles. was v0.18.1;  // wreck: sealed middle/nose, rear-only damage + tanks, doorway recess, NASA stacked, regolith imprint. was v0.18.0;  // wreck exterior: painted skin, round hull, ogive nose, engine bells, landing legs. was v0.17.3;  // robot eyes blink and look; gestures: wave, hand up, tap-and-point. was v0.17.2;  // robot legs: piston shins, hinged toes, less body sway. was v0.17.1;  // built tools on the Meshy robots: drill + saw, gripper, three-finger claws. was v0.17.0;  // Meshy robots, cut into jointed parts and driven by the walk rig. was v0.16.0;  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -14724,7 +14724,8 @@ body.in-wreck .cam-buttons { display: none; }
           t.geometry.computeBoundingBox();
           const bb = t.geometry.boundingBox;
           const len = m[1] === 'x' ? (m[2] === 'p' ? bb.max.x : -bb.min.x) : (m[2] === 'p' ? bb.max.z : -bb.min.z);
-          toes.push({ node: t, dir, len, axis: dir.clone().cross(new THREE.Vector3(0, -1, 0)).normalize() });
+          t.scale.setScalar(1.6);   // v0.18.7: bigger toe flaps (scaled about the hinge)
+          toes.push({ node: t, dir, len: len * 1.6, axis: dir.clone().cross(new THREE.Vector3(0, -1, 0)).normalize() });
         });
         const sole = foot || shin; sole.geometry.computeBoundingBox();
         const Lm = -(shin.position.y + (foot ? foot.position.y : 0) + sole.geometry.boundingBox.min.y);   // hip to sole, model units
@@ -14732,6 +14733,18 @@ body.in-wreck .cam-buttons { display: none; }
         pistons.push({ shin, foot, La, y0: shin.position.y, travel: (shin.userData && shin.userData.travel) || 0.08, toes, src: ud.shinAssemblies && ud.shinAssemblies[i], Lm });
       });
       ud.glbRig = { joints, legs, pistons, k: model.scale.y || 1 };
+      // v0.18.7: cut parts are open shells — render both sides, and put a
+      // dark solid core inside each leg sleeve and piston so a gap shows
+      // metal, not the far side of the shell
+      model.traverse(o => { if (o.isMesh && o.material) o.material.side = THREE.DoubleSide; });
+      const coreMat = new THREE.MeshPhongMaterial({ shininess: 0, color: 0x1e1f23, flatShading: true });
+      for (const nm of ['leg_L', 'leg_R', 'shin_L', 'shin_R']) {
+        const n = model.getObjectByName(nm); if (!n || !n.geometry) continue;
+        n.geometry.computeBoundingBox();
+        const b = n.geometry.boundingBox, sz = b.getSize(new THREE.Vector3()), c = b.getCenter(new THREE.Vector3());
+        const core = new THREE.Mesh(new THREE.BoxGeometry(sz.x * 0.82, sz.y * 0.98, sz.z * 0.82), coreMat);
+        core.position.copy(c); n.add(core);
+      }
       // v0.18.4: stride from real leg length → cadence that keeps planted feet still at the 0.40 m/s walk
       if (pistons.length) {
         const legW = pistons[0].La * ud.glbRig.k, stride = 2 * legW * Math.sin(GAIT_A);   // the level foot travels with the ankle
