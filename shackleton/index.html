@@ -667,7 +667,7 @@ body.in-wreck .cam-buttons { display: none; }
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.19.0';  // helmet radio for all voices; robot chirps + eye flash; wrist-pad questions to the robots. was v0.18.7;  // robot legs double-sided with dark cores; toe flaps 1.6x. was v0.18.6;  // robot ankles: foot pad on a ball joint, kept level while planted. was v0.18.5;  // robot toes bend to stay on the ground through stance. was v0.18.4;  // robot gait: bird-like stance/swing, bigger leg swing, pistons follow, body dip, feet planted. was v0.18.3;  // engine nozzles 25% larger. was v0.18.2;  // wreck: four landing legs in housings (two intact, two buckled), half-size blackened nozzles. was v0.18.1;  // wreck: sealed middle/nose, rear-only damage + tanks, doorway recess, NASA stacked, regolith imprint. was v0.18.0;  // wreck exterior: painted skin, round hull, ogive nose, engine bells, landing legs. was v0.17.3;  // robot eyes blink and look; gestures: wave, hand up, tap-and-point. was v0.17.2;  // robot legs: piston shins, hinged toes, less body sway. was v0.17.1;  // built tools on the Meshy robots: drill + saw, gripper, three-finger claws. was v0.17.0;  // Meshy robots, cut into jointed parts and driven by the walk rig. was v0.16.0;  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.19.1';  // KHAL on the hull; wreck interior dressed; blockout labels dev-only. was v0.19.0;  // helmet radio for all voices; robot chirps + eye flash; wrist-pad questions to the robots. was v0.18.7;  // robot legs double-sided with dark cores; toe flaps 1.6x. was v0.18.6;  // robot ankles: foot pad on a ball joint, kept level while planted. was v0.18.5;  // robot toes bend to stay on the ground through stance. was v0.18.4;  // robot gait: bird-like stance/swing, bigger leg swing, pistons follow, body dip, feet planted. was v0.18.3;  // engine nozzles 25% larger. was v0.18.2;  // wreck: four landing legs in housings (two intact, two buckled), half-size blackened nozzles. was v0.18.1;  // wreck: sealed middle/nose, rear-only damage + tanks, doorway recess, NASA stacked, regolith imprint. was v0.18.0;  // wreck exterior: painted skin, round hull, ogive nose, engine bells, landing legs. was v0.17.3;  // robot eyes blink and look; gestures: wave, hand up, tap-and-point. was v0.17.2;  // robot legs: piston shins, hinged toes, less body sway. was v0.17.1;  // built tools on the Meshy robots: drill + saw, gripper, three-finger claws. was v0.17.0;  // Meshy robots, cut into jointed parts and driven by the walk rig. was v0.16.0;  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -9003,10 +9003,10 @@ body.in-wreck .cam-buttons { display: none; }
         x.fillStyle = color; x.fillText(txt, 0, 0);
         x.restore();
       };
-      // v0.18.1: NASA, letters stacked as on a rocket standing on its
+      // v0.18.1: agency name (KHAL since v0.19.1), letters stacked as on a rocket standing on its
       // tail — so on the toppled hull they lie on their sides.
       const stackLetters = (u) => {
-        ['N', 'A', 'S', 'A'].forEach((ch, i) => {
+        ['K', 'H', 'A', 'L'].forEach((ch, i) => {   // v0.19.1: KHAL (fictional agency), not NASA
           x.save(); x.setTransform(-1, 0, 0, 1, U(u), V(0.86 - i * 0.068));   // glyph up = toward the nose; mirrored for the outside view
           x.font = '900 190px "Arial Black", Arial, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
           x.fillStyle = 'rgba(28,30,34,0.93)'; x.fillText(ch, 0, 0); x.restore();
@@ -15054,6 +15054,33 @@ body.in-wreck .cam-buttons { display: none; }
     if (k >= 1 && k <= wristPad.list.length) askRobot(k - 1);
   });
 
+  // ============================================================
+  // MUSIC (v0.19.1) — the score: an original organ-led ambient loop
+  // (assets/music/shackleton_theme.mp3, 128 s, seamless). Fades in once
+  // he is on his feet after the opening; sits lower inside the wreck;
+  // fades out for memories and the demo ending (memory spec §6).
+  // ============================================================
+  const music = { gain: null, started: false, loading: false, level: 0.30 };
+  function updateMusic() {
+    if (!audioCtx || !masterGain) return;
+    if (!music.started) {
+      if (music.loading || (typeof opening !== 'undefined' && (opening.active || opening.phase !== 'done'))) return;
+      music.loading = true;
+      fetch('/shackleton/assets/music/shackleton_theme.mp3?v=' + encodeURIComponent(BUILD_VERSION))
+        .then(r => r.arrayBuffer()).then(b => audioCtx.decodeAudioData(b)).then(buf => {
+          music.gain = audioCtx.createGain(); music.gain.gain.value = 0; music.gain.connect(masterGain);
+          const src = audioCtx.createBufferSource(); src.buffer = buf; src.loop = true; src.connect(music.gain); src.start();
+          music.started = true;
+        }).catch(e => console.warn('[music] not loaded', e));
+      return;
+    }
+    let target = music.level;
+    if (level.id === 'wreck') target *= 0.7;
+    if (typeof shackletonMemory !== 'undefined' && shackletonMemory.isActive()) target = 0;
+    if (typeof demoEnd !== 'undefined' && demoEnd.active) target = 0;
+    music.gain.gain.setTargetAtTime(target, audioCtx.currentTime, target === 0 ? 0.25 : 1.2);
+  }
+
   // Who gestures when.
   const robotCues = { greeted: [false, false, false], nudgeT: 30, pinnedT: 3 };
   function updateRobotCues(dt) {
@@ -15703,6 +15730,7 @@ body.in-wreck .cam-buttons { display: none; }
     // being cropped), drawn at one constant on-screen size from every
     // camera, and only shown when he is near it.
     const labels = [];
+    const SHOW_LABELS = /[?&](debug|wreck2)\b/.test(location.search);   // v0.19.1: blockout notes are dev-only
     function label(text, x, y, z, col) {
       const c = document.createElement('canvas');
       let g = c.getContext('2d'); g.font = '30px monospace';
@@ -15715,7 +15743,7 @@ body.in-wreck .cam-buttons { display: none; }
       const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true, sizeAttenuation: false }));
       const hgt = 0.03;
       sp.scale.set(hgt * c.width / c.height, hgt, 1); sp.position.set(x * WL_K, y, z * WL_K); sp.renderOrder = 997;
-      root.add(sp); labels.push(sp);
+      if (SHOW_LABELS) { root.add(sp); labels.push(sp); }
       return sp;
     }
 
@@ -15867,6 +15895,367 @@ body.in-wreck .cam-buttons { display: none; }
     const SPAWN = { x: 26.5 * WL_K, z: -1.7 * WL_K, heading: 0 };
     const EXIT = { x: 26.5 * WL_K, z: -2.2 * WL_K };
     return { root, boxes, zones, lights, lamp, flare, labels, SPAWN, EXIT };
+  })();
+
+
+  // ============================================================
+  // WRECK INTERIOR DRESSING (v0.19.1)
+  // Turns the blockout into rooms. Everything here is visual (no new
+  // colliders) and keeps clear of the two puzzle areas: the stabiliser
+  // in life support (+z side) and the brace in the cargo bay (x ≈ 52–62 m,
+  // −z side). The ship was built to stand on its tail (nose = −x is "up"),
+  // so stencils read sideways, seats and bunks hang on the walls, and loose
+  // things have fallen to the same side.
+  // ============================================================
+  const wreckDress = (function () {
+    const R = wreckLevel.root, K = WL_K, HW = WL_HALF_W * K - 0.02;   // inner wall plane, metres
+    const X = (d) => d * K;
+    const anim = [];                       // { tick(t) }
+    // ── textures ──
+    function canvasTex(w, h, draw, rep) {
+      const c = document.createElement('canvas'); c.width = w; c.height = h;
+      draw(c.getContext('2d'), w, h);
+      const t = new THREE.CanvasTexture(c);
+      t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4;
+      if (rep) t.repeat.set(rep[0], rep[1]);
+      return t;
+    }
+    const R2 = (i) => rng(i + 77000);
+    function panelDraw(base, seam, rivet, seed) {
+      return (g, w, h) => {
+        g.fillStyle = base; g.fillRect(0, 0, w, h);
+        const n = 4;
+        for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+          const k = (R2(seed + i * 7 + j * 13) - 0.5) * 18;
+          g.fillStyle = `rgba(${k > 0 ? '255,255,255' : '0,0,0'},${Math.abs(k) / 255})`;
+          g.fillRect(i * w / n + 2, j * h / n + 2, w / n - 4, h / n - 4);
+        }
+        g.fillStyle = seam;
+        for (let i = 0; i <= n; i++) { g.fillRect(i * w / n - 1.5, 0, 3, h); g.fillRect(0, i * h / n - 1.5, w, 3); }
+        g.fillStyle = rivet;
+        for (let i = 0; i <= n; i++) for (let px = 8; px < w; px += 16) { g.fillRect(px, i * h / n + 5, 3, 3); g.fillRect(i * w / n + 5, px, 3, 3); }
+        for (let i = 0; i < 40; i++) {               // grime streaks
+          g.fillStyle = `rgba(20,18,16,${0.04 + R2(seed + 500 + i) * 0.08})`;
+          g.fillRect(R2(seed + 600 + i) * w, R2(seed + 700 + i) * h, 2 + R2(seed + 800 + i) * 4, 20 + R2(seed + 900 + i) * 120);
+        }
+      };
+    }
+    const texWall  = canvasTex(512, 512, panelDraw('#6a6e75', 'rgba(30,32,36,0.8)', 'rgba(40,42,46,0.7)', 1));
+    const texHull  = canvasTex(512, 512, panelDraw('#4e5258', 'rgba(22,24,28,0.85)', 'rgba(30,32,36,0.7)', 2));
+    const texDeck  = canvasTex(256, 256, (g, w, h) => {      // deck grating
+      g.fillStyle = '#3b3e43'; g.fillRect(0, 0, w, h);
+      g.strokeStyle = 'rgba(15,16,18,0.9)'; g.lineWidth = 3;
+      for (let i = -h; i < w; i += 18) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i + h, h); g.stroke(); }
+      for (let i = 0; i < w + h; i += 18) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i - h, h); g.stroke(); }
+      g.fillStyle = 'rgba(0,0,0,0.5)'; g.fillRect(0, 0, w, 4); g.fillRect(0, 0, 4, h);
+    });
+    const texHab   = canvasTex(256, 256, panelDraw('#8c9198', 'rgba(40,42,46,0.6)', 'rgba(60,62,66,0.5)', 3));
+    const texHaz   = canvasTex(128, 128, (g, w, h) => {
+      g.fillStyle = '#1c1c1e'; g.fillRect(0, 0, w, h); g.fillStyle = '#d9a21e';
+      for (let i = -h; i < w; i += 32) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i + 16, 0); g.lineTo(i + 16 + h, h); g.lineTo(i + h, h); g.fill(); }
+    });
+    const PM = (o) => new THREE.MeshPhongMaterial(Object.assign({ shininess: 0, flatShading: true }, o));
+    const mWall = PM({ map: texWall }), mHull = PM({ map: texHull, side: THREE.BackSide }), mHullF = PM({ map: texHull });
+    const mDeck = PM({ map: texDeck }), mHab = PM({ map: texHab }), mHaz = PM({ map: texHaz });
+    const mDark = PM({ color: 0x26282c }), mMetal = PM({ color: 0x7d8189 }), mSteel = PM({ color: 0xa9adb3 });
+    const mCloth = PM({ color: 0x4a5a6e }), mMatt = PM({ color: 0x6f7e8c }), mWhite = PM({ color: 0xd8d6cf });
+    const mOrange = PM({ color: 0xc8692a }), mCable = PM({ color: 0x18191b });
+    const glow = (c) => { const m = new THREE.MeshBasicMaterial({ color: c }); m.toneMapped = false; return m; };
+    // box-map UVs so a texture tiles at a constant size (≈ tile metres per repeat)
+    function tileBoxUV(geo, tile) {
+      const p = geo.parameters, uv = geo.attributes.uv;
+      const dims = [[p.depth, p.height], [p.depth, p.height], [p.width, p.depth], [p.width, p.depth], [p.width, p.height], [p.width, p.height]];
+      for (let f = 0; f < 6; f++) for (let v = 0; v < 4; v++) { const i = f * 4 + v; uv.setXY(i, uv.getX(i) * dims[f][0] / tile, uv.getY(i) * dims[f][1] / tile); }
+      uv.needsUpdate = true;
+    }
+    // ── re-skin the blockout ──
+    R.traverse(o => {
+      if (!o.isMesh || !o.material || !o.material.color) return;
+      const hex = o.material.color.getHex();
+      if (o.geometry.type === 'CylinderGeometry' && o.material.side === THREE.BackSide) {   // the hull tube
+        const t = texHull.clone(); t.needsUpdate = true; t.repeat.set(7, WL_LEN * K / 3);
+        o.material = PM({ map: t, side: THREE.BackSide }); return;
+      }
+      if (o.geometry.type !== 'BoxGeometry') return;
+      if (hex === 0x4a4d52) { tileBoxUV(o.geometry, 2.2); o.material = mDeck; }           // floor
+      else if (hex === 0x8f959c) { tileBoxUV(o.geometry, 1.8); o.material = mHab; }       // habitat floor panels
+      else if (hex === 0x5d6066) { tileBoxUV(o.geometry, 3); o.material = mHullF; }       // side walls / crushed nose
+      else if (hex === 0x7b7f86) { tileBoxUV(o.geometry, 2.4); o.material = mWall; }      // bulkheads, plates, debris
+      else if (hex === 0xb3393a) { tileBoxUV(o.geometry, 1.2); o.material = mHaz; }       // sealed tail
+      else if (hex === 0x3f78c8) { o.material = mDark; }                                   // devices (dressed below)
+      else if (hex === 0x8a5cc8) { o.material = PM({ color: 0x5c6470 }); }                // personal locker
+      else if (hex === 0x2f3136) { o.visible = false; }                                    // seat blocks → real seats below
+    });
+    // ── helpers ──
+    function add(geo, mat, x, y, z, rx, ry, rz, shadow) {
+      const m = new THREE.Mesh(geo, mat);
+      m.position.set(x, y, z); m.rotation.set(rx || 0, ry || 0, rz || 0);
+      if (shadow) { m.castShadow = true; m.receiveShadow = true; }
+      R.add(m); return m;
+    }
+    const B = (w, h, d) => new THREE.BoxGeometry(w, h, d);
+    const C = (r0, r1, h, n) => new THREE.CylinderGeometry(r0, r1, h, n || 10);
+    function stencil(text, x, y, z, ry, rz, size, color, opts) {
+      opts = opts || {};
+      const c = document.createElement('canvas'); let g = c.getContext('2d');
+      g.font = '900 64px "Arial Black", Arial, sans-serif';
+      c.width = Math.ceil(g.measureText(text).width) + 24; c.height = 84;
+      g = c.getContext('2d'); g.font = '900 64px "Arial Black", Arial, sans-serif';
+      g.fillStyle = color || 'rgba(225,225,215,0.85)'; g.textBaseline = 'middle'; g.fillText(text, 12, 44);
+      const t = new THREE.CanvasTexture(c);
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(size * c.width / c.height, size),
+        new THREE.MeshPhongMaterial({ map: t, transparent: true, shininess: 0, depthWrite: false,
+          polygonOffset: true, polygonOffsetFactor: -2, emissive: opts.glow ? new THREE.Color(color) : undefined }));
+      m.position.set(x, y, z); m.rotation.set(0, ry || 0, rz || 0); R.add(m); return m;
+    }
+    // A stencil on a side wall, reading with "up" toward the nose (−x): sideways.
+    const wallText = (text, xd, y, side, size, col) =>
+      stencil(text, X(xd), y, side * HW, side > 0 ? Math.PI : 0, side > 0 ? -Math.PI / 2 : Math.PI / 2, size, col);
+    function cable(points, r) {
+      const curve = new THREE.CatmullRomCurve3(points.map(p => new THREE.Vector3(p[0], p[1], p[2])));
+      return add(new THREE.TubeGeometry(curve, 24, r || 0.03, 5, false), mCable, 0, 0, 0);
+    }
+    // a cable hanging from the hull top at (x, z), length L, swinging slightly
+    function hangingCable(x, z, L, seed) {
+      const top = 9.6, sway = (R2(seed) - 0.5) * 0.6;
+      cable([[x, top, z], [x + sway * 0.3, top - L * 0.4, z + sway * 0.2], [x + sway, top - L * 0.8, z + sway * 0.5], [x + sway * 1.3, top - L, z + sway]], 0.025 + R2(seed + 1) * 0.02);
+    }
+    function lightStrip(x0, x1, y, z, color, flicker) {
+      const m = add(B(x1 - x0, 0.06, 0.08), glow(color), (x0 + x1) / 2, y, z);
+      if (flicker) { const base = m.material.color.clone(); anim.push({ tick(t) { const on = Math.sin(t * 13.1 + x0) + Math.sin(t * 7.3) > -0.4; m.material.color.copy(base).multiplyScalar(on ? 1 : 0.15); } }); }
+      add(B(x1 - x0 + 0.1, 0.12, 0.05), mDark, (x0 + x1) / 2, y, z + (z > 0 ? 0.06 : -0.06));
+      return m;
+    }
+    function blinkLED(x, y, z, color, rate, phase) {
+      const m = add(B(0.05, 0.05, 0.03), glow(color), x, y, z);
+      const base = m.material.color.clone();
+      anim.push({ tick(t) { m.material.color.copy(base).multiplyScalar(Math.sin(t * rate + phase) > 0.3 ? 1 : 0.12); } });
+      return m;
+    }
+    function screen(x, y, z, w, h, ry, lines, color) {
+      const tex = canvasTex(256, 160, (g, W, H) => {
+        g.fillStyle = '#05100a'; g.fillRect(0, 0, W, H); g.fillStyle = color || '#4fd27a'; g.font = '16px monospace';
+        (lines || []).forEach((l, i) => g.fillText(l, 10, 26 + i * 22));
+        g.fillStyle = 'rgba(0,0,0,0.25)'; for (let yy = 0; yy < H; yy += 3) g.fillRect(0, yy, W, 1);
+      });
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: tex }));
+      m.material.toneMapped = false; m.position.set(x, y, z); m.rotation.y = ry || 0; R.add(m); return m;
+    }
+    // pipes along a wall with brackets
+    function pipeRun(x0, x1, y, z, r, mat) {
+      add(C(r, r, x1 - x0, 8), mat || mMetal, (x0 + x1) / 2, y, z, 0, 0, Math.PI / 2);
+      for (let x = x0 + 0.6; x < x1; x += 1.6) add(B(0.08, r * 2 + 0.1, 0.18), mDark, x, y, z + (z > 0 ? 0.06 : -0.06));
+    }
+    // debris scattered along one side (things fell to the same side)
+    function debris(x0, x1, zc, zs, n, seed) {
+      for (let i = 0; i < n; i++) {
+        const a = R2(seed + i * 3), b = R2(seed + i * 3 + 1), c = R2(seed + i * 3 + 2);
+        const x = x0 + a * (x1 - x0), z = zc + (b - 0.5) * zs;
+        const kind = i % 4;
+        if (kind === 0) add(B(0.3 + c * 0.5, 0.04, 0.2 + b * 0.4), mWall, x, 0.02, z, 0, c * 3, 0);            // plate
+        else if (kind === 1) add(C(0.05, 0.05, 0.22, 7), mWhite, x, 0.05, z, Math.PI / 2, c * 3, 0);             // bottle
+        else if (kind === 2) add(new THREE.PlaneGeometry(0.21, 0.29), PM({ color: 0xe8e4d8, side: THREE.DoubleSide }), x, 0.012, z, -Math.PI / 2, 0, c * 3);  // paper
+        else add(B(0.18, 0.12, 0.26), mDark, x, 0.06, z, 0, c * 3, 0);                                         // case
+      }
+    }
+    // doorway dressing on each bulkhead (the old decks): striped frame + deck number
+    [[7, 0.5, 'DECK 6'], [14, -0.6, 'DECK 5'], [23, 0.4, 'DECK 4'], [30, -0.4, 'DECK 3']].forEach(([xd, dz, name]) => {
+      const x = X(xd), z = X(dz), w = 0.85 * 2 * K;
+      for (const sx of [-1, 1]) {
+        add(B(0.4, 2.4, 0.12), mHaz, x + sx * 0.0, 1.2, z - w / 2 - 0.06, 0, 0, 0);
+        add(B(0.4, 2.4, 0.12), mHaz, x + sx * 0.0, 1.2, z + w / 2 + 0.06, 0, 0, 0);
+      }
+      add(B(0.42, 0.14, w + 0.24), mHaz, x, 2.45, z);
+      for (const face of [-1, 1]) stencil(name, x + face * 0.2, 3.3, z, face > 0 ? Math.PI / 2 : -Math.PI / 2, 0, 0.42, 'rgba(230,226,210,0.8)');
+    });
+    // ── FLIGHT DECK (x 0–10.5 m) ──
+    {
+      // two flight seats on the aft bulkhead (the old floor), facing the nose
+      for (const [y, z] of [[2.2, 1.7], [2.2, -0.2]]) {
+        const sx = X(7) - 0.2;
+        add(B(0.14, 1.2, 0.7), mDark, sx, y + 0.6, z, 0, 0, 0, true);                         // back, on the bulkhead
+        add(B(0.7, 0.14, 0.7), mDark, sx - 0.36, y, z, 0, 0, 0, true);                       // seat pan sticking out
+        add(B(0.14, 0.32, 0.4), mDark, sx, y + 1.36, z);                                      // headrest
+        for (const dz of [-0.18, 0.18]) add(B(0.03, 0.9, 0.07), mOrange, sx - 0.09, y + 0.6, z + dz);   // harness
+        add(B(0.03, 0.08, 0.5), mOrange, sx - 0.09, y + 0.55, z);
+      }
+      wallText('FLIGHT DECK', 4.5, 6.0, 1, 0.55);
+      wallText('UP ▲', 2.4, 4.2, -1, 0.5, 'rgba(201,104,34,0.9)');
+      // consoles along the crushed nose with dim screens
+      screen(X(1.7), 1.6, X(0.3), 0.7, 0.45, Math.PI / 2, ['NAV  --.--', 'ATT  ERR', 'GUID FAIL', '> ABORT?'], '#e35a4a');
+      screen(X(1.7), 2.3, X(-0.6), 0.7, 0.45, Math.PI / 2, ['O2   10%', 'PWR  RES', 'COMM RX', 'TX   ---'], '#4fd27a');
+      // the radio (blockout box at 3.0, −2.3): handset, coiled cord, blinking light
+      add(B(0.5, 0.25, 0.3), mDark, X(3.0) - 0.3, 1.12, X(-2.3) + 0.2);
+      add(C(0.05, 0.05, 0.28, 8), mSteel, X(3.0) + 0.2, 1.1, X(-2.3) + 0.3, 0, 0, Math.PI / 2);
+      { const pts = []; for (let i = 0; i <= 50; i++) { const a = i * 0.9; pts.push([X(3.0) + 0.1 - i * 0.012, 1.05 - i * 0.012, X(-2.3) + 0.3 + Math.sin(a) * 0.05]); } cable(pts, 0.012); }
+      blinkLED(X(3.0) - 0.1, 1.2, X(-2.3) + 0.62, 0xff3020, 5, 0);
+      screen(X(3.0), 1.45, X(-2.3) + 0.62, 0.5, 0.3, 0, ['RX  ...', 'SHACKLETON?'], '#e8c050');
+      for (let i = 0; i < 5; i++) hangingCable(X(1 + i * 1.2), X(-1.5 + R2(i + 30) * 3), 2 + R2(i + 40) * 3, i + 50);
+      debris(X(1), X(6.5), X(-2.2), 2.0, 14, 100);
+    }
+    // ── CREW QUARTERS (x 10.5–21 m) ──
+    {
+      // bunks on the +z wall (blockout slabs at y 2.4 and 4.0): mattress, pillow, strap, curtain
+      for (const y of [2.4, 4.0]) {
+        const x = X(11.2), z = X(2.6) - 0.1;
+        add(B(2.9, 0.16, 0.95), mMatt, x, y + 0.7, z - 0.05);
+        add(B(0.5, 0.12, 0.7), mWhite, x - 1.15, y + 0.84, z - 0.05);
+        add(B(0.06, 0.2, 1.0), mOrange, x + 0.4, y + 0.8, z - 0.05);
+        add(new THREE.PlaneGeometry(2.9, 1.3), PM({ color: 0x3d4a5c, side: THREE.DoubleSide }), x, y + 1.1, z - 0.62, 0.15, 0, 0);
+      }
+      wallText('CREW', 9.0, 6.5, 1, 0.6);
+      wallText('UP ▲', 12.5, 6.5, -1, 0.5, 'rgba(201,104,34,0.9)');
+      // a row of crew lockers on the −z wall, doors hanging open, contents spilled below
+      for (let i = 0; i < 4; i++) {
+        const x = X(8.4) + i * 0.75, z = -HW + 0.3;
+        add(B(0.7, 1.8, 0.55), mWall, x, 0.9 + 1.4, z);
+        add(B(0.62, 1.7, 0.04), mMetal, x - 0.3 - 0.0, 2.3, z + 0.55, 0, 1.2 + i * 0.2, 0);   // open door
+      }
+      debris(X(8.2), X(13), -HW + 1.0, 1.4, 22, 200);
+      // shirts and kit in a drift along the wall
+      for (let i = 0; i < 6; i++) add(B(0.45, 0.05, 0.35), PM({ color: [0x3e5b80, 0xb0b4b8, 0x6b4a3a, 0x2f3a48][i % 4] }), X(8.6) + i * 0.6, 0.03, -HW + 0.8 + R2(i + 300) * 0.6, 0, R2(i + 310) * 3, 0);
+      // his locker (the M08 site): a photo taped inside the door, warm-toned
+      {
+        const x = X(12.8), z = X(-2.6) + 0.48;
+        const photo = canvasTex(128, 96, (g, W, H) => {
+          const gr = g.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, '#d8a36a'); gr.addColorStop(1, '#7a4d2e');
+          g.fillStyle = gr; g.fillRect(0, 0, W, H); g.fillStyle = 'rgba(40,24,14,0.85)';
+          for (const [cx, hgt] of [[38, 50], [70, 54], [96, 32]]) { g.beginPath(); g.arc(cx, H - hgt - 8, hgt * 0.17, 0, Math.PI * 2); g.fill(); g.fillRect(cx - hgt * 0.16, H - hgt, hgt * 0.32, hgt); }
+          g.strokeStyle = '#f2ead8'; g.lineWidth = 6; g.strokeRect(0, 0, W, H);
+        });
+        add(new THREE.PlaneGeometry(0.22, 0.16), new THREE.MeshPhongMaterial({ map: photo, shininess: 0 }), x, 1.35, z + 0.01);
+        add(B(0.05, 0.05, 0.01), PM({ color: 0xe8d64a }), x + 0.15, 1.45, z + 0.012);   // a star sticker
+        screen(x, 1.75, z + 0.01, 0.35, 0.12, 0, ['MISSION LEAD'], '#c8ccd2');
+      }
+      for (let i = 0; i < 4; i++) hangingCable(X(8 + i * 1.6), X(0.8 + R2(i + 60)), 1.5 + R2(i + 70) * 2.5, i + 80);
+      lightStrip(X(7.5), X(13.5), 8.0, -HW + 0.08, 0xff4a3a, true);
+    }
+    // ── LIFE SUPPORT (x 21–34.5 m), converted: tidy. Puzzle A on the +z side. ──
+    {
+      for (let i = 0; i < 4; i++) {                             // equipment racks on the −z wall
+        const x = X(15.6) + i * 1.25, z = -HW + 0.4;
+        add(B(1.0, 2.4, 0.7), mWall, x, 1.2, z, 0, 0, 0, true);
+        for (let r = 0; r < 4; r++) for (let c = 0; c < 3; c++) blinkLED(x - 0.3 + c * 0.3, 0.6 + r * 0.45, z + 0.36, [0x4fd27a, 0xe8c050, 0x4fd27a, 0x5cb4f0][(r + c + i) % 4], 1.3 + ((r * 3 + c + i) % 5) * 0.7, r + c);
+      }
+      for (let i = 0; i < 3; i++) {                             // scrubber cylinders
+        add(C(0.32, 0.32, 1.8, 12), mSteel, X(21.0) + i * 0.8, 0.9, -HW + 0.45, 0, 0, 0, true);
+        add(C(0.34, 0.34, 0.08, 12), mDark, X(21.0) + i * 0.8, 1.5, -HW + 0.45);
+        add(C(0.34, 0.34, 0.08, 12), mDark, X(21.0) + i * 0.8, 0.3, -HW + 0.45);
+      }
+      pipeRun(X(14.3), X(22.8), 3.2, -HW + 0.18, 0.09);
+      pipeRun(X(14.3), X(22.8), 3.55, -HW + 0.18, 0.06, mOrange);
+      pipeRun(X(14.3), X(22.8), 6.5, HW - 0.18, 0.11);
+      screen(X(17.0), 2.9, -HW + 0.06, 1.0, 0.55, 0, ['LIFE SUPPORT', 'O2 RESERVE  LOW', 'SCRUB   OK', 'STAB    FAULT'], '#4fd27a');
+      wallText('LIFE SUPPORT', 18.5, 7.0, 1, 0.6);
+      wallText('UP ▲', 15.5, 5.0, -1, 0.5, 'rgba(201,104,34,0.9)');
+      lightStrip(X(14.6), X(22.6), 8.2, -HW + 0.08, 0xdfe8ff, false);
+      lightStrip(X(14.6), X(22.6), 8.2, HW - 0.08, 0xdfe8ff, false);
+    }
+    // ── AIRLOCK AND SUIT BAY (x 34.5–45 m), the way in ──
+    {
+      // suits hanging on the racks (+z wall, blockout racks at x 24.3/25.3/26.3)
+      R.children.filter(o => o.isMesh && o.geometry.type === 'BoxGeometry' && Math.abs(o.position.z - X(2.7)) < 0.05 &&
+        o.position.x > X(24) && o.position.x < X(26.6)).forEach(o => { o.visible = false; });
+      add(B(X(3.4), 0.1, 0.1), mSteel, X(25.3), 2.25, HW - 0.25);
+      for (let i = 0; i < 3; i++) {
+        const x = X(24.3 + i), z = HW - 0.55;
+        add(B(0.55, 0.75, 0.38), mWhite, x, 1.6, z, 0, 0, 0, true);                         // torso
+        add(B(0.45, 0.5, 0.3), mWhite, x, 1.0, z);                                          // hips
+        for (const sx of [-1, 1]) {
+          add(C(0.1, 0.09, 0.62, 8), mWhite, x + sx * 0.36, 1.55, z);                        // arms
+          add(C(0.11, 0.1, 0.75, 8), mWhite, x + sx * 0.13, 0.42, z);                        // legs
+        }
+        add(B(0.5, 0.6, 0.25), mDark, x, 1.65, z + 0.3);                                   // backpack
+        add(B(0.12, 0.05, 0.02), mOrange, x - 0.16, 1.8, z - 0.2);                          // patch
+      }
+      for (let i = 0; i < 3; i++) {                                                        // helmets on a shelf
+        add(B(0.5, 0.05, 0.4), mSteel, X(27.6) + i * 0.6, 2.4, HW - 0.3);
+        add(new THREE.SphereGeometry(0.17, 12, 9), mWhite, X(27.6) + i * 0.6, 2.6, HW - 0.3);
+        add(new THREE.SphereGeometry(0.12, 10, 8, 0, Math.PI), PM({ color: 0x1a2230, shininess: 60, flatShading: false }), X(27.6) + i * 0.6, 2.6, HW - 0.42, 0, Math.PI, 0);
+      }
+      screen(X(28.6), 1.75, HW - 0.68, 0.5, 0.3, Math.PI, ['O2 FILL', 'READY'], '#4fd27a');
+      wallText('AIRLOCK', 25.0, 6.5, 1, 0.6);
+      wallText('SUIT BAY ▲', 27.8, 4.2, 1, 0.42);
+      // the breach on the −z wall: a jagged hole looking out on to the crater
+      // (black sky, sunlit regolith), metal peeled inward from the impact
+      {
+        const bx = X(26.5), by = 1.75, rx = 2.0, ry = 1.75, N = 22;
+        const shape = new THREE.Shape(), rim = [];
+        for (let i = 0; i < N; i++) {
+          const a = i / N * Math.PI * 2, j = 0.78 + R2(i + 880) * 0.32;
+          rim.push([Math.cos(a) * rx * j, Math.max(-by + 0.02, Math.sin(a) * ry * j)]);
+        }
+        rim.forEach(([x, y], i) => i ? shape.lineTo(x, y) : shape.moveTo(x, y)); shape.closePath();
+        const view = canvasTex(512, 512, (g, W, H) => {
+          g.fillStyle = '#000'; g.fillRect(0, 0, W, H);
+          for (let i = 0; i < 60; i++) { g.fillStyle = `rgba(255,255,255,${0.3 + R2(i + 1100) * 0.6})`; g.fillRect(R2(i + 1200) * W, R2(i + 1300) * H * 0.5, 1.5, 1.5); }
+          const gr = g.createLinearGradient(0, H * 0.55, 0, H); gr.addColorStop(0, '#9d9a94'); gr.addColorStop(1, '#ecebe6');
+          g.fillStyle = gr; g.beginPath(); g.moveTo(0, H * 0.6);
+          for (let x = 0; x <= W; x += 16) g.lineTo(x, H * 0.56 + Math.sin(x * 0.02) * 10 + R2(x + 1400) * 6);
+          g.lineTo(W, H); g.lineTo(0, H); g.fill();
+          g.fillStyle = 'rgba(30,30,32,0.75)'; for (let i = 0; i < 9; i++) { const x = R2(i + 1500) * W, y = H * 0.66 + R2(i + 1600) * H * 0.3, r = 6 + R2(i + 1700) * 18; g.beginPath(); g.ellipse(x, y, r, r * 0.45, 0, 0, Math.PI * 2); g.fill(); }
+        });
+        view.repeat.set(1 / (rx * 2), 1 / (ry * 2)); view.offset.set(0.5, 0.5);
+        const brG = new THREE.ShapeGeometry(shape);
+        R.children.filter(o => o.isMesh && o.geometry.type === 'PlaneGeometry' && o.material.color && o.material.color.getHex() === 0xe8ecf2)
+          .forEach(o => { o.geometry = brG; o.material = new THREE.MeshBasicMaterial({ map: view }); o.material.toneMapped = false; o.position.y = by; });
+        // petals: base on the rim, pointing out into the wall, bent into the room
+        rim.forEach(([x, y], i) => {
+          const [x2, y2] = rim[(i + 1) % N];
+          const mx = (x + x2) / 2, my = (y + y2) / 2, d = Math.hypot(mx, my) || 1, L = 0.35 + R2(i + 920) * 0.45;
+          const petal = new THREE.BufferGeometry();
+          petal.setAttribute('position', new THREE.Float32BufferAttribute([x, y, 0, x2, y2, 0, mx + mx / d * L * 0.6, my + my / d * L * 0.6, 0.2 + R2(i + 930) * 0.35], 3));
+          petal.computeVertexNormals();
+          const m = add(petal, PM({ color: 0x6a6e74, side: THREE.DoubleSide }), bx, by, -HW + 0.04);
+          m.castShadow = true;
+        });
+      }
+      debris(X(24), X(29), -HW + 1.4, 1.2, 10, 400);
+      for (let i = 0; i < 3; i++) hangingCable(X(24.5 + i * 2), X(1.6), 1.2 + R2(i + 90) * 2, i + 95);
+    }
+    // ── CARGO BAY (x 45–65 m). Puzzle B on the −z side around x 52–62 m ──
+    {
+      const crateTex = (txt) => canvasTex(256, 256, (g, W, H) => {
+        g.fillStyle = '#8a7a5c'; g.fillRect(0, 0, W, H);
+        g.strokeStyle = '#4a4232'; g.lineWidth = 10; g.strokeRect(5, 5, W - 10, H - 10);
+        g.beginPath(); g.moveTo(5, 5); g.lineTo(W - 5, H - 5); g.stroke();
+        g.fillStyle = 'rgba(25,24,20,0.85)'; g.font = '900 40px "Arial Black", Arial'; g.textAlign = 'center';
+        g.fillText(txt[0], W / 2, H / 2 - 6); g.font = '700 22px Arial'; g.fillText(txt[1], W / 2, H / 2 + 26);
+      });
+      const crates = [[31.2, 2.4, 1.2, ['KHAL', 'ISRU-02 SURVEY']], [32.2, 2.2, 1.0, ['KHAL', 'FLYER SPARES']], [31.6, 1.2, 0.9, ['FRAGILE', 'NAV KIT']], [33.0, -0.6, 0.8, ['KHAL', 'TOOLS']]];
+      crates.forEach(([xd, zd, sz, txt], i) => {
+        const m = add(B(sz, sz, sz), new THREE.MeshPhongMaterial({ map: crateTex(txt), shininess: 0, flatShading: true }), X(xd), sz / 2, X(zd), 0, (R2(i + 1000) - 0.5) * 0.5, 0, true);
+        add(B(sz + 0.02, 0.06, 0.12), mOrange, m.position.x, sz * 0.7, m.position.z, 0, m.rotation.y, 0);       // strap
+      });
+      for (let i = 0; i < 3; i++) {                                                          // drums
+        add(C(0.3, 0.3, 0.85, 12), PM({ color: [0x2f5e8c, 0x8c3a2f, 0x3a3d42][i] }), X(31) + i * 0.7, 0.42, -HW + 0.5, 0, 0, 0, true);
+        add(C(0.31, 0.31, 0.05, 12), mDark, X(31) + i * 0.7, 0.7, -HW + 0.5);
+      }
+      // cargo net strung across the +z wall
+      for (let i = 0; i <= 8; i++) cable([[X(36) + i * 0.5, 0.2, HW - 0.15], [X(36) + i * 0.5 + 0.1, 2.0, HW - 0.35], [X(36) + i * 0.5, 3.6, HW - 0.15]], 0.02);
+      for (let j = 0; j <= 6; j++) cable([[X(36), 0.4 + j * 0.5, HW - 0.2], [X(38), 0.5 + j * 0.5, HW - 0.4], [X(40), 0.4 + j * 0.5, HW - 0.2]], 0.02);
+      wallText('CARGO', 33.0, 6.8, 1, 0.65);
+      wallText('UP ▲', 41.0, 5.5, 1, 0.5, 'rgba(201,104,34,0.9)');
+      pipeRun(X(30.3), X(43), 7.2, -HW + 0.2, 0.12);
+      for (let i = 0; i < 4; i++) hangingCable(X(31 + i * 3), X(1.0), 1.5 + R2(i + 120) * 3, i + 130);
+      // sealed tail bulkhead: warning stencil and a turning beacon
+      stencil('ENGINE BAY  —  SEALED', X(43.2) - 0.25, 3.4, 0, -Math.PI / 2, 0, 0.5, 'rgba(240,235,220,0.95)');
+      const beacon = add(C(0.14, 0.14, 0.22, 10), glow(0xff3020), X(43.2) - 0.3, 5.4, 0);
+      const bl = new THREE.SpotLight(0xff3020, 2.2, 14, 0.35, 0.5, 1.5);
+      bl.position.copy(beacon.position); R.add(bl); R.add(bl.target);
+      anim.push({ tick(t) { const a = t * 2.4; bl.target.position.set(beacon.position.x - 4 * Math.cos(a), 2, Math.sin(a) * 4); } });
+    }
+    // ── dust in the daylight from the breach ──
+    {
+      const n = 160, pos = new Float32Array(n * 3);
+      for (let i = 0; i < n; i++) { pos[i * 3] = X(26.5) + (R2(i + 1500) - 0.5) * 3.5; pos[i * 3 + 1] = R2(i + 1600) * 3.5; pos[i * 3 + 2] = -HW + R2(i + 1700) * 4; }
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      const pts = new THREE.Points(g, new THREE.PointsMaterial({ color: 0xf2f0e8, size: 0.035, transparent: true, opacity: 0.55, depthWrite: false }));
+      R.add(pts);
+      anim.push({ tick(t) { const a = g.attributes.position; for (let i = 0; i < n; i++) { let y = a.getY(i) - 0.002; if (y < 0) y = 3.5; a.setY(i, y); } a.needsUpdate = true; } });
+    }
+    let t0 = performance.now();
+    return { tick() { const t = (performance.now() - t0) / 1000; for (const a of anim) a.tick(t); } };
   })();
 
   // ── v0.11.0: Puzzle B (structural brace) and M-08 live in the cargo bay ──
@@ -16258,6 +16647,8 @@ body.in-wreck .cam-buttons { display: none; }
     try { updateRobotCues(Math.min(0.1, (performance.now() - (updateRobotCues._t || performance.now())) / 1000)); } catch (e) { }
     updateRobotCues._t = performance.now();
     try { updateWristPad(); } catch (e) { }
+    if (level.id === 'wreck') { try { wreckDress.tick(); } catch (e) { } }
+    try { updateMusic(); } catch (e) { }
     syncRobotGlbs();
     renderer.render(scene, camera);
   }
