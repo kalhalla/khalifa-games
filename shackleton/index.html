@@ -667,7 +667,7 @@ body.in-wreck .cam-buttons { display: none; }
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.21.0';  // brace becomes a load puzzle with M-08; ice pocket becomes a light puzzle. was v0.20.1;  // red emergency light back in unpowered rooms; life support goes white when fixed; lit control boards. was v0.20.0;  // airlock cycle replaces the breach; interior relit. was v0.19.1;  // KHAL on the hull; wreck interior dressed; blockout labels dev-only. was v0.19.0;  // helmet radio for all voices; robot chirps + eye flash; wrist-pad questions to the robots. was v0.18.7;  // robot legs double-sided with dark cores; toe flaps 1.6x. was v0.18.6;  // robot ankles: foot pad on a ball joint, kept level while planted. was v0.18.5;  // robot toes bend to stay on the ground through stance. was v0.18.4;  // robot gait: bird-like stance/swing, bigger leg swing, pistons follow, body dip, feet planted. was v0.18.3;  // engine nozzles 25% larger. was v0.18.2;  // wreck: four landing legs in housings (two intact, two buckled), half-size blackened nozzles. was v0.18.1;  // wreck: sealed middle/nose, rear-only damage + tanks, doorway recess, NASA stacked, regolith imprint. was v0.18.0;  // wreck exterior: painted skin, round hull, ogive nose, engine bells, landing legs. was v0.17.3;  // robot eyes blink and look; gestures: wave, hand up, tap-and-point. was v0.17.2;  // robot legs: piston shins, hinged toes, less body sway. was v0.17.1;  // built tools on the Meshy robots: drill + saw, gripper, three-finger claws. was v0.17.0;  // Meshy robots, cut into jointed parts and driven by the walk rig. was v0.16.0;  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.21.1';  // M-08 lifting pose; rougher ridge rocks. was v0.21.0;  // brace becomes a load puzzle with M-08; ice pocket becomes a light puzzle. was v0.20.1;  // red emergency light back in unpowered rooms; life support goes white when fixed; lit control boards. was v0.20.0;  // airlock cycle replaces the breach; interior relit. was v0.19.1;  // KHAL on the hull; wreck interior dressed; blockout labels dev-only. was v0.19.0;  // helmet radio for all voices; robot chirps + eye flash; wrist-pad questions to the robots. was v0.18.7;  // robot legs double-sided with dark cores; toe flaps 1.6x. was v0.18.6;  // robot ankles: foot pad on a ball joint, kept level while planted. was v0.18.5;  // robot toes bend to stay on the ground through stance. was v0.18.4;  // robot gait: bird-like stance/swing, bigger leg swing, pistons follow, body dip, feet planted. was v0.18.3;  // engine nozzles 25% larger. was v0.18.2;  // wreck: four landing legs in housings (two intact, two buckled), half-size blackened nozzles. was v0.18.1;  // wreck: sealed middle/nose, rear-only damage + tanks, doorway recess, NASA stacked, regolith imprint. was v0.18.0;  // wreck exterior: painted skin, round hull, ogive nose, engine bells, landing legs. was v0.17.3;  // robot eyes blink and look; gestures: wave, hand up, tap-and-point. was v0.17.2;  // robot legs: piston shins, hinged toes, less body sway. was v0.17.1;  // built tools on the Meshy robots: drill + saw, gripper, three-finger claws. was v0.17.0;  // Meshy robots, cut into jointed parts and driven by the walk rig. was v0.16.0;  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -8159,7 +8159,24 @@ body.in-wreck .cam-buttons { display: none; }
       let lShoulderX = 0, lShoulderZ = 0, lElbow = 0, lOpen = 0;
       let rShoulderX = 0, rShoulderZ = 0, rElbow = 0, rOpen = 0;
 
-      if (t < 0.8) {
+      const L = r.scripted && r.scripted.lift !== undefined ? r.scripted : null;
+      if (L) {
+        // v0.21.1: LIFTING — both claws hooked under a load. lift 0 = crouched,
+        // reaching under the edge; 1 = arms up overhead with the load. strain
+        // adds a fine tremble; slip (a timestamp) jerks the arms down and open.
+        const lift = Math.max(0, Math.min(1, L.lift));
+        const now = performance.now() / 1000;
+        const sl = L.slip ? Math.max(0, 1 - (now - L.slip) / 0.45) : 0;      // 1 → 0 over 0.45 s
+        const tr = L.strain ? Math.sin(now * 47) * 0.025 + Math.sin(now * 31) * 0.015 : 0;
+        lShoulderX = rShoulderX = -(0.95 + 1.05 * lift) + sl * 0.55 + tr;
+        lShoulderZ = 0.22; rShoulderZ = -0.22;
+        lElbow = rElbow = 0.85 - 0.6 * lift + sl * 0.3;
+        lOpen = rOpen = sl > 0.05 ? 0.9 : 0.05;
+        // crouch low to get under it, rise with the load; lean back while straining
+        const crouch = 0.13 * (1 - lift) + (L.strain ? 0.03 : 0);
+        ud.bodyGroup.position.y += ((0.22 - crouch) - ud.bodyGroup.position.y) * Math.min(1, dt * 6);
+        ud.bodyGroup.rotation.x += ((L.strain ? -0.10 : 0.12 * (1 - lift)) + sl * 0.1 - ud.bodyGroup.rotation.x) * Math.min(1, dt * 6);
+      } else if (t < 0.8) {
         // Phase A: right arm raises out to the side
         const k = Math.min(1, t / 0.8);
         rShoulderZ = k * Math.PI / 2;
@@ -11586,7 +11603,16 @@ body.in-wreck .cam-buttons { display: none; }
       if (c.geometry && c.geometry.type === 'SphereGeometry') c.visible = false;
       if (c.geometry && c.geometry.type === 'CircleGeometry') c.visible = false;     // the wall's real shadow does this now
     }
-    const rockMat = new THREE.MeshPhongMaterial({ color: 0x8a8a88, flatShading: true, shininess: 0 });
+    const rockTex = (() => {                                            // speckled, cracked grey rock
+      const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d');
+      g.fillStyle = '#8c8c8a'; g.fillRect(0, 0, 256, 256);
+      for (let i = 0; i < 2600; i++) { const v = 90 + Math.floor(Math.random() * 90); g.fillStyle = 'rgba(' + v + ',' + v + ',' + (v - 4) + ',' + (0.25 + Math.random() * 0.5) + ')';
+        const w = 1 + Math.random() * 4; g.fillRect(Math.random() * 256, Math.random() * 256, w, w * (0.5 + Math.random())); }
+      g.strokeStyle = 'rgba(40,40,42,0.55)';
+      for (let k = 0; k < 14; k++) { g.lineWidth = 0.6 + Math.random() * 1.6; g.beginPath(); let x = Math.random() * 256, y = Math.random() * 256; g.moveTo(x, y);
+        for (let j = 0; j < 6; j++) { x += (Math.random() - 0.5) * 50; y += (Math.random() - 0.3) * 40; g.lineTo(x, y); } g.stroke(); }
+      const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(2, 2); t.colorSpace = THREE.SRGBColorSpace; return t; })();
+    const rockMat = new THREE.MeshPhongMaterial({ color: 0xffffff, map: rockTex, bumpMap: rockTex, bumpScale: 2.5, flatShading: true, shininess: 0 });
     const M = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; grp.add(m); return m; };
     // ── the wall: two leaning slabs with a gap between them ──
     const SLABS = [{ v0: -3.4, v1: 1.8 }, { v0: 3.0, v1: 6.8 }], WU0 = 0.15, WU1 = 1.15;
@@ -11596,9 +11622,16 @@ body.in-wreck .cam-buttons { display: none; }
       const n = Math.max(2, Math.round((s.v1 - s.v0) / 1.3));
       for (let k = 0; k < n; k++) {
         const v = s.v0 + (k + 0.5) * (s.v1 - s.v0) / n, h = 2.6 + rr() * 1.2;
-        const geo = new THREE.IcosahedronGeometry(1, 1); const p = geo.attributes.position;
-        const salt = rr() * 100;   // same corner, same push: hash the position so shared vertices stay joined
-        for (let i = 0; i < p.count; i++) { const x = p.getX(i), y = p.getY(i), z = p.getZ(i); const hsh = Math.sin(Math.round(x * 97) * 12.9 + Math.round(y * 97) * 78.2 + Math.round(z * 97) * 37.7 + salt) * 43758.5; const f = 0.84 + 0.26 * (hsh - Math.floor(hsh)); p.setXYZ(i, x * f, y * f, z * f); }
+        const geo = new THREE.IcosahedronGeometry(1, 2); const p = geo.attributes.position;
+        const salt = rr() * 100;
+        // layered lumps, keyed on position so shared corners stay joined; a flat-ish base
+        const hsh = (x, y, z, f) => { const q = Math.sin(Math.round(x * f) * 12.9 + Math.round(y * f) * 78.2 + Math.round(z * f) * 37.7 + salt) * 43758.5; return q - Math.floor(q); };
+        for (let i = 0; i < p.count; i++) {
+          const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+          let f = 0.78 + 0.22 * hsh(x, y, z, 2.2) + 0.16 * hsh(x, y, z, 5.5) + 0.07 * hsh(x, y, z, 13);
+          if (Math.abs(x) > 0.55) f *= 0.9;                       // faces cut back like fractured slabs
+          p.setXYZ(i, x * f, Math.max(y * f, -0.55), z * f);
+        }
         geo.computeVertexNormals();
         const m = M(geo, rockMat, gx + (WU0 + WU1) / 2 + (rr() - 0.5) * 0.15, G((WU0 + WU1) / 2, v) + h * 0.42, gz + v);
         m.scale.set(0.62, h / 2, ((s.v1 - s.v0) / n) * 0.72); m.rotation.set((rr() - 0.5) * 0.25, rr() * 0.4, (rr() - 0.5) * 0.3);
@@ -16860,7 +16893,7 @@ body.in-wreck .cam-buttons { display: none; }
       if (id === 'lug') say('M-08', 'here.', null); else if (id === 'bent') say('M-08', 'here?', null); else say('M-08', 'slips.', null);
     }
     function drop(why) {
-      S.fail = 0; S.angT = 3; thump();
+      S.fail = 0; S.angT = 3; thump(); if (robotStates[2].scripted) robotStates[2].scripted.slip = performance.now() / 1000;
       if (why === 'bent') { S.bentGone = true; const g = GRIPS[1]; if (g.mesh) g.mesh.visible = false; say('M-08', 'snap.', null); }
       else say('M-08', 'no.', null);
       say('SUIT', 'load dropped on the brace', 'drop1', 2.4);
@@ -16940,7 +16973,7 @@ body.in-wreck .cam-buttons { display: none; }
       // M-08 on the smooth edge: the claw keeps slipping
       if (S.phase === 'start' && S.fail < 0 && S.grip === 'edge') {
         S.slipT += dt;
-        if (S.slipT > 2.4) { S.slipT = 0; S.ang = S.angT + 1.6; const p = gripWorld(GRIPS[0]); spawnDust(p.x, FY + 0.25, p.z, 2, { speed: 0.3, upVel: 0.2, upVar: 0.2, life: 0.5 });
+        if (S.slipT > 2.4) { S.slipT = 0; S.ang = S.angT + 1.6; if (robotStates[2].scripted) robotStates[2].scripted.slip = performance.now() / 1000; const p = gripWorld(GRIPS[0]); spawnDust(p.x, FY + 0.25, p.z, 2, { speed: 0.3, upVel: 0.2, upVar: 0.2, life: 0.5 });
           if (Math.hypot(player.pos.x - B.x, player.pos.z - B.z) < 7) say('M-08', 'slips.', 'slipLine'); }
       }
       if (S.phase === 'lift' && S.t > 0.6) { S.angT = 48; if (S.t > 0.6 && !S.said.up) { say('M-08', 'up.', 'up'); } if (S.ang > 46) { S.phase = 'held'; say('SUIT', 'brace end clear — the small panel is free', null, 2.6); } }
@@ -16969,6 +17002,14 @@ body.in-wreck .cam-buttons { display: none; }
         const gz = HZ + Math.cos(S.ang * deg) * DEPTH; const rs = robotStates[2].scripted;
         if (!rs || Math.abs(rs.z - (gz + 0.7)) > 0.08) m08To(B.x + GRIPS[2].x, gz + 0.7, B.x + GRIPS[2].x, gz - 0.3);
       }
+      // M-08's body: the lifting pose while he is on the plate
+      { const rs = robotStates[2], sc = rs.scripted;
+        if (sc && S.pullT < 0 && S.phase !== 'propped') {
+          const up = Math.max(0, (S.ang - 16) / 32);
+          if (S.fail >= 0) { sc.lift = S.fail > 2.4 ? 0.1 + 0.1 * Math.min(1, (S.fail - 2.4) / 1.0) : 0; sc.strain = S.fail > 2.4; }
+          else if (S.phase === 'lift' || S.phase === 'held') { sc.lift = 0.12 + 0.88 * up; sc.strain = true; }
+          else { sc.lift = 0.12; sc.strain = S.grip === 'lug' && S.valve; }
+        } }
       // plate motion: drops fast, rises slowly
       const rate = S.angT < S.ang ? 70 : 14;
       S.ang += Math.sign(S.angT - S.ang) * Math.min(Math.abs(S.angT - S.ang), rate * dt);
