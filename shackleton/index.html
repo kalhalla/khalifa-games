@@ -667,7 +667,7 @@ body.in-wreck .cam-buttons { display: none; }
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.21.1';  // M-08 lifting pose; rougher ridge rocks. was v0.21.0;  // brace becomes a load puzzle with M-08; ice pocket becomes a light puzzle. was v0.20.1;  // red emergency light back in unpowered rooms; life support goes white when fixed; lit control boards. was v0.20.0;  // airlock cycle replaces the breach; interior relit. was v0.19.1;  // KHAL on the hull; wreck interior dressed; blockout labels dev-only. was v0.19.0;  // helmet radio for all voices; robot chirps + eye flash; wrist-pad questions to the robots. was v0.18.7;  // robot legs double-sided with dark cores; toe flaps 1.6x. was v0.18.6;  // robot ankles: foot pad on a ball joint, kept level while planted. was v0.18.5;  // robot toes bend to stay on the ground through stance. was v0.18.4;  // robot gait: bird-like stance/swing, bigger leg swing, pistons follow, body dip, feet planted. was v0.18.3;  // engine nozzles 25% larger. was v0.18.2;  // wreck: four landing legs in housings (two intact, two buckled), half-size blackened nozzles. was v0.18.1;  // wreck: sealed middle/nose, rear-only damage + tanks, doorway recess, NASA stacked, regolith imprint. was v0.18.0;  // wreck exterior: painted skin, round hull, ogive nose, engine bells, landing legs. was v0.17.3;  // robot eyes blink and look; gestures: wave, hand up, tap-and-point. was v0.17.2;  // robot legs: piston shins, hinged toes, less body sway. was v0.17.1;  // built tools on the Meshy robots: drill + saw, gripper, three-finger claws. was v0.17.0;  // Meshy robots, cut into jointed parts and driven by the walk rig. was v0.16.0;  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.21.2';  // brace prop prompt; collision pass; pick-up pose. was v0.21.1;  // M-08 lifting pose; rougher ridge rocks. was v0.21.0;  // brace becomes a load puzzle with M-08; ice pocket becomes a light puzzle. was v0.20.1;  // red emergency light back in unpowered rooms; life support goes white when fixed; lit control boards. was v0.20.0;  // airlock cycle replaces the breach; interior relit. was v0.19.1;  // KHAL on the hull; wreck interior dressed; blockout labels dev-only. was v0.19.0;  // helmet radio for all voices; robot chirps + eye flash; wrist-pad questions to the robots. was v0.18.7;  // robot legs double-sided with dark cores; toe flaps 1.6x. was v0.18.6;  // robot ankles: foot pad on a ball joint, kept level while planted. was v0.18.5;  // robot toes bend to stay on the ground through stance. was v0.18.4;  // robot gait: bird-like stance/swing, bigger leg swing, pistons follow, body dip, feet planted. was v0.18.3;  // engine nozzles 25% larger. was v0.18.2;  // wreck: four landing legs in housings (two intact, two buckled), half-size blackened nozzles. was v0.18.1;  // wreck: sealed middle/nose, rear-only damage + tanks, doorway recess, NASA stacked, regolith imprint. was v0.18.0;  // wreck exterior: painted skin, round hull, ogive nose, engine bells, landing legs. was v0.17.3;  // robot eyes blink and look; gestures: wave, hand up, tap-and-point. was v0.17.2;  // robot legs: piston shins, hinged toes, less body sway. was v0.17.1;  // built tools on the Meshy robots: drill + saw, gripper, three-finger claws. was v0.17.0;  // Meshy robots, cut into jointed parts and driven by the walk rig. was v0.16.0;  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -1410,13 +1410,37 @@ body.in-wreck .cam-buttons { display: none; }
   // Push the player cylinder out of every box it overlaps at its
   // current height. Boxes the player is standing on (or can step
   // onto) are skipped — boxTopAt handles those.
+  // v0.21.2: the robots are solid. Each is a short cylinder; he is pushed
+  // out of it (they are heavier than he is) unless he is above its top.
+  const ROBOT_BODY_R = 0.42, ROBOT_BODY_H = 1.15;
+  function robotResolvePlayer(pos, vel) {
+    if (typeof robots === 'undefined') return;
+    for (let i = 0; i < robots.length; i++) {
+      const r = robots[i]; if (!r.visible) continue;
+      const rp = r.position;
+      if (pos.y > rp.y + ROBOT_BODY_H || pos.y + 1.7 < rp.y) continue;
+      const dx = pos.x - rp.x, dz = pos.z - rp.z, d = Math.hypot(dx, dz), min = BOX_PLAYER_R + ROBOT_BODY_R;
+      if (d >= min) continue;
+      const nx = d > 1e-4 ? dx / d : 1, nz = d > 1e-4 ? dz / d : 0;
+      pos.x = rp.x + nx * min; pos.z = rp.z + nz * min;
+      const vn = vel.x * nx + vel.z * nz; if (vn < 0) { vel.x -= vn * nx; vel.z -= vn * nz; }
+    }
+  }
   function boxResolvePlayer(pos, vel) {
     for (const b of boxColliders) {
       if (!b.enabled || (b.level || 'crater') !== level.id) continue;
       if (pos.y >= b.y1 - 0.02) continue;                        // on top / above
       if (pos.y + 1.7 < b.y0) continue;                          // passes under
-      if (b.walkable && b.y1 <= pos.y + BOX_STEP_UP) continue;   // step-up
+      // step-up — only on foot (v0.21.2): in the air he must clear the top
+      // before he is over it, or he slides into the box's side mid-jump
+      if (b.walkable && b.y1 <= pos.y + BOX_STEP_UP && (player.grounded || pos.y >= b.y1 - 0.12)) continue;
       _boxLocal(b, pos.x, pos.z, _bl);
+      // v0.21.2: head bump. Feet below the box and the head just into its
+      // underside, inside the footprint: stop the rise instead of letting
+      // the sideways push (or the jump) carry him through to the top.
+      if (pos.y < b.y0 && pos.y + 1.7 - b.y0 < 0.7 && Math.abs(_bl.x) < b.hx + 0.1 && Math.abs(_bl.z) < b.hz + 0.1) {
+        pos.y = b.y0 - 1.7; if (vel.y > 0) vel.y = 0; continue;
+      }
       const cx = Math.max(-b.hx, Math.min(b.hx, _bl.x));
       const cz = Math.max(-b.hz, Math.min(b.hz, _bl.z));
       let nx = _bl.x - cx, nz = _bl.z - cz;
@@ -3321,6 +3345,7 @@ body.in-wreck .cam-buttons { display: none; }
 
     // Box colliders (v0.5.0) — GLB proxies and authored blockers.
     boxResolvePlayer(player.pos, player.vel);
+    robotResolvePlayer(player.pos, player.vel);
 
     // Crater wall collision. Originally gated on `player.pos.y < -0.1`
     // — back when the only sub-zero terrain was the main crater. The
@@ -15698,6 +15723,9 @@ body.in-wreck .cam-buttons { display: none; }
       if (m.userData.stabKey === 'plug')
         out.push({ key: 'socket', x: STAB_SOCKET.x, z: STAB_SOCKET.z, y: fy + 1.11, r: 2.4, label: 'plug in the cable',
           fire: () => putDown(STAB_SOCKET.x, STAB_SOCKET.z) });
+      if (braceV2 && m === s4.panel && braceV2.S.phase === 'held')          // v0.21.2: stand it on the mark, exactly
+        out.push({ key: 'braceProp', x: braceV2.PROP.x, z: braceV2.PROP.z, y: WL_ORIGIN.y + 0.6, r: 2.0, label: 'prop the plate with the panel',
+          fire: () => putDown(braceV2.PROP.x, braceV2.PROP.z) });
       if (m === s6.batt && !scene6.power)
         out.push({ key: 's6socket', x: s6.socket.position.x, z: s6.socket.position.z,
           y: s6.socket.position.y + 0.3, r: 2.0, label: 'connect the battery pack', mesh: s6.socket,
@@ -16156,6 +16184,7 @@ body.in-wreck .cam-buttons { display: none; }
   // so stencils read sideways, seats and bunks hang on the walls, and loose
   // things have fallen to the same side.
   // ============================================================
+  const _wdStartChildren = wreckLevel.root.children.length;
   const wreckDress = (function () {
     const R = wreckLevel.root, K = WL_K, HW = WL_HALF_W * K - 0.02;   // inner wall plane, metres
     const X = (d) => d * K;
@@ -16462,6 +16491,27 @@ body.in-wreck .cam-buttons { display: none; }
     }
     let t0 = performance.now();
     return { tick() { const t = (performance.now() - t0) / 1000; for (const a of anim) a.tick(t); } };
+  })();
+
+  // v0.21.2: every solid prop the dressing added gets a box collider, so he
+  // cannot walk through crates, racks, lockers, drums, seats or consoles.
+  // Thin things (cables, screens, strips, stencils, debris) are skipped;
+  // low ones are walkable so a crate can be climbed.
+  (function wreckPropColliders() {
+    const R = wreckLevel.root; R.updateMatrixWorld(true);
+    const bb = new THREE.Box3(), sz = new THREE.Vector3(), c = new THREE.Vector3();
+    let n = 0;
+    for (const o of R.children.slice(_wdStartChildren)) {
+      if (o.isLight || o.isSprite || o.isPoints || o.isLine || !o.visible) continue;
+      bb.setFromObject(o); if (bb.isEmpty()) continue;
+      bb.getSize(sz); bb.getCenter(c);
+      if (sz.y < 0.3 || Math.min(sz.x, sz.z) < 0.22 || Math.max(sz.x, sz.z) > 6) continue;
+      if (bb.min.y - WL_ORIGIN.y > 1.4) continue;                 // overhead: shelves, bars, strips
+      const h = bb.max.y - WL_ORIGIN.y;
+      const col = addBoxCollider({ x: c.x, z: c.z, hx: sz.x / 2, hz: sz.z / 2, y0: bb.min.y, y1: bb.max.y, walkable: h < 1.3, tag: 'wreckProps' });
+      col.level = 'wreck'; n++;
+    }
+    console.log('[wreck] prop colliders:', n);
   })();
 
   // ============================================================
@@ -16877,6 +16927,7 @@ body.in-wreck .cam-buttons { display: none; }
     const propMark = new THREE.Mesh(new THREE.RingGeometry(0.28, 0.36, 20), new THREE.MeshBasicMaterial({ color: 0xffd060, transparent: true, opacity: 0, depthWrite: false }));
     propMark.rotation.x = -Math.PI / 2; propMark.position.copy(PROP).setY(FY + 0.02); group.add(propMark);
     // the small panel starts wedged against the brace end, under the plate corner
+    s4.panel.userData.carryName = 'small panel';
     s4.panel.position.set(B.x + 1.55, FY + 0.32, B.z - 0.15); s4.panel.rotation.set(0.2, 0.3, 1.2);
     s4.panel.userData.homeX = s4.panel.position.x; s4.panel.userData.homeZ = s4.panel.position.z;
     // ── state ──
@@ -16908,7 +16959,7 @@ body.in-wreck .cam-buttons { display: none; }
     const at = (v) => v;
     for (const g of GRIPS) {
       worldInteractables.push({
-        get x() { return B.x + g.x; }, get z() { return HZ + Math.cos(S.ang * deg) * DEPTH + 0.55; }, r: 0.75,
+        get x() { return B.x + g.x; }, get z() { return HZ + Math.cos(S.ang * deg) * DEPTH + 0.55; }, r: 0.95,
         label: () => 'ask M-08 to grip ' + g.label,
         hidden: () => !scene4.active || S.phase !== 'start' || S.fail >= 0 || S.grip === g.id || (g.id === 'bent' && S.bentGone),
         fire() { if (reach.active) return; reachStart(gripWorld(g).setY(edgeY(S.ang)), { onContact() { robotEmote(2, 'face', player.pos.clone().setY(player.pos.y + 1.5)); setGrip(g.id); } }); },
