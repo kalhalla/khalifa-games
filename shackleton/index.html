@@ -667,7 +667,7 @@ body.in-wreck .cam-buttons { display: none; }
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.20.1';  // red emergency light back in unpowered rooms; life support goes white when fixed; lit control boards. was v0.20.0;  // airlock cycle replaces the breach; interior relit. was v0.19.1;  // KHAL on the hull; wreck interior dressed; blockout labels dev-only. was v0.19.0;  // helmet radio for all voices; robot chirps + eye flash; wrist-pad questions to the robots. was v0.18.7;  // robot legs double-sided with dark cores; toe flaps 1.6x. was v0.18.6;  // robot ankles: foot pad on a ball joint, kept level while planted. was v0.18.5;  // robot toes bend to stay on the ground through stance. was v0.18.4;  // robot gait: bird-like stance/swing, bigger leg swing, pistons follow, body dip, feet planted. was v0.18.3;  // engine nozzles 25% larger. was v0.18.2;  // wreck: four landing legs in housings (two intact, two buckled), half-size blackened nozzles. was v0.18.1;  // wreck: sealed middle/nose, rear-only damage + tanks, doorway recess, NASA stacked, regolith imprint. was v0.18.0;  // wreck exterior: painted skin, round hull, ogive nose, engine bells, landing legs. was v0.17.3;  // robot eyes blink and look; gestures: wave, hand up, tap-and-point. was v0.17.2;  // robot legs: piston shins, hinged toes, less body sway. was v0.17.1;  // built tools on the Meshy robots: drill + saw, gripper, three-finger claws. was v0.17.0;  // Meshy robots, cut into jointed parts and driven by the walk rig. was v0.16.0;  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.21.0';  // brace becomes a load puzzle with M-08; ice pocket becomes a light puzzle. was v0.20.1;  // red emergency light back in unpowered rooms; life support goes white when fixed; lit control boards. was v0.20.0;  // airlock cycle replaces the breach; interior relit. was v0.19.1;  // KHAL on the hull; wreck interior dressed; blockout labels dev-only. was v0.19.0;  // helmet radio for all voices; robot chirps + eye flash; wrist-pad questions to the robots. was v0.18.7;  // robot legs double-sided with dark cores; toe flaps 1.6x. was v0.18.6;  // robot ankles: foot pad on a ball joint, kept level while planted. was v0.18.5;  // robot toes bend to stay on the ground through stance. was v0.18.4;  // robot gait: bird-like stance/swing, bigger leg swing, pistons follow, body dip, feet planted. was v0.18.3;  // engine nozzles 25% larger. was v0.18.2;  // wreck: four landing legs in housings (two intact, two buckled), half-size blackened nozzles. was v0.18.1;  // wreck: sealed middle/nose, rear-only damage + tanks, doorway recess, NASA stacked, regolith imprint. was v0.18.0;  // wreck exterior: painted skin, round hull, ogive nose, engine bells, landing legs. was v0.17.3;  // robot eyes blink and look; gestures: wave, hand up, tap-and-point. was v0.17.2;  // robot legs: piston shins, hinged toes, less body sway. was v0.17.1;  // built tools on the Meshy robots: drill + saw, gripper, three-finger claws. was v0.17.0;  // Meshy robots, cut into jointed parts and driven by the walk rig. was v0.16.0;  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -2854,12 +2854,14 @@ body.in-wreck .cam-buttons { display: none; }
   const joy = { x: 0, y: 0, active: false, run: false };
   let uiPanelOpen = false;          // v0.13.0: a full-screen puzzle panel has the player's attention
   let airlockLock = false;          // v0.20.0: the airlock is cycling — no player input
+  let aimLock = false;              // v0.21.0: aiming a mirror — left/right turns it, no walking
   let airlockDrive = null;          // v0.20.0: { x, z } — walk him there (airlock entry/exit)
+  const puzzleHintFns = [];         // v0.21.0: puzzles add a hint for the robots' 'what now?'
   function setInputFromKeys() {
     input.forward = (keys['w']||keys['arrowup'] ? 1 : 0) + (keys['s']||keys['arrowdown'] ? -1 : 0);
     input.strafe = (keys['d']||keys['arrowright'] ? 1 : 0) + (keys['a']||keys['arrowleft'] ? -1 : 0);
     input.run = !!keys['shift'];
-    if (demoEnd.active || uiPanelOpen || airlockLock) { input.forward = 0; input.strafe = 0; input.run = false; input.jump = false; return; }
+    if (demoEnd.active || uiPanelOpen || airlockLock || aimLock) { input.forward = 0; input.strafe = 0; input.run = false; input.jump = false; return; }
     if (joy.active) {
       input.forward = joy.y; input.strafe = joy.x;
       input.run = joy.run && level.id !== 'wreck';     // no running indoors
@@ -11546,7 +11548,7 @@ body.in-wreck .cam-buttons { display: none; }
   worldInteractables.push({
     x: ICE_POCKET.x + 3.2, z: ICE_POCKET.z + 2.6, r: 2.2,
     label: () => 'turn the reflector (' + (scene6.aligned ? 'aligned' : (4 - scene6.crank) + ' more') + ')',
-    hidden: () => !scene6.active || scene6.aligned,
+    hidden: () => true,          // v0.21.0: the crank is replaced by aiming (iceV2)
     fire() {
       if (reach.active) return;
       reachStart(new THREE.Vector3(ICE_POCKET.x + 3.2, s6.gy + 1.5, ICE_POCKET.z + 2.6), {
@@ -11565,6 +11567,214 @@ body.in-wreck .cam-buttons { display: none; }
     },
   });
   void S6_DISH_TARGET;
+  // ============================================================
+  // PUZZLE C v2 (v0.21.0) — the ice pocket, a light puzzle.
+  // The sun is low in the east (+x). The ice lies in the permanent
+  // shadow of a rock wall; light gets through only at a gap. Put the
+  // survey mirror on the footing that is both in sun and in line with
+  // the gap, aim it through the gap at the reflector, power the
+  // reflector so it can turn, aim it at the ice, and get the regolith
+  // out of the beam. The beams are drawn, so every mistake is visible.
+  // Scene flags kept: scene6.power / aligned / cleared → _scene6Check().
+  // ============================================================
+  const iceV2 = (function () {
+    const gx = ICE_POCKET.x, gz = ICE_POCKET.z, G = (u, v) => shackletonScene.getGroundY(gx + u, gz + v);
+    const W = (u, v) => new THREE.Vector3(gx + u, G(u, v), gz + v);
+    const grp = s6.dishPivot.parent;
+    // the old dome goes; the dark patch shrinks to the shadow behind the wall
+    for (const c of grp.children.slice()) {
+      if (c.geometry && c.geometry.type === 'SphereGeometry') c.visible = false;
+      if (c.geometry && c.geometry.type === 'CircleGeometry') c.visible = false;     // the wall's real shadow does this now
+    }
+    const rockMat = new THREE.MeshPhongMaterial({ color: 0x8a8a88, flatShading: true, shininess: 0 });
+    const M = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; grp.add(m); return m; };
+    // ── the wall: two leaning slabs with a gap between them ──
+    const SLABS = [{ v0: -3.4, v1: 1.8 }, { v0: 3.0, v1: 6.8 }], WU0 = 0.15, WU1 = 1.15;
+    let seed = 3; const rr = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    for (const s of SLABS) {
+      // a ridge of big leaning boulders, not a block
+      const n = Math.max(2, Math.round((s.v1 - s.v0) / 1.3));
+      for (let k = 0; k < n; k++) {
+        const v = s.v0 + (k + 0.5) * (s.v1 - s.v0) / n, h = 2.6 + rr() * 1.2;
+        const geo = new THREE.IcosahedronGeometry(1, 1); const p = geo.attributes.position;
+        const salt = rr() * 100;   // same corner, same push: hash the position so shared vertices stay joined
+        for (let i = 0; i < p.count; i++) { const x = p.getX(i), y = p.getY(i), z = p.getZ(i); const hsh = Math.sin(Math.round(x * 97) * 12.9 + Math.round(y * 97) * 78.2 + Math.round(z * 97) * 37.7 + salt) * 43758.5; const f = 0.84 + 0.26 * (hsh - Math.floor(hsh)); p.setXYZ(i, x * f, y * f, z * f); }
+        geo.computeVertexNormals();
+        const m = M(geo, rockMat, gx + (WU0 + WU1) / 2 + (rr() - 0.5) * 0.15, G((WU0 + WU1) / 2, v) + h * 0.42, gz + v);
+        m.scale.set(0.62, h / 2, ((s.v1 - s.v0) / n) * 0.72); m.rotation.set((rr() - 0.5) * 0.25, rr() * 0.4, (rr() - 0.5) * 0.3);
+      }
+      addBoxCollider({ x: gx + (WU0 + WU1) / 2, z: gz + (s.v0 + s.v1) / 2, hx: (WU1 - WU0) / 2 + 0.05, hz: (s.v1 - s.v0) / 2, y0: G((WU0 + WU1) / 2, (s.v0 + s.v1) / 2) - 1, y1: G((WU0 + WU1) / 2, (s.v0 + s.v1) / 2) + 3.4, walkable: false });
+    }
+    // a boulder that shades one footing
+    const BOULDER = { u: 5.6, v: 6.0, r: 1.1 };
+    M(new THREE.DodecahedronGeometry(1.25, 0), rockMat, gx + BOULDER.u, G(BOULDER.u, BOULDER.v) + 0.8, gz + BOULDER.v);
+    addBoxCollider({ x: gx + BOULDER.u, z: gz + BOULDER.v, hx: 1.0, hz: 1.0, y0: G(BOULDER.u, BOULDER.v) - 1, y1: G(BOULDER.u, BOULDER.v) + 1.9, walkable: false });
+    const shade = new THREE.Mesh(new THREE.CircleGeometry(1, 16), new THREE.MeshBasicMaterial({ color: 0x0a0b0e, transparent: true, opacity: 0.8, depthWrite: false,
+      polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
+    shade.rotation.x = -Math.PI / 2; shade.scale.set(2.6, 1.1, 1); shade.position.set(gx + BOULDER.u - 2.6, G(BOULDER.u - 2.6, BOULDER.v) + 0.03, gz + BOULDER.v); grp.add(shade);
+    // ── footings for the mirror (sunlit side). Only F1 has both sun and the line through the gap. ──
+    const FOOT = [
+      { id: 1, u: 3.4, v: 2.5, sun: true },
+      { id: 2, u: 3.1, v: -1.2, sun: true },
+      { id: 3, u: 3.0, v: 6.0, sun: false },          // in the boulder's shadow
+    ];
+    const padMat = new THREE.MeshPhongMaterial({ color: 0x8a8d92, flatShading: true }), markMat = new THREE.MeshBasicMaterial({ color: 0xe0b020 });
+    for (const f of FOOT) {
+      M(new THREE.CylinderGeometry(0.42, 0.48, 0.12, 8), padMat, gx + f.u, G(f.u, f.v) + 0.06, gz + f.v);
+      M(new THREE.BoxGeometry(0.5, 0.02, 0.06), markMat, gx + f.u, G(f.u, f.v) + 0.13, gz + f.v);
+    }
+    // ── the survey mirror: tripod + square face on a yaw pivot ──
+    const mirror = new THREE.Group(); grp.add(mirror);
+    const legMat = new THREE.MeshPhongMaterial({ color: 0x3a3d44, flatShading: true });
+    for (let k = 0; k < 3; k++) { const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.03, 1.35, 5), legMat); const a = k * 2.09;
+      leg.position.set(Math.cos(a) * 0.22, 0.62, Math.sin(a) * 0.22); leg.rotation.set(Math.sin(a) * 0.3, 0, -Math.cos(a) * 0.3); mirror.add(leg); }
+    const mPivot = new THREE.Group(); mPivot.position.y = 1.3; mirror.add(mPivot);
+    const face = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.9, 1.1), new THREE.MeshPhongMaterial({ color: 0xe6edf5, shininess: 120, specular: 0xffffff, flatShading: true }));
+    mPivot.add(face);
+    const back = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.95, 1.15), legMat); back.position.x = -0.05; mPivot.add(back);
+    // reflector: the old dish rig, moved to the shadow side
+    const R = { u: -2.0, v: 3.0 };
+    const rp = W(R.u, R.v);
+    for (const c of grp.children) if (c.geometry && c.geometry.type === 'CylinderGeometry' && c.position.x === gx + 3.2 && c.position.z === gz + 2.6) c.position.set(rp.x, rp.y + 0.8, rp.z);
+    s6.dishPivot.position.set(rp.x, rp.y + 1.3, rp.z);
+    s6.socket.position.set(rp.x + 0.45, rp.y + 0.12, rp.z + 0.4);
+    s6.chunk.position.set(gx - 1.45, G(-1.45, 1.9) + 0.35, gz + 1.9); s6.chunk.scale.setScalar(1.25);
+    s6.chunk.userData.homeX = s6.chunk.position.x; s6.chunk.userData.homeZ = s6.chunk.position.z;
+    s6.chunk.userData.onDrop = (m) => {
+      m.position.y = shackletonScene.getGroundY(m.position.x, m.position.z) + 0.35;
+      if (!scene6.cleared && Math.hypot(m.position.x - (gx - 1.45), m.position.z - (gz + 1.9)) > 1.3) { scene6.cleared = true; speak('SUIT', 'beam path clear', 2.2, { kind: 'system' }); }
+    };
+    // ── beams ──
+    const beamMat = new THREE.MeshBasicMaterial({ color: 0xfff2d0, transparent: true, opacity: 0.4, depthWrite: false, blending: THREE.AdditiveBlending });
+    const mkBeam = () => { const b = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 1, 8, 1, true), beamMat); b.visible = false; grp.add(b); return b; };
+    const beams = [mkBeam(), mkBeam(), mkBeam()];
+    const glowTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'); const r = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+      r.addColorStop(0, 'rgba(255,245,215,1)'); r.addColorStop(0.3, 'rgba(255,235,190,0.5)'); r.addColorStop(1, 'rgba(255,230,180,0)'); g.fillStyle = r; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
+    const spot = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })); spot.scale.set(0.9, 0.9, 1); spot.visible = false; grp.add(spot);
+    function setBeam(b, a, c) {
+      const d = c.clone().sub(a), L = d.length(); if (L < 0.01) { b.visible = false; return; }
+      b.visible = true; b.position.copy(a).addScaledVector(d, 0.5); b.scale.set(1, L, 1);
+      b.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize());
+    }
+    // 2-D ray caster in (u, v) — slabs are boxes, the rest circles
+    const CRYSTAL = { u: -0.9, v: 0.8, r: 0.95 };
+    function cast(o, d, skip) {
+      let best = { t: 14, what: 'none' };
+      const hitBox = (u0, u1, v0, v1, what) => {
+        let t0 = -Infinity, t1 = Infinity;
+        for (const [oo, dd, lo, hi] of [[o.u, d.u, u0, u1], [o.v, d.v, v0, v1]]) {
+          if (Math.abs(dd) < 1e-9) { if (oo < lo || oo > hi) return; continue; }
+          let a = (lo - oo) / dd, b = (hi - oo) / dd; if (a > b) [a, b] = [b, a]; t0 = Math.max(t0, a); t1 = Math.min(t1, b);
+        }
+        if (t0 <= t1 && t0 > 0.05 && t0 < best.t) best = { t: t0, what };
+      };
+      const hitCircle = (c, r, what) => {
+        if (what === skip) return; const fu = o.u - c.u, fv = o.v - c.v, b = fu * d.u + fv * d.v, cc = fu * fu + fv * fv - r * r, disc = b * b - cc;
+        if (disc < 0) return; const t = -b - Math.sqrt(disc); if (t > 0.05 && t < best.t) best = { t, what };
+      };
+      for (const s of SLABS) hitBox(WU0, WU1, s.v0, s.v1, 'rock');
+      hitCircle(BOULDER, BOULDER.r, 'rock');
+      hitCircle(R, 0.55, 'reflector');
+      hitCircle(foot(), 0.5, 'mirror');
+      if (!scene6.cleared) hitCircle({ u: s6.chunk.position.x - gx, v: s6.chunk.position.z - gz }, 0.6, 'chunk');
+      hitCircle(CRYSTAL, CRYSTAL.r, 'ice');
+      return best;
+    }
+    // ── state ──
+    const A = { foot: 2, mYaw: 2.4, rYaw: -1.3, aim: null, onIce: 0, said: {} };
+    const foot = () => FOOT.find(f => f.id === A.foot);
+    function placeMirror() { const f = foot(); const p = W(f.u, f.v); mirror.position.set(p.x, p.y + 0.1, p.z); }
+    placeMirror();
+    // yaw: face normal = (cos yaw, −sin yaw) in (u, v), matching three's rotation.y on the +x face
+    const normal = (yaw) => ({ u: Math.cos(yaw), v: -Math.sin(yaw) });
+    function reflect(d, n) { const k = d.u * n.u + d.v * n.v; if (k >= 0) return null; return { u: d.u - 2 * k * n.u, v: d.v - 2 * k * n.v }; }
+    const H = 1.3;
+    const at3 = (u, v, dy) => new THREE.Vector3(gx + u, G(u, v) + (dy == null ? H : dy), gz + v);
+    function trace() {
+      beams.forEach(b => b.visible = false); spot.visible = false;
+      const f = foot(); if (!f.sun) return { stage: 'shade' };
+      const fp = { u: f.u, v: f.v };
+      // sunlight arrives from +x, slightly down: draw it coming in from high up
+      const sunFrom = at3(f.u + 14, f.v, H + 14 * Math.tan(SUN_ELEV_DEG * Math.PI / 180));
+      setBeam(beams[0], sunFrom, at3(f.u, f.v));
+      const r1 = reflect({ u: -1, v: 0 }, normal(A.mYaw)); if (!r1) return { stage: 'back' };
+      const h1 = cast(fp, r1, 'mirror');
+      const p1 = { u: fp.u + r1.u * h1.t, v: fp.v + r1.v * h1.t };
+      setBeam(beams[1], at3(f.u, f.v), at3(p1.u, p1.v));
+      if (h1.what !== 'reflector') { spot.visible = true; spot.position.copy(at3(p1.u, p1.v)); return { stage: 'm-' + h1.what }; }
+      const r2 = reflect(r1, normal(A.rYaw));
+      if (!r2) { spot.visible = true; spot.position.copy(at3(p1.u, p1.v)); return { stage: 'r-back' }; }
+      const h2 = cast({ u: R.u, v: R.v }, r2, 'reflector');
+      const p2 = { u: R.u + r2.u * h2.t, v: R.v + r2.v * h2.t };
+      setBeam(beams[2], at3(R.u, R.v), at3(p2.u, p2.v, h2.what === 'ice' ? 0.5 : H));
+      spot.visible = true; spot.position.copy(at3(p2.u, p2.v, h2.what === 'ice' ? 0.5 : H));
+      return { stage: 'r-' + h2.what };
+    }
+    // ── interactions ──
+    for (const f of FOOT) worldInteractables.push({
+      x: gx + f.u, z: gz + f.v + 0.7, r: 1.0,
+      label: 'set the mirror up here',
+      hidden: () => !scene6.active || scene6.done || A.foot === f.id || A.aim,
+      fire() { if (reach.active) return; reachStart(W(f.u, f.v).setY(G(f.u, f.v) + 0.4), { onContact() {
+        A.foot = f.id; A.mYaw = 0; placeMirror();          // set down facing the sun
+        if (!f.sun) speak('SUIT', 'no sunlight on this footing', 2.4, { kind: 'system' });
+      } }); },
+    });
+    function startAim(which) { A.aim = which; aimLock = true; speak('SUIT', which === 'mirror' ? 'aiming the mirror — left / right, E to finish' : 'aiming the reflector — left / right, E to finish', 2.8, { kind: 'system' }); }
+    worldInteractables.push({
+      get x() { return mirror.position.x - 0.7; }, get z() { return mirror.position.z + 0.5; }, r: 1.2,
+      label: () => A.aim === 'mirror' ? 'finish aiming' : 'aim the mirror',
+      hidden: () => !scene6.active || scene6.done || (A.aim && A.aim !== 'mirror'),
+      fire() { if (A.aim === 'mirror') { A.aim = null; aimLock = false; return; } startAim('mirror'); },
+    });
+    worldInteractables.push({
+      x: gx + R.u + 0.7, z: gz + R.v + 0.6, r: 1.2,
+      label: () => A.aim === 'reflector' ? 'finish aiming' : 'aim the reflector',
+      hidden: () => !scene6.active || scene6.done || (A.aim && A.aim !== 'reflector'),
+      fire() {
+        if (A.aim === 'reflector') { A.aim = null; aimLock = false; return; }
+        if (!scene6.power) { speak('SUIT', 'reflector motor has no power', 2.4, { kind: 'system' }); return; }
+        startAim('reflector');
+      },
+    });
+    let last = '';
+    function tick(dt) {
+      if (!scene6.active) { beams.forEach(b => b.visible = false); spot.visible = false; return; }
+      if (A.aim) {
+        const turn = ((keys['d'] || keys['arrowright']) ? 1 : 0) - ((keys['a'] || keys['arrowleft']) ? 1 : 0) + (joy.active ? joy.x : 0);
+        if (A.aim === 'mirror') A.mYaw -= turn * dt * 0.7; else A.rYaw -= turn * dt * 0.7;
+      }
+      mPivot.rotation.y = A.mYaw;
+      s6.dishPivot.rotation.y = A.rYaw;
+      if (scene6.done) return;
+      const r = trace();
+      if (r.stage !== last) {
+        last = r.stage;
+        if (r.stage === 'r-reflector' || r.stage === 'm-reflector') {}
+        if (r.stage.startsWith('r-') && !A.said.r) { A.said.r = 1; speak('P-03', 'light.', 2.0, { kind: 'robot' }); }
+        if (r.stage === 'r-chunk' && !A.said.c) { A.said.c = 1; speak('P-03', 'rock.', 2.0, { kind: 'robot' }); }
+      }
+      if (r.stage === 'r-ice') { A.onIce += dt; s6.crystalMat.emissive.setRGB(0.04 + 0.12 * Math.min(1, A.onIce), 0.1 + 0.2 * Math.min(1, A.onIce), 0.19 + 0.45 * Math.min(1, A.onIce)); }
+      else { A.onIce = 0; s6.crystalMat.emissive.setHex(0x0a1830); }
+      if (A.onIce > 1.2 && !scene6.aligned) {
+        scene6.aligned = true; A.aim = null; aimLock = false;
+        speak('SUIT', 'light on the deposit', 2.4, { kind: 'system' });
+        _scene6Check();
+        s6.beam.visible = false;                         // the drawn beams already show it
+      }
+    }
+    puzzleHintFns.push((i) => {
+      if (!scene6.active || scene6.done) return null;
+      const f = foot(), r = trace();
+      if (!f.sun || r.stage === 'm-rock' || r.stage === 'back') return { word: 'sun.', at: W(FOOT[0].u, FOOT[0].v) };
+      if (!r.stage.startsWith('r-')) return { word: 'mirror.', at: mirror.position.clone() };
+      if (!scene6.power) return { word: 'power.', at: s6.socket.position.clone() };
+      if (r.stage === 'r-chunk' || !scene6.cleared) return { word: 'rock.', at: s6.chunk.position.clone() };
+      return { word: 'ice.', at: W(CRYSTAL.u, CRYSTAL.v) };
+    });
+    return { A, tick, trace, FOOT, R, mirror, cast, normal };
+  })();
+
 
   function _scene6Check() {
     if (scene6.done || !scene6.power || !scene6.aligned || !scene6.cleared) return;
@@ -11652,7 +11862,7 @@ body.in-wreck .cam-buttons { display: none; }
       speak('M-08', 'stuck.', 2.0, { kind: 'robot', delay: 1.0 });
     }
     // Scene 4: M-08 pulls the brace free
-    if (scene4.pulled && scene4.pullT < 1.4) {
+    if (scene4.pulled && scene4.pullT < 1.4 && !braceV2) {
       scene4.pullT += dt;
       const k = Math.min(1, scene4.pullT / 1.4);
       const e = k * k * (3 - 2 * k);
@@ -11690,8 +11900,8 @@ body.in-wreck .cam-buttons { display: none; }
           speak('SUIT', 'hint: drag the battery pack to the extractor socket', 3.0,
                 { kind: 'system', delay: 2.4 });
         } else if (!scene6.aligned) {
-          speak('P-03', 'turn.', 2.0, { kind: 'robot' });
-          speak('SUIT', 'hint: crank the reflector toward the ice', 3.0,
+          speak('P-03', 'light.', 2.0, { kind: 'robot' });
+          speak('SUIT', 'hint: catch the sun with the mirror, send it through the gap to the reflector', 3.4,
                 { kind: 'system', delay: 2.4 });
         } else if (!scene6.cleared) {
           speak('P-03', 'clear.', 2.0, { kind: 'robot' });
@@ -14985,6 +15195,7 @@ body.in-wreck .cam-buttons { display: none; }
   }
   // What now? — one word for the current objective, and where to point.
   function _objectiveHint(i) {
+    for (const f of puzzleHintFns) { const h = f(i); if (h) return h; }
     const el = $('objective-hud'), txt = el ? el.textContent : '';
     const P = (x, z) => new THREE.Vector3(x, player.pos.y, z);
     if (/free P-03/.test(txt)) return { word: i === 0 ? 'stuck.' : 'P-03.', at: i === 0 ? null : robots[0].position.clone() };
@@ -16565,6 +16776,229 @@ body.in-wreck .cam-buttons { display: none; }
     for (const it of [s4.pinIx, s4.braceIx]) { it.x += S4O.x; it.z += S4O.z; }
   })();
 
+  // ============================================================
+  // PUZZLE B v2 (v0.21.0) — the brace, a load puzzle with M-08.
+  // A heavy hull plate, hinged at the wall, lies over the brace. A
+  // fallen cargo-lift ram props its free edge: pressurised, and locked
+  // by a pin. Only M-08 can carry the plate, and only from a sound lug.
+  //   - pull the pin while the ram is under pressure: it will not move
+  //   - open the valve while nobody holds the plate: it drops (reset)
+  //   - M-08 on the smooth edge slips; on the bent lug, the lug snaps
+  //   - right: M-08 on the good lug → valve → pin → he lifts → stand
+  //     the small panel under the edge as a prop → he pulls the brace.
+  // Scene flags kept: scene4.pinDone / panelDone / pulled / braceHeld.
+  // ============================================================
+  const braceV2 = (function () {
+    if (!WRECK_LEVEL_ENABLED) return null;
+    const FY = WL_ORIGIN.y;
+    const B = new THREE.Vector3(13.0 + S4O.x, FY, -2.95 + S4O.z);     // brace centre (cargo bay, −z side)
+    const HZ = B.z - 1.45, DEPTH = 2.2, WID = 2.6;                     // hinge line, plate size
+    const steel = new THREE.MeshPhongMaterial({ color: 0x5d6168, flatShading: true, shininess: 6 });
+    const dark = new THREE.MeshPhongMaterial({ color: 0x2c2f34, flatShading: true });
+    const yellow = new THREE.MeshPhongMaterial({ color: 0xe0b020, flatShading: true });
+    const red = new THREE.MeshPhongMaterial({ color: 0xb8322a, flatShading: true });
+    const haz = (() => { const c = document.createElement('canvas'); c.width = 128; c.height = 32; const g = c.getContext('2d');
+      g.fillStyle = '#d9a21e'; g.fillRect(0, 0, 128, 32); g.fillStyle = '#1b1b1d';
+      for (let x = -32; x < 160; x += 24) { g.beginPath(); g.moveTo(x, 32); g.lineTo(x + 12, 32); g.lineTo(x + 44, 0); g.lineTo(x + 32, 0); g.fill(); }
+      return new THREE.MeshPhongMaterial({ map: new THREE.CanvasTexture(c) }); })();
+    const group = new THREE.Group(); scene.add(group);               // kept visible inside the wreck level
+    const M = (geo, mat, parent) => { const m = new THREE.Mesh(geo, mat); m.castShadow = true; m.receiveShadow = true; (parent || group).add(m); return m; };
+    // old props out of the way
+    s4.plating.visible = false; s4.pin.visible = false;
+    s4.pinIx.hidden = () => true;
+    // ── the brace: lying along x, its +x end sticking out past the plate ──
+    s4.brace.position.set(B.x + 0.45, FY + 0.12, B.z - 0.25);
+    s4.brace.rotation.set(0, Math.PI / 2, 0);
+    s4.brace.scale.set(1, 1, 1.25);
+    // ── hinged plate ──
+    const pivot = new THREE.Group(); pivot.position.set(B.x, FY + 0.18, HZ); group.add(pivot);
+    const plate = M(new THREE.BoxGeometry(WID, 0.12, DEPTH), steel, pivot); plate.position.set(0, 0.06, DEPTH / 2);
+    const edge = M(new THREE.BoxGeometry(WID, 0.14, 0.12), haz, pivot); edge.position.set(0, 0.07, DEPTH - 0.06);
+    for (const x of [-0.9, 0, 0.9]) { const r = M(new THREE.BoxGeometry(0.08, 0.08, DEPTH - 0.2), dark, pivot); r.position.set(x, 0.16, DEPTH / 2); }
+    const hinge = M(new THREE.CylinderGeometry(0.09, 0.09, WID + 0.2, 10), dark); hinge.rotation.z = Math.PI / 2; hinge.position.set(B.x, FY + 0.18, HZ);
+    // grip points on the free edge: smooth edge (M-08's first try), bent lug, good lug
+    const GRIPS = [
+      { id: 'edge', x: 1.05, label: 'the smooth edge' },
+      { id: 'bent', x: 0.45, label: 'the bent lug' },
+      { id: 'lug', x: -0.35, label: 'the lifting lug' },
+    ];
+    const lugGeo = new THREE.TorusGeometry(0.09, 0.03, 6, 12);
+    for (const g of GRIPS) {
+      if (g.id === 'edge') continue;
+      const l = M(lugGeo, yellow, pivot); l.position.set(g.x, 0.2, DEPTH - 0.05);
+      if (g.id === 'bent') { l.rotation.set(0.9, 0.5, 0.6); l.scale.set(1, 0.6, 1); }
+      g.mesh = l;
+    }
+    // ── the ram: outer cylinder on the floor, rod up to the plate ──
+    const RB = new THREE.Vector3(B.x - 1.15, FY + 0.1, B.z + 1.45);       // base on the floor, in front
+    const ramOuter = M(new THREE.CylinderGeometry(0.11, 0.12, 1.0, 10), red);
+    const ramRod = M(new THREE.CylinderGeometry(0.05, 0.05, 1.0, 8), new THREE.MeshPhongMaterial({ color: 0xc8ccd2, shininess: 60 }));
+    const ramFoot = M(new THREE.BoxGeometry(0.4, 0.12, 0.4), dark); ramFoot.position.copy(RB).setY(FY + 0.06);
+    const collar = M(new THREE.CylinderGeometry(0.15, 0.15, 0.12, 10), dark);
+    const pin = M(new THREE.CylinderGeometry(0.035, 0.035, 0.4, 8), new THREE.MeshBasicMaterial({ color: 0xe2c060 }));
+    const valve = M(new THREE.TorusGeometry(0.11, 0.025, 6, 14), new THREE.MeshPhongMaterial({ color: 0x2a7fd0 }));
+    valve.position.set(RB.x - 0.28, FY + 0.32, RB.z + 0.05); valve.rotation.y = Math.PI / 2;
+    const valveStem = M(new THREE.CylinderGeometry(0.03, 0.03, 0.28, 6), dark); valveStem.rotation.z = Math.PI / 2; valveStem.position.set(RB.x - 0.14, FY + 0.32, RB.z + 0.05);
+    // prop mark: where the small panel can stand under the edge
+    const PROP = new THREE.Vector3(B.x - 0.75, FY, B.z + 0.05);
+    const propMark = new THREE.Mesh(new THREE.RingGeometry(0.28, 0.36, 20), new THREE.MeshBasicMaterial({ color: 0xffd060, transparent: true, opacity: 0, depthWrite: false }));
+    propMark.rotation.x = -Math.PI / 2; propMark.position.copy(PROP).setY(FY + 0.02); group.add(propMark);
+    // the small panel starts wedged against the brace end, under the plate corner
+    s4.panel.position.set(B.x + 1.55, FY + 0.32, B.z - 0.15); s4.panel.rotation.set(0.2, 0.3, 1.2);
+    s4.panel.userData.homeX = s4.panel.position.x; s4.panel.userData.homeZ = s4.panel.position.z;
+    // ── state ──
+    const S = { ang: 16, angT: 16, grip: 'edge', valve: false, pin: true, ramDown: 0, propped: false, fail: -1,
+                bentGone: false, slipT: 0, said: {}, phase: 'start', t: 0, pullT: -1, idle: 0 };
+    const deg = Math.PI / 180;
+    function edgeY(a) { return FY + 0.18 + Math.sin(a * deg) * DEPTH; }
+    function gripWorld(g) { return new THREE.Vector3(B.x + g.x, 0, HZ + Math.cos(S.ang * deg) * DEPTH); }
+    function m08To(x, z, fx, fz) { robotStates[2].scripted = { x, z, faceX: fx, faceZ: fz, manip: true }; }
+    function say(who, line, key, dur) { if (key && S.said[key]) return; if (key) S.said[key] = 1; speak(who, line, dur || 2.0, { kind: who === 'SUIT' ? 'system' : 'robot' }); }
+    function setGrip(id) {
+      S.grip = id; const g = GRIPS.find(q => q.id === id);
+      m08To(B.x + g.x, HZ + DEPTH + 0.75, B.x + g.x, HZ + DEPTH - 0.2);
+      if (id === 'lug') say('M-08', 'here.', null); else if (id === 'bent') say('M-08', 'here?', null); else say('M-08', 'slips.', null);
+    }
+    function drop(why) {
+      S.fail = 0; S.angT = 3; thump();
+      if (why === 'bent') { S.bentGone = true; const g = GRIPS[1]; if (g.mesh) g.mesh.visible = false; say('M-08', 'snap.', null); }
+      else say('M-08', 'no.', null);
+      say('SUIT', 'load dropped on the brace', 'drop1', 2.4);
+    }
+    function thump() {
+      const p = gripWorld(GRIPS[1]); spawnDust(p.x, FY + 0.3, p.z, 10, { speed: 0.9, upVel: 0.5, upVar: 0.5, life: 1.0 });
+      if (audioCtx && masterGain) { const t0 = audioCtx.currentTime, o = audioCtx.createOscillator(), e = audioCtx.createGain();
+        o.frequency.setValueAtTime(70, t0); o.frequency.exponentialRampToValueAtTime(30, t0 + 0.35);
+        e.gain.setValueAtTime(0.3, t0); e.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.5); o.connect(e); e.connect(masterGain); o.start(t0); o.stop(t0 + 0.55); }
+    }
+    // ── interactables ──
+    const at = (v) => v;
+    for (const g of GRIPS) {
+      worldInteractables.push({
+        get x() { return B.x + g.x; }, get z() { return HZ + Math.cos(S.ang * deg) * DEPTH + 0.55; }, r: 0.75,
+        label: () => 'ask M-08 to grip ' + g.label,
+        hidden: () => !scene4.active || S.phase !== 'start' || S.fail >= 0 || S.grip === g.id || (g.id === 'bent' && S.bentGone),
+        fire() { if (reach.active) return; reachStart(gripWorld(g).setY(edgeY(S.ang)), { onContact() { robotEmote(2, 'face', player.pos.clone().setY(player.pos.y + 1.5)); setGrip(g.id); } }); },
+      });
+    }
+    worldInteractables.push({
+      x: valve.position.x - 0.55, z: valve.position.z + 0.45, r: 0.9,
+      label: 'open the pressure valve',
+      hidden: () => !scene4.active || S.valve || S.fail >= 0 || S.phase !== 'start',
+      fire() {
+        if (reach.active) return;
+        reachStart(valve.position.clone(), { onContact() {
+          S.valve = true; S.vSpin = 1; hiss();
+          if (S.grip === 'lug') { say('SUIT', 'pressure released — M-08 has the load', null, 2.6); say('M-08', 'heavy.', null); }
+          else drop(S.grip === 'bent' ? 'bent' : 'edge');
+        } });
+      },
+    });
+    worldInteractables.push({
+      get x() { return collar.position.x - 0.55; }, get z() { return collar.position.z - 0.1; }, r: 0.8,
+      label: 'pull the locking pin',
+      hidden: () => !scene4.active || !S.pin || S.fail >= 0 || S.phase !== 'start',
+      fire() {
+        if (reach.active) return;
+        reachStart(pin.position.clone(), { onContact() {
+          if (!S.valve) { say('SUIT', 'pin under load — release the pressure first', null, 2.8); pin.position.x += 0.04; setTimeout(() => { pin.position.x -= 0.04; }, 180); return; }
+          S.pin = false; scene4.pinDone = true; S.phase = 'lift'; S.t = 0;
+          say('SUIT', 'ram unlocked', null, 2.0);
+        } });
+      },
+    });
+    function hiss() {
+      if (!audioCtx || !masterGain) return; const t0 = audioCtx.currentTime, n = audioCtx.sampleRate * 1.2;
+      const b = audioCtx.createBuffer(1, n, audioCtx.sampleRate), d = b.getChannelData(0); for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+      const s = audioCtx.createBufferSource(); s.buffer = b; const f = audioCtx.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 1800;
+      const e = audioCtx.createGain(); e.gain.setValueAtTime(0.07, t0); e.gain.linearRampToValueAtTime(0, t0 + 1.2); s.connect(f); f.connect(e); e.connect(masterGain); s.start(t0);
+    }
+    // the small panel: only free once the plate is up; stand it on the mark to prop the plate
+    s4.panel.userData.enabled = () => scene4.active && S.ang > 30 && !S.propped;
+    s4.panel.userData.onDrop = (m) => {
+      if (Math.hypot(m.position.x - PROP.x, m.position.z - PROP.z) < 0.6 && S.phase === 'held') {
+        S.propped = true; scene4.panelDone = true;
+        m.position.set(PROP.x, FY + 0.53, PROP.z); m.rotation.set(0, 0, Math.PI / 2);
+        say('SUIT', 'plate propped', null, 2.0); S.phase = 'propped'; S.t = 0; S.angT = 34;
+      } else {
+        m.position.y = FY + 0.04; m.rotation.set(0, m.rotation.y, 0);
+        if (S.phase === 'held') say('M-08', 'under.', 'under', 2.0);
+      }
+    };
+    function begin() {                                  // when the cargo bay's scene starts
+      if (S.begun) return; S.begun = true; setGrip('edge'); S.said = {}; S.said.slipLine = 0;
+    }
+    function tick(dt) {
+      if (!scene4.active || scene4.braceHeld) { if (scene4.braceHeld) propMark.material.opacity = 0; return; }
+      begin(); S.t += dt; S.idle += dt;
+      // fail: plate on the brace, M-08 heaves it back, valve re-seals
+      if (S.fail >= 0) {
+        S.fail += dt;
+        if (S.fail > 2.4 && S.fail - dt <= 2.4) { say('M-08', 'again.', null); S.angT = 16; }
+        if (S.fail > 3.6) { S.fail = -1; S.valve = false; S.grip = 'edge'; setGrip('edge'); say('SUIT', 'ram re-pressurised', null, 2.0); }
+      }
+      // M-08 on the smooth edge: the claw keeps slipping
+      if (S.phase === 'start' && S.fail < 0 && S.grip === 'edge') {
+        S.slipT += dt;
+        if (S.slipT > 2.4) { S.slipT = 0; S.ang = S.angT + 1.6; const p = gripWorld(GRIPS[0]); spawnDust(p.x, FY + 0.25, p.z, 2, { speed: 0.3, upVel: 0.2, upVar: 0.2, life: 0.5 });
+          if (Math.hypot(player.pos.x - B.x, player.pos.z - B.z) < 7) say('M-08', 'slips.', 'slipLine'); }
+      }
+      if (S.phase === 'lift' && S.t > 0.6) { S.angT = 48; if (S.t > 0.6 && !S.said.up) { say('M-08', 'up.', 'up'); } if (S.ang > 46) { S.phase = 'held'; say('SUIT', 'brace end clear — the small panel is free', null, 2.6); } }
+      if (S.phase === 'propped' && S.t > 1.2 && S.pullT < 0) {            // M-08 lets go and goes for the brace
+        m08To(B.x + 2.6, B.z - 0.25, B.x + 1.5, B.z - 0.25); S.pullT = 0;
+      }
+      if (S.pullT >= 0 && !scene4.pulled) {
+        S.pullT += dt;
+        if (S.pullT > 2.4) {
+          scene4.pulled = true; scene4.pullT = 99;                      // skip the old pull animation
+          say('M-08', 'yes.', null); setTimeout(() => say('M-08', 'strong.', null), 1800);
+          S.braceAnim = 0;
+        }
+      }
+      if (S.braceAnim >= 0 && S.braceAnim < 1) {
+        S.braceAnim = Math.min(1, S.braceAnim + dt / 1.4); const e = S.braceAnim * S.braceAnim * (3 - 2 * S.braceAnim);
+        s4.brace.position.x = B.x + 0.45 + 1.7 * e;
+        if (S.braceAnim >= 1) {
+          spawnDust(s4.brace.position.x, FY + 0.2, s4.brace.position.z, 6, { speed: 0.5, upVel: 0.4, upVar: 0.4, life: 0.9 });
+          s4.braceIx.x = s4.brace.position.x + 0.4; s4.braceIx.z = s4.brace.position.z + 0.9;
+          m08To(B.x + 3.3, B.z + 1.4, s4.brace.position.x, s4.brace.position.z);
+        }
+      }
+      // M-08 keeps his claws on the lug as the edge rises
+      if ((S.phase === 'lift' || S.phase === 'held') && S.grip === 'lug') {
+        const gz = HZ + Math.cos(S.ang * deg) * DEPTH; const rs = robotStates[2].scripted;
+        if (!rs || Math.abs(rs.z - (gz + 0.7)) > 0.08) m08To(B.x + GRIPS[2].x, gz + 0.7, B.x + GRIPS[2].x, gz - 0.3);
+      }
+      // plate motion: drops fast, rises slowly
+      const rate = S.angT < S.ang ? 70 : 14;
+      S.ang += Math.sign(S.angT - S.ang) * Math.min(Math.abs(S.angT - S.ang), rate * dt);
+      pivot.rotation.x = -S.ang * deg;
+      // ram follows the plate until the pin is out, then lies down
+      if (!S.pin) S.ramDown = Math.min(1, S.ramDown + dt * 1.2);
+      const top = new THREE.Vector3(B.x - 1.15, 0, HZ + Math.cos(S.ang * deg) * 1.9).setY(FY + 0.18 + Math.sin(S.ang * deg) * 1.9 - 0.02);
+      if (S.ramDown > 0) { const flat = new THREE.Vector3(RB.x - 0.6, FY + 0.12, RB.z + 0.9); top.lerp(flat, S.ramDown * S.ramDown); }
+      const mid = RB.clone().lerp(top, 0.5), dir = top.clone().sub(RB), len = dir.length();
+      const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+      ramOuter.quaternion.copy(q); ramOuter.position.copy(RB).addScaledVector(dir, 0.3); ramOuter.scale.y = len * 0.6;
+      ramRod.quaternion.copy(q); ramRod.position.copy(RB).addScaledVector(dir, 0.75); ramRod.scale.y = len * 0.5;
+      collar.quaternion.copy(q); collar.position.copy(RB).addScaledVector(dir, 0.6);
+      if (S.pin) { pin.quaternion.copy(q).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2)); pin.position.copy(collar.position); }
+      else { pin.position.set(RB.x + 0.5, FY + 0.04, RB.z + 0.3); pin.rotation.set(0, 0.4, Math.PI / 2); }
+      if (S.vSpin > 0) { S.vSpin = Math.max(0, S.vSpin - dt); valve.rotation.x += dt * 9; }
+      propMark.material.opacity = S.phase === 'held' ? 0.5 + 0.3 * Math.sin(performance.now() * 0.006) : 0;
+    }
+    function hint() {
+      if (!scene4.active || scene4.pulled) return null;
+      if (S.grip !== 'lug') return { word: 'lug.', at: gripWorld(GRIPS[2]).setY(player.pos.y) };
+      if (!S.valve) return { word: 'valve.', at: valve.position.clone() };
+      if (S.pin) return { word: 'pin.', at: collar.position.clone() };
+      if (!S.propped) return { word: 'under.', at: PROP.clone() };
+      return { word: 'hold.', at: null };
+    }
+    puzzleHintFns.push(hint);
+    return { S, tick, B, GRIPS, valve, collar, PROP, gripWorld, group };
+  })();
+
   // ── v0.10.0: Puzzle A (oxygen stabiliser) lives in the wreck level ──
   // The puzzle was built in crater coordinates, mounted sideways on the
   // old wreck's deck disc (deck plane x = 18.42, unit at z = −1.5). With
@@ -16623,6 +17057,7 @@ body.in-wreck .cam-buttons { display: none; }
       if (WRECK_LEVEL_ENABLED && wreckInterior.group) keep.add(wreckInterior.group);
       if (WRECK_LEVEL_ENABLED) {                                   // brace puzzle and M-08 (v0.11.0)
         for (const m of [s4.plating, s4.pin, s4.panel, s4.brace]) keep.add(m);
+        if (braceV2) keep.add(braceV2.group);
         if (Math.abs(robotStates[2].pos.x - WL_ORIGIN.x) < 300) keep.add(robots[2]);
       }
       for (const o of scene.children) {
@@ -16954,6 +17389,8 @@ body.in-wreck .cam-buttons { display: none; }
     try { updateRobotCues(Math.min(0.1, (performance.now() - (updateRobotCues._t || performance.now())) / 1000)); } catch (e) { }
     updateRobotCues._t = performance.now();
     try { updateWristPad(); } catch (e) { }
+    if (braceV2) { try { braceV2.tick(dt); } catch (e) { console.warn('[brace]', e); } }
+    if (level.id === 'crater') { try { iceV2.tick(dt); } catch (e) { console.warn('[ice]', e); } }
     if (level.id === 'wreck') { try { wreckDress.tick(); } catch (e) { } try { wreckBoards.tick(dt); } catch (e) { console.warn('[boards]', e); } }
     try { airlockCycle.tick(dt); } catch (e) { console.warn('[airlock]', e); }
     try { updateMusic(); } catch (e) { }
