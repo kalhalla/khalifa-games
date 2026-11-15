@@ -667,7 +667,7 @@ body.in-wreck .cam-buttons { display: none; }
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.22.0';  // robot minds, stage 1. was v0.21.3;  // pick-up pose and two-handed carry. was v0.21.2;  // M-08 lifting pose; rougher ridge rocks. was v0.21.0;  // brace becomes a load puzzle with M-08; ice pocket becomes a light puzzle. was v0.20.1;  // red emergency light back in unpowered rooms; life support goes white when fixed; lit control boards. was v0.20.0;  // airlock cycle replaces the breach; interior relit. was v0.19.1;  // KHAL on the hull; wreck interior dressed; blockout labels dev-only. was v0.19.0;  // helmet radio for all voices; robot chirps + eye flash; wrist-pad questions to the robots. was v0.18.7;  // robot legs double-sided with dark cores; toe flaps 1.6x. was v0.18.6;  // robot ankles: foot pad on a ball joint, kept level while planted. was v0.18.5;  // robot toes bend to stay on the ground through stance. was v0.18.4;  // robot gait: bird-like stance/swing, bigger leg swing, pistons follow, body dip, feet planted. was v0.18.3;  // engine nozzles 25% larger. was v0.18.2;  // wreck: four landing legs in housings (two intact, two buckled), half-size blackened nozzles. was v0.18.1;  // wreck: sealed middle/nose, rear-only damage + tanks, doorway recess, NASA stacked, regolith imprint. was v0.18.0;  // wreck exterior: painted skin, round hull, ogive nose, engine bells, landing legs. was v0.17.3;  // robot eyes blink and look; gestures: wave, hand up, tap-and-point. was v0.17.2;  // robot legs: piston shins, hinged toes, less body sway. was v0.17.1;  // built tools on the Meshy robots: drill + saw, gripper, three-finger claws. was v0.17.0;  // Meshy robots, cut into jointed parts and driven by the walk rig. was v0.16.0;  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.22.1';  // O2 warnings at 20% / 10%; robots' devotion. was v0.22.0;  // robot minds, stage 1. was v0.21.3;  // pick-up pose and two-handed carry. was v0.21.2;  // M-08 lifting pose; rougher ridge rocks. was v0.21.0;  // brace becomes a load puzzle with M-08; ice pocket becomes a light puzzle. was v0.20.1;  // red emergency light back in unpowered rooms; life support goes white when fixed; lit control boards. was v0.20.0;  // airlock cycle replaces the breach; interior relit. was v0.19.1;  // KHAL on the hull; wreck interior dressed; blockout labels dev-only. was v0.19.0;  // helmet radio for all voices; robot chirps + eye flash; wrist-pad questions to the robots. was v0.18.7;  // robot legs double-sided with dark cores; toe flaps 1.6x. was v0.18.6;  // robot ankles: foot pad on a ball joint, kept level while planted. was v0.18.5;  // robot toes bend to stay on the ground through stance. was v0.18.4;  // robot gait: bird-like stance/swing, bigger leg swing, pistons follow, body dip, feet planted. was v0.18.3;  // engine nozzles 25% larger. was v0.18.2;  // wreck: four landing legs in housings (two intact, two buckled), half-size blackened nozzles. was v0.18.1;  // wreck: sealed middle/nose, rear-only damage + tanks, doorway recess, NASA stacked, regolith imprint. was v0.18.0;  // wreck exterior: painted skin, round hull, ogive nose, engine bells, landing legs. was v0.17.3;  // robot eyes blink and look; gestures: wave, hand up, tap-and-point. was v0.17.2;  // robot legs: piston shins, hinged toes, less body sway. was v0.17.1;  // built tools on the Meshy robots: drill + saw, gripper, three-finger claws. was v0.17.0;  // Meshy robots, cut into jointed parts and driven by the walk rig. was v0.16.0;  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -5454,6 +5454,7 @@ body.in-wreck .cam-buttons { display: none; }
       if (level.id !== 'wreck') oxygen.percent = Math.max(0, oxygen.percent - OXYGEN_DRAIN_RATE * dt);
     }
 
+    _o2Warnings(dt);
     // Hit zero — rescue.
     if (oxygen.percent <= 0 && !oxygen.dead) {
       oxygen.dead = true;
@@ -5462,6 +5463,57 @@ body.in-wreck .cam-buttons { display: none; }
     }
 
     _updateOxygenHUD();
+  }
+
+  // ── v0.22.1: low-oxygen warnings. 20% of the tank: "O₂ low" (amber
+  // banner, two-tone beep, gauge pulses). 10%: "O₂ dangerously low" (red
+  // banner, an alarm every 2 s while it lasts, red pulse at the screen
+  // edges). Each re-arms once he is back above 30% / 15%.
+  const o2w = { low: false, crit: false, beepT: 0, el: null, edge: null };
+  function _o2El() {
+    if (o2w.el) return;
+    const st = document.createElement('style');
+    st.textContent = `#o2-warn{position:fixed;left:50%;top:30%;transform:translate(-50%,-50%);z-index:60;pointer-events:none;
+      font:600 clamp(20px,5vw,34px)/1.2 ui-monospace,Menlo,monospace;letter-spacing:.18em;padding:.45em 1em;border:2px solid currentColor;
+      background:rgba(10,8,8,.55);opacity:0;transition:opacity .25s;text-align:center;white-space:nowrap}
+      #o2-warn.amber{color:#ffc04a}#o2-warn.red{color:#ff4a3a}#o2-warn.on{opacity:1}
+      #o2-edge{position:fixed;inset:0;pointer-events:none;z-index:59;opacity:0;box-shadow:inset 0 0 90px 30px rgba(255,40,30,.55)}
+      #oxygen-hud.o2-low{animation:o2pulse 1.2s infinite}#oxygen-hud.o2-crit{animation:o2pulse .5s infinite}
+      @keyframes o2pulse{50%{filter:brightness(1.7);box-shadow:0 0 14px 2px rgba(255,90,60,.6)}}`;
+    document.head.appendChild(st);
+    o2w.el = document.createElement('div'); o2w.el.id = 'o2-warn'; document.body.appendChild(o2w.el);
+    o2w.edge = document.createElement('div'); o2w.edge.id = 'o2-edge'; document.body.appendChild(o2w.edge);
+  }
+  function _o2Beep(n, f0, f1) {
+    if (!audioCtx || !masterGain) return; const t0 = audioCtx.currentTime;
+    for (let k = 0; k < n; k++) { const o = audioCtx.createOscillator(), e = audioCtx.createGain(); o.type = 'square';
+      o.frequency.value = k % 2 ? f1 : f0; const t = t0 + k * 0.2;
+      e.gain.setValueAtTime(0, t); e.gain.linearRampToValueAtTime(0.045, t + 0.01); e.gain.setValueAtTime(0.045, t + 0.13); e.gain.linearRampToValueAtTime(0, t + 0.16);
+      o.connect(e); e.connect(masterGain); o.start(t); o.stop(t + 0.18); }
+  }
+  function _o2Banner(text, cls, secs) {
+    _o2El(); o2w.el.textContent = text; o2w.el.className = cls + ' on';
+    clearTimeout(o2w.tm); o2w.tm = setTimeout(() => { o2w.el.classList.remove('on'); }, secs * 1000);
+  }
+  function _o2Warnings(dt) {
+    const hud = $('oxygen-hud'); const cap = Math.max(1, oxygen.capacity), r = oxygen.percent / cap;
+    const draining = !refill.connected && level.id !== 'wreck' && cine.phase === 'gameplay';
+    if (draining && r <= 0.20 && !o2w.low) {
+      o2w.low = true; _o2Banner('O₂ LOW', 'amber', 3.2); _o2Beep(2, 880, 660);
+      speak('SUIT', 'O₂ low — 20% remaining', 3.0, { kind: 'system' });
+      try { robotMinds.event('oxygenLow'); } catch (e) { }
+    }
+    if (draining && r <= 0.10 && !o2w.crit) {
+      o2w.crit = true; o2w.beepT = 2; _o2Banner('O₂ DANGEROUSLY LOW', 'red', 4.0);
+      speak('SUIT', 'O₂ dangerously low — return to oxygen now', 3.4, { kind: 'system' });
+      try { robotMinds.event('oxygenCritical'); } catch (e) { }
+    }
+    if (r > 0.30) o2w.low = false;
+    if (r > 0.15) o2w.crit = false;
+    const critNow = o2w.crit && r <= 0.12 && draining;
+    if (critNow) { o2w.beepT -= dt; if (o2w.beepT <= 0) { o2w.beepT = 2; _o2Beep(3, 1040, 780); } }
+    if (o2w.edge || critNow) { _o2El(); o2w.edge.style.opacity = critNow ? (0.55 + 0.45 * Math.sin(performance.now() * 0.006)).toFixed(2) : '0'; }
+    if (hud) { hud.classList.toggle('o2-crit', critNow); hud.classList.toggle('o2-low', !critNow && r <= 0.20 && draining); }
   }
 
   // HUD update — bar fill height, colour band, percent text. Pulled out
@@ -8165,7 +8217,7 @@ body.in-wreck .cam-buttons { display: none; }
     robot.rotation.y = r.heading;
 
     const ud = robot.userData;
-    const moving = (r.state === 'walking') || r.state === 'mind_walk' || (r.state === 'escort' && r._moving)
+    const moving = (r.state === 'walking') || r.state === 'mind_walk' || ((r.state === 'escort' || r.state === 'lead') && r._moving)
                 || ((r.state === 'studying_rock' || r.state === 'investigating_tunnel')
                      && r.subPhase === 'approach');
     if (moving) {
@@ -15246,7 +15298,7 @@ body.in-wreck .cam-buttons { display: none; }
     const r = robotStates[i]; if (!r || !EMOTE_LEN[kind]) return false;
     if (r.emote) return false;
     r.emote = { kind, t: 0, len: EMOTE_LEN[kind], target: target ? target.clone() : null };
-    if (!r.pinned && !r.scripted) { r.state = 'idle'; r.stateTimer = Math.max(r.stateTimer || 0, EMOTE_LEN[kind] + 0.5); }
+    if (!r.pinned && !r.scripted && r.state !== 'lead' && r.state !== 'escort') { r.state = 'idle'; r.stateTimer = Math.max(r.stateTimer || 0, EMOTE_LEN[kind] + 0.5); }   // v0.22.1: a gesture never breaks a lead or an escort
     return true;
   }
   function robotEmoteTick(robot, r, dt) {
@@ -15301,10 +15353,13 @@ body.in-wreck .cam-buttons { display: none; }
   const robotMinds = (function () {
     const ON = !/[?&]nominds\b/.test(location.search);
     // index: 0 P-03 (blue), 1 L-07 (yellow), 2 M-08 (red)
+    // v0.22.1: all three love him. Devotion is the core value they were
+    // trained on — protect crew above the mission — so it scales every
+    // protective choice; personality decides how they show it.
     const PERS = [
-      { mission: 1.0, protect: 0.6, curious: 0.8, company: 0.4 },   // P-03: the cutter, the path
-      { mission: 0.6, protect: 1.0, curious: 0.5, company: 0.7 },   // L-07: the protector
-      { mission: 0.7, protect: 0.6, curious: 0.6, company: 1.0 },   // M-08: the heart
+      { mission: 1.0, protect: 0.75, curious: 0.8, company: 0.45, devotion: 0.85 },   // P-03: the cutter, the path
+      { mission: 0.6, protect: 1.0, curious: 0.5, company: 0.7, devotion: 1.0 },      // L-07: the protector
+      { mission: 0.7, protect: 0.85, curious: 0.6, company: 1.0, devotion: 0.95 },    // M-08: the heart
     ];
     const BARK = {
       hardLanding: [['ok?'], ['careful.', 'ok?'], ['ok?']],
@@ -15314,6 +15369,10 @@ body.in-wreck .cam-buttons { display: none; }
       escort: [['path.'], ['with you.'], ['come.']],
       back: [['you.'], ['back.'], ['back.', 'you.']],
       visit: [[''], [''], ['look.']],
+      lead: [['this way.'], ['air. this way.'], ['come. air.']],
+      wait: [['come.'], ['come. hurry.'], ['come.']],
+      high: [['careful.'], ['careful.', 'down.'], ['high.']],
+      still: [[''], ['here.'], ['here.', 'with you.']],
     };
     const M = robotStates.map((r, i) => ({
       i, d: { mission: 0.4 + Math.random() * 0.3, protect: 0.2, curious: 0.3, company: 0.3 },
@@ -15327,7 +15386,7 @@ body.in-wreck .cam-buttons { display: none; }
       if (ev.length > 30) ev.shift();
       for (const m of M) if (urgent(type) && canThink(m)) m.nextThink = Math.min(m.nextThink, now + 0.3 + m.i * 0.25);
     }
-    const urgent = (t) => t === 'hardLanding' || t === 'oxygenLow' || t === 'oxygenCritical' || t === 'pickedUp';
+    const urgent = (t) => t === 'hardLanding' || t === 'oxygenLow' || t === 'oxygenCritical' || t === 'pickedUp' || t === 'highUp' || t === 'leftWreck';
     function recent(type, within) { for (let k = ev.length - 1; k >= 0; k--) { if (now - ev[k].t > within) break; if (ev[k].type === type) return ev[k]; } return null; }
     function canThink(m) {
       const r = robotStates[m.i];
@@ -15365,7 +15424,12 @@ body.in-wreck .cam-buttons { display: none; }
       add('work', p.mission * d.mission);
       add('rest', 0.12);
       const crit = recent('oxygenCritical', 10), low = recent('oxygenLow', 10), fall = recent('hardLanding', 8);
-      if ((crit || low || fall) && dist < 60) add('checkOn', 1.2 * p.protect + (crit ? 0.6 : 0) + (fall ? 0.2 : 0));
+      if ((crit || low || fall) && dist < 80) add('checkOn', 1.2 * p.protect * p.devotion + (crit ? 0.6 : 0) + (fall ? 0.2 : 0));
+      // dangerously low and nowhere near air: one of them leads him to it
+      if (crit && o2Dist() > 8 && (leadBy < 0 || leadBy === m.i)) add('lead', 2.2 * p.protect * p.devotion);
+      if (recent('highUp', 6) && dist < 40) add('spot', 1.0 * p.protect * p.devotion);
+      if (recent('leftWreck', 4) && dist < 50) add('greet', 0.9 * p.company * p.devotion + 0.2);
+      if (P.still > 20 && dist < 40 && !P.atO2) add('comfort', 0.8 * p.company * p.devotion);
       const act = recent('pickedUp', 5) || recent('jumped', 3);
       if (act && dist < 18) add('watch', 0.75 * p.curious + 0.2);
       const away = Math.max(0, Math.min(1, (dist - 10) / 25));          // he is heading off on his own
@@ -15374,9 +15438,18 @@ body.in-wreck .cam-buttons { display: none; }
       out.sort((a, b) => b.s - a.s);
       return out[0].name;
     }
+    let leadBy = -1;
+    function o2Point() {                                  // nearest air he can reach
+      const pts = [{ x: REFILL_PANEL_POS.x, z: REFILL_PANEL_POS.z }];
+      if (scene6.done) pts.push({ x: ICE_POCKET.x, z: ICE_POCKET.z });
+      pts.sort((a, b) => Math.hypot(a.x - player.pos.x, a.z - player.pos.z) - Math.hypot(b.x - player.pos.x, b.z - player.pos.z));
+      return pts[0];
+    }
+    const o2Dist = () => { const o = o2Point(); return Math.hypot(o.x - player.pos.x, o.z - player.pos.z); };
     function start(m, name) {
       const r = robotStates[m.i];
       if (m.intent === 'escort' && name !== 'escort' && escortBy === m.i) escortBy = -1;
+      if (m.intent === 'lead' && name !== 'lead' && leadBy === m.i) leadBy = -1;
       m.intent = name; m.since = now; r.mindSpeed = 0.4; r.after = null;
       if (name === 'work') {
         const list = sites(m.i), s = list[Math.floor(Math.random() * list.length)];
@@ -15396,6 +15469,18 @@ body.in-wreck .cam-buttons { display: none; }
       } else if (name === 'escort') {
         escortBy = m.i; r.state = 'escort'; r.stateTimer = 20 + Math.random() * 15;
         if (Math.random() < 0.3) bark(m, 'escort');
+      } else if (name === 'lead') {
+        leadBy = m.i; r.state = 'lead'; r.stateTimer = 90; bark(m, 'lead');
+      } else if (name === 'spot') {                       // stand below him while he is up high
+        const f = fwd(); goTo(r, player.pos.x + f.x * 2.2 + (m.i - 1), player.pos.z + f.z * 2.2, 1.2, { state: 'attend', faceAt: 'player', dur: 6 });
+        r.onArrive = () => bark(m, 'high');
+      } else if (name === 'greet') {
+        const f = fwd(); goTo(r, player.pos.x + f.x * 2.5 + (m.i - 1) * 1.2, player.pos.z + f.z * 2.5, 1.1, { state: 'attend', faceAt: 'player', dur: 4 });
+        r.onArrive = () => bark(m, 'back');
+      } else if (name === 'comfort') {                    // stand beside him, looking where he looks
+        const f = fwd(), side = m.i === 2 ? 1 : -1;
+        goTo(r, player.pos.x + f.z * side * 1.3, player.pos.z - f.x * side * 1.3, 0.5, { state: 'attend', faceAt: null, dur: 14 });
+        r.onArrive = () => { r.heading = player.heading; bark(m, 'still'); };
       } else if (name === 'visit') {
         const others = [0, 1, 2].filter(k => k !== m.i && robots[k].visible && Math.hypot(robotStates[k].pos.x - r.pos.x, robotStates[k].pos.z - r.pos.z) < 45);
         if (!others.length) { r.state = 'attend'; r.faceAt = null; r.stateTimer = 3; return; }
@@ -15419,11 +15504,16 @@ body.in-wreck .cam-buttons { display: none; }
       if (g && !P.lastGrounded) { if (P.fallVy < -3.2) event('hardLanding'); P.fallVy = 0; }
       if (!g && P.lastGrounded && player.vel.y > 1) event('jumped');
       P.lastGrounded = g;
-      const sp = Math.hypot(player.vel.x, player.vel.z); P.still = sp < 0.15 ? P.still + dt : 0;
-      if (typeof oxygen !== 'undefined' && oxygen.capacity > 0 && oxygen.capacity < 1000) {
-        const f = oxygen.percent / oxygen.capacity;
-        if (f < 0.3 && !P.o2Low) { P.o2Low = true; event('oxygenLow'); } else if (f > 0.45) P.o2Low = false;
-        if (f < 0.13 && !P.o2Crit) { P.o2Crit = true; event('oxygenCritical'); } else if (f > 0.25) P.o2Crit = false;
+      const sp = Math.hypot(player.vel.x, player.vel.z); P.still = sp < 0.15 ? P.still + dt : 0; P.atO2 = refill.connected;
+      // oxygen alarms come from the suit (_o2Warnings, 20% / 10%)
+      // up high: standing on a rock well above the ground
+      if (g && level.id === 'crater' && player.pos.y - shackletonScene.getGroundY(player.pos.x, player.pos.z) > 2.0) { if (now - (P.highT || -99) > 25) { P.highT = now; event('highUp'); } }
+      // never alone for long: if nobody is near him, the most devoted free robot comes
+      let nearest = 1e9; for (const m of M) nearest = Math.min(nearest, Math.hypot(robotStates[m.i].pos.x - player.pos.x, robotStates[m.i].pos.z - player.pos.z));
+      P.alone = (nearest > 15 && level.id === 'crater' && controlMode === 'walking') ? (P.alone || 0) + dt : 0;
+      if (P.alone > 12 && escortBy < 0) {
+        let best = null, bs = -1; for (const m of M) { if (!canThink(m)) continue; const sc = PERS[m.i].devotion * (0.6 + m.affinity) - Math.hypot(robotStates[m.i].pos.x - player.pos.x, robotStates[m.i].pos.z - player.pos.z) * 0.004; if (sc > bs) { bs = sc; best = m; } }
+        if (best) { start(best, 'escort'); best.nextThink = now + 6; P.alone = 0; }
       }
       const inWreck = level.id === 'wreck';
       if (P.wasWreck && !inWreck) event('leftWreck');
@@ -15443,12 +15533,12 @@ body.in-wreck .cam-buttons { display: none; }
         // an alarm (low oxygen, a fall, a pickup nearby) breaks into whatever it is doing
         for (let k = ev.length - 1; k >= 0 && now - ev[k].t < 2.5; k--) {
           const e = ev[k]; if (!urgent(e.type) || m.handled === e) continue;
-          m.handled = e; if (now >= ev[k].t + 0.3 + m.i * 0.35) { const pick = score(m); if (pick === 'checkOn' || pick === 'watch') { start(m, pick); m.nextThink = now + 3; } }
+          m.handled = e; if (now >= ev[k].t + 0.3 + m.i * 0.35) { const pick = score(m); if (['checkOn', 'watch', 'lead', 'spot', 'greet'].includes(pick) && !(m.intent === 'lead' && pick !== 'lead')) { start(m, pick); m.nextThink = now + 3; } }
           else m.handled = null;
           break;
         }
         const idleish = r.state === 'idle' || r.state === 'attend' || r.state === 'manipulating' || r.state === 'escort' || r.state === 'walking'
-          || (now - m.since > 8 && m.intent !== 'checkOn');             // any job can be reconsidered after a while
+          || (now - m.since > 8 && m.intent !== 'checkOn' && m.intent !== 'lead');             // any job can be reconsidered after a while
         if (now >= m.nextThink && idleish && now - m.since > 3) {
           const pick = score(m);
           if (pick !== m.intent || r.state === 'idle') start(m, pick);
@@ -15474,6 +15564,23 @@ body.in-wreck .cam-buttons { display: none; }
         const f = r.faceAt === 'player' ? player.pos : (typeof r.faceAt === 'number' ? robotStates[r.faceAt].pos : null);
         if (f) turnTo(r, f.x, f.z, dt);
         if (r.stateTimer <= 0) { r.state = 'idle'; r.stateTimer = 0.5; }
+        return true;
+      }
+      if (r.state === 'lead') {
+        // walk ahead of him towards air; wait (and call) when he falls behind
+        const o = o2Point(), pd = Math.hypot(r.pos.x - player.pos.x, r.pos.z - player.pos.z);
+        const toO = Math.hypot(o.x - player.pos.x, o.z - player.pos.z), ux = (o.x - player.pos.x) / Math.max(toO, 0.01), uz = (o.z - player.pos.z) / Math.max(toO, 0.01);
+        const ahead = Math.min(3.5, Math.max(0, toO - 1.5));
+        let tx = player.pos.x + ux * ahead, tz = player.pos.z + uz * ahead;
+        if (pd > 7) { tx = r.pos.x; tz = r.pos.z; turnTo(r, player.pos.x, player.pos.z, dt); r._moving = false;
+          if (!r._waitT || performance.now() - r._waitT > 6000) { r._waitT = performance.now(); bark(M[r.number - 1], 'wait'); } }
+        else {
+          const dd = Math.hypot(tx - r.pos.x, tz - r.pos.z);
+          if (dd > 0.6) { if (!r._mindT) r._mindT = new THREE.Vector3(); r._mindT.set(tx, r.pos.y, tz); r.target = r._mindT; r.mindSpeed = Math.min(1.5, 0.5 + dd * 0.35); stepWalk(); r._moving = true; }
+          else { r._moving = false; turnTo(r, o.x, o.z, dt); }
+        }
+        const ratio = oxygen.percent / Math.max(1, oxygen.capacity);
+        if (toO < 3 || refill.connected || ratio > 0.35 || r.stateTimer <= 0 || level.id !== 'crater') { r.state = 'idle'; r.stateTimer = 0.5; r._moving = false; r.mindSpeed = 0.4; if (leadBy === r.number - 1) leadBy = -1; }
         return true;
       }
       if (r.state === 'escort') {
@@ -15516,7 +15623,7 @@ body.in-wreck .cam-buttons { display: none; }
       m.label.scale.set(1.6, 0.3, 1); m.label.position.y = 1.9; robots[m.i].add(m.label);
     }
     function asked(i) { M[i].affinity = Math.min(1, M[i].affinity + 0.06); }
-    return { tick, step, event, asked, M, ON, get escortBy() { return escortBy; } };
+    return { tick, step, event, asked, M, ON, get escortBy() { return escortBy; }, get leadBy() { return leadBy; } };
   })();
 
   const ROBOT_RADIO_IDX = { 'P-03': 0, 'L-07': 1, 'M-08': 2 };
