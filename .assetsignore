@@ -10,3 +10,6 @@ worker.js
 
 # Parked games: kept in the repo, not published
 lock-in
+
+# Design docs: kept in the repo, not published (the script has spoilers)
+shackleton/docs

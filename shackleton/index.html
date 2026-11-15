@@ -667,7 +667,7 @@ body.in-wreck .cam-buttons { display: none; }
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.19.0';  // helmet radio for all voices; robot chirps + eye flash; wrist-pad questions to the robots. was v0.18.7;  // robot legs double-sided with dark cores; toe flaps 1.6x. was v0.18.6;  // robot ankles: foot pad on a ball joint, kept level while planted. was v0.18.5;  // robot toes bend to stay on the ground through stance. was v0.18.4;  // robot gait: bird-like stance/swing, bigger leg swing, pistons follow, body dip, feet planted. was v0.18.3;  // engine nozzles 25% larger. was v0.18.2;  // wreck: four landing legs in housings (two intact, two buckled), half-size blackened nozzles. was v0.18.1;  // wreck: sealed middle/nose, rear-only damage + tanks, doorway recess, NASA stacked, regolith imprint. was v0.18.0;  // wreck exterior: painted skin, round hull, ogive nose, engine bells, landing legs. was v0.17.3;  // robot eyes blink and look; gestures: wave, hand up, tap-and-point. was v0.17.2;  // robot legs: piston shins, hinged toes, less body sway. was v0.17.1;  // built tools on the Meshy robots: drill + saw, gripper, three-finger claws. was v0.17.0;  // Meshy robots, cut into jointed parts and driven by the walk rig. was v0.16.0;  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.22.3';  // shadow acne fix (small sun/lamp bias). was v0.22.2;  // L-07's spare bottle after the first rescue. was v0.22.1;  // O2 warnings at 20% / 10%; robots' devotion. was v0.22.0;  // robot minds, stage 1. was v0.21.3;  // pick-up pose and two-handed carry. was v0.21.2;  // M-08 lifting pose; rougher ridge rocks. was v0.21.0;  // brace becomes a load puzzle with M-08; ice pocket becomes a light puzzle. was v0.20.1;  // red emergency light back in unpowered rooms; life support goes white when fixed; lit control boards. was v0.20.0;  // airlock cycle replaces the breach; interior relit. was v0.19.1;  // KHAL on the hull; wreck interior dressed; blockout labels dev-only. was v0.19.0;  // helmet radio for all voices; robot chirps + eye flash; wrist-pad questions to the robots. was v0.18.7;  // robot legs double-sided with dark cores; toe flaps 1.6x. was v0.18.6;  // robot ankles: foot pad on a ball joint, kept level while planted. was v0.18.5;  // robot toes bend to stay on the ground through stance. was v0.18.4;  // robot gait: bird-like stance/swing, bigger leg swing, pistons follow, body dip, feet planted. was v0.18.3;  // engine nozzles 25% larger. was v0.18.2;  // wreck: four landing legs in housings (two intact, two buckled), half-size blackened nozzles. was v0.18.1;  // wreck: sealed middle/nose, rear-only damage + tanks, doorway recess, NASA stacked, regolith imprint. was v0.18.0;  // wreck exterior: painted skin, round hull, ogive nose, engine bells, landing legs. was v0.17.3;  // robot eyes blink and look; gestures: wave, hand up, tap-and-point. was v0.17.2;  // robot legs: piston shins, hinged toes, less body sway. was v0.17.1;  // built tools on the Meshy robots: drill + saw, gripper, three-finger claws. was v0.17.0;  // Meshy robots, cut into jointed parts and driven by the walk rig. was v0.16.0;  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -793,8 +793,13 @@ body.in-wreck .cam-buttons { display: none; }
   // they're meant to solve. Leaving both at 0 keeps shadow geometry
   // honest; if acne returns at the wall-floor seam, fix the wall
   // mesh itself rather than reinstate either bias.
-  sun.shadow.bias = 0;
-  sun.shadow.normalBias = 0;
+  // v0.22.3: a small bias after all. With the sun at 17°, light grazes
+  // the hull and the robots' sides, and zero bias gave shadow acne —
+  // fine stripes and rings that crawl as the shadow frustum follows him
+  // (Khal: "a texture on the ship and the robots that causes flickering").
+  // These values clear it without lifting contact shadows off the ground.
+  sun.shadow.bias = -0.0004;
+  sun.shadow.normalBias = 0.03;
   scene.add(sun);
 
   function makeEarthTexture() {
@@ -1410,13 +1415,37 @@ body.in-wreck .cam-buttons { display: none; }
   // Push the player cylinder out of every box it overlaps at its
   // current height. Boxes the player is standing on (or can step
   // onto) are skipped — boxTopAt handles those.
+  // v0.21.2: the robots are solid. Each is a short cylinder; he is pushed
+  // out of it (they are heavier than he is) unless he is above its top.
+  const ROBOT_BODY_R = 0.42, ROBOT_BODY_H = 1.15;
+  function robotResolvePlayer(pos, vel) {
+    if (typeof robots === 'undefined') return;
+    for (let i = 0; i < robots.length; i++) {
+      const r = robots[i]; if (!r.visible) continue;
+      const rp = r.position;
+      if (pos.y > rp.y + ROBOT_BODY_H || pos.y + 1.7 < rp.y) continue;
+      const dx = pos.x - rp.x, dz = pos.z - rp.z, d = Math.hypot(dx, dz), min = BOX_PLAYER_R + ROBOT_BODY_R;
+      if (d >= min) continue;
+      const nx = d > 1e-4 ? dx / d : 1, nz = d > 1e-4 ? dz / d : 0;
+      pos.x = rp.x + nx * min; pos.z = rp.z + nz * min;
+      const vn = vel.x * nx + vel.z * nz; if (vn < 0) { vel.x -= vn * nx; vel.z -= vn * nz; }
+    }
+  }
   function boxResolvePlayer(pos, vel) {
     for (const b of boxColliders) {
       if (!b.enabled || (b.level || 'crater') !== level.id) continue;
       if (pos.y >= b.y1 - 0.02) continue;                        // on top / above
       if (pos.y + 1.7 < b.y0) continue;                          // passes under
-      if (b.walkable && b.y1 <= pos.y + BOX_STEP_UP) continue;   // step-up
+      // step-up — only on foot (v0.21.2): in the air he must clear the top
+      // before he is over it, or he slides into the box's side mid-jump
+      if (b.walkable && b.y1 <= pos.y + BOX_STEP_UP && (player.grounded || pos.y >= b.y1 - 0.12)) continue;
       _boxLocal(b, pos.x, pos.z, _bl);
+      // v0.21.2: head bump. Feet below the box and the head just into its
+      // underside, inside the footprint: stop the rise instead of letting
+      // the sideways push (or the jump) carry him through to the top.
+      if (pos.y < b.y0 && pos.y + 1.7 - b.y0 < 0.7 && Math.abs(_bl.x) < b.hx + 0.1 && Math.abs(_bl.z) < b.hz + 0.1) {
+        pos.y = b.y0 - 1.7; if (vel.y > 0) vel.y = 0; continue;
+      }
       const cx = Math.max(-b.hx, Math.min(b.hx, _bl.x));
       const cz = Math.max(-b.hz, Math.min(b.hz, _bl.z));
       let nx = _bl.x - cx, nz = _bl.z - cz;
@@ -2853,11 +2882,15 @@ body.in-wreck .cam-buttons { display: none; }
   // dead zone already removed; run = pushed to the rim.
   const joy = { x: 0, y: 0, active: false, run: false };
   let uiPanelOpen = false;          // v0.13.0: a full-screen puzzle panel has the player's attention
+  let airlockLock = false;          // v0.20.0: the airlock is cycling — no player input
+  let aimLock = false;              // v0.21.0: aiming a mirror — left/right turns it, no walking
+  let airlockDrive = null;          // v0.20.0: { x, z } — walk him there (airlock entry/exit)
+  const puzzleHintFns = [];         // v0.21.0: puzzles add a hint for the robots' 'what now?'
   function setInputFromKeys() {
     input.forward = (keys['w']||keys['arrowup'] ? 1 : 0) + (keys['s']||keys['arrowdown'] ? -1 : 0);
     input.strafe = (keys['d']||keys['arrowright'] ? 1 : 0) + (keys['a']||keys['arrowleft'] ? -1 : 0);
     input.run = !!keys['shift'];
-    if (demoEnd.active || uiPanelOpen) { input.forward = 0; input.strafe = 0; input.run = false; input.jump = false; return; }
+    if (demoEnd.active || uiPanelOpen || airlockLock || aimLock) { input.forward = 0; input.strafe = 0; input.run = false; input.jump = false; return; }
     if (joy.active) {
       input.forward = joy.y; input.strafe = joy.x;
       input.run = joy.run && level.id !== 'wreck';     // no running indoors
@@ -2944,6 +2977,11 @@ body.in-wreck .cam-buttons { display: none; }
     let camFx = _camDir.x, camFz = _camDir.z;
     const camLen = Math.hypot(camFx, camFz);
     if (camLen > 0.05) { camFx /= camLen; camFz /= camLen; } else { camFx = 0; camFz = 1; }
+    if (airlockDrive) {                         // v0.20.0: scripted walk through the airlock
+      const dx = airlockDrive.x - player.pos.x, dz = airlockDrive.z - player.pos.z, d = Math.hypot(dx, dz);
+      if (d < 0.15) { input.forward = 0; input.strafe = 0; airlockDrive.arrived = true; }
+      else { camFx = dx / d; camFz = dz / d; input.forward = Math.min(1, 0.35 + d); input.strafe = 0; }
+    }
     const camRx = -camFz, camRz = camFx;
 
     let inX = camFx * input.forward + camRx * input.strafe;
@@ -2955,7 +2993,7 @@ body.in-wreck .cam-buttons { display: none; }
     // speed/clip-rate/bob read as stuttering, not as a lope. The
     // lunar feel now comes solely from the 0.78× gait timescale in
     // setAnimation: original movement, slightly slow limbs.
-    const targetSpeed = level.id === 'wreck' ? WRECK_WALK_SPEED : (input.run ? RUN_SPEED : JOG_SPEED);
+    const targetSpeed = (level.id === 'wreck' || airlockDrive) ? WRECK_WALK_SPEED : (input.run ? RUN_SPEED : JOG_SPEED);
     const accel = player.grounded ? ACCEL_GROUND : ACCEL_AIR;
     // v0.13.5: no steering in the air. Once he has left the ground on a
     // jump (or has been falling for more than a moment) he is a
@@ -3312,6 +3350,7 @@ body.in-wreck .cam-buttons { display: none; }
 
     // Box colliders (v0.5.0) — GLB proxies and authored blockers.
     boxResolvePlayer(player.pos, player.vel);
+    robotResolvePlayer(player.pos, player.vel);
 
     // Crater wall collision. Originally gated on `player.pos.y < -0.1`
     // — back when the only sub-zero terrain was the main crater. The
@@ -5366,6 +5405,7 @@ body.in-wreck .cam-buttons { display: none; }
         if (msgEl)  msgEl.style.opacity = '0';
         oxygen.dead = false;
         oxygen.rescueT = 0;
+        try { robotMinds.unlockBottle(); } catch (e) { }          // v0.22.2: L-07 starts carrying spare air
         if (rescueSit.active && !rescueSit.spoke) {
           rescueSit.spoke = true;
           speak('SUIT', 'emergency umbilical attached — O₂ flow nominal', 3.2,
@@ -5420,6 +5460,7 @@ body.in-wreck .cam-buttons { display: none; }
       if (level.id !== 'wreck') oxygen.percent = Math.max(0, oxygen.percent - OXYGEN_DRAIN_RATE * dt);
     }
 
+    _o2Warnings(dt);
     // Hit zero — rescue.
     if (oxygen.percent <= 0 && !oxygen.dead) {
       oxygen.dead = true;
@@ -5428,6 +5469,57 @@ body.in-wreck .cam-buttons { display: none; }
     }
 
     _updateOxygenHUD();
+  }
+
+  // ── v0.22.1: low-oxygen warnings. 20% of the tank: "O₂ low" (amber
+  // banner, two-tone beep, gauge pulses). 10%: "O₂ dangerously low" (red
+  // banner, an alarm every 2 s while it lasts, red pulse at the screen
+  // edges). Each re-arms once he is back above 30% / 15%.
+  const o2w = { low: false, crit: false, beepT: 0, el: null, edge: null };
+  function _o2El() {
+    if (o2w.el) return;
+    const st = document.createElement('style');
+    st.textContent = `#o2-warn{position:fixed;left:50%;top:30%;transform:translate(-50%,-50%);z-index:60;pointer-events:none;
+      font:600 clamp(20px,5vw,34px)/1.2 ui-monospace,Menlo,monospace;letter-spacing:.18em;padding:.45em 1em;border:2px solid currentColor;
+      background:rgba(10,8,8,.55);opacity:0;transition:opacity .25s;text-align:center;white-space:nowrap}
+      #o2-warn.amber{color:#ffc04a}#o2-warn.red{color:#ff4a3a}#o2-warn.on{opacity:1}
+      #o2-edge{position:fixed;inset:0;pointer-events:none;z-index:59;opacity:0;box-shadow:inset 0 0 90px 30px rgba(255,40,30,.55)}
+      #oxygen-hud.o2-low{animation:o2pulse 1.2s infinite}#oxygen-hud.o2-crit{animation:o2pulse .5s infinite}
+      @keyframes o2pulse{50%{filter:brightness(1.7);box-shadow:0 0 14px 2px rgba(255,90,60,.6)}}`;
+    document.head.appendChild(st);
+    o2w.el = document.createElement('div'); o2w.el.id = 'o2-warn'; document.body.appendChild(o2w.el);
+    o2w.edge = document.createElement('div'); o2w.edge.id = 'o2-edge'; document.body.appendChild(o2w.edge);
+  }
+  function _o2Beep(n, f0, f1) {
+    if (!audioCtx || !masterGain) return; const t0 = audioCtx.currentTime;
+    for (let k = 0; k < n; k++) { const o = audioCtx.createOscillator(), e = audioCtx.createGain(); o.type = 'square';
+      o.frequency.value = k % 2 ? f1 : f0; const t = t0 + k * 0.2;
+      e.gain.setValueAtTime(0, t); e.gain.linearRampToValueAtTime(0.045, t + 0.01); e.gain.setValueAtTime(0.045, t + 0.13); e.gain.linearRampToValueAtTime(0, t + 0.16);
+      o.connect(e); e.connect(masterGain); o.start(t); o.stop(t + 0.18); }
+  }
+  function _o2Banner(text, cls, secs) {
+    _o2El(); o2w.el.textContent = text; o2w.el.className = cls + ' on';
+    clearTimeout(o2w.tm); o2w.tm = setTimeout(() => { o2w.el.classList.remove('on'); }, secs * 1000);
+  }
+  function _o2Warnings(dt) {
+    const hud = $('oxygen-hud'); const cap = Math.max(1, oxygen.capacity), r = oxygen.percent / cap;
+    const draining = !refill.connected && level.id !== 'wreck' && cine.phase === 'gameplay';
+    if (draining && r <= 0.20 && !o2w.low) {
+      o2w.low = true; _o2Banner('O₂ LOW', 'amber', 3.2); _o2Beep(2, 880, 660);
+      speak('SUIT', 'O₂ low — 20% remaining', 3.0, { kind: 'system' });
+      try { robotMinds.event('oxygenLow'); } catch (e) { }
+    }
+    if (draining && r <= 0.10 && !o2w.crit) {
+      o2w.crit = true; o2w.beepT = 2; _o2Banner('O₂ DANGEROUSLY LOW', 'red', 4.0);
+      speak('SUIT', 'O₂ dangerously low — return to oxygen now', 3.4, { kind: 'system' });
+      try { robotMinds.event('oxygenCritical'); } catch (e) { }
+    }
+    if (r > 0.30) o2w.low = false;
+    if (r > 0.15) o2w.crit = false;
+    const critNow = o2w.crit && r <= 0.12 && draining;
+    if (critNow) { o2w.beepT -= dt; if (o2w.beepT <= 0) { o2w.beepT = 2; _o2Beep(3, 1040, 780); } }
+    if (o2w.edge || critNow) { _o2El(); o2w.edge.style.opacity = critNow ? (0.55 + 0.45 * Math.sin(performance.now() * 0.006)).toFixed(2) : '0'; }
+    if (hud) { hud.classList.toggle('o2-crit', critNow); hud.classList.toggle('o2-low', !critNow && r <= 0.20 && draining); }
   }
 
   // HUD update — bar fill height, colour band, percent text. Pulled out
@@ -7986,7 +8078,9 @@ body.in-wreck .cam-buttons { display: none; }
       r.stateTimer = 0;    // just released from a script — re-decide now
     }
 
-    if (r.state === 'idle' && r.stateTimer <= 0) {
+    if (r.state === 'idle' && r.stateTimer <= 0 && robotMinds.ON && !r.scripted && level.id === 'crater') {
+      r.stateTimer = 0.5;                                // v0.22.0: the mind decides (robotMinds.tick)
+    } else if (r.state === 'idle' && r.stateTimer <= 0) {
       // Specialty pick — robot 1 (blue) studies the outcrop occasionally;
       // robot 2 (yellow) wanders to the tunnel mouth occasionally. Each
       // chance ~1-in-3 per idle decision so it happens often enough to
@@ -8036,15 +8130,20 @@ body.in-wreck .cam-buttons { display: none; }
       const dz = r.target.z - r.pos.z;
       const dist = Math.hypot(dx, dz);
       if (dist < 0.30) return false;
-      const walkSpeed = 0.40;
-      const targetH = Math.atan2(dx, dz);
+      const walkSpeed = r.mindSpeed || 0.40;           // v0.22.0: minds can hurry (escort, check on him)
+      let targetH = Math.atan2(dx, dz);
+      // v0.22.0: step around rocks rather than through them (outdoors)
+      if (level.id === 'crater' && Math.abs(r.pos.x - WL_ORIGIN.x) > 300) {
+        const blocked = (h) => { const x = r.pos.x + Math.sin(h) * 0.7, z = r.pos.z + Math.cos(h) * 0.7; return rockTopAt(x, z) > shackletonScene.getGroundY(x, z) + 0.45; };
+        if (blocked(targetH)) { for (const o of [0.6, -0.6, 1.2, -1.2, 1.8, -1.8]) { if (!blocked(targetH + o)) { targetH += o; break; } } }
+      }
       let dH = targetH - r.heading;
       while (dH >  Math.PI) dH -= Math.PI * 2;
       while (dH < -Math.PI) dH += Math.PI * 2;
       r.heading += dH * Math.min(1, dt * 4);
-      r.pos.x += (dx / dist) * walkSpeed * dt;
-      r.pos.z += (dz / dist) * walkSpeed * dt;
-      r.walkPhase += dt * Math.PI * 2 * (robot.userData.gaitCadence || 1.3);   // v0.18.4: matched to stride so planted feet don't slide
+      r.pos.x += Math.sin(targetH) * walkSpeed * dt;
+      r.pos.z += Math.cos(targetH) * walkSpeed * dt;
+      r.walkPhase += dt * Math.PI * 2 * (robot.userData.gaitCadence || 1.3) * (walkSpeed / 0.40);   // stride rate follows speed   // v0.18.4: matched to stride so planted feet don't slide
       r.distSinceFootprint = (r.distSinceFootprint || 0) + walkSpeed * dt;
       if (r.distSinceFootprint > 0.42) {
         r.distSinceFootprint = 0;
@@ -8113,6 +8212,7 @@ body.in-wreck .cam-buttons { display: none; }
       }
     }
 
+    robotMinds.step(robot, r, dt, stepWalk);
     robot.position.x = r.pos.x;
     robot.position.z = r.pos.z;
     // Track terrain Y so the robot's feet plant on the actual ground when it
@@ -8123,7 +8223,7 @@ body.in-wreck .cam-buttons { display: none; }
     robot.rotation.y = r.heading;
 
     const ud = robot.userData;
-    const moving = (r.state === 'walking')
+    const moving = (r.state === 'walking') || r.state === 'mind_walk' || ((r.state === 'escort' || r.state === 'lead' || r.state === 'share') && r._moving)
                 || ((r.state === 'studying_rock' || r.state === 'investigating_tunnel')
                      && r.subPhase === 'approach');
     if (moving) {
@@ -8150,7 +8250,24 @@ body.in-wreck .cam-buttons { display: none; }
       let lShoulderX = 0, lShoulderZ = 0, lElbow = 0, lOpen = 0;
       let rShoulderX = 0, rShoulderZ = 0, rElbow = 0, rOpen = 0;
 
-      if (t < 0.8) {
+      const L = r.scripted && r.scripted.lift !== undefined ? r.scripted : null;
+      if (L) {
+        // v0.21.1: LIFTING — both claws hooked under a load. lift 0 = crouched,
+        // reaching under the edge; 1 = arms up overhead with the load. strain
+        // adds a fine tremble; slip (a timestamp) jerks the arms down and open.
+        const lift = Math.max(0, Math.min(1, L.lift));
+        const now = performance.now() / 1000;
+        const sl = L.slip ? Math.max(0, 1 - (now - L.slip) / 0.45) : 0;      // 1 → 0 over 0.45 s
+        const tr = L.strain ? Math.sin(now * 47) * 0.025 + Math.sin(now * 31) * 0.015 : 0;
+        lShoulderX = rShoulderX = -(0.95 + 1.05 * lift) + sl * 0.55 + tr;
+        lShoulderZ = 0.22; rShoulderZ = -0.22;
+        lElbow = rElbow = 0.85 - 0.6 * lift + sl * 0.3;
+        lOpen = rOpen = sl > 0.05 ? 0.9 : 0.05;
+        // crouch low to get under it, rise with the load; lean back while straining
+        const crouch = 0.13 * (1 - lift) + (L.strain ? 0.03 : 0);
+        ud.bodyGroup.position.y += ((0.22 - crouch) - ud.bodyGroup.position.y) * Math.min(1, dt * 6);
+        ud.bodyGroup.rotation.x += ((L.strain ? -0.10 : 0.12 * (1 - lift)) + sl * 0.1 - ud.bodyGroup.rotation.x) * Math.min(1, dt * 6);
+      } else if (t < 0.8) {
         // Phase A: right arm raises out to the side
         const k = Math.min(1, t / 0.8);
         rShoulderZ = k * Math.PI / 2;
@@ -9003,10 +9120,10 @@ body.in-wreck .cam-buttons { display: none; }
         x.fillStyle = color; x.fillText(txt, 0, 0);
         x.restore();
       };
-      // v0.18.1: NASA, letters stacked as on a rocket standing on its
+      // v0.18.1: agency name (KHAL since v0.19.1), letters stacked as on a rocket standing on its
       // tail — so on the toppled hull they lie on their sides.
       const stackLetters = (u) => {
-        ['N', 'A', 'S', 'A'].forEach((ch, i) => {
+        ['K', 'H', 'A', 'L'].forEach((ch, i) => {   // v0.19.1: KHAL (fictional agency), not NASA
           x.save(); x.setTransform(-1, 0, 0, 1, U(u), V(0.86 - i * 0.068));   // glyph up = toward the nose; mirrored for the outside view
           x.font = '900 190px "Arial Black", Arial, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
           x.fillStyle = 'rgba(28,30,34,0.93)'; x.fillText(ch, 0, 0); x.restore();
@@ -10101,7 +10218,7 @@ body.in-wreck .cam-buttons { display: none; }
   //   reachRelease()                     — end a hold
   // ============================================================
   const reach = {
-    active: false, mode: 'press', blend: 0, timer: 0,
+    active: false, mode: 'press', blend: 0, timer: 0, crouch: 0,
     target: new THREE.Vector3(),
     followMesh: null, onContact: null, contactFired: false,
     bones: undefined,        // undefined = not searched yet; null = rig has none
@@ -10145,6 +10262,7 @@ body.in-wreck .cam-buttons { display: none; }
     reach.onContact = opts.onContact || null;
     reach.contactFired = false;
     reach.timer = 0;
+    if (reach.crouch === undefined) reach.crouch = 0;
     // No rig chain → still honour the interaction after a short beat.
     if (!reach.bones && reach.onContact) {
       setTimeout(() => {
@@ -10194,10 +10312,15 @@ body.in-wreck .cam-buttons { display: none; }
     }
     const want = reach.active ? 1 : 0;
     reach.blend += (want - reach.blend) * Math.min(1, dt * 7);
-    if (reach.blend < 0.02) { reach.blend = 0; return; }
+    if (reach.blend < 0.02) { reach.blend = 0; reach.crouch = 0; return; }
+    // v0.21.2: a low target (something on the floor) means bending down for
+    // it — knees, hips and spine (see _pickupPose) — so contact waits a
+    // little longer, until he is actually down there.
+    const low = reach.active ? Math.max(0, Math.min(1, (0.75 - (reach.target.y - player.pos.y)) / 0.55)) : 0;
+    reach.crouch += (low - reach.crouch) * Math.min(1, dt * (low > reach.crouch ? 5 : 3.5));
     // Contact fires as the hand arrives — doors open when touched,
     // not when the key was pressed.
-    if (reach.active && !reach.contactFired && reach.blend > 0.8) {
+    if (reach.active && !reach.contactFired && reach.blend > 0.8 && (low < 0.3 || reach.crouch > 0.75 * low)) {
       reach.contactFired = true;
       if (reach.onContact) reach.onContact();
     }
@@ -10216,9 +10339,70 @@ body.in-wreck .cam-buttons { display: none; }
       }
     }
     if (!reach.bones) return;
+    _pickupPose(dt);
     const { upper, fore, hand } = reach.bones;
-    _aimBone(upper, fore, reach.target, reach.blend * 0.65);
-    _aimBone(fore, hand, reach.target, reach.blend * 0.9);
+    // carrying: both hands on the load, either side of it
+    const carrying = !!(interact.carry && reach.followMesh);
+    if (carrying) {
+      _ppRight.set(Math.cos(player.heading), 0, -Math.sin(player.heading)).multiplyScalar(-0.16);
+      _ppT.copy(reach.target).add(_ppRight);
+    } else _ppT.copy(reach.target);
+    _aimBone(upper, fore, _ppT, reach.blend * 0.65);
+    _aimBone(fore, hand, _ppT, reach.blend * 0.9);
+    // the left arm joins in for floor pickups and while carrying
+    const lb = _ppBones && _ppBones.lUpper ? Math.max(reach.crouch, carrying ? 1 : 0) * reach.blend : 0;
+    if (lb > 0.02) {
+      _ppT.copy(reach.target).addScaledVector(_ppRight.set(Math.cos(player.heading), 0, -Math.sin(player.heading)), 0.16);
+      _aimBone(_ppBones.lUpper, _ppBones.lFore, _ppT, lb * 0.6);
+      _aimBone(_ppBones.lFore, _ppBones.lHand, _ppT, lb * 0.85);
+    }
+  }
+  // ── v0.21.2: pickup pose — bend down to the floor procedurally, on top
+  // of whatever clip is playing (the clips stamp Hips.position every frame,
+  // so lowering it here is safe). Squat with the knees forward, drop the
+  // hips by what the bent legs lose in height, lean the spine forward.
+  let _ppBones;
+  const _ppRight = new THREE.Vector3(), _ppT = new THREE.Vector3(), _ppAx = new THREE.Vector3();
+  const _ppPQ = new THREE.Quaternion(), _ppQA = new THREE.Quaternion(), _ppQT = new THREE.Quaternion();
+  const _ppV1 = new THREE.Vector3(), _ppV2 = new THREE.Vector3();
+  function _ppFind() {
+    if (_ppBones !== undefined) return _ppBones;
+    const b = {}; astronautRoot.traverse(o => { if (o.isBone) b[o.name.replace(/^mixamorig:?/, '')] = o; });
+    _ppBones = b.Hips && b.Spine && b.LeftUpLeg ? {
+      hips: b.Hips, spine: [b.Spine, b.Spine1, b.Spine2].filter(Boolean),
+      legs: [[b.LeftUpLeg, b.LeftLeg, b.LeftFoot], [b.RightUpLeg, b.RightLeg, b.RightFoot]],
+      lUpper: b.LeftArm, lFore: b.LeftForeArm, lHand: b.LeftHand,
+    } : null;
+    return _ppBones;
+  }
+  function _bendWorld(bone, axis, ang) {                 // rotate a bone about a world axis
+    bone.parent.getWorldQuaternion(_ppPQ);
+    _ppQA.setFromAxisAngle(axis, ang);
+    _ppQT.copy(_ppPQ).invert().multiply(_ppQA).multiply(_ppPQ);
+    bone.quaternion.premultiply(_ppQT);
+    bone.updateMatrixWorld(true);
+  }
+  function _pickupPose() {
+    const c = reach.crouch; if (c < 0.01 || !_ppFind()) return;
+    const B = _ppBones, h = player.heading;
+    _ppAx.set(Math.cos(h), 0, -Math.sin(h));             // up × forward: + leans forward
+    const a = c * 1.1;                                   // knee angle (rad)
+    // leg lengths in world units, to know how far the hips come down
+    B.legs[0][0].updateWorldMatrix(true, true);
+    const th = _ppV1.setFromMatrixPosition(B.legs[0][0].matrixWorld).distanceTo(_ppV2.setFromMatrixPosition(B.legs[0][1].matrixWorld));
+    const sh = _ppV1.setFromMatrixPosition(B.legs[0][1].matrixWorld).distanceTo(_ppV2.setFromMatrixPosition(B.legs[0][2].matrixWorld));
+    const drop = (th + sh) * (1 - Math.cos(a)) * 0.95;
+    // hips down (convert a world offset into the hips' parent space)
+    B.hips.getWorldPosition(_ppV1); _ppV1.y -= drop;
+    B.hips.parent.worldToLocal(_ppV1); B.hips.position.copy(_ppV1); B.hips.updateMatrixWorld(true);
+    for (const [up, lo, ft] of B.legs) {
+      if (!up || !lo) continue;
+      _bendWorld(up, _ppAx, -a);                         // thigh: knee comes forward
+      _bendWorld(lo, _ppAx, 2 * a);                      // shin back under
+      if (ft) _bendWorld(ft, _ppAx, -a);                 // foot flat
+    }
+    const lean = c * 0.95, share = [0.45, 0.35, 0.2];
+    B.spine.forEach((sp, i) => _bendWorld(sp, _ppAx, lean * share[i]));
   }
 
   // Refill connect gesture — hand goes to the panel, hose latches on
@@ -11539,7 +11723,7 @@ body.in-wreck .cam-buttons { display: none; }
   worldInteractables.push({
     x: ICE_POCKET.x + 3.2, z: ICE_POCKET.z + 2.6, r: 2.2,
     label: () => 'turn the reflector (' + (scene6.aligned ? 'aligned' : (4 - scene6.crank) + ' more') + ')',
-    hidden: () => !scene6.active || scene6.aligned,
+    hidden: () => true,          // v0.21.0: the crank is replaced by aiming (iceV2)
     fire() {
       if (reach.active) return;
       reachStart(new THREE.Vector3(ICE_POCKET.x + 3.2, s6.gy + 1.5, ICE_POCKET.z + 2.6), {
@@ -11558,6 +11742,230 @@ body.in-wreck .cam-buttons { display: none; }
     },
   });
   void S6_DISH_TARGET;
+  // ============================================================
+  // PUZZLE C v2 (v0.21.0) — the ice pocket, a light puzzle.
+  // The sun is low in the east (+x). The ice lies in the permanent
+  // shadow of a rock wall; light gets through only at a gap. Put the
+  // survey mirror on the footing that is both in sun and in line with
+  // the gap, aim it through the gap at the reflector, power the
+  // reflector so it can turn, aim it at the ice, and get the regolith
+  // out of the beam. The beams are drawn, so every mistake is visible.
+  // Scene flags kept: scene6.power / aligned / cleared → _scene6Check().
+  // ============================================================
+  const iceV2 = (function () {
+    const gx = ICE_POCKET.x, gz = ICE_POCKET.z, G = (u, v) => shackletonScene.getGroundY(gx + u, gz + v);
+    const W = (u, v) => new THREE.Vector3(gx + u, G(u, v), gz + v);
+    const grp = s6.dishPivot.parent;
+    // the old dome goes; the dark patch shrinks to the shadow behind the wall
+    for (const c of grp.children.slice()) {
+      if (c.geometry && c.geometry.type === 'SphereGeometry') c.visible = false;
+      if (c.geometry && c.geometry.type === 'CircleGeometry') c.visible = false;     // the wall's real shadow does this now
+    }
+    const rockTex = (() => {                                            // speckled, cracked grey rock
+      const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d');
+      g.fillStyle = '#8c8c8a'; g.fillRect(0, 0, 256, 256);
+      for (let i = 0; i < 2600; i++) { const v = 90 + Math.floor(Math.random() * 90); g.fillStyle = 'rgba(' + v + ',' + v + ',' + (v - 4) + ',' + (0.25 + Math.random() * 0.5) + ')';
+        const w = 1 + Math.random() * 4; g.fillRect(Math.random() * 256, Math.random() * 256, w, w * (0.5 + Math.random())); }
+      g.strokeStyle = 'rgba(40,40,42,0.55)';
+      for (let k = 0; k < 14; k++) { g.lineWidth = 0.6 + Math.random() * 1.6; g.beginPath(); let x = Math.random() * 256, y = Math.random() * 256; g.moveTo(x, y);
+        for (let j = 0; j < 6; j++) { x += (Math.random() - 0.5) * 50; y += (Math.random() - 0.3) * 40; g.lineTo(x, y); } g.stroke(); }
+      const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(2, 2); t.colorSpace = THREE.SRGBColorSpace; return t; })();
+    const rockMat = new THREE.MeshPhongMaterial({ color: 0xffffff, map: rockTex, bumpMap: rockTex, bumpScale: 2.5, flatShading: true, shininess: 0 });
+    const M = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; grp.add(m); return m; };
+    // ── the wall: two leaning slabs with a gap between them ──
+    const SLABS = [{ v0: -3.4, v1: 1.8 }, { v0: 3.0, v1: 6.8 }], WU0 = 0.15, WU1 = 1.15;
+    let seed = 3; const rr = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    for (const s of SLABS) {
+      // a ridge of big leaning boulders, not a block
+      const n = Math.max(2, Math.round((s.v1 - s.v0) / 1.3));
+      for (let k = 0; k < n; k++) {
+        const v = s.v0 + (k + 0.5) * (s.v1 - s.v0) / n, h = 2.6 + rr() * 1.2;
+        const geo = new THREE.IcosahedronGeometry(1, 2); const p = geo.attributes.position;
+        const salt = rr() * 100;
+        // layered lumps, keyed on position so shared corners stay joined; a flat-ish base
+        const hsh = (x, y, z, f) => { const q = Math.sin(Math.round(x * f) * 12.9 + Math.round(y * f) * 78.2 + Math.round(z * f) * 37.7 + salt) * 43758.5; return q - Math.floor(q); };
+        for (let i = 0; i < p.count; i++) {
+          const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+          let f = 0.78 + 0.22 * hsh(x, y, z, 2.2) + 0.16 * hsh(x, y, z, 5.5) + 0.07 * hsh(x, y, z, 13);
+          if (Math.abs(x) > 0.55) f *= 0.9;                       // faces cut back like fractured slabs
+          p.setXYZ(i, x * f, Math.max(y * f, -0.55), z * f);
+        }
+        geo.computeVertexNormals();
+        const m = M(geo, rockMat, gx + (WU0 + WU1) / 2 + (rr() - 0.5) * 0.15, G((WU0 + WU1) / 2, v) + h * 0.42, gz + v);
+        m.scale.set(0.62, h / 2, ((s.v1 - s.v0) / n) * 0.72); m.rotation.set((rr() - 0.5) * 0.25, rr() * 0.4, (rr() - 0.5) * 0.3);
+      }
+      addBoxCollider({ x: gx + (WU0 + WU1) / 2, z: gz + (s.v0 + s.v1) / 2, hx: (WU1 - WU0) / 2 + 0.05, hz: (s.v1 - s.v0) / 2, y0: G((WU0 + WU1) / 2, (s.v0 + s.v1) / 2) - 1, y1: G((WU0 + WU1) / 2, (s.v0 + s.v1) / 2) + 3.4, walkable: false });
+    }
+    // a boulder that shades one footing
+    const BOULDER = { u: 5.6, v: 6.0, r: 1.1 };
+    M(new THREE.DodecahedronGeometry(1.25, 0), rockMat, gx + BOULDER.u, G(BOULDER.u, BOULDER.v) + 0.8, gz + BOULDER.v);
+    addBoxCollider({ x: gx + BOULDER.u, z: gz + BOULDER.v, hx: 1.0, hz: 1.0, y0: G(BOULDER.u, BOULDER.v) - 1, y1: G(BOULDER.u, BOULDER.v) + 1.9, walkable: false });
+    const shade = new THREE.Mesh(new THREE.CircleGeometry(1, 16), new THREE.MeshBasicMaterial({ color: 0x0a0b0e, transparent: true, opacity: 0.8, depthWrite: false,
+      polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
+    shade.rotation.x = -Math.PI / 2; shade.scale.set(2.6, 1.1, 1); shade.position.set(gx + BOULDER.u - 2.6, G(BOULDER.u - 2.6, BOULDER.v) + 0.03, gz + BOULDER.v); grp.add(shade);
+    // ── footings for the mirror (sunlit side). Only F1 has both sun and the line through the gap. ──
+    const FOOT = [
+      { id: 1, u: 3.4, v: 2.5, sun: true },
+      { id: 2, u: 3.1, v: -1.2, sun: true },
+      { id: 3, u: 3.0, v: 6.0, sun: false },          // in the boulder's shadow
+    ];
+    const padMat = new THREE.MeshPhongMaterial({ color: 0x8a8d92, flatShading: true }), markMat = new THREE.MeshBasicMaterial({ color: 0xe0b020 });
+    for (const f of FOOT) {
+      M(new THREE.CylinderGeometry(0.42, 0.48, 0.12, 8), padMat, gx + f.u, G(f.u, f.v) + 0.06, gz + f.v);
+      M(new THREE.BoxGeometry(0.5, 0.02, 0.06), markMat, gx + f.u, G(f.u, f.v) + 0.13, gz + f.v);
+    }
+    // ── the survey mirror: tripod + square face on a yaw pivot ──
+    const mirror = new THREE.Group(); grp.add(mirror);
+    const legMat = new THREE.MeshPhongMaterial({ color: 0x3a3d44, flatShading: true });
+    for (let k = 0; k < 3; k++) { const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.03, 1.35, 5), legMat); const a = k * 2.09;
+      leg.position.set(Math.cos(a) * 0.22, 0.62, Math.sin(a) * 0.22); leg.rotation.set(Math.sin(a) * 0.3, 0, -Math.cos(a) * 0.3); mirror.add(leg); }
+    const mPivot = new THREE.Group(); mPivot.position.y = 1.3; mirror.add(mPivot);
+    const face = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.9, 1.1), new THREE.MeshPhongMaterial({ color: 0xe6edf5, shininess: 120, specular: 0xffffff, flatShading: true }));
+    mPivot.add(face);
+    const back = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.95, 1.15), legMat); back.position.x = -0.05; mPivot.add(back);
+    // reflector: the old dish rig, moved to the shadow side
+    const R = { u: -2.0, v: 3.0 };
+    const rp = W(R.u, R.v);
+    for (const c of grp.children) if (c.geometry && c.geometry.type === 'CylinderGeometry' && c.position.x === gx + 3.2 && c.position.z === gz + 2.6) c.position.set(rp.x, rp.y + 0.8, rp.z);
+    s6.dishPivot.position.set(rp.x, rp.y + 1.3, rp.z);
+    s6.socket.position.set(rp.x + 0.45, rp.y + 0.12, rp.z + 0.4);
+    s6.chunk.position.set(gx - 1.45, G(-1.45, 1.9) + 0.35, gz + 1.9); s6.chunk.scale.setScalar(1.25);
+    s6.chunk.userData.homeX = s6.chunk.position.x; s6.chunk.userData.homeZ = s6.chunk.position.z;
+    s6.chunk.userData.onDrop = (m) => {
+      m.position.y = shackletonScene.getGroundY(m.position.x, m.position.z) + 0.35;
+      if (!scene6.cleared && Math.hypot(m.position.x - (gx - 1.45), m.position.z - (gz + 1.9)) > 1.3) { scene6.cleared = true; speak('SUIT', 'beam path clear', 2.2, { kind: 'system' }); }
+    };
+    // ── beams ──
+    const beamMat = new THREE.MeshBasicMaterial({ color: 0xfff2d0, transparent: true, opacity: 0.4, depthWrite: false, blending: THREE.AdditiveBlending });
+    const mkBeam = () => { const b = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 1, 8, 1, true), beamMat); b.visible = false; grp.add(b); return b; };
+    const beams = [mkBeam(), mkBeam(), mkBeam()];
+    const glowTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'); const r = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+      r.addColorStop(0, 'rgba(255,245,215,1)'); r.addColorStop(0.3, 'rgba(255,235,190,0.5)'); r.addColorStop(1, 'rgba(255,230,180,0)'); g.fillStyle = r; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
+    const spot = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })); spot.scale.set(0.9, 0.9, 1); spot.visible = false; grp.add(spot);
+    function setBeam(b, a, c) {
+      const d = c.clone().sub(a), L = d.length(); if (L < 0.01) { b.visible = false; return; }
+      b.visible = true; b.position.copy(a).addScaledVector(d, 0.5); b.scale.set(1, L, 1);
+      b.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize());
+    }
+    // 2-D ray caster in (u, v) — slabs are boxes, the rest circles
+    const CRYSTAL = { u: -0.9, v: 0.8, r: 0.95 };
+    function cast(o, d, skip) {
+      let best = { t: 14, what: 'none' };
+      const hitBox = (u0, u1, v0, v1, what) => {
+        let t0 = -Infinity, t1 = Infinity;
+        for (const [oo, dd, lo, hi] of [[o.u, d.u, u0, u1], [o.v, d.v, v0, v1]]) {
+          if (Math.abs(dd) < 1e-9) { if (oo < lo || oo > hi) return; continue; }
+          let a = (lo - oo) / dd, b = (hi - oo) / dd; if (a > b) [a, b] = [b, a]; t0 = Math.max(t0, a); t1 = Math.min(t1, b);
+        }
+        if (t0 <= t1 && t0 > 0.05 && t0 < best.t) best = { t: t0, what };
+      };
+      const hitCircle = (c, r, what) => {
+        if (what === skip) return; const fu = o.u - c.u, fv = o.v - c.v, b = fu * d.u + fv * d.v, cc = fu * fu + fv * fv - r * r, disc = b * b - cc;
+        if (disc < 0) return; const t = -b - Math.sqrt(disc); if (t > 0.05 && t < best.t) best = { t, what };
+      };
+      for (const s of SLABS) hitBox(WU0, WU1, s.v0, s.v1, 'rock');
+      hitCircle(BOULDER, BOULDER.r, 'rock');
+      hitCircle(R, 0.55, 'reflector');
+      hitCircle(foot(), 0.5, 'mirror');
+      if (!scene6.cleared) hitCircle({ u: s6.chunk.position.x - gx, v: s6.chunk.position.z - gz }, 0.6, 'chunk');
+      hitCircle(CRYSTAL, CRYSTAL.r, 'ice');
+      return best;
+    }
+    // ── state ──
+    const A = { foot: 2, mYaw: 2.4, rYaw: -1.3, aim: null, onIce: 0, said: {} };
+    const foot = () => FOOT.find(f => f.id === A.foot);
+    function placeMirror() { const f = foot(); const p = W(f.u, f.v); mirror.position.set(p.x, p.y + 0.1, p.z); }
+    placeMirror();
+    // yaw: face normal = (cos yaw, −sin yaw) in (u, v), matching three's rotation.y on the +x face
+    const normal = (yaw) => ({ u: Math.cos(yaw), v: -Math.sin(yaw) });
+    function reflect(d, n) { const k = d.u * n.u + d.v * n.v; if (k >= 0) return null; return { u: d.u - 2 * k * n.u, v: d.v - 2 * k * n.v }; }
+    const H = 1.3;
+    const at3 = (u, v, dy) => new THREE.Vector3(gx + u, G(u, v) + (dy == null ? H : dy), gz + v);
+    function trace() {
+      beams.forEach(b => b.visible = false); spot.visible = false;
+      const f = foot(); if (!f.sun) return { stage: 'shade' };
+      const fp = { u: f.u, v: f.v };
+      // sunlight arrives from +x, slightly down: draw it coming in from high up
+      const sunFrom = at3(f.u + 14, f.v, H + 14 * Math.tan(SUN_ELEV_DEG * Math.PI / 180));
+      setBeam(beams[0], sunFrom, at3(f.u, f.v));
+      const r1 = reflect({ u: -1, v: 0 }, normal(A.mYaw)); if (!r1) return { stage: 'back' };
+      const h1 = cast(fp, r1, 'mirror');
+      const p1 = { u: fp.u + r1.u * h1.t, v: fp.v + r1.v * h1.t };
+      setBeam(beams[1], at3(f.u, f.v), at3(p1.u, p1.v));
+      if (h1.what !== 'reflector') { spot.visible = true; spot.position.copy(at3(p1.u, p1.v)); return { stage: 'm-' + h1.what }; }
+      const r2 = reflect(r1, normal(A.rYaw));
+      if (!r2) { spot.visible = true; spot.position.copy(at3(p1.u, p1.v)); return { stage: 'r-back' }; }
+      const h2 = cast({ u: R.u, v: R.v }, r2, 'reflector');
+      const p2 = { u: R.u + r2.u * h2.t, v: R.v + r2.v * h2.t };
+      setBeam(beams[2], at3(R.u, R.v), at3(p2.u, p2.v, h2.what === 'ice' ? 0.5 : H));
+      spot.visible = true; spot.position.copy(at3(p2.u, p2.v, h2.what === 'ice' ? 0.5 : H));
+      return { stage: 'r-' + h2.what };
+    }
+    // ── interactions ──
+    for (const f of FOOT) worldInteractables.push({
+      x: gx + f.u, z: gz + f.v + 0.7, r: 1.0,
+      label: 'set the mirror up here',
+      hidden: () => !scene6.active || scene6.done || A.foot === f.id || A.aim,
+      fire() { if (reach.active) return; reachStart(W(f.u, f.v).setY(G(f.u, f.v) + 0.4), { onContact() {
+        A.foot = f.id; A.mYaw = 0; placeMirror();          // set down facing the sun
+        if (!f.sun) speak('SUIT', 'no sunlight on this footing', 2.4, { kind: 'system' });
+      } }); },
+    });
+    function startAim(which) { A.aim = which; aimLock = true; speak('SUIT', which === 'mirror' ? 'aiming the mirror — left / right, E to finish' : 'aiming the reflector — left / right, E to finish', 2.8, { kind: 'system' }); }
+    worldInteractables.push({
+      get x() { return mirror.position.x - 0.7; }, get z() { return mirror.position.z + 0.5; }, r: 1.2,
+      label: () => A.aim === 'mirror' ? 'finish aiming' : 'aim the mirror',
+      hidden: () => !scene6.active || scene6.done || (A.aim && A.aim !== 'mirror'),
+      fire() { if (A.aim === 'mirror') { A.aim = null; aimLock = false; return; } startAim('mirror'); },
+    });
+    worldInteractables.push({
+      x: gx + R.u + 0.7, z: gz + R.v + 0.6, r: 1.2,
+      label: () => A.aim === 'reflector' ? 'finish aiming' : 'aim the reflector',
+      hidden: () => !scene6.active || scene6.done || (A.aim && A.aim !== 'reflector'),
+      fire() {
+        if (A.aim === 'reflector') { A.aim = null; aimLock = false; return; }
+        if (!scene6.power) { speak('SUIT', 'reflector motor has no power', 2.4, { kind: 'system' }); return; }
+        startAim('reflector');
+      },
+    });
+    let last = '';
+    function tick(dt) {
+      if (!scene6.active) { beams.forEach(b => b.visible = false); spot.visible = false; return; }
+      if (A.aim) {
+        const turn = ((keys['d'] || keys['arrowright']) ? 1 : 0) - ((keys['a'] || keys['arrowleft']) ? 1 : 0) + (joy.active ? joy.x : 0);
+        if (A.aim === 'mirror') A.mYaw -= turn * dt * 0.7; else A.rYaw -= turn * dt * 0.7;
+      }
+      mPivot.rotation.y = A.mYaw;
+      s6.dishPivot.rotation.y = A.rYaw;
+      if (scene6.done) return;
+      const r = trace();
+      if (r.stage !== last) {
+        last = r.stage;
+        if (r.stage === 'r-reflector' || r.stage === 'm-reflector') {}
+        if (r.stage.startsWith('r-') && !A.said.r) { A.said.r = 1; speak('P-03', 'light.', 2.0, { kind: 'robot' }); }
+        if (r.stage === 'r-chunk' && !A.said.c) { A.said.c = 1; speak('P-03', 'rock.', 2.0, { kind: 'robot' }); }
+      }
+      if (r.stage === 'r-ice') { A.onIce += dt; s6.crystalMat.emissive.setRGB(0.04 + 0.12 * Math.min(1, A.onIce), 0.1 + 0.2 * Math.min(1, A.onIce), 0.19 + 0.45 * Math.min(1, A.onIce)); }
+      else { A.onIce = 0; s6.crystalMat.emissive.setHex(0x0a1830); }
+      if (A.onIce > 1.2 && !scene6.aligned) {
+        scene6.aligned = true; A.aim = null; aimLock = false;
+        speak('SUIT', 'light on the deposit', 2.4, { kind: 'system' });
+        _scene6Check();
+        s6.beam.visible = false;                         // the drawn beams already show it
+      }
+    }
+    puzzleHintFns.push((i) => {
+      if (!scene6.active || scene6.done) return null;
+      const f = foot(), r = trace();
+      if (!f.sun || r.stage === 'm-rock' || r.stage === 'back') return { word: 'sun.', at: W(FOOT[0].u, FOOT[0].v) };
+      if (!r.stage.startsWith('r-')) return { word: 'mirror.', at: mirror.position.clone() };
+      if (!scene6.power) return { word: 'power.', at: s6.socket.position.clone() };
+      if (r.stage === 'r-chunk' || !scene6.cleared) return { word: 'rock.', at: s6.chunk.position.clone() };
+      return { word: 'ice.', at: W(CRYSTAL.u, CRYSTAL.v) };
+    });
+    return { A, tick, trace, FOOT, R, mirror, cast, normal };
+  })();
+
 
   function _scene6Check() {
     if (scene6.done || !scene6.power || !scene6.aligned || !scene6.cleared) return;
@@ -11645,7 +12053,7 @@ body.in-wreck .cam-buttons { display: none; }
       speak('M-08', 'stuck.', 2.0, { kind: 'robot', delay: 1.0 });
     }
     // Scene 4: M-08 pulls the brace free
-    if (scene4.pulled && scene4.pullT < 1.4) {
+    if (scene4.pulled && scene4.pullT < 1.4 && !braceV2) {
       scene4.pullT += dt;
       const k = Math.min(1, scene4.pullT / 1.4);
       const e = k * k * (3 - 2 * k);
@@ -11683,8 +12091,8 @@ body.in-wreck .cam-buttons { display: none; }
           speak('SUIT', 'hint: drag the battery pack to the extractor socket', 3.0,
                 { kind: 'system', delay: 2.4 });
         } else if (!scene6.aligned) {
-          speak('P-03', 'turn.', 2.0, { kind: 'robot' });
-          speak('SUIT', 'hint: crank the reflector toward the ice', 3.0,
+          speak('P-03', 'light.', 2.0, { kind: 'robot' });
+          speak('SUIT', 'hint: catch the sun with the mirror, send it through the gap to the reflector', 3.4,
                 { kind: 'system', delay: 2.4 });
         } else if (!scene6.cleared) {
           speak('P-03', 'clear.', 2.0, { kind: 'robot' });
@@ -14896,7 +15304,7 @@ body.in-wreck .cam-buttons { display: none; }
     const r = robotStates[i]; if (!r || !EMOTE_LEN[kind]) return false;
     if (r.emote) return false;
     r.emote = { kind, t: 0, len: EMOTE_LEN[kind], target: target ? target.clone() : null };
-    if (!r.pinned && !r.scripted) { r.state = 'idle'; r.stateTimer = Math.max(r.stateTimer || 0, EMOTE_LEN[kind] + 0.5); }
+    if (!r.pinned && !r.scripted && r.state !== 'lead' && r.state !== 'escort') { r.state = 'idle'; r.stateTimer = Math.max(r.stateTimer || 0, EMOTE_LEN[kind] + 0.5); }   // v0.22.1: a gesture never breaks a lead or an escort
     return true;
   }
   function robotEmoteTick(robot, r, dt) {
@@ -14942,6 +15350,360 @@ body.in-wreck .cam-buttons { display: none; }
   // Michel. Answers never reveal what a memory reveals later.
   // ============================================================
   const ROBOT_NAMES = ['P-03', 'L-07', 'M-08'];
+  // ============================================================
+  // ROBOT MINDS (v0.22.0, stage 1) — see claude/SHACKLETON_ROBOT_MINDS.md
+  // Each robot scores a few intentions from its drives (mission, protect
+  // crew, curiosity, company), its personality and what it has noticed,
+  // and runs the best one as a simple action. Story scripts still win.
+  // ============================================================
+  const robotMinds = (function () {
+    const ON = !/[?&]nominds\b/.test(location.search);
+    // index: 0 P-03 (blue), 1 L-07 (yellow), 2 M-08 (red)
+    // v0.22.1: all three love him. Devotion is the core value they were
+    // trained on — protect crew above the mission — so it scales every
+    // protective choice; personality decides how they show it.
+    const PERS = [
+      { mission: 1.0, protect: 0.75, curious: 0.8, company: 0.45, devotion: 0.85 },   // P-03: the cutter, the path
+      { mission: 0.6, protect: 1.0, curious: 0.5, company: 0.7, devotion: 1.0 },      // L-07: the protector
+      { mission: 0.7, protect: 0.85, curious: 0.6, company: 1.0, devotion: 0.95 },    // M-08: the heart
+    ];
+    const BARK = {
+      hardLanding: [['ok?'], ['careful.', 'ok?'], ['ok?']],
+      oxygenLow: [['air.'], ['air.', 'back.'], ['air?']],
+      oxygenCritical: [['breathe.'], ['back. now.'], ['air!']],
+      pickedUp: [['good.'], ['heavy?'], ['mine?', 'good.']],
+      escort: [['path.'], ['with you.'], ['come.']],
+      back: [['you.'], ['back.'], ['back.', 'you.']],
+      visit: [[''], [''], ['look.']],
+      lead: [['this way.'], ['air. this way.'], ['come. air.']],
+      wait: [['come.'], ['come. hurry.'], ['come.']],
+      high: [['careful.'], ['careful.', 'down.'], ['high.']],
+      still: [[''], ['here.'], ['here.', 'with you.']],
+      share: [[''], ['air. take.', 'share.'], ['']],
+    };
+    // ── v0.22.2: L-07's spare bottle. After it has dragged him back from a
+    // blackout once, L-07 carries a small bottle: one top-up of 15% of his
+    // tank — enough to buy time, not to promise he gets home. It refills
+    // when L-07 next passes the O₂ station.
+    const bottle = { has: false, full: false, mesh: null, hose: null, hoseT: 0 };
+    function bottleMesh() {
+      if (bottle.mesh) return;
+      const ud = robots[1].userData, host = ud.bodyGroup || robots[1];
+      const g = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.34, 10), new THREE.MeshPhongMaterial({ color: 0xd8dde3, shininess: 60 }));
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.06, 0.07, 8), new THREE.MeshPhongMaterial({ color: 0xe0782a }));
+      cap.position.y = 0.2; g.add(body, cap);
+      const band = new THREE.Mesh(new THREE.CylinderGeometry(0.078, 0.078, 0.05, 10), new THREE.MeshBasicMaterial({ color: 0x3ad06a }));
+      band.position.y = 0.05; g.add(band); g.userData.band = band;
+      g.position.set(-0.16, 0.42, -0.26); g.rotation.z = 0.15; host.add(g);
+      bottle.mesh = g;
+      const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+      bottle.hose = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0xe0782a })); bottle.hose.visible = false; scene.add(bottle.hose);
+    }
+    function bottleShow() {
+      if (!bottle.mesh) return;
+      bottle.mesh.visible = bottle.has;
+      bottle.mesh.userData.band.material.color.setHex(bottle.full ? 0x3ad06a : 0x55302a);
+    }
+    function unlockBottle() {
+      if (bottle.has) return; bottleMesh(); bottle.has = true; bottle.full = true; bottleShow();
+      setTimeout(() => { try { speak('L-07', 'spare. for you.', 2.6, { kind: 'robot' }); } catch (e) { } }, 6500);
+    }
+    function giveAir(m) {
+      if (!bottle.full) return;
+      const cap = Math.max(1, oxygen.capacity);
+      oxygen.percent = Math.min(cap, oxygen.percent + cap * 0.15);
+      bottle.full = false; bottleShow(); bottle.hoseT = 2.4; bottle.hose.visible = true;
+      try { if (o2w.el) o2w.el.classList.remove('on'); } catch (e) { }
+      lastBark = -99; bark(m, 'share');
+      speak('SUIT', 'O₂ +15% — from L-07\'s spare bottle', 3.0, { kind: 'system', delay: 0.6 });
+      if (audioCtx && masterGain) { const t0 = audioCtx.currentTime, n = audioCtx.sampleRate * 1.6, bf = audioCtx.createBuffer(1, n, audioCtx.sampleRate), d = bf.getChannelData(0);
+        for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1; const sN = audioCtx.createBufferSource(); sN.buffer = bf; const f = audioCtx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1400;
+        const e = audioCtx.createGain(); e.gain.setValueAtTime(0, t0); e.gain.linearRampToValueAtTime(0.05, t0 + 0.2); e.gain.linearRampToValueAtTime(0, t0 + 1.6); sN.connect(f); f.connect(e); e.connect(masterGain); sN.start(t0); }
+    }
+    function bottleTick(dt) {
+      if (!bottle.has) return;
+      // recharge at the station
+      if (!bottle.full && Math.hypot(robotStates[1].pos.x - REFILL_PANEL_POS.x, robotStates[1].pos.z - REFILL_PANEL_POS.z) < 6) { bottle.full = true; bottleShow(); }
+      if (bottle.hoseT > 0) {
+        bottle.hoseT -= dt;
+        const a = new THREE.Vector3(); (bottle.mesh || robots[1]).getWorldPosition(a);
+        const bpos = bottle.hose.geometry.attributes.position;
+        bpos.setXYZ(0, a.x, a.y, a.z); bpos.setXYZ(1, player.pos.x, player.pos.y + 1.1, player.pos.z); bpos.needsUpdate = true;
+        if (bottle.hoseT <= 0) bottle.hose.visible = false;
+      }
+    }
+    const M = robotStates.map((r, i) => ({
+      i, d: { mission: 0.4 + Math.random() * 0.3, protect: 0.2, curious: 0.3, company: 0.3 },
+      affinity: 0.35, intent: 'rest', since: 0, nextThink: 1 + i, events: [], said: {}, label: null,
+    }));
+    const ev = [];                                         // { type, t, pos }
+    let now = 0, lastBark = -99, escortBy = -1;
+    const P = { lastGrounded: true, fallVy: 0, still: 0, o2Low: false, o2Crit: false, wasWreck: false };
+    function event(type, pos) {
+      ev.push({ type, t: now, pos: pos ? pos.clone() : player.pos.clone() });
+      if (ev.length > 30) ev.shift();
+      for (const m of M) if (urgent(type) && canThink(m)) m.nextThink = Math.min(m.nextThink, now + 0.3 + m.i * 0.25);
+    }
+    const urgent = (t) => t === 'hardLanding' || t === 'oxygenLow' || t === 'oxygenCritical' || t === 'pickedUp' || t === 'highUp' || t === 'leftWreck';
+    function recent(type, within) { for (let k = ev.length - 1; k >= 0; k--) { if (now - ev[k].t > within) break; if (ev[k].type === type) return ev[k]; } return null; }
+    function canThink(m) {
+      const r = robotStates[m.i];
+      return ON && !r.scripted && !r.pinned && robots[m.i].visible && level.id === 'crater' && controlMode === 'walking'
+        && !(typeof cine !== 'undefined' && cine.phase && cine.phase !== 'gameplay' && cine.phase !== 'done' && cine.phase !== 'survey' && cine.phase !== 'off');
+    }
+    function bark(m, key) {
+      if (now - lastBark < 12 || (typeof shackletonMemory !== 'undefined' && shackletonMemory.isActive())) return;
+      const pool = (BARK[key] || [])[m.i]; if (!pool) return;
+      const line = pool[Math.floor(Math.random() * pool.length)]; if (!line) return;
+      if (m.said[line] && now - m.said[line] < 120) return;
+      m.said[line] = now; lastBark = now;
+      speak(ROBOT_NAMES[m.i], line, 2.0, { kind: 'robot' });
+    }
+    // job sites: each robot's own corner of the camp
+    function sites(i) {
+      const F = FLYER_ASSEMBLED_POS, R = REFILL_PANEL_POS;
+      if (i === 0) return [{ x: F.x + 2.2, z: F.z + 1.6 }, { x: STUDY_APPROACH.x, z: STUDY_APPROACH.z, survey: true }, { x: F.x - 2.5, z: F.z + 2.8 }];
+      if (i === 1) return [{ x: R.x + 1.8, z: R.z + 1.2 }, { x: TUNNEL_APPROACH.x, z: TUNNEL_APPROACH.z, survey: true }, { x: F.x + 0.5, z: F.z - 3.0 }];
+      return [{ x: F.x - 1.8, z: F.z - 1.4 }, { x: F.x + 3.0, z: F.z - 1.0 }, { x: 14, z: 4 }];
+    }
+    // no-go: puzzle spots, so an idle robot never blocks a prompt
+    const ZONES = () => [{ x: ICE_POCKET.x, z: ICE_POCKET.z + 2, r: 8 }];
+    function outsideZones(x, z) {
+      for (const Z of ZONES()) { const d = Math.hypot(x - Z.x, z - Z.z); if (d < Z.r) { const k = Z.r / Math.max(d, 0.01); return { x: Z.x + (x - Z.x) * k, z: Z.z + (z - Z.z) * k }; } }
+      return { x, z };
+    }
+    const fwd = () => ({ x: Math.sin(player.heading), z: Math.cos(player.heading) });
+    // ── intentions: score and start ──
+    function score(m) {
+      const r = robotStates[m.i], p = PERS[m.i], d = m.d;
+      const dist = Math.hypot(r.pos.x - player.pos.x, r.pos.z - player.pos.z);
+      const out = [];
+      const add = (name, s) => out.push({ name, s: s + Math.random() * 0.08 + (name === m.intent ? 0.15 : 0) });   // a little loyalty to what it is doing
+      add('work', p.mission * d.mission);
+      if (m.i === 1 && bottle.has && !bottle.full) add('refillBottle', 0.55);
+      add('rest', 0.12);
+      const crit = recent('oxygenCritical', 10), low = recent('oxygenLow', 10), fall = recent('hardLanding', 8);
+      if ((crit || low || fall) && dist < 80) add('checkOn', 1.2 * p.protect * p.devotion + (crit ? 0.6 : 0) + (fall ? 0.2 : 0));
+      // L-07's spare bottle comes first when he is dangerously low
+      const critNow = oxygen.percent / Math.max(1, oxygen.capacity) <= 0.11 && !refill.connected;   // as it is now, not just the alarm
+      // L-07 judges it: go now if the air he has left won't get him back to the station
+      const ratio = oxygen.percent / Math.max(1, oxygen.capacity), secsLeft = oxygen.percent / Math.max(0.01, OXYGEN_DRAIN_RATE);
+      const shortOfAir = !refill.connected && ratio <= 0.25 && o2Dist() / 2.8 > secsLeft * 0.8;
+      if (m.i === 1 && bottle.full && (critNow || shortOfAir) && dist < 90) add('share', 3.0);
+      // dangerously low and nowhere near air: one of them leads him to it
+      if (critNow && o2Dist() > 8 && (leadBy < 0 || leadBy === m.i)) add('lead', 2.2 * p.protect * p.devotion);
+      if (recent('highUp', 6) && dist < 40) add('spot', 1.0 * p.protect * p.devotion);
+      if (recent('leftWreck', 4) && dist < 50) add('greet', 0.9 * p.company * p.devotion + 0.2);
+      if (P.still > 20 && dist < 40 && !P.atO2) add('comfort', 0.8 * p.company * p.devotion);
+      const act = recent('pickedUp', 5) || recent('jumped', 3);
+      if (act && dist < 18) add('watch', 0.75 * p.curious + 0.2);
+      const away = Math.max(0, Math.min(1, (dist - 10) / 25));          // he is heading off on his own
+      if (dist < 90 && (escortBy < 0 || escortBy === m.i)) add('escort', p.protect * p.protect * (0.25 + d.protect + away * 0.6) * (0.6 + m.affinity) * (P.still > 6 ? 0.4 : 1));
+      add('visit', p.company * d.company * 0.8);
+      out.sort((a, b) => b.s - a.s);
+      return out[0].name;
+    }
+    let leadBy = -1;
+    function o2Point() {                                  // nearest air he can reach
+      const pts = [{ x: REFILL_PANEL_POS.x, z: REFILL_PANEL_POS.z }];
+      if (scene6.done) pts.push({ x: ICE_POCKET.x, z: ICE_POCKET.z });
+      pts.sort((a, b) => Math.hypot(a.x - player.pos.x, a.z - player.pos.z) - Math.hypot(b.x - player.pos.x, b.z - player.pos.z));
+      return pts[0];
+    }
+    const o2Dist = () => { const o = o2Point(); return Math.hypot(o.x - player.pos.x, o.z - player.pos.z); };
+    function start(m, name) {
+      const r = robotStates[m.i];
+      if (m.intent === 'escort' && name !== 'escort' && escortBy === m.i) escortBy = -1;
+      if (m.intent === 'lead' && name !== 'lead' && leadBy === m.i) leadBy = -1;
+      m.intent = name; m.since = now; r.mindSpeed = 0.4; r.after = null;
+      if (name === 'work') {
+        const list = sites(m.i), s = list[Math.floor(Math.random() * list.length)];
+        if (s.survey) { r.state = m.i === 0 ? 'studying_rock' : 'investigating_tunnel'; r.subPhase = 'approach'; r.target = m.i === 0 ? STUDY_APPROACH : TUNNEL_APPROACH; r.stateTimer = 30; }
+        else { goTo(r, s.x + (Math.random() - 0.5) * 1.5, s.z + (Math.random() - 0.5) * 1.5, 0.4, { state: 'manipulating', dur: 6 + Math.random() * 4 }); }
+        m.d.mission = Math.max(0, m.d.mission - 0.5);
+      } else if (name === 'rest') {
+        r.state = 'attend'; r.faceAt = null; r.stateTimer = 3 + Math.random() * 3;
+      } else if (name === 'checkOn') {
+        const f = fwd(); const s = outsideZones(player.pos.x + f.x * 1.4 + (m.i - 1) * 0.9, player.pos.z + f.z * 1.4);
+        goTo(r, s.x, s.z, 1.2, { state: 'attend', faceAt: 'player', dur: 4 });
+        const crit = recent('oxygenCritical', 10), low = recent('oxygenLow', 10);
+        r.onArrive = () => bark(m, crit ? 'oxygenCritical' : low ? 'oxygenLow' : 'hardLanding');
+      } else if (name === 'watch') {
+        r.state = 'attend'; r.faceAt = 'player'; r.stateTimer = 3.5;
+        if (recent('pickedUp', 5)) bark(m, 'pickedUp');
+      } else if (name === 'escort') {
+        escortBy = m.i; r.state = 'escort'; r.stateTimer = 20 + Math.random() * 15;
+        if (Math.random() < 0.3) bark(m, 'escort');
+      } else if (name === 'share') {
+        r.state = 'share'; r.stateTimer = 60;                 // runs to him, wherever he goes
+      } else if (name === 'refillBottle') {
+        goTo(r, REFILL_PANEL_POS.x + 1.6, REFILL_PANEL_POS.z + 1.0, 0.45, { state: 'manipulating', dur: 4 });
+      } else if (name === 'lead') {
+        leadBy = m.i; r.state = 'lead'; r.stateTimer = 90; bark(m, 'lead');
+      } else if (name === 'spot') {                       // stand below him while he is up high
+        const f = fwd(); goTo(r, player.pos.x + f.x * 2.2 + (m.i - 1), player.pos.z + f.z * 2.2, 1.2, { state: 'attend', faceAt: 'player', dur: 6 });
+        r.onArrive = () => bark(m, 'high');
+      } else if (name === 'greet') {
+        const f = fwd(); goTo(r, player.pos.x + f.x * 2.5 + (m.i - 1) * 1.2, player.pos.z + f.z * 2.5, 1.1, { state: 'attend', faceAt: 'player', dur: 4 });
+        r.onArrive = () => bark(m, 'back');
+      } else if (name === 'comfort') {                    // stand beside him, looking where he looks
+        const f = fwd(), side = m.i === 2 ? 1 : -1;
+        goTo(r, player.pos.x + f.z * side * 1.3, player.pos.z - f.x * side * 1.3, 0.5, { state: 'attend', faceAt: null, dur: 14 });
+        r.onArrive = () => { r.heading = player.heading; bark(m, 'still'); };
+      } else if (name === 'visit') {
+        const others = [0, 1, 2].filter(k => k !== m.i && robots[k].visible && Math.hypot(robotStates[k].pos.x - r.pos.x, robotStates[k].pos.z - r.pos.z) < 45);
+        if (!others.length) { r.state = 'attend'; r.faceAt = null; r.stateTimer = 3; return; }
+        const k = others[Math.floor(Math.random() * others.length)], o = robotStates[k], a = Math.random() * 6.28;
+        goTo(r, o.pos.x + Math.cos(a) * 1.8, o.pos.z + Math.sin(a) * 1.8, 0.45, { state: 'attend', faceAt: k, dur: 5 + Math.random() * 3 });
+        m.d.company = Math.max(0, m.d.company - 0.5);
+      }
+    }
+    function goTo(r, x, z, speed, after) {
+      const s = outsideZones(x, z);
+      if (!r._mindT) r._mindT = new THREE.Vector3();
+      r._mindT.set(s.x, r.pos.y, s.z); r.target = r._mindT; r.state = 'mind_walk'; r.stateTimer = 40; r.mindSpeed = speed; r.after = after;
+    }
+    // ── per-frame: perception, drives, thinking ──
+    function tick(dt) {
+      if (!ON) return;
+      now += dt;
+      bottleTick(dt);
+      // perception (the player)
+      const g = !!player.grounded;
+      if (!g) P.fallVy = Math.min(P.fallVy, player.vel.y);
+      if (g && !P.lastGrounded) { if (P.fallVy < -3.2) event('hardLanding'); P.fallVy = 0; }
+      if (!g && P.lastGrounded && player.vel.y > 1) event('jumped');
+      P.lastGrounded = g;
+      const sp = Math.hypot(player.vel.x, player.vel.z); P.still = sp < 0.15 ? P.still + dt : 0; P.atO2 = refill.connected;
+      // oxygen alarms come from the suit (_o2Warnings, 20% / 10%)
+      // up high: standing on a rock well above the ground
+      if (g && level.id === 'crater' && player.pos.y - shackletonScene.getGroundY(player.pos.x, player.pos.z) > 2.0) { if (now - (P.highT || -99) > 25) { P.highT = now; event('highUp'); } }
+      // never alone for long: if nobody is near him, the most devoted free robot comes
+      let nearest = 1e9; for (const m of M) nearest = Math.min(nearest, Math.hypot(robotStates[m.i].pos.x - player.pos.x, robotStates[m.i].pos.z - player.pos.z));
+      P.alone = (nearest > 15 && level.id === 'crater' && controlMode === 'walking') ? (P.alone || 0) + dt : 0;
+      if (P.alone > 12 && escortBy < 0) {
+        let best = null, bs = -1; for (const m of M) { if (!canThink(m) || ['share', 'lead', 'checkOn'].includes(m.intent)) continue; const sc = PERS[m.i].devotion * (0.6 + m.affinity) - Math.hypot(robotStates[m.i].pos.x - player.pos.x, robotStates[m.i].pos.z - player.pos.z) * 0.004; if (sc > bs) { bs = sc; best = m; } }
+        if (best) { start(best, 'escort'); best.nextThink = now + 6; P.alone = 0; }
+      }
+      const inWreck = level.id === 'wreck';
+      if (P.wasWreck && !inWreck) event('leftWreck');
+      P.wasWreck = inWreck;
+      // drives and thinking
+      for (const m of M) {
+        const r = robotStates[m.i], d = m.d;
+        const near = Math.hypot(r.pos.x - player.pos.x, r.pos.z - player.pos.z) < 6;
+        d.mission = Math.min(1, d.mission + dt * 0.02);
+        d.company = Math.min(1, Math.max(0, d.company + dt * (near ? -0.03 : 0.012)));
+        d.protect = Math.min(1, Math.max(0.1, d.protect + dt * (near ? -0.01 : 0.008)));
+        m.affinity += (0.35 - m.affinity) * dt * 0.002;
+        if (near) m.affinity = Math.min(1, m.affinity + dt * 0.002);
+        if (!canThink(m)) { if (escortBy === m.i && r.scripted) escortBy = -1; continue; }
+        // back from the wreck: the ones that like him come to the door
+        if (recent('leftWreck', 1.5) && m.affinity > 0.4 && !m.said.back) { m.said.back = now; m.nextThink = now + 0.5 + m.i; }
+        // an alarm (low oxygen, a fall, a pickup nearby) breaks into whatever it is doing
+        for (let k = ev.length - 1; k >= 0 && now - ev[k].t < 2.5; k--) {
+          const e = ev[k]; if (!urgent(e.type) || m.handled === e) continue;
+          m.handled = e; if (now >= ev[k].t + 0.3 + m.i * 0.35) { const pick = score(m); if (['share', 'checkOn', 'watch', 'lead', 'spot', 'greet'].includes(pick) && !(m.intent === 'lead' && pick !== 'lead') && !(m.intent === 'share' && pick !== 'share')) { start(m, pick); m.nextThink = now + 3; } }
+          else m.handled = null;
+          break;
+        }
+        const idleish = r.state === 'idle' || r.state === 'attend' || r.state === 'manipulating' || r.state === 'escort' || r.state === 'walking'
+          || (now - m.since > 8 && m.intent !== 'checkOn' && m.intent !== 'lead' && m.intent !== 'share');             // any job can be reconsidered after a while
+        if (now >= m.nextThink && idleish && now - m.since > 3) {
+          const pick = score(m);
+          if (pick !== m.intent || r.state === 'idle') start(m, pick);
+          m.nextThink = now + 1.5 + Math.random() * 1.5;
+        }
+        if (m.label) updateLabel(m);
+      }
+    }
+    // ── the robot side: new states run from updateRobotCore ──
+    function step(robot, r, dt, stepWalk) {
+      if (r.state === 'mind_walk') {
+        if (!stepWalk() || r.stateTimer <= 0) {
+          r.target = null; r.mindSpeed = 0.4;
+          if (r.onArrive) { r.onArrive(); r.onArrive = null; }
+          const a = r.after; r.after = null;
+          if (a && a.state === 'manipulating') { r.state = 'manipulating'; r.manipPhase = 0; r.stateTimer = a.dur; }
+          else if (a) { r.state = 'attend'; r.faceAt = a.faceAt; r.stateTimer = a.dur; }
+          else { r.state = 'idle'; r.stateTimer = 1; }
+        }
+        return true;
+      }
+      if (r.state === 'attend') {
+        const f = r.faceAt === 'player' ? player.pos : (typeof r.faceAt === 'number' ? robotStates[r.faceAt].pos : null);
+        if (f) turnTo(r, f.x, f.z, dt);
+        if (r.stateTimer <= 0) { r.state = 'idle'; r.stateTimer = 0.5; }
+        return true;
+      }
+      if (r.state === 'share') {
+        const dd = Math.hypot(player.pos.x - r.pos.x, player.pos.z - r.pos.z);
+        if (dd > 1.5) { if (!r._mindT) r._mindT = new THREE.Vector3(); r._mindT.set(player.pos.x, r.pos.y, player.pos.z); r.target = r._mindT; r.mindSpeed = dd > 6 ? 2.2 : 1.2; stepWalk(); r._moving = true; }
+        else { r._moving = false; r.mindSpeed = 0.4; giveAir(M[1]); r.state = 'attend'; r.faceAt = 'player'; r.stateTimer = 3; }
+        if (r.stateTimer <= 0 || !bottle.full || level.id !== 'crater' || refill.connected || oxygen.percent / Math.max(1, oxygen.capacity) > 0.3) { r.state = 'idle'; r.stateTimer = 0.5; r._moving = false; r.mindSpeed = 0.4; }
+        return true;
+      }
+      if (r.state === 'lead') {
+        // walk ahead of him towards air; wait (and call) when he falls behind
+        const o = o2Point(), pd = Math.hypot(r.pos.x - player.pos.x, r.pos.z - player.pos.z);
+        const toO = Math.hypot(o.x - player.pos.x, o.z - player.pos.z), ux = (o.x - player.pos.x) / Math.max(toO, 0.01), uz = (o.z - player.pos.z) / Math.max(toO, 0.01);
+        const ahead = Math.min(3.5, Math.max(0, toO - 1.5));
+        let tx = player.pos.x + ux * ahead, tz = player.pos.z + uz * ahead;
+        if (pd > 7) { tx = r.pos.x; tz = r.pos.z; turnTo(r, player.pos.x, player.pos.z, dt); r._moving = false;
+          if (!r._waitT || performance.now() - r._waitT > 6000) { r._waitT = performance.now(); bark(M[r.number - 1], 'wait'); } }
+        else {
+          const dd = Math.hypot(tx - r.pos.x, tz - r.pos.z);
+          if (dd > 0.6) { if (!r._mindT) r._mindT = new THREE.Vector3(); r._mindT.set(tx, r.pos.y, tz); r.target = r._mindT; r.mindSpeed = Math.min(1.5, 0.5 + dd * 0.35); stepWalk(); r._moving = true; }
+          else { r._moving = false; turnTo(r, o.x, o.z, dt); }
+        }
+        const ratio = oxygen.percent / Math.max(1, oxygen.capacity);
+        if (toO < 3 || refill.connected || ratio > 0.35 || r.stateTimer <= 0 || level.id !== 'crater') { r.state = 'idle'; r.stateTimer = 0.5; r._moving = false; r.mindSpeed = 0.4; if (leadBy === r.number - 1) leadBy = -1; }
+        return true;
+      }
+      if (r.state === 'escort') {
+        // off his shoulder, a little behind; hurry when far; never in his path
+        const f = fwd(), side = (r.number % 2 ? 1 : -1);
+        let tx = player.pos.x - f.x * 1.8 + f.z * side * 2.2, tz = player.pos.z - f.z * 1.8 - f.x * side * 2.2;
+        const s = outsideZones(tx, tz); tx = s.x; tz = s.z;
+        const inRock = (x, z) => rockTopAt(x, z) > shackletonScene.getGroundY(x, z) + 0.45;
+        if (inRock(tx, tz)) { const ax = player.pos.x - f.x * 1.8 - f.z * side * 2.2, az = player.pos.z - f.z * 1.8 + f.x * side * 2.2;   // other shoulder
+          if (!inRock(ax, az)) { tx = ax; tz = az; } else { tx = player.pos.x - f.x * 2.6; tz = player.pos.z - f.z * 2.6; } }
+        const dd = Math.hypot(tx - r.pos.x, tz - r.pos.z);
+        if (dd > 0.8) {
+          if (!r._mindT) r._mindT = new THREE.Vector3();
+          r._mindT.set(tx, r.pos.y, tz); r.target = r._mindT;
+          r.mindSpeed = Math.min(1.3, 0.4 + Math.max(0, dd - 1.5) * 0.25);
+          stepWalk(); r._moving = true;
+        } else { r._moving = false; turnTo(r, player.pos.x, player.pos.z, dt); }
+        if (r.stateTimer <= 0 || level.id !== 'crater') { r.state = 'idle'; r.stateTimer = 0.5; r._moving = false; r.mindSpeed = 0.4; if (escortBy === r.number - 1) escortBy = -1; }
+        return true;
+      }
+      return false;
+    }
+    function turnTo(r, x, z, dt) {
+      const th = Math.atan2(x - r.pos.x, z - r.pos.z); let dH = th - r.heading;
+      while (dH > Math.PI) dH -= Math.PI * 2; while (dH < -Math.PI) dH += Math.PI * 2;
+      r.heading += dH * Math.min(1, dt * 3);
+    }
+    // ── ?debug: what each robot is thinking, over its head ──
+    const DEBUG = /[?&]debug\b/.test(location.search);
+    function updateLabel(m) {
+      const r = robotStates[m.i]; const txt = m.intent + ' · ' + r.state + ' · a' + m.affinity.toFixed(2);
+      if (m.labelTxt === txt) return; m.labelTxt = txt;
+      const c = m.label.material.map.image, g = c.getContext('2d'); g.clearRect(0, 0, 256, 48);
+      g.fillStyle = 'rgba(0,0,0,0.55)'; g.fillRect(0, 0, 256, 48); g.fillStyle = ['#7fb8ff', '#ffe066', '#ff7a6a'][m.i]; g.font = '20px monospace'; g.fillText(txt, 6, 30);
+      m.label.material.map.needsUpdate = true;
+    }
+    if (DEBUG) for (const m of M) {
+      const c = document.createElement('canvas'); c.width = 256; c.height = 48;
+      m.label = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false, transparent: true }));
+      m.label.scale.set(1.6, 0.3, 1); m.label.position.y = 1.9; robots[m.i].add(m.label);
+    }
+    function asked(i) { M[i].affinity = Math.min(1, M[i].affinity + 0.06); }
+    return { tick, step, event, asked, M, ON, unlockBottle, bottle, get escortBy() { return escortBy; }, get leadBy() { return leadBy; } };
+  })();
+
   const ROBOT_RADIO_IDX = { 'P-03': 0, 'L-07': 1, 'M-08': 2 };
   const radio = { heardMichel: false };
   const _rdV = new THREE.Vector3();
@@ -14978,6 +15740,7 @@ body.in-wreck .cam-buttons { display: none; }
   }
   // What now? — one word for the current objective, and where to point.
   function _objectiveHint(i) {
+    for (const f of puzzleHintFns) { const h = f(i); if (h) return h; }
     const el = $('objective-hud'), txt = el ? el.textContent : '';
     const P = (x, z) => new THREE.Vector3(x, player.pos.y, z);
     if (/free P-03/.test(txt)) return { word: i === 0 ? 'stuck.' : 'P-03.', at: i === 0 ? null : robots[0].position.clone() };
@@ -15018,6 +15781,7 @@ body.in-wreck .cam-buttons { display: none; }
     const i = wristPad.robot, q = wristPad.list[k]; if (!q) return;
     closeWristPad();
     const letter = ROBOT_NAMES[i][0], r = robotStates[i], me = player.pos.clone().setY(player.pos.y + 1.5);
+    robotMinds.asked(i);
     speak('PAD', q.text, 2.2, { kind: 'pad' });
     let lines, gesture = q.gesture, target = me;
     if (q.id === 'now') {
@@ -15053,6 +15817,33 @@ body.in-wreck .cam-buttons { display: none; }
     const k = parseInt(e.key, 10);
     if (k >= 1 && k <= wristPad.list.length) askRobot(k - 1);
   });
+
+  // ============================================================
+  // MUSIC (v0.19.1) — the score: an original organ-led ambient loop
+  // (assets/music/shackleton_theme.mp3, 128 s, seamless). Fades in once
+  // he is on his feet after the opening; sits lower inside the wreck;
+  // fades out for memories and the demo ending (memory spec §6).
+  // ============================================================
+  const music = { gain: null, started: false, loading: false, level: 0.30 };
+  function updateMusic() {
+    if (!audioCtx || !masterGain) return;
+    if (!music.started) {
+      if (music.loading || (typeof opening !== 'undefined' && (opening.active || opening.phase !== 'done'))) return;
+      music.loading = true;
+      fetch('/shackleton/assets/music/shackleton_theme.mp3?v=' + encodeURIComponent(BUILD_VERSION))
+        .then(r => r.arrayBuffer()).then(b => audioCtx.decodeAudioData(b)).then(buf => {
+          music.gain = audioCtx.createGain(); music.gain.gain.value = 0; music.gain.connect(masterGain);
+          const src = audioCtx.createBufferSource(); src.buffer = buf; src.loop = true; src.connect(music.gain); src.start();
+          music.started = true;
+        }).catch(e => console.warn('[music] not loaded', e));
+      return;
+    }
+    let target = music.level;
+    if (level.id === 'wreck') target *= 0.7;
+    if (typeof shackletonMemory !== 'undefined' && shackletonMemory.isActive()) target = 0;
+    if (typeof demoEnd !== 'undefined' && demoEnd.active) target = 0;
+    music.gain.gain.setTargetAtTime(target, audioCtx.currentTime, target === 0 ? 0.25 : 1.2);
+  }
 
   // Who gestures when.
   const robotCues = { greeted: [false, false, false], nudgeT: 30, pinnedT: 3 };
@@ -15259,6 +16050,7 @@ body.in-wreck .cam-buttons { display: none; }
       onContact() {
         scene.attach(mesh);                  // world-space from here on
         interact.carry = { mesh, kind: _carryKind(mesh), name: mesh.userData.carryName || 'part' };
+        try { robotMinds.event('pickedUp', mesh.position); } catch (e) { }
         reachStart(mesh.position, { follow: mesh });
         sndUi('confirm');
       },
@@ -15288,9 +16080,11 @@ body.in-wreck .cam-buttons { display: none; }
     }
     // Held in front at chest height, swaying with the walk.
     const f = _fwd();
-    const tx = player.pos.x + Math.sin(player.heading) * 0.62;
-    const tz = player.pos.z + Math.cos(player.heading) * 0.62;
-    const ty = player.pos.y + 1.05 + Math.sin(performance.now() * 0.004) * 0.02;
+    // v0.21.2: at his chest, in reach of both hands — a little further out for big parts
+    if (c.reachOut === undefined) { const bb = new THREE.Box3().setFromObject(c.mesh), sz = bb.getSize(new THREE.Vector3()); c.reachOut = 0.3 + Math.min(0.35, Math.max(sz.x, sz.z) * 0.3); c.lift = 0.6 + Math.min(0.15, sz.y * 0.3); }
+    const tx = player.pos.x + Math.sin(player.heading) * c.reachOut;
+    const tz = player.pos.z + Math.cos(player.heading) * c.reachOut;
+    const ty = player.pos.y + c.lift + Math.sin(performance.now() * 0.004) * 0.015;
     const k = Math.min(1, dt * 12);
     c.mesh.position.x += (tx - c.mesh.position.x) * k;
     c.mesh.position.y += (ty - c.mesh.position.y) * k;
@@ -15420,6 +16214,9 @@ body.in-wreck .cam-buttons { display: none; }
       if (m.userData.stabKey === 'plug')
         out.push({ key: 'socket', x: STAB_SOCKET.x, z: STAB_SOCKET.z, y: fy + 1.11, r: 2.4, label: 'plug in the cable',
           fire: () => putDown(STAB_SOCKET.x, STAB_SOCKET.z) });
+      if (braceV2 && m === s4.panel && braceV2.S.phase === 'held')          // v0.21.2: stand it on the mark, exactly
+        out.push({ key: 'braceProp', x: braceV2.PROP.x, z: braceV2.PROP.z, y: WL_ORIGIN.y + 0.6, r: 2.0, label: 'prop the plate with the panel',
+          fire: () => putDown(braceV2.PROP.x, braceV2.PROP.z) });
       if (m === s6.batt && !scene6.power)
         out.push({ key: 's6socket', x: s6.socket.position.x, z: s6.socket.position.z,
           y: s6.socket.position.y + 0.3, r: 2.0, label: 'connect the battery pack', mesh: s6.socket,
@@ -15703,6 +16500,7 @@ body.in-wreck .cam-buttons { display: none; }
     // being cropped), drawn at one constant on-screen size from every
     // camera, and only shown when he is near it.
     const labels = [];
+    const SHOW_LABELS = /[?&](debug|wreck2)\b/.test(location.search);   // v0.19.1: blockout notes are dev-only
     function label(text, x, y, z, col) {
       const c = document.createElement('canvas');
       let g = c.getContext('2d'); g.font = '30px monospace';
@@ -15715,7 +16513,7 @@ body.in-wreck .cam-buttons { display: none; }
       const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true, sizeAttenuation: false }));
       const hgt = 0.03;
       sp.scale.set(hgt * c.width / c.height, hgt, 1); sp.position.set(x * WL_K, y, z * WL_K); sp.renderOrder = 997;
-      root.add(sp); labels.push(sp);
+      if (SHOW_LABELS) { root.add(sp); labels.push(sp); }
       return sp;
     }
 
@@ -15782,15 +16580,12 @@ body.in-wreck .cam-buttons { display: none; }
 
     // ── Airlock and suit bay (new): the way in. Converted. ──
     box(6.6, 0.05, 5.7, 26.5, -0.04, 0, matPanel, { solid: false });          // habitat floor panels
-    const breach = new THREE.Mesh(new THREE.PlaneGeometry(2.6 * WL_K, 3.2),
-      new THREE.MeshBasicMaterial({ color: 0xe8ecf2 }));
-    breach.position.set(26.5 * WL_K, 1.6, -WL_HALF_W * WL_K + 0.02);
-    root.add(breach);
+    // v0.20.0: no breach — the hull is sealed here; the way in is the airlock chamber (see airlockCycle)
     box(0.7, 1.9, 0.5, 24.3, 0, 2.7, matWall);                            // suit racks
     box(0.7, 1.9, 0.5, 25.3, 0, 2.7, matWall);
     box(0.7, 1.9, 0.5, 26.3, 0, 2.7, matWall);
     box(0.8, 1.4, 0.6, 28.6, 0, 2.65, matDev);                            // suit O₂ refill point
-    box(1.2, 0.5, 0.9, 28.4, 0, -1.4, matWall, { walk: true });           // fallen locker
+    box(1.2, 0.5, 0.9, 28.9, 0, -1.2, matWall, { walk: true });           // fallen locker (v0.20.0: clear of the airlock chamber)
     label('way out', 26.5, 3.6, -2.2);
     label('← nose        tail →', 26.5, 4.5, 2.4, '#c8ccd2');
 
@@ -15806,20 +16601,22 @@ body.in-wreck .cam-buttons { display: none; }
       const l = new THREE.PointLight(c, i, d * WL_K, 2);
       l.position.set(x * WL_K, y, z * WL_K); root.add(l); lights.push(l); return l;
     }
-    const amb = new THREE.AmbientLight(0x30343c, 0.55); root.add(amb);
-    pl(0xff3b2f, 1.5, 8, 3.6, 5.2, 0);
-    pl(0xff3b2f, 1.5, 8, 10.5, 5.5, 0);
-    pl(0xdfe8ff, 1.5, 9, 18.5, 5.0, -0.3);                               // converted rooms: cool white
-    pl(0xdfe8ff, 1.2, 8, 27.0, 5.0, 0.8);
-    pl(0xff3b2f, 1.4, 10, 34, 5.8, 0.5);
-    pl(0xffb347, 1.2, 9, 40, 4.8, 0);
-    const day = new THREE.SpotLight(0xf4f6ff, 2.2, 16 * WL_K, 0.55, 0.4, 1.5);
-    day.position.set(26.5 * WL_K, 2.4, -6 * WL_K); day.target.position.set(26.5 * WL_K, 0, 1.5 * WL_K);
-    day.castShadow = true; day.shadow.mapSize.set(512, 512);
-    root.add(day); root.add(day.target);
+    // v0.20.1 lighting: the rooms without power run on red emergency
+    // light (flight deck, crew quarters, cargo bay, and life support until
+    // the stabiliser is fixed — then it comes on white). The suit bay has
+    // power: the airlock works. Detail comes from the lit control boards
+    // (wreckBoards) and the chest lamp.
+    const amb = new THREE.AmbientLight(0x2c2426, 0.55); root.add(amb);
+    pl(0xff2a1e, 2.0, 9, 3.6, 5.2, 0);                                   // flight deck — no power
+    pl(0xff2a1e, 1.9, 8, 10.5, 5.5, 0.6);                                // crew quarters — no power
+    const lsLight = pl(0xff2a1e, 2.0, 9, 18.5, 5.0, -0.3);               // life support — white once fixed
+    pl(0xdfe8ff, 1.4, 8, 28.2, 5.0, 1.2);                                // suit bay — powered
+    pl(0xff2a1e, 2.0, 10, 34, 5.8, 0.5);                                 // cargo bay — no power
+    pl(0xffb347, 1.0, 9, 40, 4.8, 0);                                    //   amber near the sealed tail
     // Helmet lamp — follows the astronaut's head, casts the only moving shadows.
     const lamp = new THREE.SpotLight(0xfff4dc, 1.6, 15, 0.52, 0.55, 1.6);
     lamp.shadow.mapSize.set(512, 512);
+    lamp.shadow.bias = -0.0008; lamp.shadow.normalBias = 0.02;        // v0.22.3: no acne under the chest lamp
     lamp.shadow.camera.near = 0.3;
     // v0.9.1: the lamp is a chest light and is on outdoors too. It only
     // casts shadows indoors (a second shadow pass over the whole crater
@@ -15866,7 +16663,679 @@ body.in-wreck .cam-buttons { display: none; }
     }
     const SPAWN = { x: 26.5 * WL_K, z: -1.7 * WL_K, heading: 0 };
     const EXIT = { x: 26.5 * WL_K, z: -2.2 * WL_K };
-    return { root, boxes, zones, lights, lamp, flare, labels, SPAWN, EXIT };
+    return { root, boxes, zones, lights, lsLight, lamp, flare, labels, SPAWN, EXIT };
+  })();
+
+
+  // ============================================================
+  // WRECK INTERIOR DRESSING (v0.19.1)
+  // Turns the blockout into rooms. Everything here is visual (no new
+  // colliders) and keeps clear of the two puzzle areas: the stabiliser
+  // in life support (+z side) and the brace in the cargo bay (x ≈ 52–62 m,
+  // −z side). The ship was built to stand on its tail (nose = −x is "up"),
+  // so stencils read sideways, seats and bunks hang on the walls, and loose
+  // things have fallen to the same side.
+  // ============================================================
+  const _wdStartChildren = wreckLevel.root.children.length;
+  const wreckDress = (function () {
+    const R = wreckLevel.root, K = WL_K, HW = WL_HALF_W * K - 0.02;   // inner wall plane, metres
+    const X = (d) => d * K;
+    const anim = [];                       // { tick(t) }
+    // ── textures ──
+    function canvasTex(w, h, draw, rep) {
+      const c = document.createElement('canvas'); c.width = w; c.height = h;
+      draw(c.getContext('2d'), w, h);
+      const t = new THREE.CanvasTexture(c);
+      t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4;
+      if (rep) t.repeat.set(rep[0], rep[1]);
+      return t;
+    }
+    const R2 = (i) => rng(i + 77000);
+    function panelDraw(base, seam, rivet, seed) {
+      return (g, w, h) => {
+        g.fillStyle = base; g.fillRect(0, 0, w, h);
+        const n = 4;
+        for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+          const k = (R2(seed + i * 7 + j * 13) - 0.5) * 18;
+          g.fillStyle = `rgba(${k > 0 ? '255,255,255' : '0,0,0'},${Math.abs(k) / 255})`;
+          g.fillRect(i * w / n + 2, j * h / n + 2, w / n - 4, h / n - 4);
+        }
+        g.fillStyle = seam;
+        for (let i = 0; i <= n; i++) { g.fillRect(i * w / n - 1.5, 0, 3, h); g.fillRect(0, i * h / n - 1.5, w, 3); }
+        g.fillStyle = rivet;
+        for (let i = 0; i <= n; i++) for (let px = 8; px < w; px += 16) { g.fillRect(px, i * h / n + 5, 3, 3); g.fillRect(i * w / n + 5, px, 3, 3); }
+        for (let i = 0; i < 40; i++) {               // grime streaks
+          g.fillStyle = `rgba(20,18,16,${0.04 + R2(seed + 500 + i) * 0.08})`;
+          g.fillRect(R2(seed + 600 + i) * w, R2(seed + 700 + i) * h, 2 + R2(seed + 800 + i) * 4, 20 + R2(seed + 900 + i) * 120);
+        }
+      };
+    }
+    const texWall  = canvasTex(512, 512, panelDraw('#6a6e75', 'rgba(30,32,36,0.8)', 'rgba(40,42,46,0.7)', 1));
+    const texHull  = canvasTex(512, 512, panelDraw('#4e5258', 'rgba(22,24,28,0.85)', 'rgba(30,32,36,0.7)', 2));
+    const texDeck  = canvasTex(256, 256, (g, w, h) => {      // deck grating
+      g.fillStyle = '#3b3e43'; g.fillRect(0, 0, w, h);
+      g.strokeStyle = 'rgba(15,16,18,0.9)'; g.lineWidth = 3;
+      for (let i = -h; i < w; i += 18) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i + h, h); g.stroke(); }
+      for (let i = 0; i < w + h; i += 18) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i - h, h); g.stroke(); }
+      g.fillStyle = 'rgba(0,0,0,0.5)'; g.fillRect(0, 0, w, 4); g.fillRect(0, 0, 4, h);
+    });
+    const texHab   = canvasTex(256, 256, panelDraw('#8c9198', 'rgba(40,42,46,0.6)', 'rgba(60,62,66,0.5)', 3));
+    const texHaz   = canvasTex(128, 128, (g, w, h) => {
+      g.fillStyle = '#1c1c1e'; g.fillRect(0, 0, w, h); g.fillStyle = '#d9a21e';
+      for (let i = -h; i < w; i += 32) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i + 16, 0); g.lineTo(i + 16 + h, h); g.lineTo(i + h, h); g.fill(); }
+    });
+    const PM = (o) => new THREE.MeshPhongMaterial(Object.assign({ shininess: 0, flatShading: true }, o));
+    const mWall = PM({ map: texWall }), mHull = PM({ map: texHull, side: THREE.BackSide }), mHullF = PM({ map: texHull });
+    const mDeck = PM({ map: texDeck }), mHab = PM({ map: texHab }), mHaz = PM({ map: texHaz });
+    const mDark = PM({ color: 0x26282c }), mMetal = PM({ color: 0x7d8189 }), mSteel = PM({ color: 0xa9adb3 });
+    const mCloth = PM({ color: 0x4a5a6e }), mMatt = PM({ color: 0x6f7e8c }), mWhite = PM({ color: 0xd8d6cf });
+    const mOrange = PM({ color: 0xc8692a }), mCable = PM({ color: 0x18191b });
+    const glow = (c) => { const m = new THREE.MeshBasicMaterial({ color: c }); m.toneMapped = false; return m; };
+    // box-map UVs so a texture tiles at a constant size (≈ tile metres per repeat)
+    function tileBoxUV(geo, tile) {
+      const p = geo.parameters, uv = geo.attributes.uv;
+      const dims = [[p.depth, p.height], [p.depth, p.height], [p.width, p.depth], [p.width, p.depth], [p.width, p.height], [p.width, p.height]];
+      for (let f = 0; f < 6; f++) for (let v = 0; v < 4; v++) { const i = f * 4 + v; uv.setXY(i, uv.getX(i) * dims[f][0] / tile, uv.getY(i) * dims[f][1] / tile); }
+      uv.needsUpdate = true;
+    }
+    // ── re-skin the blockout ──
+    R.traverse(o => {
+      if (!o.isMesh || !o.material || !o.material.color) return;
+      const hex = o.material.color.getHex();
+      if (o.geometry.type === 'CylinderGeometry' && o.material.side === THREE.BackSide) {   // the hull tube
+        const t = texHull.clone(); t.needsUpdate = true; t.repeat.set(7, WL_LEN * K / 3);
+        o.material = PM({ map: t, side: THREE.BackSide }); return;
+      }
+      if (o.geometry.type !== 'BoxGeometry') return;
+      if (hex === 0x4a4d52) { tileBoxUV(o.geometry, 2.2); o.material = mDeck; }           // floor
+      else if (hex === 0x8f959c) { tileBoxUV(o.geometry, 1.8); o.material = mHab; }       // habitat floor panels
+      else if (hex === 0x5d6066) { tileBoxUV(o.geometry, 3); o.material = mHullF; }       // side walls / crushed nose
+      else if (hex === 0x7b7f86) { tileBoxUV(o.geometry, 2.4); o.material = mWall; }      // bulkheads, plates, debris
+      else if (hex === 0xb3393a) { tileBoxUV(o.geometry, 1.2); o.material = mHaz; }       // sealed tail
+      else if (hex === 0x3f78c8) { o.material = mDark; }                                   // devices (dressed below)
+      else if (hex === 0x8a5cc8) { o.material = PM({ color: 0x5c6470 }); }                // personal locker
+      else if (hex === 0x2f3136) { o.visible = false; }                                    // seat blocks → real seats below
+    });
+    // ── helpers ──
+    function add(geo, mat, x, y, z, rx, ry, rz, shadow) {
+      const m = new THREE.Mesh(geo, mat);
+      m.position.set(x, y, z); m.rotation.set(rx || 0, ry || 0, rz || 0);
+      if (shadow) { m.castShadow = true; m.receiveShadow = true; }
+      R.add(m); return m;
+    }
+    const B = (w, h, d) => new THREE.BoxGeometry(w, h, d);
+    const C = (r0, r1, h, n) => new THREE.CylinderGeometry(r0, r1, h, n || 10);
+    function stencil(text, x, y, z, ry, rz, size, color, opts) {
+      opts = opts || {};
+      const c = document.createElement('canvas'); let g = c.getContext('2d');
+      g.font = '900 64px "Arial Black", Arial, sans-serif';
+      c.width = Math.ceil(g.measureText(text).width) + 24; c.height = 84;
+      g = c.getContext('2d'); g.font = '900 64px "Arial Black", Arial, sans-serif';
+      g.fillStyle = color || 'rgba(225,225,215,0.85)'; g.textBaseline = 'middle'; g.fillText(text, 12, 44);
+      const t = new THREE.CanvasTexture(c);
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(size * c.width / c.height, size),
+        new THREE.MeshPhongMaterial({ map: t, transparent: true, shininess: 0, depthWrite: false,
+          polygonOffset: true, polygonOffsetFactor: -2, emissive: opts.glow ? new THREE.Color(color) : undefined }));
+      m.position.set(x, y, z); m.rotation.set(0, ry || 0, rz || 0); R.add(m); return m;
+    }
+    // A stencil on a side wall, reading with "up" toward the nose (−x): sideways.
+    const wallText = (text, xd, y, side, size, col) =>
+      stencil(text, X(xd), y, side * HW, side > 0 ? Math.PI : 0, side > 0 ? -Math.PI / 2 : Math.PI / 2, size, col);
+    function cable(points, r) {
+      const curve = new THREE.CatmullRomCurve3(points.map(p => new THREE.Vector3(p[0], p[1], p[2])));
+      return add(new THREE.TubeGeometry(curve, 24, r || 0.03, 5, false), mCable, 0, 0, 0);
+    }
+    // a cable hanging from the hull top at (x, z), length L, swinging slightly
+    function hangingCable(x, z, L, seed) {
+      const top = 9.6, sway = (R2(seed) - 0.5) * 0.6;
+      cable([[x, top, z], [x + sway * 0.3, top - L * 0.4, z + sway * 0.2], [x + sway, top - L * 0.8, z + sway * 0.5], [x + sway * 1.3, top - L, z + sway]], 0.025 + R2(seed + 1) * 0.02);
+    }
+    function lightStrip(x0, x1, y, z, color, flicker) {
+      const m = add(B(x1 - x0, 0.06, 0.08), glow(color), (x0 + x1) / 2, y, z);
+      if (flicker) { const base = m.material.color.clone(); anim.push({ tick(t) { const on = Math.sin(t * 13.1 + x0) + Math.sin(t * 7.3) > -0.4; m.material.color.copy(base).multiplyScalar(on ? 1 : 0.15); } }); }
+      add(B(x1 - x0 + 0.1, 0.12, 0.05), mDark, (x0 + x1) / 2, y, z + (z > 0 ? 0.06 : -0.06));
+      return m;
+    }
+    function blinkLED(x, y, z, color, rate, phase) {
+      const m = add(B(0.05, 0.05, 0.03), glow(color), x, y, z);
+      const base = m.material.color.clone();
+      anim.push({ tick(t) { m.material.color.copy(base).multiplyScalar(Math.sin(t * rate + phase) > 0.3 ? 1 : 0.12); } });
+      return m;
+    }
+    function screen(x, y, z, w, h, ry, lines, color) {
+      const tex = canvasTex(256, 160, (g, W, H) => {
+        g.fillStyle = '#05100a'; g.fillRect(0, 0, W, H); g.fillStyle = color || '#4fd27a'; g.font = '16px monospace';
+        (lines || []).forEach((l, i) => g.fillText(l, 10, 26 + i * 22));
+        g.fillStyle = 'rgba(0,0,0,0.25)'; for (let yy = 0; yy < H; yy += 3) g.fillRect(0, yy, W, 1);
+      });
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: tex }));
+      m.material.toneMapped = false; m.position.set(x, y, z); m.rotation.y = ry || 0; R.add(m); return m;
+    }
+    // pipes along a wall with brackets
+    function pipeRun(x0, x1, y, z, r, mat) {
+      add(C(r, r, x1 - x0, 8), mat || mMetal, (x0 + x1) / 2, y, z, 0, 0, Math.PI / 2);
+      for (let x = x0 + 0.6; x < x1; x += 1.6) add(B(0.08, r * 2 + 0.1, 0.18), mDark, x, y, z + (z > 0 ? 0.06 : -0.06));
+    }
+    // debris scattered along one side (things fell to the same side)
+    function debris(x0, x1, zc, zs, n, seed) {
+      for (let i = 0; i < n; i++) {
+        const a = R2(seed + i * 3), b = R2(seed + i * 3 + 1), c = R2(seed + i * 3 + 2);
+        const x = x0 + a * (x1 - x0), z = zc + (b - 0.5) * zs;
+        const kind = i % 4;
+        if (kind === 0) add(B(0.3 + c * 0.5, 0.04, 0.2 + b * 0.4), mWall, x, 0.02, z, 0, c * 3, 0);            // plate
+        else if (kind === 1) add(C(0.05, 0.05, 0.22, 7), mWhite, x, 0.05, z, Math.PI / 2, c * 3, 0);             // bottle
+        else if (kind === 2) add(new THREE.PlaneGeometry(0.21, 0.29), PM({ color: 0xe8e4d8, side: THREE.DoubleSide }), x, 0.012, z, -Math.PI / 2, 0, c * 3);  // paper
+        else add(B(0.18, 0.12, 0.26), mDark, x, 0.06, z, 0, c * 3, 0);                                         // case
+      }
+    }
+    // doorway dressing on each bulkhead (the old decks): striped frame + deck number
+    [[7, 0.5, 'DECK 6'], [14, -0.6, 'DECK 5'], [23, 0.4, 'DECK 4'], [30, -0.4, 'DECK 3']].forEach(([xd, dz, name]) => {
+      const x = X(xd), z = X(dz), w = 0.85 * 2 * K;
+      for (const sx of [-1, 1]) {
+        add(B(0.4, 2.4, 0.12), mHaz, x + sx * 0.0, 1.2, z - w / 2 - 0.06, 0, 0, 0);
+        add(B(0.4, 2.4, 0.12), mHaz, x + sx * 0.0, 1.2, z + w / 2 + 0.06, 0, 0, 0);
+      }
+      add(B(0.42, 0.14, w + 0.24), mHaz, x, 2.45, z);
+      for (const face of [-1, 1]) stencil(name, x + face * 0.2, 3.3, z, face > 0 ? Math.PI / 2 : -Math.PI / 2, 0, 0.42, 'rgba(230,226,210,0.8)');
+    });
+    // ── FLIGHT DECK (x 0–10.5 m) ──
+    {
+      // two flight seats on the aft bulkhead (the old floor), facing the nose
+      for (const [y, z] of [[2.2, 1.7], [2.2, -0.2]]) {
+        const sx = X(7) - 0.2;
+        add(B(0.14, 1.2, 0.7), mDark, sx, y + 0.6, z, 0, 0, 0, true);                         // back, on the bulkhead
+        add(B(0.7, 0.14, 0.7), mDark, sx - 0.36, y, z, 0, 0, 0, true);                       // seat pan sticking out
+        add(B(0.14, 0.32, 0.4), mDark, sx, y + 1.36, z);                                      // headrest
+        for (const dz of [-0.18, 0.18]) add(B(0.03, 0.9, 0.07), mOrange, sx - 0.09, y + 0.6, z + dz);   // harness
+        add(B(0.03, 0.08, 0.5), mOrange, sx - 0.09, y + 0.55, z);
+      }
+      wallText('FLIGHT DECK', 4.5, 6.0, 1, 0.55);
+      wallText('UP ▲', 2.4, 4.2, -1, 0.5, 'rgba(201,104,34,0.9)');
+      // consoles along the crushed nose with dim screens
+      screen(X(1.7), 1.6, X(0.3), 0.7, 0.45, Math.PI / 2, ['NAV  --.--', 'ATT  ERR', 'GUID FAIL', '> ABORT?'], '#e35a4a');
+      screen(X(1.7), 2.3, X(-0.6), 0.7, 0.45, Math.PI / 2, ['O2   10%', 'PWR  RES', 'COMM RX', 'TX   ---'], '#4fd27a');
+      // the radio (blockout box at 3.0, −2.3): handset, coiled cord, blinking light
+      add(B(0.5, 0.25, 0.3), mDark, X(3.0) - 0.3, 1.12, X(-2.3) + 0.2);
+      add(C(0.05, 0.05, 0.28, 8), mSteel, X(3.0) + 0.2, 1.1, X(-2.3) + 0.3, 0, 0, Math.PI / 2);
+      { const pts = []; for (let i = 0; i <= 50; i++) { const a = i * 0.9; pts.push([X(3.0) + 0.1 - i * 0.012, 1.05 - i * 0.012, X(-2.3) + 0.3 + Math.sin(a) * 0.05]); } cable(pts, 0.012); }
+      blinkLED(X(3.0) - 0.1, 1.2, X(-2.3) + 0.62, 0xff3020, 5, 0);
+      screen(X(3.0), 1.45, X(-2.3) + 0.62, 0.5, 0.3, 0, ['RX  ...', 'SHACKLETON?'], '#e8c050');
+      for (let i = 0; i < 5; i++) hangingCable(X(1 + i * 1.2), X(-1.5 + R2(i + 30) * 3), 2 + R2(i + 40) * 3, i + 50);
+      debris(X(1), X(6.5), X(-2.2), 2.0, 14, 100);
+    }
+    // ── CREW QUARTERS (x 10.5–21 m) ──
+    {
+      // bunks on the +z wall (blockout slabs at y 2.4 and 4.0): mattress, pillow, strap, curtain
+      for (const y of [2.4, 4.0]) {
+        const x = X(11.2), z = X(2.6) - 0.1;
+        add(B(2.9, 0.16, 0.95), mMatt, x, y + 0.7, z - 0.05);
+        add(B(0.5, 0.12, 0.7), mWhite, x - 1.15, y + 0.84, z - 0.05);
+        add(B(0.06, 0.2, 1.0), mOrange, x + 0.4, y + 0.8, z - 0.05);
+        add(new THREE.PlaneGeometry(2.9, 1.3), PM({ color: 0x3d4a5c, side: THREE.DoubleSide }), x, y + 1.1, z - 0.62, 0.15, 0, 0);
+      }
+      wallText('CREW', 9.0, 6.5, 1, 0.6);
+      wallText('UP ▲', 12.5, 6.5, -1, 0.5, 'rgba(201,104,34,0.9)');
+      // a row of crew lockers on the −z wall, doors hanging open, contents spilled below
+      for (let i = 0; i < 4; i++) {
+        const x = X(8.4) + i * 0.75, z = -HW + 0.3;
+        add(B(0.7, 1.8, 0.55), mWall, x, 0.9 + 1.4, z);
+        add(B(0.62, 1.7, 0.04), mMetal, x - 0.3 - 0.0, 2.3, z + 0.55, 0, 1.2 + i * 0.2, 0);   // open door
+      }
+      debris(X(8.2), X(13), -HW + 1.0, 1.4, 22, 200);
+      // shirts and kit in a drift along the wall
+      for (let i = 0; i < 6; i++) add(B(0.45, 0.05, 0.35), PM({ color: [0x3e5b80, 0xb0b4b8, 0x6b4a3a, 0x2f3a48][i % 4] }), X(8.6) + i * 0.6, 0.03, -HW + 0.8 + R2(i + 300) * 0.6, 0, R2(i + 310) * 3, 0);
+      // his locker (the M08 site): a photo taped inside the door, warm-toned
+      {
+        const x = X(12.8), z = X(-2.6) + 0.48;
+        const photo = canvasTex(128, 96, (g, W, H) => {
+          const gr = g.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, '#d8a36a'); gr.addColorStop(1, '#7a4d2e');
+          g.fillStyle = gr; g.fillRect(0, 0, W, H); g.fillStyle = 'rgba(40,24,14,0.85)';
+          for (const [cx, hgt] of [[38, 50], [70, 54], [96, 32]]) { g.beginPath(); g.arc(cx, H - hgt - 8, hgt * 0.17, 0, Math.PI * 2); g.fill(); g.fillRect(cx - hgt * 0.16, H - hgt, hgt * 0.32, hgt); }
+          g.strokeStyle = '#f2ead8'; g.lineWidth = 6; g.strokeRect(0, 0, W, H);
+        });
+        add(new THREE.PlaneGeometry(0.22, 0.16), new THREE.MeshPhongMaterial({ map: photo, shininess: 0 }), x, 1.35, z + 0.01);
+        add(B(0.05, 0.05, 0.01), PM({ color: 0xe8d64a }), x + 0.15, 1.45, z + 0.012);   // a star sticker
+        screen(x, 1.75, z + 0.01, 0.35, 0.12, 0, ['MISSION LEAD'], '#c8ccd2');
+      }
+      for (let i = 0; i < 4; i++) hangingCable(X(8 + i * 1.6), X(0.8 + R2(i + 60)), 1.5 + R2(i + 70) * 2.5, i + 80);
+      lightStrip(X(7.5), X(13.5), 8.0, -HW + 0.08, 0xff4a3a, true);
+    }
+    // ── LIFE SUPPORT (x 21–34.5 m), converted: tidy. Puzzle A on the +z side. ──
+    {
+      for (let i = 0; i < 4; i++) {                             // equipment racks on the −z wall
+        const x = X(15.6) + i * 1.25, z = -HW + 0.4;
+        add(B(1.0, 2.4, 0.7), mWall, x, 1.2, z, 0, 0, 0, true);
+        for (let r = 0; r < 4; r++) for (let c = 0; c < 3; c++) blinkLED(x - 0.3 + c * 0.3, 0.6 + r * 0.45, z + 0.36, [0x4fd27a, 0xe8c050, 0x4fd27a, 0x5cb4f0][(r + c + i) % 4], 1.3 + ((r * 3 + c + i) % 5) * 0.7, r + c);
+      }
+      for (let i = 0; i < 3; i++) {                             // scrubber cylinders
+        add(C(0.32, 0.32, 1.8, 12), mSteel, X(21.0) + i * 0.8, 0.9, -HW + 0.45, 0, 0, 0, true);
+        add(C(0.34, 0.34, 0.08, 12), mDark, X(21.0) + i * 0.8, 1.5, -HW + 0.45);
+        add(C(0.34, 0.34, 0.08, 12), mDark, X(21.0) + i * 0.8, 0.3, -HW + 0.45);
+      }
+      pipeRun(X(14.3), X(22.8), 3.2, -HW + 0.18, 0.09);
+      pipeRun(X(14.3), X(22.8), 3.55, -HW + 0.18, 0.06, mOrange);
+      pipeRun(X(14.3), X(22.8), 6.5, HW - 0.18, 0.11);
+      screen(X(17.0), 2.9, -HW + 0.06, 1.0, 0.55, 0, ['LIFE SUPPORT', 'O2 RESERVE  LOW', 'SCRUB   OK', 'STAB    FAULT'], '#4fd27a');
+      wallText('LIFE SUPPORT', 18.5, 7.0, 1, 0.6);
+      wallText('UP ▲', 15.5, 5.0, -1, 0.5, 'rgba(201,104,34,0.9)');
+      lightStrip(X(14.6), X(22.6), 8.2, -HW + 0.08, 0xdfe8ff, false);
+      lightStrip(X(14.6), X(22.6), 8.2, HW - 0.08, 0xdfe8ff, false);
+    }
+    // ── AIRLOCK AND SUIT BAY (x 34.5–45 m), the way in ──
+    {
+      // suits hanging on the racks (+z wall, blockout racks at x 24.3/25.3/26.3)
+      R.children.filter(o => o.isMesh && o.geometry.type === 'BoxGeometry' && Math.abs(o.position.z - X(2.7)) < 0.05 &&
+        o.position.x > X(24) && o.position.x < X(26.6)).forEach(o => { o.visible = false; });
+      add(B(X(3.4), 0.1, 0.1), mSteel, X(25.3), 2.25, HW - 0.25);
+      for (let i = 0; i < 3; i++) {
+        const x = X(24.3 + i), z = HW - 0.55;
+        add(B(0.55, 0.75, 0.38), mWhite, x, 1.6, z, 0, 0, 0, true);                         // torso
+        add(B(0.45, 0.5, 0.3), mWhite, x, 1.0, z);                                          // hips
+        for (const sx of [-1, 1]) {
+          add(C(0.1, 0.09, 0.62, 8), mWhite, x + sx * 0.36, 1.55, z);                        // arms
+          add(C(0.11, 0.1, 0.75, 8), mWhite, x + sx * 0.13, 0.42, z);                        // legs
+        }
+        add(B(0.5, 0.6, 0.25), mDark, x, 1.65, z + 0.3);                                   // backpack
+        add(B(0.12, 0.05, 0.02), mOrange, x - 0.16, 1.8, z - 0.2);                          // patch
+      }
+      for (let i = 0; i < 3; i++) {                                                        // helmets on a shelf
+        add(B(0.5, 0.05, 0.4), mSteel, X(27.6) + i * 0.6, 2.4, HW - 0.3);
+        add(new THREE.SphereGeometry(0.17, 12, 9), mWhite, X(27.6) + i * 0.6, 2.6, HW - 0.3);
+        add(new THREE.SphereGeometry(0.12, 10, 8, 0, Math.PI), PM({ color: 0x1a2230, shininess: 60, flatShading: false }), X(27.6) + i * 0.6, 2.6, HW - 0.42, 0, Math.PI, 0);
+      }
+      screen(X(28.6), 1.75, HW - 0.68, 0.5, 0.3, Math.PI, ['O2 FILL', 'READY'], '#4fd27a');
+      wallText('AIRLOCK', 25.0, 6.5, 1, 0.6);
+      wallText('SUIT BAY ▲', 27.8, 4.2, 1, 0.42);
+      debris(X(28.2), X(29.6), -HW + 1.4, 1.0, 8, 400);       // v0.20.0: kept out of the airlock chamber
+      for (let i = 0; i < 3; i++) hangingCable(X(24.5 + i * 2), X(1.6), 1.2 + R2(i + 90) * 2, i + 95);
+    }
+    // ── CARGO BAY (x 45–65 m). Puzzle B on the −z side around x 52–62 m ──
+    {
+      const crateTex = (txt) => canvasTex(256, 256, (g, W, H) => {
+        g.fillStyle = '#8a7a5c'; g.fillRect(0, 0, W, H);
+        g.strokeStyle = '#4a4232'; g.lineWidth = 10; g.strokeRect(5, 5, W - 10, H - 10);
+        g.beginPath(); g.moveTo(5, 5); g.lineTo(W - 5, H - 5); g.stroke();
+        g.fillStyle = 'rgba(25,24,20,0.85)'; g.font = '900 40px "Arial Black", Arial'; g.textAlign = 'center';
+        g.fillText(txt[0], W / 2, H / 2 - 6); g.font = '700 22px Arial'; g.fillText(txt[1], W / 2, H / 2 + 26);
+      });
+      const crates = [[31.2, 2.4, 1.2, ['KHAL', 'ISRU-02 SURVEY']], [32.2, 2.2, 1.0, ['KHAL', 'FLYER SPARES']], [31.6, 1.2, 0.9, ['FRAGILE', 'NAV KIT']], [33.0, -0.6, 0.8, ['KHAL', 'TOOLS']]];
+      crates.forEach(([xd, zd, sz, txt], i) => {
+        const m = add(B(sz, sz, sz), new THREE.MeshPhongMaterial({ map: crateTex(txt), shininess: 0, flatShading: true }), X(xd), sz / 2, X(zd), 0, (R2(i + 1000) - 0.5) * 0.5, 0, true);
+        add(B(sz + 0.02, 0.06, 0.12), mOrange, m.position.x, sz * 0.7, m.position.z, 0, m.rotation.y, 0);       // strap
+      });
+      for (let i = 0; i < 3; i++) {                                                          // drums
+        add(C(0.3, 0.3, 0.85, 12), PM({ color: [0x2f5e8c, 0x8c3a2f, 0x3a3d42][i] }), X(31) + i * 0.7, 0.42, -HW + 0.5, 0, 0, 0, true);
+        add(C(0.31, 0.31, 0.05, 12), mDark, X(31) + i * 0.7, 0.7, -HW + 0.5);
+      }
+      // cargo net strung across the +z wall
+      for (let i = 0; i <= 8; i++) cable([[X(36) + i * 0.5, 0.2, HW - 0.15], [X(36) + i * 0.5 + 0.1, 2.0, HW - 0.35], [X(36) + i * 0.5, 3.6, HW - 0.15]], 0.02);
+      for (let j = 0; j <= 6; j++) cable([[X(36), 0.4 + j * 0.5, HW - 0.2], [X(38), 0.5 + j * 0.5, HW - 0.4], [X(40), 0.4 + j * 0.5, HW - 0.2]], 0.02);
+      wallText('CARGO', 33.0, 6.8, 1, 0.65);
+      wallText('UP ▲', 41.0, 5.5, 1, 0.5, 'rgba(201,104,34,0.9)');
+      pipeRun(X(30.3), X(43), 7.2, -HW + 0.2, 0.12);
+      for (let i = 0; i < 4; i++) hangingCable(X(31 + i * 3), X(1.0), 1.5 + R2(i + 120) * 3, i + 130);
+      // sealed tail bulkhead: warning stencil and a turning beacon
+      stencil('ENGINE BAY  —  SEALED', X(43.2) - 0.25, 3.4, 0, -Math.PI / 2, 0, 0.5, 'rgba(240,235,220,0.95)');
+      const beacon = add(C(0.14, 0.14, 0.22, 10), glow(0xff3020), X(43.2) - 0.3, 5.4, 0);
+      const bl = new THREE.SpotLight(0xff3020, 2.2, 14, 0.35, 0.5, 1.5);
+      bl.position.copy(beacon.position); R.add(bl); R.add(bl.target);
+      anim.push({ tick(t) { const a = t * 2.4; bl.target.position.set(beacon.position.x - 4 * Math.cos(a), 2, Math.sin(a) * 4); } });
+    }
+    let t0 = performance.now();
+    return { tick() { const t = (performance.now() - t0) / 1000; for (const a of anim) a.tick(t); } };
+  })();
+
+  // v0.21.2: every solid prop the dressing added gets a box collider, so he
+  // cannot walk through crates, racks, lockers, drums, seats or consoles.
+  // Thin things (cables, screens, strips, stencils, debris) are skipped;
+  // low ones are walkable so a crate can be climbed.
+  (function wreckPropColliders() {
+    const R = wreckLevel.root; R.updateMatrixWorld(true);
+    const bb = new THREE.Box3(), sz = new THREE.Vector3(), c = new THREE.Vector3();
+    let n = 0;
+    for (const o of R.children.slice(_wdStartChildren)) {
+      if (o.isLight || o.isSprite || o.isPoints || o.isLine || !o.visible) continue;
+      bb.setFromObject(o); if (bb.isEmpty()) continue;
+      bb.getSize(sz); bb.getCenter(c);
+      if (sz.y < 0.3 || Math.min(sz.x, sz.z) < 0.22 || Math.max(sz.x, sz.z) > 6) continue;
+      if (bb.min.y - WL_ORIGIN.y > 1.4) continue;                 // overhead: shelves, bars, strips
+      const h = bb.max.y - WL_ORIGIN.y;
+      const col = addBoxCollider({ x: c.x, z: c.z, hx: sz.x / 2, hz: sz.z / 2, y0: bb.min.y, y1: bb.max.y, walkable: h < 1.3, tag: 'wreckProps' });
+      col.level = 'wreck'; n++;
+    }
+    console.log('[wreck] prop colliders:', n);
+  })();
+
+  // ============================================================
+  // AIRLOCK (v0.20.0) — the one way in and out of the wreck.
+  // Outside: press the pad, the outer hatch opens, he walks in, it
+  // closes behind him (fade). Inside he stands in a small chamber with
+  // the outer hatch at his back: amber, hiss, pressure climbs, green,
+  // the inner hatch slides open. From inside the ship you only ever see
+  // the inner hatch; from outside, only the outer one. Leaving is the
+  // same cycle in reverse.
+  // ============================================================
+  const airlockCycle = (function () {
+    const R = wreckLevel.root, HW = WL_HALF_W * WL_K;
+    const CX = 26.5 * WL_K, W = 3.4, X0 = CX - W / 2, X1 = CX + W / 2;
+    const ZO = -HW + 0.02, ZI = -0.55, H = 3.2, DW = 1.3, DH = 2.25;
+    const PM = (c, o) => new THREE.MeshPhongMaterial(Object.assign({ color: c, flatShading: true, shininess: 8 }, o || {}));
+    const mWall = PM(0x666b72), mFrame = PM(0x34373c), mDoor = PM(0x9da2a8, { shininess: 25 }), mDark = PM(0x1e2024);
+    const haz = (() => {
+      const c = document.createElement('canvas'); c.width = 128; c.height = 32; const g = c.getContext('2d');
+      g.fillStyle = '#d9a21e'; g.fillRect(0, 0, 128, 32); g.fillStyle = '#1b1b1d';
+      for (let x = -32; x < 160; x += 24) { g.beginPath(); g.moveTo(x, 32); g.lineTo(x + 12, 32); g.lineTo(x + 44, 0); g.lineTo(x + 32, 0); g.fill(); }
+      const t = new THREE.CanvasTexture(c); t.wrapS = THREE.RepeatWrapping; return t;
+    })();
+    const mHaz = new THREE.MeshPhongMaterial({ map: haz, shininess: 0 });
+    const boxes = [];
+    function add(geo, mat, x, y, z, solid) {
+      const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; R.add(m);
+      if (solid) { geo.computeBoundingBox(); const bb = geo.boundingBox;
+        wreckLevel.boxes.push({ x, z, hx: (bb.max.x - bb.min.x) / 2, hz: (bb.max.z - bb.min.z) / 2, yaw: 0, y0: y + bb.min.y, y1: y + bb.max.y, walkable: false }); }
+      return m;
+    }
+    const B = (w, h, d) => new THREE.BoxGeometry(w, h, d);
+    // ── chamber shell ──
+    add(B(0.2, H, ZI - ZO), mWall, X0 - 0.1, H / 2, (ZO + ZI) / 2, true);
+    add(B(0.2, H, ZI - ZO), mWall, X1 + 0.1, H / 2, (ZO + ZI) / 2, true);
+    const segW = (W - DW) / 2;
+    add(B(segW, H, 0.2), mWall, X0 + segW / 2, H / 2, ZI, true);
+    add(B(segW, H, 0.2), mWall, X1 - segW / 2, H / 2, ZI, true);
+    add(B(DW, H - DH, 0.2), mWall, CX, DH + (H - DH) / 2, ZI, false);           // lintel
+    add(B(W + 0.4, 0.12, ZI - ZO + 0.2), mFrame, CX, H + 0.06, (ZO + ZI) / 2, false);   // ceiling
+    // ribs inside, for scale
+    for (const x of [X0 + 0.05, X1 - 0.05]) for (const z of [ZO + 0.6, ZI - 0.5]) add(B(0.12, H, 0.12), mFrame, x, H / 2, z, false);
+    // ── door frames with hazard trim (both faces of the inner door, inside face of the outer) ──
+    function frame(z, face, w, h) {
+      add(B(w + 0.3, 0.16, 0.14), mHaz, CX, h + 0.08, z + face * 0.05, false);
+      add(B(0.16, h, 0.14), mFrame, CX - w / 2 - 0.08, h / 2, z + face * 0.05, false);
+      add(B(0.16, h, 0.14), mFrame, CX + w / 2 + 0.08, h / 2, z + face * 0.05, false);
+    }
+    frame(ZI, 1, DW, DH); frame(ZI, -1, DW, DH);
+    // ── inner hatch: slides sideways into the wall ──
+    const inner = new THREE.Group(); inner.position.set(CX, 0, ZI); R.add(inner);
+    const leaf = new THREE.Mesh(B(DW, DH, 0.1), mDoor); leaf.position.y = DH / 2; leaf.castShadow = true; inner.add(leaf);
+    for (const f of [-1, 1]) {
+      const win = new THREE.Mesh(B(0.32, 0.32, 0.02), PM(0x22303c, { shininess: 80 })); win.position.set(0, 1.55, f * 0.06); inner.add(win);
+      const band = new THREE.Mesh(B(DW, 0.12, 0.02), mHaz); band.position.set(0, 0.35, f * 0.06); inner.add(band);
+    }
+    // ── outer hatch (inside face): heavy, round-cornered look via a dark seam ──
+    const OW = 1.5, OH = 2.4;
+    const outer = new THREE.Group(); outer.position.set(CX, 0, ZO + 0.08); R.add(outer);
+    const oLeaf = new THREE.Mesh(B(OW, OH, 0.14), mDoor); oLeaf.position.y = OH / 2; outer.add(oLeaf);
+    const seam = new THREE.Mesh(B(OW + 0.1, OH + 0.1, 0.04), mDark); seam.position.set(0, OH / 2, -0.06); outer.add(seam);
+    const port = new THREE.Mesh(new THREE.CircleGeometry(0.17, 18), PM(0x111820, { shininess: 90 })); port.position.set(0, 1.6, 0.075); outer.add(port);
+    const wheel = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.03, 6, 16), PM(0xc9842e)); wheel.position.set(0, 1.05, 0.12); outer.add(wheel);
+    const oBand = new THREE.Mesh(B(OW, 0.12, 0.02), mHaz); oBand.position.set(0, 0.3, 0.075); outer.add(oBand);
+    frame(ZO + 0.08, 1, OW, OH);
+    // ── status lamps (chamber side and room side) + chamber light ──
+    const lampMats = [];
+    for (const [z, f] of [[ZI, 1], [ZI, -1], [ZO + 0.08, 1]]) {
+      const m = new THREE.MeshBasicMaterial({ color: 0xd23c28 }); lampMats.push(m);
+      const l = new THREE.Mesh(B(0.5, 0.08, 0.06), m); l.position.set(CX, (z === ZI ? DH : OH) + 0.32, z + f * 0.1); R.add(l);
+    }
+    const cl = new THREE.PointLight(0xfff1dc, 0.6, 6, 2); cl.position.set(CX, H - 0.3, (ZO + ZI) / 2); R.add(cl);
+    const beacon = new THREE.SpotLight(0xffa020, 0, 7, 0.5, 0.5, 1.3); beacon.position.set(CX - 1.1, H - 0.2, ZI - 0.35); R.add(beacon); R.add(beacon.target);
+    const beaconMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.14, 10), new THREE.MeshBasicMaterial({ color: 0x5a3a10 }));
+    beaconMesh.position.copy(beacon.position); R.add(beaconMesh);
+    // ── pressure panel (chamber side, next to the inner door) ──
+    const pc = document.createElement('canvas'); pc.width = 256; pc.height = 128;
+    const pTex = new THREE.CanvasTexture(pc);
+    const panel = new THREE.Mesh(new THREE.PlaneGeometry(0.56, 0.28), new THREE.MeshBasicMaterial({ map: pTex, toneMapped: false }));
+    panel.position.set(X1 - 0.38, 1.5, ZI - 0.115); panel.rotation.y = Math.PI; R.add(panel);
+    let lastP = -1, lastMsg = '';
+    function drawPanel(kpa, msg, col) {
+      const k = Math.round(kpa); if (k === lastP && msg === lastMsg) return; lastP = k; lastMsg = msg;
+      const g = pc.getContext('2d'); g.fillStyle = '#0d1410'; g.fillRect(0, 0, 256, 128);
+      g.fillStyle = col; g.font = '700 22px monospace'; g.fillText('AIRLOCK', 14, 30);
+      g.font = '20px monospace'; g.fillText(msg, 14, 58);
+      g.strokeStyle = col; g.lineWidth = 2; g.strokeRect(14, 76, 228, 22); g.fillRect(16, 78, 224 * Math.min(1, kpa / 101), 18);
+      g.fillText(k.toFixed(0).padStart(3, ' ') + ' kPa', 150, 120); pTex.needsUpdate = true;
+    }
+    drawPanel(101, 'READY', '#4fd27a');
+    // ── sounds ──
+    function thunk() {
+      if (!audioCtx || !masterGain) return; const t0 = audioCtx.currentTime;
+      const o = audioCtx.createOscillator(); o.type = 'sine'; o.frequency.setValueAtTime(90, t0); o.frequency.exponentialRampToValueAtTime(38, t0 + 0.25);
+      const e = audioCtx.createGain(); e.gain.setValueAtTime(0.0001, t0); e.gain.exponentialRampToValueAtTime(0.22, t0 + 0.01); e.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.4);
+      o.connect(e); e.connect(masterGain); o.start(t0); o.stop(t0 + 0.45);
+    }
+    function hiss(secs, rising) {
+      if (!audioCtx || !masterGain) return; const t0 = audioCtx.currentTime, n = Math.floor(audioCtx.sampleRate * secs);
+      const buf = audioCtx.createBuffer(1, n, audioCtx.sampleRate), d = buf.getChannelData(0);
+      for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+      const src = audioCtx.createBufferSource(); src.buffer = buf;
+      const f = audioCtx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 0.7;
+      f.frequency.setValueAtTime(rising ? 700 : 2600, t0); f.frequency.linearRampToValueAtTime(rising ? 2600 : 600, t0 + secs);
+      const e = audioCtx.createGain(); e.gain.setValueAtTime(0, t0); e.gain.linearRampToValueAtTime(0.06, t0 + 0.3); e.gain.setValueAtTime(0.06, t0 + secs - 0.5); e.gain.linearRampToValueAtTime(0, t0 + secs);
+      src.connect(f); f.connect(e); e.connect(masterGain); src.start(t0);
+    }
+    function chime() {
+      if (!audioCtx || !masterGain) return; const t0 = audioCtx.currentTime;
+      [[880, 0], [1320, 0.14]].forEach(([fq, dt]) => { const o = audioCtx.createOscillator(); o.frequency.value = fq;
+        const e = audioCtx.createGain(); e.gain.setValueAtTime(0, t0 + dt); e.gain.linearRampToValueAtTime(0.05, t0 + dt + 0.02); e.gain.exponentialRampToValueAtTime(0.0005, t0 + dt + 0.6);
+        o.connect(e); e.connect(masterGain); o.start(t0 + dt); o.stop(t0 + dt + 0.65); });
+    }
+    // ── state ──
+    const A = { state: 'idle', t: 0, innerOpen: false, innerT: 0, outerT: 0, doorCol: null, closeAfter: -1, busy: false };
+    const RED = 0xd23c28, AMBER = 0xffa020, GREEN = 0x40e070;
+    function lamps(c) { lampMats.forEach(m => m.color.setHex(c)); }
+    const SPAWN = { x: CX, z: ZO + 1.3, heading: 0 };
+    function inChamber(lx, lz) { return lx > X0 && lx < X1 && lz < ZI + 0.05; }
+    // Outside: called from the "enter the wreck" prompt.
+    function outsideEnter() {
+      if (A.busy || level.id !== 'crater') return;
+      A.busy = true; A.state = 'outOpen'; A.t = 0;
+      const go = () => { HATCH.open = true; sndHatchServo(true); };
+      if (!reach.active) reachStart(hatchAssembly.padWorld, { onContact: go }); else go();
+    }
+    // Inside: called from the "leave the wreck" prompt at the inner hatch.
+    function insideLeave() {
+      if (A.busy || level.id !== 'wreck') return;
+      A.busy = true; A.state = 'exitIn'; A.t = 0; airlockLock = true;
+      A.innerOpen = true; thunk(); lamps(AMBER);
+      airlockDrive = { x: WL_ORIGIN.x + CX, z: WL_ORIGIN.z + ZO + 1.3 };
+    }
+    // enterWreckLevel → he arrives in the chamber.
+    function arrive() {
+      A.state = 'cycleIn'; A.t = 0; A.busy = true; airlockLock = true; airlockDrive = null;
+      A.innerOpen = false; A.innerT = 0; A.outerT = 0; lamps(AMBER); drawPanel(0, 'PRESSURISING', '#ffb347');
+    }
+    // exitWreckLevel has placed him outside: close the outer hatch behind him.
+    function departed() { A.state = 'closeOuter'; A.t = 0; HATCH.open = true; HATCH.t = 1; }
+    function doorCollider() {
+      if (A.doorCol || !boxColliders.some(b => b.tag === 'wreckLevel')) return;
+      A.doorCol = addBoxCollider({ x: WL_ORIGIN.x + CX, z: WL_ORIGIN.z + ZI, hx: DW / 2, hz: 0.1, y0: WL_ORIGIN.y, y1: WL_ORIGIN.y + DH, walkable: false, tag: 'wreckLevel' });
+      A.doorCol.level = 'wreck';
+    }
+    function tick(dt) {
+      A.t += dt;
+      const p = player.pos, lx = p.x - WL_ORIGIN.x, lz = p.z - WL_ORIGIN.z;
+      switch (A.state) {
+        case 'outOpen':                                         // outside: wait for the hatch, then walk in
+          if (HATCH.open && HATCH.t > 0.9 && !airlockDrive) {
+            const side = hatchInteract.z >= -2 ? 1 : -1;
+            airlockDrive = { x: (HATCH.WX0 + HATCH.WX1) / 2, z: -2 + side * 2.9 }; airlockLock = true; A.t = 0; A.state = 'outWalk';
+          } else if (A.t > 4) { A.state = 'idle'; A.busy = false; }
+          break;
+        case 'outWalk':
+          if ((airlockDrive && airlockDrive.arrived) || A.t > 3.5) { airlockDrive = null; HATCH.open = false; sndHatchServo(false); A.state = 'outClose'; A.t = 0; }
+          break;
+        case 'outClose':
+          if (A.t > 0.9) { A.state = 'fadingIn'; enterWreckLevel(); }
+          break;
+        case 'cycleIn':
+          if (A.t > 0.15 && A.t - dt <= 0.15) thunk();
+          if (A.t > 0.5 && A.t - dt <= 0.5) { hiss(2.2, true); speak('SUIT', 'airlock — pressurising', 2.2, { kind: 'system' }); }
+          drawPanel(Math.max(0, Math.min(101, (A.t - 0.5) / 2.2 * 101)), A.t < 2.8 ? 'PRESSURISING' : 'EQUALISED', A.t < 2.8 ? '#ffb347' : '#4fd27a');
+          if (A.t > 2.8 && !A.innerOpen) { A.innerOpen = true; lamps(GREEN); chime(); }
+          if (A.t > 3.3) { airlockLock = false; A.state = 'insideOpen'; A.busy = false; }
+          break;
+        case 'insideOpen':                                      // inner door open until he has stepped through
+          if (level.id === 'wreck' && !inChamber(lx, lz) && lz > ZI + 0.9) { A.state = 'closeInner'; A.t = 0; }
+          break;
+        case 'closeInner':
+          if (A.t > 0.5 && A.innerOpen) { A.innerOpen = false; thunk(); lamps(RED); drawPanel(101, 'READY', '#4fd27a'); A.state = 'idle'; }
+          break;
+        case 'exitIn':                                          // inside: walk into the chamber
+          if ((airlockDrive && airlockDrive.arrived) || A.t > 5) {
+            airlockDrive = null; player.heading = Math.PI; A.innerOpen = false; thunk(); A.state = 'cycleOut'; A.t = 0;
+            drawPanel(101, 'DEPRESSURISING', '#ffb347');
+          }
+          break;
+        case 'cycleOut':
+          if (A.t > 0.5 && A.t - dt <= 0.5) { hiss(2.0, false); speak('SUIT', 'airlock — depressurising', 2.0, { kind: 'system' }); }
+          drawPanel(Math.max(0, 101 - (A.t - 0.5) / 2.0 * 101), A.t < 2.6 ? 'DEPRESSURISING' : 'VACUUM', '#ffb347');
+          if (A.t > 2.6 && A.t - dt <= 2.6) { lamps(GREEN); sndHatchServo(true); }
+          if (A.t > 2.6) A.outerT = Math.min(1, A.outerT + dt * 0.8);
+          if (A.t > 3.0) { A.state = 'fadingOut'; exitWreckLevel(); }
+          break;
+        case 'closeOuter':                                      // a few steps out, the hatch shuts behind him
+          if (A.t < dt * 1.5) airlockDrive = { x: p.x + Math.sin(player.heading) * 1.6, z: p.z + Math.cos(player.heading) * 1.6 };
+          if (A.t > 0.5 && HATCH.open) { HATCH.open = false; sndHatchServo(false); }
+          if (A.t > 1.7) { airlockDrive = null; airlockLock = false; A.busy = false; A.state = 'idle'; A.outerT = 0; lamps(RED); drawPanel(101, 'READY', '#4fd27a'); }
+          break;
+      }
+      // outside, while he walks in: hold the camera back from the doorway
+      if (level.id === 'crater' && (A.state === 'outWalk' || A.state === 'outClose' || A.state === 'closeOuter')) {
+        const side = hatchInteract.z >= -2 ? 1 : -1, dx = (HATCH.WX0 + HATCH.WX1) / 2, dz = -2 + side * 3.2;
+        const gy = shackletonScene.getGroundY(dx + 3.0, -2 + side * 9.5);
+        camera.position.set(dx + 3.0, gy + 2.6, -2 + side * 9.5);
+        camera.lookAt(dx, shackletonScene.getGroundY(dx, dz + side * 1.5) + 1.2, dz);
+      }
+      // doors and lights
+      doorCollider();
+      const it = A.innerOpen ? 1 : 0;
+      A.innerT += (it - A.innerT) * Math.min(1, dt * 4);
+      inner.position.x = CX + (DW + 0.05) * A.innerT * A.innerT * (3 - 2 * A.innerT);
+      if (A.doorCol) A.doorCol.enabled = A.innerT < 0.6;
+      outer.position.x = CX - (OW + 0.05) * A.outerT;
+      const cycling = A.state === 'cycleIn' || A.state === 'cycleOut' || A.state === 'exitIn';
+      beacon.intensity = cycling ? 3.0 : 0;
+      beaconMesh.material.color.setHex(cycling ? 0xffa020 : 0x5a3a10);
+      if (cycling) { const a = performance.now() * 0.006; beacon.target.position.set(CX - 1.1 + Math.cos(a) * 2, 0.5, ZI - 0.35 + Math.sin(a) * 2); }
+      cl.color.setHex(cycling ? 0xffc890 : 0xfff1dc);
+    }
+    // Camera while he is inside the chamber: high in the outer-hatch corner,
+    // looking at him and the inner hatch beyond.
+    const _cam = new THREE.Vector3();
+    function camFor(px, pz) {
+      const lx = px - WL_ORIGIN.x, lz = pz - WL_ORIGIN.z;
+      if (level.id !== 'wreck' || !inChamber(lx, lz)) return null;
+      if (A.state === 'exitIn' || A.state === 'cycleOut' || A.state === 'fadingOut')   // leaving: look at the outer hatch
+        return _cam.set(WL_ORIGIN.x + CX + 1.25, WL_ORIGIN.y + H - 0.45, WL_ORIGIN.z + ZI - 0.35);
+      return _cam.set(WL_ORIGIN.x + CX - 1.2, WL_ORIGIN.y + H - 0.45, WL_ORIGIN.z + ZO + 0.35);
+    }
+    return { A, SPAWN, CX, ZI, ZO, outsideEnter, insideLeave, arrive, departed, tick, camFor, inChamber };
+  })();
+
+  // ============================================================
+  // CONTROL BOARDS (v0.20.1) — lit detail in the red rooms. Each board
+  // is a canvas (buttons, small screens, gauges) on a bulkhead. Rooms
+  // without power show only scattered fault lights and a dead screen or
+  // two; the life-support board comes alive when the stabiliser is fixed,
+  // and the room light goes from red to white with a stutter.
+  // ============================================================
+  const wreckBoards = (function () {
+    const R = wreckLevel.root;
+    let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const boards = [];
+    // room: 'flight' | 'crew' | 'life' | 'suit' | 'cargo'
+    function board(room, x, z, yaw, w, h, y, title, spill) {
+      const c = document.createElement('canvas'); c.width = 512; c.height = Math.round(512 * h / w);
+      const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+      const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = yaw; R.add(g);
+      const back = new THREE.Mesh(new THREE.BoxGeometry(w + 0.12, h + 0.12, 0.08), new THREE.MeshPhongMaterial({ color: 0x25272b, flatShading: true }));
+      back.position.z = -0.03; g.add(back);
+      const face = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: tex, toneMapped: false }));
+      face.position.z = 0.015; g.add(face);
+      // a sloped desk lip under the big boards, so it reads as a console
+      if (h > 1.2) { const lip = new THREE.Mesh(new THREE.BoxGeometry(w + 0.1, 0.08, 0.45), back.material); lip.position.set(0, -h / 2 - 0.02, 0.2); lip.rotation.x = 0.25; g.add(lip); }
+      // layout, generated once
+      const L = [], W = c.width, H = c.height;
+      L.push({ k: 'title', t: title });
+      const cols = Math.max(2, Math.round(w / 0.9));
+      for (let i = 0; i < cols; i++) {
+        const cx = 14 + i * (W - 28) / cols, cw = (W - 28) / cols - 12;
+        if (rnd() < 0.55) L.push({ k: 'screen', x: cx, y: 40, w: cw, h: H * 0.38, seed: rnd(), dead: rnd() < 0.5 });
+        else L.push({ k: 'gauge', x: cx + cw / 2, y: 40 + H * 0.19, r: Math.min(cw, H * 0.38) * 0.42, v: rnd() });
+        const rows = 2 + Math.floor(rnd() * 3), bc = 4 + Math.floor(rnd() * 3);
+        for (let r = 0; r < rows; r++) for (let b = 0; b < bc; b++)
+          L.push({ k: 'btn', x: cx + b * cw / bc + 3, y: 52 + H * 0.38 + r * 26, w: cw / bc - 6, h: 16, col: ['#4fd27a', '#ffb347', '#5ab8ff', '#e8e8e0', '#ff5a4a'][Math.floor(rnd() * 5)], ph: rnd() * 6.28, fault: rnd() < 0.12 });
+      }
+      let light = null;
+      if (spill) { light = new THREE.PointLight(0xff5040, 0.4, 3.2, 2); light.position.set(0, 0, 0.6); g.add(light); }
+      const b = { room, c, tex, L, light, last: -1 };
+      boards.push(b); return b;
+    }
+    function draw(b, t, on, boot) {
+      const g = b.c.getContext('2d'), W = b.c.width, H = b.c.height;
+      g.fillStyle = '#16181b'; g.fillRect(0, 0, W, H);
+      for (const e of b.L) {
+        if (e.k === 'title') { g.fillStyle = on ? '#9aa4ad' : '#5a4a48'; g.font = '700 18px monospace'; g.fillText(e.t, 14, 26); continue; }
+        if (e.k === 'btn') {
+          const lit = on ? (rnd2(e.ph + Math.floor(t * 0.7)) > 0.25 && e.ph / 6.28 < boot) : (e.fault && Math.sin(t * 5 + e.ph * 3) > 0);
+          g.fillStyle = lit ? (on ? e.col : '#ff3b2f') : '#2a2c30'; g.fillRect(e.x, e.y, e.w, e.h);
+          if (lit) { g.fillStyle = 'rgba(255,255,255,0.25)'; g.fillRect(e.x, e.y, e.w, 3); }
+          continue;
+        }
+        if (e.k === 'screen') {
+          g.fillStyle = '#05080a'; g.fillRect(e.x, e.y, e.w, e.h);
+          if (on && e.seed < boot) {
+            g.strokeStyle = '#4fd27a'; g.lineWidth = 2; g.beginPath();
+            for (let i = 0; i <= 24; i++) { const xx = e.x + 6 + i * (e.w - 12) / 24, yy = e.y + e.h * 0.6 - Math.sin(i * 0.7 + t * 2 + e.seed * 9) * e.h * 0.18 * (0.6 + 0.4 * Math.sin(i * 1.7 + e.seed));
+              if (i) g.lineTo(xx, yy); else g.moveTo(xx, yy); } g.stroke();
+            g.fillStyle = '#4fd27a'; g.font = '13px monospace'; g.fillText('O2 ' + (98 + Math.sin(t + e.seed) * 1.2).toFixed(1) + '%', e.x + 6, e.y + 16);
+          } else if (!on && !e.dead) {
+            // dead screen with a weak flicker of a fault line
+            if (Math.sin(t * 13 + e.seed * 40) > -0.3) { g.fillStyle = '#ff3b2f'; g.font = '13px monospace'; g.fillText('NO POWER', e.x + 6, e.y + 18); }
+          }
+          continue;
+        }
+        if (e.k === 'gauge') {
+          g.strokeStyle = on ? '#5a6068' : '#3a3434'; g.lineWidth = 3; g.beginPath(); g.arc(e.x, e.y, e.r, Math.PI * 0.8, Math.PI * 2.2); g.stroke();
+          const v = on ? 0.55 + 0.1 * Math.sin(t * 0.8 + e.v * 6) : 0.02;
+          const a = Math.PI * 0.8 + v * Math.PI * 1.4;
+          g.strokeStyle = on ? '#ffb347' : '#6a3a34'; g.beginPath(); g.moveTo(e.x, e.y); g.lineTo(e.x + Math.cos(a) * e.r * 0.85, e.y + Math.sin(a) * e.r * 0.85); g.stroke();
+        }
+      }
+      b.tex.needsUpdate = true;
+    }
+    function rnd2(x) { const s = Math.sin(x * 127.1) * 43758.5453; return s - Math.floor(s); }
+    const X = (d) => d * WL_K, HW = WL_HALF_W * WL_K, PI = Math.PI;
+    // flight deck: the main console across the nose
+    board('flight', 6.4, HW - 0.2, PI, 3.6, 1.5, 1.85, 'FLIGHT  —  MAIN BUS OFFLINE', true);   // +z wall (the nose is crushed)
+    // crew quarters: environment panel by the forward door
+    board('crew', X(7) + 0.22, -2.7, PI / 2, 2.0, 0.9, 1.6, 'CREW DECK  ENV', false);
+    // life support: the big board beside the door — wakes with the stabiliser
+    const life = board('life', X(19.5), HW - 0.2, PI, 3.0, 1.45, 1.8, 'LIFE SUPPORT', true);   // +z wall, clear of the stabiliser
+    // suit bay: suit status, powered
+    board('suit', X(23) + 0.22, -2.6, PI / 2, 2.4, 1.0, 1.7, 'SUIT BAY  STATUS', false);
+    // cargo bay: manifest terminal
+    board('cargo', X(30) + 0.22, 2.6, PI / 2, 2.4, 1.0, 1.7, 'CARGO  MANIFEST', false);
+    let lsOn = 0, lsT = -1, acc = 0, time = 0;
+    function powered(room) { return room === 'suit' || (room === 'life' && wreckInterior.solved); }
+    function tick(dt) {
+      time += dt; acc += dt;
+      const solved = !!wreckInterior.solved;
+      if (solved && lsT < 0) lsT = 0;
+      if (lsT >= 0) lsT += dt;
+      // the stutter: three blinks, then on
+      const stut = lsT < 0 ? 0 : lsT < 0.15 ? 1 : lsT < 0.3 ? 0 : lsT < 0.4 ? 1 : lsT < 0.7 ? 0 : lsT < 0.8 ? 1 : lsT < 0.95 ? 0.3 : 1;
+      lsOn = stut;
+      const L = wreckLevel.lsLight;
+      if (L) { L.color.setHex(lsOn > 0.5 ? 0xdfe8ff : 0xff2a1e); L.intensity = lsOn > 0.5 ? 2.2 : (lsT >= 0 && lsT < 1 ? 0.4 : 2.0); }
+      if (life.light) { life.light.color.setHex(lsOn > 0.5 ? 0x60d0ff : 0xff5040); life.light.intensity = lsOn > 0.5 ? 0.7 : 0.4; }
+      if (acc < 0.2) return; acc = 0;                      // boards redraw at 5 Hz
+      for (const b of boards) {
+        const on = powered(b.room) && !(b.room === 'life' && lsOn < 0.5);
+        const boot = b.room === 'life' ? Math.min(1, Math.max(0, (lsT - 0.9) / 1.5)) : 1;
+        draw(b, time, on, boot);
+      }
+    }
+    for (const b of boards) draw(b, 0, powered(b.room), 1);
+    return { tick, boards };
   })();
 
   // ── v0.11.0: Puzzle B (structural brace) and M-08 live in the cargo bay ──
@@ -15880,6 +17349,238 @@ body.in-wreck .cam-buttons { display: none; }
     for (const m of [s4.plating, s4.brace, s4.pin, s4.panel]) { m.position.x += S4O.x; m.position.y += S4O.y; m.position.z += S4O.z; }
     s4.panel.userData.homeX += S4O.x; s4.panel.userData.homeZ += S4O.z;
     for (const it of [s4.pinIx, s4.braceIx]) { it.x += S4O.x; it.z += S4O.z; }
+  })();
+
+  // ============================================================
+  // PUZZLE B v2 (v0.21.0) — the brace, a load puzzle with M-08.
+  // A heavy hull plate, hinged at the wall, lies over the brace. A
+  // fallen cargo-lift ram props its free edge: pressurised, and locked
+  // by a pin. Only M-08 can carry the plate, and only from a sound lug.
+  //   - pull the pin while the ram is under pressure: it will not move
+  //   - open the valve while nobody holds the plate: it drops (reset)
+  //   - M-08 on the smooth edge slips; on the bent lug, the lug snaps
+  //   - right: M-08 on the good lug → valve → pin → he lifts → stand
+  //     the small panel under the edge as a prop → he pulls the brace.
+  // Scene flags kept: scene4.pinDone / panelDone / pulled / braceHeld.
+  // ============================================================
+  const braceV2 = (function () {
+    if (!WRECK_LEVEL_ENABLED) return null;
+    const FY = WL_ORIGIN.y;
+    const B = new THREE.Vector3(13.0 + S4O.x, FY, -2.95 + S4O.z);     // brace centre (cargo bay, −z side)
+    const HZ = B.z - 1.45, DEPTH = 2.2, WID = 2.6;                     // hinge line, plate size
+    const steel = new THREE.MeshPhongMaterial({ color: 0x5d6168, flatShading: true, shininess: 6 });
+    const dark = new THREE.MeshPhongMaterial({ color: 0x2c2f34, flatShading: true });
+    const yellow = new THREE.MeshPhongMaterial({ color: 0xe0b020, flatShading: true });
+    const red = new THREE.MeshPhongMaterial({ color: 0xb8322a, flatShading: true });
+    const haz = (() => { const c = document.createElement('canvas'); c.width = 128; c.height = 32; const g = c.getContext('2d');
+      g.fillStyle = '#d9a21e'; g.fillRect(0, 0, 128, 32); g.fillStyle = '#1b1b1d';
+      for (let x = -32; x < 160; x += 24) { g.beginPath(); g.moveTo(x, 32); g.lineTo(x + 12, 32); g.lineTo(x + 44, 0); g.lineTo(x + 32, 0); g.fill(); }
+      return new THREE.MeshPhongMaterial({ map: new THREE.CanvasTexture(c) }); })();
+    const group = new THREE.Group(); scene.add(group);               // kept visible inside the wreck level
+    const M = (geo, mat, parent) => { const m = new THREE.Mesh(geo, mat); m.castShadow = true; m.receiveShadow = true; (parent || group).add(m); return m; };
+    // old props out of the way
+    s4.plating.visible = false; s4.pin.visible = false;
+    s4.pinIx.hidden = () => true;
+    // ── the brace: lying along x, its +x end sticking out past the plate ──
+    s4.brace.position.set(B.x + 0.45, FY + 0.12, B.z - 0.25);
+    s4.brace.rotation.set(0, Math.PI / 2, 0);
+    s4.brace.scale.set(1, 1, 1.25);
+    // ── hinged plate ──
+    const pivot = new THREE.Group(); pivot.position.set(B.x, FY + 0.18, HZ); group.add(pivot);
+    const plate = M(new THREE.BoxGeometry(WID, 0.12, DEPTH), steel, pivot); plate.position.set(0, 0.06, DEPTH / 2);
+    const edge = M(new THREE.BoxGeometry(WID, 0.14, 0.12), haz, pivot); edge.position.set(0, 0.07, DEPTH - 0.06);
+    for (const x of [-0.9, 0, 0.9]) { const r = M(new THREE.BoxGeometry(0.08, 0.08, DEPTH - 0.2), dark, pivot); r.position.set(x, 0.16, DEPTH / 2); }
+    const hinge = M(new THREE.CylinderGeometry(0.09, 0.09, WID + 0.2, 10), dark); hinge.rotation.z = Math.PI / 2; hinge.position.set(B.x, FY + 0.18, HZ);
+    // grip points on the free edge: smooth edge (M-08's first try), bent lug, good lug
+    const GRIPS = [
+      { id: 'edge', x: 1.05, label: 'the smooth edge' },
+      { id: 'bent', x: 0.45, label: 'the bent lug' },
+      { id: 'lug', x: -0.35, label: 'the lifting lug' },
+    ];
+    const lugGeo = new THREE.TorusGeometry(0.09, 0.03, 6, 12);
+    for (const g of GRIPS) {
+      if (g.id === 'edge') continue;
+      const l = M(lugGeo, yellow, pivot); l.position.set(g.x, 0.2, DEPTH - 0.05);
+      if (g.id === 'bent') { l.rotation.set(0.9, 0.5, 0.6); l.scale.set(1, 0.6, 1); }
+      g.mesh = l;
+    }
+    // ── the ram: outer cylinder on the floor, rod up to the plate ──
+    const RB = new THREE.Vector3(B.x - 1.15, FY + 0.1, B.z + 1.45);       // base on the floor, in front
+    const ramOuter = M(new THREE.CylinderGeometry(0.11, 0.12, 1.0, 10), red);
+    const ramRod = M(new THREE.CylinderGeometry(0.05, 0.05, 1.0, 8), new THREE.MeshPhongMaterial({ color: 0xc8ccd2, shininess: 60 }));
+    const ramFoot = M(new THREE.BoxGeometry(0.4, 0.12, 0.4), dark); ramFoot.position.copy(RB).setY(FY + 0.06);
+    const collar = M(new THREE.CylinderGeometry(0.15, 0.15, 0.12, 10), dark);
+    const pin = M(new THREE.CylinderGeometry(0.035, 0.035, 0.4, 8), new THREE.MeshBasicMaterial({ color: 0xe2c060 }));
+    const valve = M(new THREE.TorusGeometry(0.11, 0.025, 6, 14), new THREE.MeshPhongMaterial({ color: 0x2a7fd0 }));
+    valve.position.set(RB.x - 0.28, FY + 0.32, RB.z + 0.05); valve.rotation.y = Math.PI / 2;
+    const valveStem = M(new THREE.CylinderGeometry(0.03, 0.03, 0.28, 6), dark); valveStem.rotation.z = Math.PI / 2; valveStem.position.set(RB.x - 0.14, FY + 0.32, RB.z + 0.05);
+    // prop mark: where the small panel can stand under the edge
+    const PROP = new THREE.Vector3(B.x - 0.75, FY, B.z + 0.05);
+    const propMark = new THREE.Mesh(new THREE.RingGeometry(0.28, 0.36, 20), new THREE.MeshBasicMaterial({ color: 0xffd060, transparent: true, opacity: 0, depthWrite: false }));
+    propMark.rotation.x = -Math.PI / 2; propMark.position.copy(PROP).setY(FY + 0.02); group.add(propMark);
+    // the small panel starts wedged against the brace end, under the plate corner
+    s4.panel.userData.carryName = 'small panel';
+    s4.panel.position.set(B.x + 1.55, FY + 0.32, B.z - 0.15); s4.panel.rotation.set(0.2, 0.3, 1.2);
+    s4.panel.userData.homeX = s4.panel.position.x; s4.panel.userData.homeZ = s4.panel.position.z;
+    // ── state ──
+    const S = { ang: 16, angT: 16, grip: 'edge', valve: false, pin: true, ramDown: 0, propped: false, fail: -1,
+                bentGone: false, slipT: 0, said: {}, phase: 'start', t: 0, pullT: -1, idle: 0 };
+    const deg = Math.PI / 180;
+    function edgeY(a) { return FY + 0.18 + Math.sin(a * deg) * DEPTH; }
+    function gripWorld(g) { return new THREE.Vector3(B.x + g.x, 0, HZ + Math.cos(S.ang * deg) * DEPTH); }
+    function m08To(x, z, fx, fz) { robotStates[2].scripted = { x, z, faceX: fx, faceZ: fz, manip: true }; }
+    function say(who, line, key, dur) { if (key && S.said[key]) return; if (key) S.said[key] = 1; speak(who, line, dur || 2.0, { kind: who === 'SUIT' ? 'system' : 'robot' }); }
+    function setGrip(id) {
+      S.grip = id; const g = GRIPS.find(q => q.id === id);
+      m08To(B.x + g.x, HZ + DEPTH + 0.75, B.x + g.x, HZ + DEPTH - 0.2);
+      if (id === 'lug') say('M-08', 'here.', null); else if (id === 'bent') say('M-08', 'here?', null); else say('M-08', 'slips.', null);
+    }
+    function drop(why) {
+      S.fail = 0; S.angT = 3; thump(); if (robotStates[2].scripted) robotStates[2].scripted.slip = performance.now() / 1000;
+      if (why === 'bent') { S.bentGone = true; const g = GRIPS[1]; if (g.mesh) g.mesh.visible = false; say('M-08', 'snap.', null); }
+      else say('M-08', 'no.', null);
+      say('SUIT', 'load dropped on the brace', 'drop1', 2.4);
+    }
+    function thump() {
+      const p = gripWorld(GRIPS[1]); spawnDust(p.x, FY + 0.3, p.z, 10, { speed: 0.9, upVel: 0.5, upVar: 0.5, life: 1.0 });
+      if (audioCtx && masterGain) { const t0 = audioCtx.currentTime, o = audioCtx.createOscillator(), e = audioCtx.createGain();
+        o.frequency.setValueAtTime(70, t0); o.frequency.exponentialRampToValueAtTime(30, t0 + 0.35);
+        e.gain.setValueAtTime(0.3, t0); e.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.5); o.connect(e); e.connect(masterGain); o.start(t0); o.stop(t0 + 0.55); }
+    }
+    // ── interactables ──
+    const at = (v) => v;
+    for (const g of GRIPS) {
+      worldInteractables.push({
+        get x() { return B.x + g.x; }, get z() { return HZ + Math.cos(S.ang * deg) * DEPTH + 0.55; }, r: 0.95,
+        label: () => 'ask M-08 to grip ' + g.label,
+        hidden: () => !scene4.active || S.phase !== 'start' || S.fail >= 0 || S.grip === g.id || (g.id === 'bent' && S.bentGone),
+        fire() { if (reach.active) return; reachStart(gripWorld(g).setY(edgeY(S.ang)), { onContact() { robotEmote(2, 'face', player.pos.clone().setY(player.pos.y + 1.5)); setGrip(g.id); } }); },
+      });
+    }
+    worldInteractables.push({
+      x: valve.position.x - 0.55, z: valve.position.z + 0.45, r: 0.9,
+      label: 'open the pressure valve',
+      hidden: () => !scene4.active || S.valve || S.fail >= 0 || S.phase !== 'start',
+      fire() {
+        if (reach.active) return;
+        reachStart(valve.position.clone(), { onContact() {
+          S.valve = true; S.vSpin = 1; hiss();
+          if (S.grip === 'lug') { say('SUIT', 'pressure released — M-08 has the load', null, 2.6); say('M-08', 'heavy.', null); }
+          else drop(S.grip === 'bent' ? 'bent' : 'edge');
+        } });
+      },
+    });
+    worldInteractables.push({
+      get x() { return collar.position.x - 0.55; }, get z() { return collar.position.z - 0.1; }, r: 0.8,
+      label: 'pull the locking pin',
+      hidden: () => !scene4.active || !S.pin || S.fail >= 0 || S.phase !== 'start',
+      fire() {
+        if (reach.active) return;
+        reachStart(pin.position.clone(), { onContact() {
+          if (!S.valve) { say('SUIT', 'pin under load — release the pressure first', null, 2.8); pin.position.x += 0.04; setTimeout(() => { pin.position.x -= 0.04; }, 180); return; }
+          S.pin = false; scene4.pinDone = true; S.phase = 'lift'; S.t = 0;
+          say('SUIT', 'ram unlocked', null, 2.0);
+        } });
+      },
+    });
+    function hiss() {
+      if (!audioCtx || !masterGain) return; const t0 = audioCtx.currentTime, n = audioCtx.sampleRate * 1.2;
+      const b = audioCtx.createBuffer(1, n, audioCtx.sampleRate), d = b.getChannelData(0); for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+      const s = audioCtx.createBufferSource(); s.buffer = b; const f = audioCtx.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 1800;
+      const e = audioCtx.createGain(); e.gain.setValueAtTime(0.07, t0); e.gain.linearRampToValueAtTime(0, t0 + 1.2); s.connect(f); f.connect(e); e.connect(masterGain); s.start(t0);
+    }
+    // the small panel: only free once the plate is up; stand it on the mark to prop the plate
+    s4.panel.userData.enabled = () => scene4.active && S.ang > 30 && !S.propped;
+    s4.panel.userData.onDrop = (m) => {
+      if (Math.hypot(m.position.x - PROP.x, m.position.z - PROP.z) < 0.6 && S.phase === 'held') {
+        S.propped = true; scene4.panelDone = true;
+        m.position.set(PROP.x, FY + 0.53, PROP.z); m.rotation.set(0, 0, Math.PI / 2);
+        say('SUIT', 'plate propped', null, 2.0); S.phase = 'propped'; S.t = 0; S.angT = 34;
+      } else {
+        m.position.y = FY + 0.04; m.rotation.set(0, m.rotation.y, 0);
+        if (S.phase === 'held') say('M-08', 'under.', 'under', 2.0);
+      }
+    };
+    function begin() {                                  // when the cargo bay's scene starts
+      if (S.begun) return; S.begun = true; setGrip('edge'); S.said = {}; S.said.slipLine = 0;
+    }
+    function tick(dt) {
+      if (!scene4.active || scene4.braceHeld) { if (scene4.braceHeld) propMark.material.opacity = 0; return; }
+      begin(); S.t += dt; S.idle += dt;
+      // fail: plate on the brace, M-08 heaves it back, valve re-seals
+      if (S.fail >= 0) {
+        S.fail += dt;
+        if (S.fail > 2.4 && S.fail - dt <= 2.4) { say('M-08', 'again.', null); S.angT = 16; }
+        if (S.fail > 3.6) { S.fail = -1; S.valve = false; S.grip = 'edge'; setGrip('edge'); say('SUIT', 'ram re-pressurised', null, 2.0); }
+      }
+      // M-08 on the smooth edge: the claw keeps slipping
+      if (S.phase === 'start' && S.fail < 0 && S.grip === 'edge') {
+        S.slipT += dt;
+        if (S.slipT > 2.4) { S.slipT = 0; S.ang = S.angT + 1.6; if (robotStates[2].scripted) robotStates[2].scripted.slip = performance.now() / 1000; const p = gripWorld(GRIPS[0]); spawnDust(p.x, FY + 0.25, p.z, 2, { speed: 0.3, upVel: 0.2, upVar: 0.2, life: 0.5 });
+          if (Math.hypot(player.pos.x - B.x, player.pos.z - B.z) < 7) say('M-08', 'slips.', 'slipLine'); }
+      }
+      if (S.phase === 'lift' && S.t > 0.6) { S.angT = 48; if (S.t > 0.6 && !S.said.up) { say('M-08', 'up.', 'up'); } if (S.ang > 46) { S.phase = 'held'; say('SUIT', 'brace end clear — the small panel is free', null, 2.6); } }
+      if (S.phase === 'propped' && S.t > 1.2 && S.pullT < 0) {            // M-08 lets go and goes for the brace
+        m08To(B.x + 2.6, B.z - 0.25, B.x + 1.5, B.z - 0.25); S.pullT = 0;
+      }
+      if (S.pullT >= 0 && !scene4.pulled) {
+        S.pullT += dt;
+        if (S.pullT > 2.4) {
+          scene4.pulled = true; scene4.pullT = 99;                      // skip the old pull animation
+          say('M-08', 'yes.', null); setTimeout(() => say('M-08', 'strong.', null), 1800);
+          S.braceAnim = 0;
+        }
+      }
+      if (S.braceAnim >= 0 && S.braceAnim < 1) {
+        S.braceAnim = Math.min(1, S.braceAnim + dt / 1.4); const e = S.braceAnim * S.braceAnim * (3 - 2 * S.braceAnim);
+        s4.brace.position.x = B.x + 0.45 + 1.7 * e;
+        if (S.braceAnim >= 1) {
+          spawnDust(s4.brace.position.x, FY + 0.2, s4.brace.position.z, 6, { speed: 0.5, upVel: 0.4, upVar: 0.4, life: 0.9 });
+          s4.braceIx.x = s4.brace.position.x + 0.4; s4.braceIx.z = s4.brace.position.z + 0.9;
+          m08To(B.x + 3.3, B.z + 1.4, s4.brace.position.x, s4.brace.position.z);
+        }
+      }
+      // M-08 keeps his claws on the lug as the edge rises
+      if ((S.phase === 'lift' || S.phase === 'held') && S.grip === 'lug') {
+        const gz = HZ + Math.cos(S.ang * deg) * DEPTH; const rs = robotStates[2].scripted;
+        if (!rs || Math.abs(rs.z - (gz + 0.7)) > 0.08) m08To(B.x + GRIPS[2].x, gz + 0.7, B.x + GRIPS[2].x, gz - 0.3);
+      }
+      // M-08's body: the lifting pose while he is on the plate
+      { const rs = robotStates[2], sc = rs.scripted;
+        if (sc && S.pullT < 0 && S.phase !== 'propped') {
+          const up = Math.max(0, (S.ang - 16) / 32);
+          if (S.fail >= 0) { sc.lift = S.fail > 2.4 ? 0.1 + 0.1 * Math.min(1, (S.fail - 2.4) / 1.0) : 0; sc.strain = S.fail > 2.4; }
+          else if (S.phase === 'lift' || S.phase === 'held') { sc.lift = 0.12 + 0.88 * up; sc.strain = true; }
+          else { sc.lift = 0.12; sc.strain = S.grip === 'lug' && S.valve; }
+        } }
+      // plate motion: drops fast, rises slowly
+      const rate = S.angT < S.ang ? 70 : 14;
+      S.ang += Math.sign(S.angT - S.ang) * Math.min(Math.abs(S.angT - S.ang), rate * dt);
+      pivot.rotation.x = -S.ang * deg;
+      // ram follows the plate until the pin is out, then lies down
+      if (!S.pin) S.ramDown = Math.min(1, S.ramDown + dt * 1.2);
+      const top = new THREE.Vector3(B.x - 1.15, 0, HZ + Math.cos(S.ang * deg) * 1.9).setY(FY + 0.18 + Math.sin(S.ang * deg) * 1.9 - 0.02);
+      if (S.ramDown > 0) { const flat = new THREE.Vector3(RB.x - 0.6, FY + 0.12, RB.z + 0.9); top.lerp(flat, S.ramDown * S.ramDown); }
+      const mid = RB.clone().lerp(top, 0.5), dir = top.clone().sub(RB), len = dir.length();
+      const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+      ramOuter.quaternion.copy(q); ramOuter.position.copy(RB).addScaledVector(dir, 0.3); ramOuter.scale.y = len * 0.6;
+      ramRod.quaternion.copy(q); ramRod.position.copy(RB).addScaledVector(dir, 0.75); ramRod.scale.y = len * 0.5;
+      collar.quaternion.copy(q); collar.position.copy(RB).addScaledVector(dir, 0.6);
+      if (S.pin) { pin.quaternion.copy(q).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2)); pin.position.copy(collar.position); }
+      else { pin.position.set(RB.x + 0.5, FY + 0.04, RB.z + 0.3); pin.rotation.set(0, 0.4, Math.PI / 2); }
+      if (S.vSpin > 0) { S.vSpin = Math.max(0, S.vSpin - dt); valve.rotation.x += dt * 9; }
+      propMark.material.opacity = S.phase === 'held' ? 0.5 + 0.3 * Math.sin(performance.now() * 0.006) : 0;
+    }
+    function hint() {
+      if (!scene4.active || scene4.pulled) return null;
+      if (S.grip !== 'lug') return { word: 'lug.', at: gripWorld(GRIPS[2]).setY(player.pos.y) };
+      if (!S.valve) return { word: 'valve.', at: valve.position.clone() };
+      if (S.pin) return { word: 'pin.', at: collar.position.clone() };
+      if (!S.propped) return { word: 'under.', at: PROP.clone() };
+      return { word: 'hold.', at: null };
+    }
+    puzzleHintFns.push(hint);
+    return { S, tick, B, GRIPS, valve, collar, PROP, gripWorld, group };
   })();
 
   // ── v0.10.0: Puzzle A (oxygen stabiliser) lives in the wreck level ──
@@ -15940,6 +17641,7 @@ body.in-wreck .cam-buttons { display: none; }
       if (WRECK_LEVEL_ENABLED && wreckInterior.group) keep.add(wreckInterior.group);
       if (WRECK_LEVEL_ENABLED) {                                   // brace puzzle and M-08 (v0.11.0)
         for (const m of [s4.plating, s4.pin, s4.panel, s4.brace]) keep.add(m);
+        if (braceV2) keep.add(braceV2.group);
         if (Math.abs(robotStates[2].pos.x - WL_ORIGIN.x) < 300) keep.add(robots[2]);
       }
       for (const o of scene.children) {
@@ -15952,12 +17654,13 @@ body.in-wreck .cam-buttons { display: none; }
       if (!boxColliders.some(b => b.tag === 'wreckLevel')) _wlRegisterBoxes();
       level.id = 'wreck';
       document.body.classList.add('in-wreck');        // hides the outdoor camera-mode buttons
-      const s = wreckLevel.SPAWN;
+      const s = airlockCycle.SPAWN;                 // v0.20.0: always arrive in the airlock chamber
       player.pos.set(WL_ORIGIN.x + s.x, WL_ORIGIN.y, WL_ORIGIN.z + s.z);
       player.vel.set(0, 0, 0);
       player.heading = s.heading;
       wreckCam.zone = null;
       updateWreckCamera(0, true);
+      airlockCycle.arrive();
       level.fading = false;
       _wlFade(false);
     }, 380);
@@ -15986,6 +17689,7 @@ body.in-wreck .cam-buttons { display: none; }
       player.vel.set(0, 0, 0);
       player.heading = Math.atan2(ax, az);
       camYaw = player.heading;
+      airlockCycle.departed();
       level.fading = false;
       _wlFade(false);
     }, 380);
@@ -16030,6 +17734,12 @@ body.in-wreck .cam-buttons { display: none; }
       const d = Math.hypot(sp.position.x + WL_ORIGIN.x - player.pos.x, sp.position.z + WL_ORIGIN.z - player.pos.z);
       sp.material.opacity = 1 - _ss(8, 12, d); sp.visible = sp.material.opacity > 0.02;
     }
+    const alCam = airlockCycle.camFor(player.pos.x, player.pos.z);   // v0.20.0: inside the airlock chamber
+    if (alCam) {
+      if (snap || !wreckCam._inAl) wreckCam.pos.copy(alCam); else wreckCam.pos.lerp(alCam, Math.min(1, dt * 7));
+      wreckCam._inAl = true; wreckCam.zone = null;
+    } else {
+    if (wreckCam._inAl) { wreckCam._inAl = false; snap = true; }
     const lx = player.pos.x - WL_ORIGIN.x;
     let z = wreckCam.zone;
     if (!z || lx < z.x0 - 0.3 || lx > z.x1 + 0.3) {          // hysteresis at boundaries
@@ -16061,7 +17771,10 @@ body.in-wreck .cam-buttons { display: none; }
       if (snap) wreckCam.pos.copy(want);
       else wreckCam.pos.lerp(want, Math.min(1, dt * 4));
     }
+    }
     const lookT = new THREE.Vector3(player.pos.x, player.pos.y + 1.1, player.pos.z);
+    if (alCam) { const leaving = /exitIn|cycleOut|fadingOut/.test(airlockCycle.A.state), dz = leaving ? airlockCycle.ZO : airlockCycle.ZI;
+      lookT.set((player.pos.x + WL_ORIGIN.x + airlockCycle.CX) / 2, WL_ORIGIN.y + 1.2, (player.pos.z + WL_ORIGIN.z + dz) / 2); }   // him and the hatch ahead
     if (snap) wreckCam.look.copy(lookT); else wreckCam.look.lerp(lookT, Math.min(1, dt * 6));
     camera.position.copy(wreckCam.pos);
     camera.lookAt(wreckCam.look);
@@ -16072,24 +17785,26 @@ body.in-wreck .cam-buttons { display: none; }
     }
     wreckCam._latched = moving;
     const zl = $('zone-label');
-    if (zl) zl.textContent = WRECK_LEVEL_ENABLED ? ('wreck blockout · camera ' + z.name + ' · ' + z.mode) : '';
+    if (zl) zl.textContent = WRECK_LEVEL_ENABLED ? ('wreck · camera ' + (wreckCam.zone ? wreckCam.zone.name : 'airlock chamber')) : '';
   }
 
   // Interaction candidates for the level switch.
   function wreckLevelCandidates(out) {
     if (!WRECK_LEVEL_ENABLED) return;
     if (level.id === 'crater') {
-      out.push({ key: 'enterWreck', x: hatchInteract.x, z: hatchInteract.z, r: hatchInteract.r + 0.6,
-        label: 'enter the wreck', fire: enterWreckLevel });
+      if (!airlockCycle.A.busy) out.push({ key: 'enterWreck', x: hatchInteract.x, z: hatchInteract.z, r: hatchInteract.r + 0.6,
+        label: 'enter the wreck', fire: airlockCycle.outsideEnter });
     } else {
-      out.push({ key: 'exitWreck', x: WL_ORIGIN.x + wreckLevel.EXIT.x, z: WL_ORIGIN.z + wreckLevel.EXIT.z,
-        y: WL_ORIGIN.y + 1.6, r: 2.2, label: 'leave the wreck', fire: exitWreckLevel });
+      if (!airlockCycle.A.busy && airlockCycle.A.state !== 'insideOpen') out.push({ key: 'exitWreck',
+        x: WL_ORIGIN.x + airlockCycle.CX, z: WL_ORIGIN.z + airlockCycle.ZI + 0.9,
+        y: WL_ORIGIN.y + 1.6, r: 1.8, label: 'leave the wreck', fire: airlockCycle.insideLeave });
     }
   }
   // Walking into the old hull by any route (the rip, an open hatch) is
   // "going in": load the interior instead of showing the empty shell.
   function updateWreckDoorway() {
     if (!WRECK_LEVEL_ENABLED || level.id !== 'crater' || level.fading || controlMode !== 'walking') return;
+    if (airlockCycle.A.busy) return;                   // v0.20.0: the airlock does the entering
     if (typeof opening !== 'undefined' && (opening.active || opening.phase !== 'done')) return;
     const p = player.pos;
     if (p.x > 9.5 && p.x < 34.5 && Math.abs(p.z + 2) < 3.4 && p.y < -CRATER_DEPTH + 6) enterWreckLevel();
@@ -16258,6 +17973,12 @@ body.in-wreck .cam-buttons { display: none; }
     try { updateRobotCues(Math.min(0.1, (performance.now() - (updateRobotCues._t || performance.now())) / 1000)); } catch (e) { }
     updateRobotCues._t = performance.now();
     try { updateWristPad(); } catch (e) { }
+    if (braceV2) { try { braceV2.tick(dt); } catch (e) { console.warn('[brace]', e); } }
+    try { robotMinds.tick(dt); } catch (e) { console.warn('[minds]', e); }
+    if (level.id === 'crater') { try { iceV2.tick(dt); } catch (e) { console.warn('[ice]', e); } }
+    if (level.id === 'wreck') { try { wreckDress.tick(); } catch (e) { } try { wreckBoards.tick(dt); } catch (e) { console.warn('[boards]', e); } }
+    try { airlockCycle.tick(dt); } catch (e) { console.warn('[airlock]', e); }
+    try { updateMusic(); } catch (e) { }
     syncRobotGlbs();
     renderer.render(scene, camera);
   }
