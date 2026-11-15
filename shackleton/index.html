@@ -667,7 +667,7 @@ body.in-wreck .cam-buttons { display: none; }
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.22.3';  // shadow acne fix (small sun/lamp bias). was v0.22.2;  // L-07's spare bottle after the first rescue. was v0.22.1;  // O2 warnings at 20% / 10%; robots' devotion. was v0.22.0;  // robot minds, stage 1. was v0.21.3;  // pick-up pose and two-handed carry. was v0.21.2;  // M-08 lifting pose; rougher ridge rocks. was v0.21.0;  // brace becomes a load puzzle with M-08; ice pocket becomes a light puzzle. was v0.20.1;  // red emergency light back in unpowered rooms; life support goes white when fixed; lit control boards. was v0.20.0;  // airlock cycle replaces the breach; interior relit. was v0.19.1;  // KHAL on the hull; wreck interior dressed; blockout labels dev-only. was v0.19.0;  // helmet radio for all voices; robot chirps + eye flash; wrist-pad questions to the robots. was v0.18.7;  // robot legs double-sided with dark cores; toe flaps 1.6x. was v0.18.6;  // robot ankles: foot pad on a ball joint, kept level while planted. was v0.18.5;  // robot toes bend to stay on the ground through stance. was v0.18.4;  // robot gait: bird-like stance/swing, bigger leg swing, pistons follow, body dip, feet planted. was v0.18.3;  // engine nozzles 25% larger. was v0.18.2;  // wreck: four landing legs in housings (two intact, two buckled), half-size blackened nozzles. was v0.18.1;  // wreck: sealed middle/nose, rear-only damage + tanks, doorway recess, NASA stacked, regolith imprint. was v0.18.0;  // wreck exterior: painted skin, round hull, ogive nose, engine bells, landing legs. was v0.17.3;  // robot eyes blink and look; gestures: wave, hand up, tap-and-point. was v0.17.2;  // robot legs: piston shins, hinged toes, less body sway. was v0.17.1;  // built tools on the Meshy robots: drill + saw, gripper, three-finger claws. was v0.17.0;  // Meshy robots, cut into jointed parts and driven by the walk rig. was v0.16.0;  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.23.0';  // robot minds stage 2: sight, investigate, inspect the Flyer, remembered places, affinity from helping. was v0.22.3;  // shadow acne fix (small sun/lamp bias). was v0.22.2;  // L-07's spare bottle after the first rescue. was v0.22.1;  // O2 warnings at 20% / 10%; robots' devotion. was v0.22.0;  // robot minds, stage 1. was v0.21.3;  // pick-up pose and two-handed carry. was v0.21.2;  // M-08 lifting pose; rougher ridge rocks. was v0.21.0;  // brace becomes a load puzzle with M-08; ice pocket becomes a light puzzle. was v0.20.1;  // red emergency light back in unpowered rooms; life support goes white when fixed; lit control boards. was v0.20.0;  // airlock cycle replaces the breach; interior relit. was v0.19.1;  // KHAL on the hull; wreck interior dressed; blockout labels dev-only. was v0.19.0;  // helmet radio for all voices; robot chirps + eye flash; wrist-pad questions to the robots. was v0.18.7;  // robot legs double-sided with dark cores; toe flaps 1.6x. was v0.18.6;  // robot ankles: foot pad on a ball joint, kept level while planted. was v0.18.5;  // robot toes bend to stay on the ground through stance. was v0.18.4;  // robot gait: bird-like stance/swing, bigger leg swing, pistons follow, body dip, feet planted. was v0.18.3;  // engine nozzles 25% larger. was v0.18.2;  // wreck: four landing legs in housings (two intact, two buckled), half-size blackened nozzles. was v0.18.1;  // wreck: sealed middle/nose, rear-only damage + tanks, doorway recess, NASA stacked, regolith imprint. was v0.18.0;  // wreck exterior: painted skin, round hull, ogive nose, engine bells, landing legs. was v0.17.3;  // robot eyes blink and look; gestures: wave, hand up, tap-and-point. was v0.17.2;  // robot legs: piston shins, hinged toes, less body sway. was v0.17.1;  // built tools on the Meshy robots: drill + saw, gripper, three-finger claws. was v0.17.0;  // Meshy robots, cut into jointed parts and driven by the walk rig. was v0.16.0;  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -11403,6 +11403,7 @@ body.in-wreck .cam-buttons { display: none; }
         reachStart(rs.pinned.pos.clone().setY(top.y1 + 0.6), {
           onContact() {
             rescue.done = true;
+            try { robotMinds.helped(0, 0.3); } catch (e) { }          // v0.23.0: he saved P-03
             rs.pinned = null;
             robots[0].rotation.set(0, 0, 0);
             rs.pos.set(top.x - 1.6, top.y1, top.z - 1.4);      // set down beside the player, then it makes its own way
@@ -11603,6 +11604,7 @@ body.in-wreck .cam-buttons { display: none; }
     flyerRepair.installed = true;
     applyFlyerDamage(0);
     speak('SUIT', 'Flyer frame stabilised — 3 parts missing', 3.4, { kind: 'system' });
+    try { robotMinds.helped(2, 0.12); robotMinds.helped(0, 0.04); robotMinds.helped(1, 0.04); robotMinds.event('repaired', FLYER_ASSEMBLED_POS); } catch (e) { }   // v0.23.0
     // Michel's Transmission 02 used to play here. From v0.12.0 it closes
     // the demo instead (see demoEnd): it lands after the ice-pocket memory.
     setTimeout(() => setObjective('find the ice pocket — north-west wall'), 5000);
@@ -11970,6 +11972,7 @@ body.in-wreck .cam-buttons { display: none; }
   function _scene6Check() {
     if (scene6.done || !scene6.power || !scene6.aligned || !scene6.cleared) return;
     scene6.done = true;
+    try { robotMinds.event('iceDone', new THREE.Vector3(ICE_POCKET.x, shackletonScene.getGroundY(ICE_POCKET.x, ICE_POCKET.z), ICE_POCKET.z)); } catch (e) { }   // v0.23.0
     // Light hits the ice: beam on, crystals wake.
     s6.beam.material.opacity = 0.16;
     const bp = s6.beam.position;
@@ -15363,9 +15366,9 @@ body.in-wreck .cam-buttons { display: none; }
     // trained on — protect crew above the mission — so it scales every
     // protective choice; personality decides how they show it.
     const PERS = [
-      { mission: 1.0, protect: 0.75, curious: 0.8, company: 0.45, devotion: 0.85 },   // P-03: the cutter, the path
-      { mission: 0.6, protect: 1.0, curious: 0.5, company: 0.7, devotion: 1.0 },      // L-07: the protector
-      { mission: 0.7, protect: 0.85, curious: 0.6, company: 1.0, devotion: 0.95 },    // M-08: the heart
+      { mission: 1.0, protect: 0.75, curious: 0.8, company: 0.45, devotion: 0.85, restore: 0.9 },   // P-03: the cutter, the path
+      { mission: 0.6, protect: 1.0, curious: 0.5, company: 0.7, devotion: 1.0, restore: 0.45 },     // L-07: the protector
+      { mission: 0.7, protect: 0.85, curious: 0.6, company: 1.0, devotion: 0.95, restore: 0.6 },    // M-08: the heart
     ];
     const BARK = {
       hardLanding: [['ok?'], ['careful.', 'ok?'], ['ok?']],
@@ -15380,6 +15383,12 @@ body.in-wreck .cam-buttons { display: none; }
       high: [['careful.'], ['careful.', 'down.'], ['high.']],
       still: [[''], ['here.'], ['here.', 'with you.']],
       share: [[''], ['air. take.', 'share.'], ['']],
+      // v0.23.0 (stage 2)
+      look: [['hm.'], ['ok.'], ['look.', 'new.']],
+      inspect: [['parts.'], [''], ['home?']],
+      inspect2: [['three.'], [''], ['home?']],             // after the brace: "3 parts missing"
+      rememberFall: [['loose.'], ['careful.'], ['fell here.']],
+      rememberAir: [['air.'], ['careful.'], ['air?']],
     };
     // ── v0.22.2: L-07's spare bottle. After it has dragged him back from a
     // blackout once, L-07 carries a small bottle: one top-up of 15% of his
@@ -15415,7 +15424,7 @@ body.in-wreck .cam-buttons { display: none; }
       oxygen.percent = Math.min(cap, oxygen.percent + cap * 0.15);
       bottle.full = false; bottleShow(); bottle.hoseT = 2.4; bottle.hose.visible = true;
       try { if (o2w.el) o2w.el.classList.remove('on'); } catch (e) { }
-      lastBark = -99; bark(m, 'share');
+      lastBark = -99; bark(m, 'share'); helped(1, 0.08);
       speak('SUIT', 'O₂ +15% — from L-07\'s spare bottle', 3.0, { kind: 'system', delay: 0.6 });
       if (audioCtx && masterGain) { const t0 = audioCtx.currentTime, n = audioCtx.sampleRate * 1.6, bf = audioCtx.createBuffer(1, n, audioCtx.sampleRate), d = bf.getChannelData(0);
         for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1; const sN = audioCtx.createBufferSource(); sN.buffer = bf; const f = audioCtx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1400;
@@ -15434,19 +15443,70 @@ body.in-wreck .cam-buttons { display: none; }
       }
     }
     const M = robotStates.map((r, i) => ({
-      i, d: { mission: 0.4 + Math.random() * 0.3, protect: 0.2, curious: 0.3, company: 0.3 },
-      affinity: 0.35, intent: 'rest', since: 0, nextThink: 1 + i, events: [], said: {}, label: null,
+      i, d: { mission: 0.4 + Math.random() * 0.3, protect: 0.2, curious: 0.3, company: 0.3, restore: 0.2 + Math.random() * 0.2 },
+      affinity: 0.35, base: 0.35, intent: 'rest', since: 0, nextThink: 1 + i, events: [], said: {}, label: null,
+      mem: [], warnT: -99, dangerT: -99, danger: null,
     }));
+    // ── v0.23.0 stage 2: perception. A robot reacts to what it can see
+    // (45 m, rocks / ground / the hull block it). The suit's oxygen alarms
+    // go out on the radio, so every robot hears those.
+    const SIGHT = 45, RADIO = { oxygenLow: 1, oxygenCritical: 1 };
+    const NOVEL = { placed: 1, iceDone: 1 };   // changes worth a look (a repair is for 'inspect')
+    let _shipB = null;
+    function shipBox() { if (!_shipB && typeof starship !== 'undefined' && starship) _shipB = new THREE.Box3().setFromObject(starship); return _shipB; }
+    function sees(i, p) {
+      const r = robotStates[i]; if (!robots[i].visible || level.id !== 'crater') return false;
+      const dx = p.x - r.pos.x, dz = p.z - r.pos.z, L = Math.hypot(dx, dz);
+      if (L > SIGHT) return false; if (L < 2) return true;
+      const y0 = r.pos.y + 1.0, y1 = p.y + 0.8, n = Math.ceil(L / 1.2), b = shipBox();
+      for (let k = 1; k < n; k++) {
+        const u = k / n, dd = u * L; if (dd < 0.8 || L - dd < 0.8) continue;
+        const x = r.pos.x + dx * u, z = r.pos.z + dz * u, h = y0 + (y1 - y0) * u;
+        if (rockTopAt(x, z) > h || shackletonScene.getGroundY(x, z) > h) return false;
+        if (b && L - dd > 2.5 && x > b.min.x && x < b.max.x && z > b.min.z && z < b.max.z && h < b.max.y) return false;
+      }
+      return true;
+    }
+    // remembered places: where he fell, where his air ran out, what it has looked at
+    function remember(m, kind, x, z) {
+      for (const q of m.mem) if (q.kind === kind && Math.hypot(q.x - x, q.z - z) < 3) { q.t = now; return; }
+      m.mem.push({ kind, x, z, t: now }); if (m.mem.length > 16) m.mem.shift();
+    }
+    // affinity from helping: part of every gain stays (the base it relaxes to)
+    function helped(i, amt) {
+      const m = M[i]; if (!m) return;
+      m.affinity = Math.min(1, m.affinity + amt); m.base = Math.min(0.7, m.base + amt * 0.3);
+    }
     const ev = [];                                         // { type, t, pos }
     let now = 0, lastBark = -99, escortBy = -1;
     const P = { lastGrounded: true, fallVy: 0, still: 0, o2Low: false, o2Crit: false, wasWreck: false };
     function event(type, pos) {
-      ev.push({ type, t: now, pos: pos ? pos.clone() : player.pos.clone() });
+      const e = { type, t: now, pos: pos ? pos.clone() : player.pos.clone() };
+      e.seen = M.map(m => !!RADIO[type] || sees(m.i, e.pos));
+      ev.push(e);
       if (ev.length > 30) ev.shift();
-      for (const m of M) if (urgent(type) && canThink(m)) m.nextThink = Math.min(m.nextThink, now + 0.3 + m.i * 0.25);
+      for (const m of M) {
+        if (!e.seen[m.i]) continue;
+        if (type === 'hardLanding') remember(m, 'fall', e.pos.x, e.pos.z);
+        if (type === 'oxygenCritical') remember(m, 'air', e.pos.x, e.pos.z);
+        if (NOVEL[type]) m.d.curious = Math.min(1, m.d.curious + 0.35);
+        if (type === 'repaired') m.d.restore = Math.min(1, m.d.restore + 0.6);
+        if (urgent(type) && canThink(m)) m.nextThink = Math.min(m.nextThink, now + 0.3 + m.i * 0.25);
+      }
     }
     const urgent = (t) => t === 'hardLanding' || t === 'oxygenLow' || t === 'oxygenCritical' || t === 'pickedUp' || t === 'highUp' || t === 'leftWreck';
-    function recent(type, within) { for (let k = ev.length - 1; k >= 0; k--) { if (now - ev[k].t > within) break; if (ev[k].type === type) return ev[k]; } return null; }
+    function recent(type, within, m) { for (let k = ev.length - 1; k >= 0; k--) { if (now - ev[k].t > within) break; if (ev[k].type === type && (!m || ev[k].seen[m.i])) return ev[k]; } return null; }
+    // the nearest change it saw and hasn't looked at yet
+    function novelFor(m) {
+      const r = robotStates[m.i]; let best = null, bd = 40;
+      for (const e of ev) {
+        if (!NOVEL[e.type] || !e.seen[m.i] || now - e.t > 180) continue;
+        if (m.mem.some(q => q.kind === 'looked' && q.t >= e.t && Math.hypot(q.x - e.pos.x, q.z - e.pos.z) < 2.5)) continue;
+        const d = Math.hypot(e.pos.x - r.pos.x, e.pos.z - r.pos.z); if (d < bd) { bd = d; best = e; }
+      }
+      return best;
+    }
+    const flyerBusy = () => (scene4.braceHeld && !scene5.done) || scene5.installing;
     function canThink(m) {
       const r = robotStates[m.i];
       return ON && !r.scripted && !r.pinned && robots[m.i].visible && level.id === 'crater' && controlMode === 'walking'
@@ -15468,7 +15528,9 @@ body.in-wreck .cam-buttons { display: none; }
       return [{ x: F.x - 1.8, z: F.z - 1.4 }, { x: F.x + 3.0, z: F.z - 1.0 }, { x: 14, z: 4 }];
     }
     // no-go: puzzle spots, so an idle robot never blocks a prompt
-    const ZONES = () => [{ x: ICE_POCKET.x, z: ICE_POCKET.z + 2, r: 8 }];
+    const ZONES = () => { const z = [{ x: ICE_POCKET.x, z: ICE_POCKET.z + 2, r: 8 }];
+      if (flyerBusy()) z.push({ x: FLYER_ASSEMBLED_POS.x, z: FLYER_ASSEMBLED_POS.z, r: 4.6 });   // v0.23.0: the install prompt
+      return z; };
     function outsideZones(x, z) {
       for (const Z of ZONES()) { const d = Math.hypot(x - Z.x, z - Z.z); if (d < Z.r) { const k = Z.r / Math.max(d, 0.01); return { x: Z.x + (x - Z.x) * k, z: Z.z + (z - Z.z) * k }; } }
       return { x, z };
@@ -15483,7 +15545,7 @@ body.in-wreck .cam-buttons { display: none; }
       add('work', p.mission * d.mission);
       if (m.i === 1 && bottle.has && !bottle.full) add('refillBottle', 0.55);
       add('rest', 0.12);
-      const crit = recent('oxygenCritical', 10), low = recent('oxygenLow', 10), fall = recent('hardLanding', 8);
+      const crit = recent('oxygenCritical', 10, m), low = recent('oxygenLow', 10, m), fall = recent('hardLanding', 8, m);
       if ((crit || low || fall) && dist < 80) add('checkOn', 1.2 * p.protect * p.devotion + (crit ? 0.6 : 0) + (fall ? 0.2 : 0));
       // L-07's spare bottle comes first when he is dangerously low
       const critNow = oxygen.percent / Math.max(1, oxygen.capacity) <= 0.11 && !refill.connected;   // as it is now, not just the alarm
@@ -15493,14 +15555,19 @@ body.in-wreck .cam-buttons { display: none; }
       if (m.i === 1 && bottle.full && (critNow || shortOfAir) && dist < 90) add('share', 3.0);
       // dangerously low and nowhere near air: one of them leads him to it
       if (critNow && o2Dist() > 8 && (leadBy < 0 || leadBy === m.i)) add('lead', 2.2 * p.protect * p.devotion);
-      if (recent('highUp', 6) && dist < 40) add('spot', 1.0 * p.protect * p.devotion);
-      if (recent('leftWreck', 4) && dist < 50) add('greet', 0.9 * p.company * p.devotion + 0.2);
+      if (recent('highUp', 6, m) && dist < 40) add('spot', 1.0 * p.protect * p.devotion);
+      if (recent('leftWreck', 4, m) && dist < 50) add('greet', (0.9 * p.company * p.devotion + 0.2) * (0.6 + m.affinity));
       if (P.still > 20 && dist < 40 && !P.atO2) add('comfort', 0.8 * p.company * p.devotion);
-      const act = recent('pickedUp', 5) || recent('jumped', 3);
+      const act = recent('pickedUp', 5, m) || recent('jumped', 3, m);
       if (act && dist < 18) add('watch', 0.75 * p.curious + 0.2);
       const away = Math.max(0, Math.min(1, (dist - 10) / 25));          // he is heading off on his own
       if (dist < 90 && (escortBy < 0 || escortBy === m.i)) add('escort', p.protect * p.protect * (0.25 + d.protect + away * 0.6) * (0.6 + m.affinity) * (P.still > 6 ? 0.4 : 1));
       add('visit', p.company * d.company * 0.8);
+      // v0.23.0 stage 2
+      const nov = novelFor(m); if (nov) add('investigate', 0.9 * p.curious * (0.4 + d.curious));
+      const F = FLYER_ASSEMBLED_POS, fd = Math.hypot(r.pos.x - F.x, r.pos.z - F.z);
+      if (fd < 70 && !flyerBusy()) add('inspect', p.restore * d.restore * (M.some(o => o !== m && o.intent === 'inspect') ? 0.5 : 1));
+      if (now - m.dangerT < 6 && dist < 40 && !M.some(o => o !== m && o.intent === 'guard')) add('guard', 1.4 * p.protect * p.devotion);
       out.sort((a, b) => b.s - a.s);
       return out[0].name;
     }
@@ -15528,7 +15595,7 @@ body.in-wreck .cam-buttons { display: none; }
         const f = fwd(); const s = outsideZones(player.pos.x + f.x * 1.4 + (m.i - 1) * 0.9, player.pos.z + f.z * 1.4);
         goTo(r, s.x, s.z, 1.2, { state: 'attend', faceAt: 'player', dur: 4 });
         const crit = recent('oxygenCritical', 10), low = recent('oxygenLow', 10);
-        r.onArrive = () => bark(m, crit ? 'oxygenCritical' : low ? 'oxygenLow' : 'hardLanding');
+        r.onArrive = () => { bark(m, crit ? 'oxygenCritical' : low ? 'oxygenLow' : 'hardLanding'); helped(m.i, 0.04); };
       } else if (name === 'watch') {
         r.state = 'attend'; r.faceAt = 'player'; r.stateTimer = 3.5;
         if (recent('pickedUp', 5)) bark(m, 'pickedUp');
@@ -15543,26 +15610,57 @@ body.in-wreck .cam-buttons { display: none; }
         leadBy = m.i; r.state = 'lead'; r.stateTimer = 90; bark(m, 'lead');
       } else if (name === 'spot') {                       // stand below him while he is up high
         const f = fwd(); goTo(r, player.pos.x + f.x * 2.2 + (m.i - 1), player.pos.z + f.z * 2.2, 1.2, { state: 'attend', faceAt: 'player', dur: 6 });
-        r.onArrive = () => bark(m, 'high');
+        r.onArrive = () => { bark(m, 'high'); helped(m.i, 0.03); };
       } else if (name === 'greet') {
         const f = fwd(); goTo(r, player.pos.x + f.x * 2.5 + (m.i - 1) * 1.2, player.pos.z + f.z * 2.5, 1.1, { state: 'attend', faceAt: 'player', dur: 4 });
-        r.onArrive = () => bark(m, 'back');
+        r.onArrive = () => { bark(m, 'back'); helped(m.i, 0.02); if (m.affinity > 0.6) robotEmote(m.i, 'wave', player.pos); };
       } else if (name === 'comfort') {                    // stand beside him, looking where he looks
         const f = fwd(), side = m.i === 2 ? 1 : -1;
         goTo(r, player.pos.x + f.z * side * 1.3, player.pos.z - f.x * side * 1.3, 0.5, { state: 'attend', faceAt: null, dur: 14 });
-        r.onArrive = () => { r.heading = player.heading; bark(m, 'still'); };
+        r.onArrive = () => { r.heading = player.heading; bark(m, 'still'); helped(m.i, 0.03); };
       } else if (name === 'visit') {
         const others = [0, 1, 2].filter(k => k !== m.i && robots[k].visible && Math.hypot(robotStates[k].pos.x - r.pos.x, robotStates[k].pos.z - r.pos.z) < 45);
         if (!others.length) { r.state = 'attend'; r.faceAt = null; r.stateTimer = 3; return; }
         const k = others[Math.floor(Math.random() * others.length)], o = robotStates[k], a = Math.random() * 6.28;
         goTo(r, o.pos.x + Math.cos(a) * 1.8, o.pos.z + Math.sin(a) * 1.8, 0.45, { state: 'attend', faceAt: k, dur: 5 + Math.random() * 3 });
         m.d.company = Math.max(0, m.d.company - 0.5);
+      } else if (name === 'investigate') {                // go and look at something that changed
+        const e = novelFor(m); if (!e) { r.state = 'attend'; r.faceAt = null; r.stateTimer = 2; return; }
+        const dx = r.pos.x - e.pos.x, dz = r.pos.z - e.pos.z, L = Math.max(0.01, Math.hypot(dx, dz));
+        goTo(r, e.pos.x + dx / L * 1.3, e.pos.z + dz / L * 1.3, 0.45, { state: 'attend', faceAt: { x: e.pos.x, z: e.pos.z }, dur: 3 + Math.random() * 2 });
+        r.onArrive = () => { remember(m, 'looked', e.pos.x, e.pos.z); m.d.curious = Math.max(0, m.d.curious - 0.5); bark(m, 'look'); };
+      } else if (name === 'inspect') {                    // the way home: look the Flyer over
+        const F = FLYER_ASSEMBLED_POS, done = flyerRepair.installed, R = done ? 2.9 : 3.8;
+        const a = Math.atan2(r.pos.x - F.x, r.pos.z - F.z) + (Math.random() - 0.5) * 1.2;
+        const works = done && m.i === 0;                    // P-03 gets its tools on it once the frame holds
+        goTo(r, F.x + Math.sin(a) * R, F.z + Math.cos(a) * R, 0.4,
+          works ? { state: 'manipulating', dur: 6 + Math.random() * 4 } : { state: 'attend', faceAt: { x: F.x, z: F.z }, dur: 5 + Math.random() * 3 });
+        r.onArrive = () => { r.heading = Math.atan2(F.x - r.pos.x, F.z - r.pos.z); m.d.restore = Math.max(0, m.d.restore - 0.6); remember(m, 'flyer', F.x, F.z); bark(m, done ? 'inspect2' : 'inspect'); };
+      } else if (name === 'guard') {                      // back where something went wrong: stay close
+        const q = m.danger || { kind: 'fall' }, f = fwd(), side = m.i === 1 ? -1 : 1;
+        goTo(r, player.pos.x + f.x * 0.8 + f.z * side * 1.4, player.pos.z + f.z * 0.8 - f.x * side * 1.4, 1.0, { state: 'attend', faceAt: 'player', dur: 5 });
+        r.onArrive = () => bark(m, q.kind === 'air' ? 'rememberAir' : 'rememberFall');
       }
     }
     function goTo(r, x, z, speed, after) {
       const s = outsideZones(x, z);
       if (!r._mindT) r._mindT = new THREE.Vector3();
       r._mindT.set(s.x, r.pos.y, s.z); r.target = r._mindT; r.state = 'mind_walk'; r.stateTimer = 40; r.mindSpeed = speed; r.after = after;
+      // v0.23.0: they steer round rocks, not the Flyer: if the straight line
+      // passes too close to it, go round by one waypoint first
+      r._final = null;
+      const F = FLYER_ASSEMBLED_POS, R = flyerBusy() ? 5.2 : 3.6;
+      const ax = r.pos.x, az = r.pos.z, bx = s.x - ax, bz = s.z - az, L2 = bx * bx + bz * bz;
+      if (L2 > 1) {
+        const u = Math.max(0, Math.min(1, ((F.x - ax) * bx + (F.z - az) * bz) / L2));
+        const cx = ax + bx * u - F.x, cz = az + bz * u - F.z, cd = Math.hypot(cx, cz);
+        if (cd < R && u > 0.02 && u < 0.98) {
+          const L = Math.sqrt(L2); let nx = cd > 0.05 ? cx / cd : -bz / L, nz = cd > 0.05 ? cz / cd : bx / L;
+          if (!r._viaT) r._viaT = new THREE.Vector3();
+          r._viaT.set(F.x + nx * (R + 0.8), r.pos.y, F.z + nz * (R + 0.8));
+          r._final = r._mindT; r.target = r._viaT;
+        }
+      }
     }
     // ── per-frame: perception, drives, thinking ──
     function tick(dt) {
@@ -15596,20 +15694,28 @@ body.in-wreck .cam-buttons { display: none; }
         d.mission = Math.min(1, d.mission + dt * 0.02);
         d.company = Math.min(1, Math.max(0, d.company + dt * (near ? -0.03 : 0.012)));
         d.protect = Math.min(1, Math.max(0.1, d.protect + dt * (near ? -0.01 : 0.008)));
-        m.affinity += (0.35 - m.affinity) * dt * 0.002;
+        d.curious = Math.min(1, d.curious + dt * 0.004);
+        d.restore = Math.min(1, d.restore + dt * (flyerRepair.installed ? 0.012 : 0.008));
+        m.affinity += (m.base - m.affinity) * dt * 0.002;
+        // he is back where it saw him fall, or nearly run out of air
+        if (now - m.warnT > 90 && level.id === 'crater') {
+          for (const q of m.mem) if ((q.kind === 'fall' || q.kind === 'air') && Math.hypot(q.x - player.pos.x, q.z - player.pos.z) < 5 && now - q.t > 30) {
+            m.warnT = now; m.dangerT = now; m.danger = q; m.nextThink = Math.min(m.nextThink, now + 0.4 + m.i * 0.3); break; }
+        }
         if (near) m.affinity = Math.min(1, m.affinity + dt * 0.002);
         if (!canThink(m)) { if (escortBy === m.i && r.scripted) escortBy = -1; continue; }
         // back from the wreck: the ones that like him come to the door
-        if (recent('leftWreck', 1.5) && m.affinity > 0.4 && !m.said.back) { m.said.back = now; m.nextThink = now + 0.5 + m.i; }
+        if (recent('leftWreck', 1.5, m) && m.affinity > 0.4 && !m.said.back) { m.said.back = now; m.nextThink = now + 0.5 + m.i; }
         // an alarm (low oxygen, a fall, a pickup nearby) breaks into whatever it is doing
         for (let k = ev.length - 1; k >= 0 && now - ev[k].t < 2.5; k--) {
-          const e = ev[k]; if (!urgent(e.type) || m.handled === e) continue;
+          const e = ev[k]; if (!urgent(e.type) || m.handled === e || !e.seen[m.i]) continue;
           m.handled = e; if (now >= ev[k].t + 0.3 + m.i * 0.35) { const pick = score(m); if (['share', 'checkOn', 'watch', 'lead', 'spot', 'greet'].includes(pick) && !(m.intent === 'lead' && pick !== 'lead') && !(m.intent === 'share' && pick !== 'share')) { start(m, pick); m.nextThink = now + 3; } }
           else m.handled = null;
           break;
         }
         const idleish = r.state === 'idle' || r.state === 'attend' || r.state === 'manipulating' || r.state === 'escort' || r.state === 'walking'
-          || (now - m.since > 8 && m.intent !== 'checkOn' && m.intent !== 'lead' && m.intent !== 'share');             // any job can be reconsidered after a while
+          || (now - m.since > 8 && m.intent !== 'checkOn' && m.intent !== 'lead' && m.intent !== 'share'
+              && !((m.intent === 'greet' || m.intent === 'guard') && r.state === 'mind_walk'));   // v0.23.0: a greeting or a guard finishes its walk             // any job can be reconsidered after a while
         if (now >= m.nextThink && idleish && now - m.since > 3) {
           const pick = score(m);
           if (pick !== m.intent || r.state === 'idle') start(m, pick);
@@ -15621,7 +15727,13 @@ body.in-wreck .cam-buttons { display: none; }
     // ── the robot side: new states run from updateRobotCore ──
     function step(robot, r, dt, stepWalk) {
       if (r.state === 'mind_walk') {
-        if (!stepWalk() || r.stateTimer <= 0) {
+        if (r._final && (r.target !== r._viaT || Math.hypot(r._viaT.x - r.pos.x, r._viaT.z - r.pos.z) < 0.9)) { r.target = r._final; r._final = null; }   // round the Flyer: on to the real spot
+        // v0.23.0: no progress for 1.5 s (a leg, a hull, a rock) counts as arrived
+        const ox = r._stuckP ? r._stuckP.x : 1e9, oz = r._stuckP ? r._stuckP.z : 1e9;
+        if (!r._stuckP || Math.hypot(r.pos.x - ox, r.pos.z - oz) > 0.15) { r._stuckP = { x: r.pos.x, z: r.pos.z }; r._stuckT = 0; } else r._stuckT += dt;
+        const stuck = r._stuckT > 1.5 && !r._final; if (r._stuckT > 1.5 && r._final) { r.target = r._final; r._final = null; r._stuckT = 0; }
+        if (stuck || !stepWalk() || r.stateTimer <= 0) {
+          r._stuckP = null; r._stuckT = 0;
           r.target = null; r.mindSpeed = 0.4;
           if (r.onArrive) { r.onArrive(); r.onArrive = null; }
           const a = r.after; r.after = null;
@@ -15632,7 +15744,7 @@ body.in-wreck .cam-buttons { display: none; }
         return true;
       }
       if (r.state === 'attend') {
-        const f = r.faceAt === 'player' ? player.pos : (typeof r.faceAt === 'number' ? robotStates[r.faceAt].pos : null);
+        const f = r.faceAt === 'player' ? player.pos : (typeof r.faceAt === 'number' ? robotStates[r.faceAt].pos : (r.faceAt && typeof r.faceAt === 'object' ? r.faceAt : null));
         if (f) turnTo(r, f.x, f.z, dt);
         if (r.stateTimer <= 0) { r.state = 'idle'; r.stateTimer = 0.5; }
         return true;
@@ -15650,21 +15762,26 @@ body.in-wreck .cam-buttons { display: none; }
         const toO = Math.hypot(o.x - player.pos.x, o.z - player.pos.z), ux = (o.x - player.pos.x) / Math.max(toO, 0.01), uz = (o.z - player.pos.z) / Math.max(toO, 0.01);
         const ahead = Math.min(3.5, Math.max(0, toO - 1.5));
         let tx = player.pos.x + ux * ahead, tz = player.pos.z + uz * ahead;
-        if (pd > 7) { tx = r.pos.x; tz = r.pos.z; turnTo(r, player.pos.x, player.pos.z, dt); r._moving = false;
+        if (pd < 5) r._leadNear = true;
+        if (!r._leadNear) {                                // v0.23.0: reach him first; only then wait for him
+          if (!r._mindT) r._mindT = new THREE.Vector3(); r._mindT.set(player.pos.x, r.pos.y, player.pos.z); r.target = r._mindT; r.mindSpeed = 1.5; stepWalk(); r._moving = true;
+        } else if (pd > 7 && (r.pos.x - player.pos.x) * ux + (r.pos.z - player.pos.z) * uz > 0) { tx = r.pos.x; tz = r.pos.z; turnTo(r, player.pos.x, player.pos.z, dt); r._moving = false;   // ahead of him: wait
           if (!r._waitT || performance.now() - r._waitT > 6000) { r._waitT = performance.now(); bark(M[r.number - 1], 'wait'); } }
         else {
           const dd = Math.hypot(tx - r.pos.x, tz - r.pos.z);
-          if (dd > 0.6) { if (!r._mindT) r._mindT = new THREE.Vector3(); r._mindT.set(tx, r.pos.y, tz); r.target = r._mindT; r.mindSpeed = Math.min(1.5, 0.5 + dd * 0.35); stepWalk(); r._moving = true; }
+          if (dd > 0.6) { if (!r._mindT) r._mindT = new THREE.Vector3(); r._mindT.set(tx, r.pos.y, tz); r.target = r._mindT; r.mindSpeed = Math.min(2.0, 0.5 + dd * 0.35); stepWalk(); r._moving = true; }   // v0.23.0: catches up if he outpaces it
           else { r._moving = false; turnTo(r, o.x, o.z, dt); }
         }
         const ratio = oxygen.percent / Math.max(1, oxygen.capacity);
-        if (toO < 3 || refill.connected || ratio > 0.35 || r.stateTimer <= 0 || level.id !== 'crater') { r.state = 'idle'; r.stateTimer = 0.5; r._moving = false; r.mindSpeed = 0.4; if (leadBy === r.number - 1) leadBy = -1; }
+        if ((toO < 3 || refill.connected) && !r._ledHome) { r._ledHome = true; helped(r.number - 1, 0.08); }
+        if (toO < 3 || refill.connected || ratio > 0.35 || r.stateTimer <= 0 || level.id !== 'crater') { r._ledHome = false; r._leadNear = false; r.state = 'idle'; r.stateTimer = 0.5; r._moving = false; r.mindSpeed = 0.4; if (leadBy === r.number - 1) leadBy = -1; }
         return true;
       }
       if (r.state === 'escort') {
         // off his shoulder, a little behind; hurry when far; never in his path
         const f = fwd(), side = (r.number % 2 ? 1 : -1);
-        let tx = player.pos.x - f.x * 1.8 + f.z * side * 2.2, tz = player.pos.z - f.z * 1.8 - f.x * side * 2.2;
+        const sd = 2.2 - Math.max(0, M[r.number - 1].affinity - 0.35) * 1.4;   // v0.23.0: the fonder, the closer
+        let tx = player.pos.x - f.x * 1.8 + f.z * side * sd, tz = player.pos.z - f.z * 1.8 - f.x * side * sd;
         const s = outsideZones(tx, tz); tx = s.x; tz = s.z;
         const inRock = (x, z) => rockTopAt(x, z) > shackletonScene.getGroundY(x, z) + 0.45;
         if (inRock(tx, tz)) { const ax = player.pos.x - f.x * 1.8 - f.z * side * 2.2, az = player.pos.z - f.z * 1.8 + f.x * side * 2.2;   // other shoulder
@@ -15689,19 +15806,19 @@ body.in-wreck .cam-buttons { display: none; }
     // ── ?debug: what each robot is thinking, over its head ──
     const DEBUG = /[?&]debug\b/.test(location.search);
     function updateLabel(m) {
-      const r = robotStates[m.i]; const txt = m.intent + ' · ' + r.state + ' · a' + m.affinity.toFixed(2);
+      const r = robotStates[m.i]; const txt = m.intent + ' · ' + r.state + ' · a' + m.affinity.toFixed(2) + ' c' + m.d.curious.toFixed(1) + ' r' + m.d.restore.toFixed(1);
       if (m.labelTxt === txt) return; m.labelTxt = txt;
-      const c = m.label.material.map.image, g = c.getContext('2d'); g.clearRect(0, 0, 256, 48);
-      g.fillStyle = 'rgba(0,0,0,0.55)'; g.fillRect(0, 0, 256, 48); g.fillStyle = ['#7fb8ff', '#ffe066', '#ff7a6a'][m.i]; g.font = '20px monospace'; g.fillText(txt, 6, 30);
+      const c = m.label.material.map.image, g = c.getContext('2d'); g.clearRect(0, 0, 384, 48);
+      g.fillStyle = 'rgba(0,0,0,0.55)'; g.fillRect(0, 0, 384, 48); g.fillStyle = ['#7fb8ff', '#ffe066', '#ff7a6a'][m.i]; g.font = '15px monospace'; g.fillText(txt, 4, 29);
       m.label.material.map.needsUpdate = true;
     }
     if (DEBUG) for (const m of M) {
-      const c = document.createElement('canvas'); c.width = 256; c.height = 48;
+      const c = document.createElement('canvas'); c.width = 384; c.height = 48;
       m.label = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false, transparent: true }));
-      m.label.scale.set(1.6, 0.3, 1); m.label.position.y = 1.9; robots[m.i].add(m.label);
+      m.label.scale.set(2.4, 0.3, 1); m.label.position.y = 1.9; robots[m.i].add(m.label);
     }
     function asked(i) { M[i].affinity = Math.min(1, M[i].affinity + 0.06); }
-    return { tick, step, event, asked, M, ON, unlockBottle, bottle, get escortBy() { return escortBy; }, get leadBy() { return leadBy; } };
+    return { tick, step, event, asked, helped, sees, M, ON, unlockBottle, bottle, get escortBy() { return escortBy; }, get leadBy() { return leadBy; } };
   })();
 
   const ROBOT_RADIO_IDX = { 'P-03': 0, 'L-07': 1, 'M-08': 2 };
@@ -16066,6 +16183,7 @@ body.in-wreck .cam-buttons { display: none; }
     c.mesh.position.x = x; c.mesh.position.z = z;
     stabDrag.mesh = c.mesh;
     _stabDrop();                              // stab parts and extras both route here
+    try { if (level.id === 'crater') robotMinds.event('placed', c.mesh.position); } catch (e) { }   // v0.23.0: something new to look at
     sndUi('confirm');
   }
   function updateCarry(dt) {

@@ -48,6 +48,7 @@ awk 'BEGIN{n=0} /^<script type="module">$/{n++} n==3' index.html | sed '1d' | se
 | v0.22.1 | Devotion; suit O₂ warnings at 20% and 10% |
 | v0.22.2 | L-07's spare O₂ bottle |
 | v0.22.3 | Shadow acne fix (the flicker on the hull and robots) |
+| **v0.23.0** | **Preview only.** Robot minds stage 2: sight, investigate, inspect the Flyer, remembered places, affinity from helping. See `ROBOT_MINDS.md` |
 
 ## Key systems and where they live in `index.html`
 
@@ -81,7 +82,7 @@ The sandbox can't reach CDNs, so use a local harness:
 
 1. **Khal:** test v0.22.3 on his phone (aim mode on the stick, the robot tones, music, airlock sounds, the wrist pad, frame rate with the extra lights).
 2. ~~Trailer re-shoot at 1080p.~~ **Done 15 Nov (trailer v2):** 28.5 s, 1920×1080, 30 fps, H.264 + AAC, 8.7 Mbps. Robots run free; the breach is replaced by the airlock (outside, then the chamber) and the life-support power-up. Order: wake → L-07 → wreck → walk with robots → M-08 → airlock out → chamber → power-up → radio → ice → Earth → "...Elias?" → title. Sent to Khal, not in the repo (31 MB). Vibration cause: the wall clock in the harness (fixed), plus a real one: robot stride rate scales linearly with speed, so at the escort jog (1.3 m/s) the body bobs ~8.5 Hz. Offered to Khal as a gait fix; not changed.
-3. **Robot minds, stage 2** (offered, not yet asked for): investigate, inspect the return path, line of sight on events, greeting and affinity, remembered places.
+3. ~~Robot minds, stage 2~~ **Built in v0.23.0 on the preview** (15 Nov). Khal to try it, then "push live". Next: stage 3 (robot-to-robot moments, job-site props).
 4. Tune the bottle (15% vs 10%) after Khal plays it.
 5. The demo ending (ice memory, then Michel's cut-off warning, then a "3 parts missing" card with the wishlist prompt). Decided 13 Nov, not built.
 6. Older items: knee joints, close-up brace panel, sound pass, a spectacle beat, Mixamo clips.
