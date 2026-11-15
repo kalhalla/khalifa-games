@@ -667,7 +667,7 @@ body.in-wreck .cam-buttons { display: none; }
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.21.2';  // brace prop prompt; collision pass; pick-up pose. was v0.21.1;  // M-08 lifting pose; rougher ridge rocks. was v0.21.0;  // brace becomes a load puzzle with M-08; ice pocket becomes a light puzzle. was v0.20.1;  // red emergency light back in unpowered rooms; life support goes white when fixed; lit control boards. was v0.20.0;  // airlock cycle replaces the breach; interior relit. was v0.19.1;  // KHAL on the hull; wreck interior dressed; blockout labels dev-only. was v0.19.0;  // helmet radio for all voices; robot chirps + eye flash; wrist-pad questions to the robots. was v0.18.7;  // robot legs double-sided with dark cores; toe flaps 1.6x. was v0.18.6;  // robot ankles: foot pad on a ball joint, kept level while planted. was v0.18.5;  // robot toes bend to stay on the ground through stance. was v0.18.4;  // robot gait: bird-like stance/swing, bigger leg swing, pistons follow, body dip, feet planted. was v0.18.3;  // engine nozzles 25% larger. was v0.18.2;  // wreck: four landing legs in housings (two intact, two buckled), half-size blackened nozzles. was v0.18.1;  // wreck: sealed middle/nose, rear-only damage + tanks, doorway recess, NASA stacked, regolith imprint. was v0.18.0;  // wreck exterior: painted skin, round hull, ogive nose, engine bells, landing legs. was v0.17.3;  // robot eyes blink and look; gestures: wave, hand up, tap-and-point. was v0.17.2;  // robot legs: piston shins, hinged toes, less body sway. was v0.17.1;  // built tools on the Meshy robots: drill + saw, gripper, three-finger claws. was v0.17.0;  // Meshy robots, cut into jointed parts and driven by the walk rig. was v0.16.0;  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.21.3';  // pick-up pose and two-handed carry. was v0.21.2;  // M-08 lifting pose; rougher ridge rocks. was v0.21.0;  // brace becomes a load puzzle with M-08; ice pocket becomes a light puzzle. was v0.20.1;  // red emergency light back in unpowered rooms; life support goes white when fixed; lit control boards. was v0.20.0;  // airlock cycle replaces the breach; interior relit. was v0.19.1;  // KHAL on the hull; wreck interior dressed; blockout labels dev-only. was v0.19.0;  // helmet radio for all voices; robot chirps + eye flash; wrist-pad questions to the robots. was v0.18.7;  // robot legs double-sided with dark cores; toe flaps 1.6x. was v0.18.6;  // robot ankles: foot pad on a ball joint, kept level while planted. was v0.18.5;  // robot toes bend to stay on the ground through stance. was v0.18.4;  // robot gait: bird-like stance/swing, bigger leg swing, pistons follow, body dip, feet planted. was v0.18.3;  // engine nozzles 25% larger. was v0.18.2;  // wreck: four landing legs in housings (two intact, two buckled), half-size blackened nozzles. was v0.18.1;  // wreck: sealed middle/nose, rear-only damage + tanks, doorway recess, NASA stacked, regolith imprint. was v0.18.0;  // wreck exterior: painted skin, round hull, ogive nose, engine bells, landing legs. was v0.17.3;  // robot eyes blink and look; gestures: wave, hand up, tap-and-point. was v0.17.2;  // robot legs: piston shins, hinged toes, less body sway. was v0.17.1;  // built tools on the Meshy robots: drill + saw, gripper, three-finger claws. was v0.17.0;  // Meshy robots, cut into jointed parts and driven by the walk rig. was v0.16.0;  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -10152,7 +10152,7 @@ body.in-wreck .cam-buttons { display: none; }
   //   reachRelease()                     — end a hold
   // ============================================================
   const reach = {
-    active: false, mode: 'press', blend: 0, timer: 0,
+    active: false, mode: 'press', blend: 0, timer: 0, crouch: 0,
     target: new THREE.Vector3(),
     followMesh: null, onContact: null, contactFired: false,
     bones: undefined,        // undefined = not searched yet; null = rig has none
@@ -10196,6 +10196,7 @@ body.in-wreck .cam-buttons { display: none; }
     reach.onContact = opts.onContact || null;
     reach.contactFired = false;
     reach.timer = 0;
+    if (reach.crouch === undefined) reach.crouch = 0;
     // No rig chain → still honour the interaction after a short beat.
     if (!reach.bones && reach.onContact) {
       setTimeout(() => {
@@ -10245,10 +10246,15 @@ body.in-wreck .cam-buttons { display: none; }
     }
     const want = reach.active ? 1 : 0;
     reach.blend += (want - reach.blend) * Math.min(1, dt * 7);
-    if (reach.blend < 0.02) { reach.blend = 0; return; }
+    if (reach.blend < 0.02) { reach.blend = 0; reach.crouch = 0; return; }
+    // v0.21.2: a low target (something on the floor) means bending down for
+    // it — knees, hips and spine (see _pickupPose) — so contact waits a
+    // little longer, until he is actually down there.
+    const low = reach.active ? Math.max(0, Math.min(1, (0.75 - (reach.target.y - player.pos.y)) / 0.55)) : 0;
+    reach.crouch += (low - reach.crouch) * Math.min(1, dt * (low > reach.crouch ? 5 : 3.5));
     // Contact fires as the hand arrives — doors open when touched,
     // not when the key was pressed.
-    if (reach.active && !reach.contactFired && reach.blend > 0.8) {
+    if (reach.active && !reach.contactFired && reach.blend > 0.8 && (low < 0.3 || reach.crouch > 0.75 * low)) {
       reach.contactFired = true;
       if (reach.onContact) reach.onContact();
     }
@@ -10267,9 +10273,70 @@ body.in-wreck .cam-buttons { display: none; }
       }
     }
     if (!reach.bones) return;
+    _pickupPose(dt);
     const { upper, fore, hand } = reach.bones;
-    _aimBone(upper, fore, reach.target, reach.blend * 0.65);
-    _aimBone(fore, hand, reach.target, reach.blend * 0.9);
+    // carrying: both hands on the load, either side of it
+    const carrying = !!(interact.carry && reach.followMesh);
+    if (carrying) {
+      _ppRight.set(Math.cos(player.heading), 0, -Math.sin(player.heading)).multiplyScalar(-0.16);
+      _ppT.copy(reach.target).add(_ppRight);
+    } else _ppT.copy(reach.target);
+    _aimBone(upper, fore, _ppT, reach.blend * 0.65);
+    _aimBone(fore, hand, _ppT, reach.blend * 0.9);
+    // the left arm joins in for floor pickups and while carrying
+    const lb = _ppBones && _ppBones.lUpper ? Math.max(reach.crouch, carrying ? 1 : 0) * reach.blend : 0;
+    if (lb > 0.02) {
+      _ppT.copy(reach.target).addScaledVector(_ppRight.set(Math.cos(player.heading), 0, -Math.sin(player.heading)), 0.16);
+      _aimBone(_ppBones.lUpper, _ppBones.lFore, _ppT, lb * 0.6);
+      _aimBone(_ppBones.lFore, _ppBones.lHand, _ppT, lb * 0.85);
+    }
+  }
+  // ── v0.21.2: pickup pose — bend down to the floor procedurally, on top
+  // of whatever clip is playing (the clips stamp Hips.position every frame,
+  // so lowering it here is safe). Squat with the knees forward, drop the
+  // hips by what the bent legs lose in height, lean the spine forward.
+  let _ppBones;
+  const _ppRight = new THREE.Vector3(), _ppT = new THREE.Vector3(), _ppAx = new THREE.Vector3();
+  const _ppPQ = new THREE.Quaternion(), _ppQA = new THREE.Quaternion(), _ppQT = new THREE.Quaternion();
+  const _ppV1 = new THREE.Vector3(), _ppV2 = new THREE.Vector3();
+  function _ppFind() {
+    if (_ppBones !== undefined) return _ppBones;
+    const b = {}; astronautRoot.traverse(o => { if (o.isBone) b[o.name.replace(/^mixamorig:?/, '')] = o; });
+    _ppBones = b.Hips && b.Spine && b.LeftUpLeg ? {
+      hips: b.Hips, spine: [b.Spine, b.Spine1, b.Spine2].filter(Boolean),
+      legs: [[b.LeftUpLeg, b.LeftLeg, b.LeftFoot], [b.RightUpLeg, b.RightLeg, b.RightFoot]],
+      lUpper: b.LeftArm, lFore: b.LeftForeArm, lHand: b.LeftHand,
+    } : null;
+    return _ppBones;
+  }
+  function _bendWorld(bone, axis, ang) {                 // rotate a bone about a world axis
+    bone.parent.getWorldQuaternion(_ppPQ);
+    _ppQA.setFromAxisAngle(axis, ang);
+    _ppQT.copy(_ppPQ).invert().multiply(_ppQA).multiply(_ppPQ);
+    bone.quaternion.premultiply(_ppQT);
+    bone.updateMatrixWorld(true);
+  }
+  function _pickupPose() {
+    const c = reach.crouch; if (c < 0.01 || !_ppFind()) return;
+    const B = _ppBones, h = player.heading;
+    _ppAx.set(Math.cos(h), 0, -Math.sin(h));             // up × forward: + leans forward
+    const a = c * 1.1;                                   // knee angle (rad)
+    // leg lengths in world units, to know how far the hips come down
+    B.legs[0][0].updateWorldMatrix(true, true);
+    const th = _ppV1.setFromMatrixPosition(B.legs[0][0].matrixWorld).distanceTo(_ppV2.setFromMatrixPosition(B.legs[0][1].matrixWorld));
+    const sh = _ppV1.setFromMatrixPosition(B.legs[0][1].matrixWorld).distanceTo(_ppV2.setFromMatrixPosition(B.legs[0][2].matrixWorld));
+    const drop = (th + sh) * (1 - Math.cos(a)) * 0.95;
+    // hips down (convert a world offset into the hips' parent space)
+    B.hips.getWorldPosition(_ppV1); _ppV1.y -= drop;
+    B.hips.parent.worldToLocal(_ppV1); B.hips.position.copy(_ppV1); B.hips.updateMatrixWorld(true);
+    for (const [up, lo, ft] of B.legs) {
+      if (!up || !lo) continue;
+      _bendWorld(up, _ppAx, -a);                         // thigh: knee comes forward
+      _bendWorld(lo, _ppAx, 2 * a);                      // shin back under
+      if (ft) _bendWorld(ft, _ppAx, -a);                 // foot flat
+    }
+    const lean = c * 0.95, share = [0.45, 0.35, 0.2];
+    B.spine.forEach((sp, i) => _bendWorld(sp, _ppAx, lean * share[i]));
   }
 
   // Refill connect gesture — hand goes to the panel, hose latches on
@@ -15591,9 +15658,11 @@ body.in-wreck .cam-buttons { display: none; }
     }
     // Held in front at chest height, swaying with the walk.
     const f = _fwd();
-    const tx = player.pos.x + Math.sin(player.heading) * 0.62;
-    const tz = player.pos.z + Math.cos(player.heading) * 0.62;
-    const ty = player.pos.y + 1.05 + Math.sin(performance.now() * 0.004) * 0.02;
+    // v0.21.2: at his chest, in reach of both hands — a little further out for big parts
+    if (c.reachOut === undefined) { const bb = new THREE.Box3().setFromObject(c.mesh), sz = bb.getSize(new THREE.Vector3()); c.reachOut = 0.3 + Math.min(0.35, Math.max(sz.x, sz.z) * 0.3); c.lift = 0.6 + Math.min(0.15, sz.y * 0.3); }
+    const tx = player.pos.x + Math.sin(player.heading) * c.reachOut;
+    const tz = player.pos.z + Math.cos(player.heading) * c.reachOut;
+    const ty = player.pos.y + c.lift + Math.sin(performance.now() * 0.004) * 0.015;
     const k = Math.min(1, dt * 12);
     c.mesh.position.x += (tx - c.mesh.position.x) * k;
     c.mesh.position.y += (ty - c.mesh.position.y) * k;
