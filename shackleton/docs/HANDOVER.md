@@ -1,0 +1,102 @@
+# Shackleton — handover (read this first)
+
+Last updated 15 Nov 2026, at **v0.22.3**. This file supersedes the older handoff docs for **build state**. For story, use `SCRIPT.md` and `MEMORY_SPEC.md`. For systems, use the design docs in this folder.
+
+## Where things are
+
+- **Repo:** `kalhalla/khalifa-games`, folder `shackleton/`. The game is one file, `index.html` (about 17.5k lines). Alongside it: `lunar-terrain.js`, `o2-panel.js`, `assets/` (robots, music).
+- **Live:** khalifa.games/shackleton, built by Cloudflare Workers Builds from `main`. Branch commits always fail the Workers check; that's normal. Only `main` matters.
+- **Preview:** branch `stage1-pipeline`, built by Vercel: https://khalifa-games-git-stage1-pipeline-khalifa-sabers-projects.vercel.app/shackleton/
+- **URL switches:**
+  - `?debug`: `window.__shk(src)` evaluates inside the game closure; `window.__step(n, dt)` advances in fixed steps. Robots show their intention, state and affinity.
+  - `?debug&colliders` draws the box colliders.
+  - `?nominds` turns the robot minds off.
+  - `?wreck2=in` starts inside the wreck.
+
+## Rules (Khal's)
+
+- Push to `stage1-pipeline` only. Merge to `main` only when Khal says "push live".
+- Read the file before editing. Use exact-match edits.
+- After every edit, run the parse check (below).
+- Bump `BUILD_VERSION` on every build.
+- Never ship geometry without checking it in a render or numerically.
+- Commits end with:
+  ```
+  Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+  Claude-Session: <session link>
+  ```
+- Khal's email is private.
+- Music must be original, never a copy of a real score.
+- UK English. Short replies; he reads on a phone.
+- Exterior walking, running and jumping were approved at v0.10.7. Don't change the outdoor stride unless asked.
+
+**Parse check:**
+```
+awk 'BEGIN{n=0} /^<script type="module">$/{n++} n==3' index.html | sed '1d' | sed '/^<\/script>$/,$d' > /tmp/game.js && node --check /tmp/game.js
+```
+
+## Version history since live v0.19.0
+
+| Version | What |
+|---|---|
+| v0.19.1 | KHAL hull lettering; wreck interior dressed; original music loop |
+| v0.20.0 | Airlock replaces the breach (outer hatch → chamber → inner hatch) |
+| v0.20.1 | Red light in unpowered rooms; life support goes white when fixed; lit boards |
+| v0.21.0 | Puzzles v2: brace as a load puzzle with M-08; ice pocket as a light puzzle |
+| v0.21.1–3 | M-08 lifting pose; rough ridge boulders; prop prompt fix; collision (props, head bump, robots); pickup animation |
+| v0.22.0 | Robot minds, stage 1 |
+| v0.22.1 | Devotion; suit O₂ warnings at 20% and 10% |
+| v0.22.2 | L-07's spare O₂ bottle |
+| v0.22.3 | Shadow acne fix (the flicker on the hull and robots) |
+
+## Key systems and where they live in `index.html`
+
+- **Music:** `updateMusic()`; `assets/music/shackleton_theme.mp3` (128 s loop, level 0.30, ×0.7 in the wreck, silent in memories and the demo end).
+- **Airlock:** `airlockCycle` IIFE. Globals `airlockLock`, `airlockDrive`, `aimLock`, `puzzleHintFns`. Camera override `camFor`.
+- **Wreck lighting and boards:** `wreckBoards` IIFE; `wreckLevel.lsLight`.
+- **Brace puzzle:** `braceV2` IIFE. See `PUZZLES_V2.md`.
+- **Ice pocket puzzle:** `iceV2` IIFE. See `PUZZLES_V2.md`.
+- **Collision:** `boxResolvePlayer` (head bump, grounded-only step-up), `robotResolvePlayer` (radius 0.42), `wreckPropColliders` (tag `'wreckProps'`).
+- **Pickup pose:** `_pickupPose`, `reach.crouch`.
+- **Robot minds:** `robotMinds` IIFE after `ROBOT_NAMES`. See `ROBOT_MINDS.md`.
+- **O₂ warnings:** `_o2Warnings(dt)`, `#o2-warn`, `#o2-edge`.
+- **Shadows:** about line 796. Sun bias −0.0004, normalBias 0.03 (v0.22.3). Sun at 17° (`SUN_ELEV_DEG`), PCFSoft, 4096 map, follows him ±90 m.
+- **Robot indices:** `robots[0]` = P-03 (blue), `[1]` = L-07 (yellow), `[2]` = M-08 (red).
+
+## Test harness (rebuild in a new sandbox)
+
+The sandbox can't reach CDNs, so use a local harness:
+- `npm i three@0.187.0 puppeteer-core`.
+- Copy `shackleton/` and the root `assets/` into a `root/` folder. Rewrite the import-map URLs to a local copy of `three/build` and `examples/jsm`.
+- Serve with `python3 -m http.server`.
+- Drive headless Chrome with `--use-gl=swiftshader --enable-unsafe-swiftshader`.
+- Load `?debug`. Wait for loading to finish before pressing Enter. Run the opening with `__step(1300)`, then teleport, act and screenshot.
+- Swiftshader runs at 2–4 fps; use `__step` for anything timed. Set `keys['w']`, not `input.forward`.
+- Headless Chrome never decodes audio.
+- The stabiliser uses a real-time 900 ms `setTimeout`, so wait 4 s after the drops.
+- Regression scripts used: full chain, wrong-then-right brace, ice puzzle by prompts, rescue, O₂ warnings, bottle, minds, collision. They lived in `/tmp` and are lost with the sandbox; rewrite from the puzzle docs.
+
+## Open, in rough order
+
+1. **Khal:** test v0.22.3 on his phone (aim mode on the stick, the robot tones, music, airlock sounds, the wrist pad, frame rate with the extra lights).
+2. **Trailer re-shoot at 1080p.** Let the robots run free (pinning them caused the vibration). Replace the breach shot with the airlock and the life-support power-up.
+3. **Robot minds, stage 2** (offered, not yet asked for): investigate, inspect the return path, line of sight on events, greeting and affinity, remembered places.
+4. Tune the bottle (15% vs 10%) after Khal plays it.
+5. The demo ending (ice memory, then Michel's cut-off warning, then a "3 parts missing" card with the wishlist prompt). Decided 13 Nov, not built.
+6. Older items: knee joints, close-up brace panel, sound pass, a spectacle beat, Mixamo clips.
+7. **Khal:** Steamworks account and fee, the name check, Next Fest registration (February Next Fest closes 10 Jan 2027). See `STEAM_PAGE.md`.
+
+## Docs in this folder
+
+| File | What |
+|---|---|
+| `HANDOVER.md` | This file |
+| `SCRIPT.md` | Full story script (canon) |
+| `MEMORY_SPEC.md`, `memory_fragments.js` | Memory fragment system and data |
+| `ROBOT_MINDS.md` | Robot AI design and build status |
+| `PUZZLES_V2.md` | Brace and ice pocket puzzles |
+| `RADIO_PLAN.md` | Helmet radio and wrist-pad questions |
+| `WRECK_PLAN.md` | Wreck interior plan and room order |
+| `STEAM_PAGE.md` | Steam store kit |
+
+The same docs, plus the older day-by-day handoff notes (12–14 Nov), are kept in the claude.ai project "Shackleton - Luner settlement game". This folder is excluded from the live site by `.assetsignore`, so the script isn't public.
