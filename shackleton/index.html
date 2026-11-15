@@ -667,7 +667,7 @@ body.in-wreck .cam-buttons { display: none; }
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.20.0';  // airlock cycle replaces the breach; interior relit. was v0.19.1;  // KHAL on the hull; wreck interior dressed; blockout labels dev-only. was v0.19.0;  // helmet radio for all voices; robot chirps + eye flash; wrist-pad questions to the robots. was v0.18.7;  // robot legs double-sided with dark cores; toe flaps 1.6x. was v0.18.6;  // robot ankles: foot pad on a ball joint, kept level while planted. was v0.18.5;  // robot toes bend to stay on the ground through stance. was v0.18.4;  // robot gait: bird-like stance/swing, bigger leg swing, pistons follow, body dip, feet planted. was v0.18.3;  // engine nozzles 25% larger. was v0.18.2;  // wreck: four landing legs in housings (two intact, two buckled), half-size blackened nozzles. was v0.18.1;  // wreck: sealed middle/nose, rear-only damage + tanks, doorway recess, NASA stacked, regolith imprint. was v0.18.0;  // wreck exterior: painted skin, round hull, ogive nose, engine bells, landing legs. was v0.17.3;  // robot eyes blink and look; gestures: wave, hand up, tap-and-point. was v0.17.2;  // robot legs: piston shins, hinged toes, less body sway. was v0.17.1;  // built tools on the Meshy robots: drill + saw, gripper, three-finger claws. was v0.17.0;  // Meshy robots, cut into jointed parts and driven by the walk rig. was v0.16.0;  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.20.1';  // red emergency light back in unpowered rooms; life support goes white when fixed; lit control boards. was v0.20.0;  // airlock cycle replaces the breach; interior relit. was v0.19.1;  // KHAL on the hull; wreck interior dressed; blockout labels dev-only. was v0.19.0;  // helmet radio for all voices; robot chirps + eye flash; wrist-pad questions to the robots. was v0.18.7;  // robot legs double-sided with dark cores; toe flaps 1.6x. was v0.18.6;  // robot ankles: foot pad on a ball joint, kept level while planted. was v0.18.5;  // robot toes bend to stay on the ground through stance. was v0.18.4;  // robot gait: bird-like stance/swing, bigger leg swing, pistons follow, body dip, feet planted. was v0.18.3;  // engine nozzles 25% larger. was v0.18.2;  // wreck: four landing legs in housings (two intact, two buckled), half-size blackened nozzles. was v0.18.1;  // wreck: sealed middle/nose, rear-only damage + tanks, doorway recess, NASA stacked, regolith imprint. was v0.18.0;  // wreck exterior: painted skin, round hull, ogive nose, engine bells, landing legs. was v0.17.3;  // robot eyes blink and look; gestures: wave, hand up, tap-and-point. was v0.17.2;  // robot legs: piston shins, hinged toes, less body sway. was v0.17.1;  // built tools on the Meshy robots: drill + saw, gripper, three-finger claws. was v0.17.0;  // Meshy robots, cut into jointed parts and driven by the walk rig. was v0.16.0;  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -15838,17 +15838,18 @@ body.in-wreck .cam-buttons { display: none; }
       const l = new THREE.PointLight(c, i, d * WL_K, 2);
       l.position.set(x * WL_K, y, z * WL_K); root.add(l); lights.push(l); return l;
     }
-    // v0.20.0 lighting: emergency power is on. Warm work light in the
-    // unconverted rooms, cool white in the converted ones; red is only an
-    // accent (the crew-quarters strip, the beacon, LEDs), never the room.
-    const amb = new THREE.AmbientLight(0x40444c, 0.85); root.add(amb);
-    pl(0xffd9b0, 1.5, 9, 3.6, 5.2, 0);                                   // flight deck
-    pl(0xffd9b0, 1.4, 8, 10.5, 5.5, 0.6);                                // crew quarters
-    pl(0xff4a3a, 0.35, 5, 10.5, 7.2, -2.6);                              //   red strip spill, low
-    pl(0xdfe8ff, 1.6, 9, 18.5, 5.0, -0.3);                               // converted rooms: cool white
-    pl(0xdfe8ff, 1.3, 8, 28.2, 5.0, 1.2);
-    pl(0xffe2c0, 1.5, 10, 34, 5.8, 0.5);                                 // cargo bay
-    pl(0xffb347, 1.1, 9, 40, 4.8, 0);                                    //   amber near the sealed tail
+    // v0.20.1 lighting: the rooms without power run on red emergency
+    // light (flight deck, crew quarters, cargo bay, and life support until
+    // the stabiliser is fixed — then it comes on white). The suit bay has
+    // power: the airlock works. Detail comes from the lit control boards
+    // (wreckBoards) and the chest lamp.
+    const amb = new THREE.AmbientLight(0x2c2426, 0.55); root.add(amb);
+    pl(0xff2a1e, 2.0, 9, 3.6, 5.2, 0);                                   // flight deck — no power
+    pl(0xff2a1e, 1.9, 8, 10.5, 5.5, 0.6);                                // crew quarters — no power
+    const lsLight = pl(0xff2a1e, 2.0, 9, 18.5, 5.0, -0.3);               // life support — white once fixed
+    pl(0xdfe8ff, 1.4, 8, 28.2, 5.0, 1.2);                                // suit bay — powered
+    pl(0xff2a1e, 2.0, 10, 34, 5.8, 0.5);                                 // cargo bay — no power
+    pl(0xffb347, 1.0, 9, 40, 4.8, 0);                                    //   amber near the sealed tail
     // Helmet lamp — follows the astronaut's head, casts the only moving shadows.
     const lamp = new THREE.SpotLight(0xfff4dc, 1.6, 15, 0.52, 0.55, 1.6);
     lamp.shadow.mapSize.set(512, 512);
@@ -15898,7 +15899,7 @@ body.in-wreck .cam-buttons { display: none; }
     }
     const SPAWN = { x: 26.5 * WL_K, z: -1.7 * WL_K, heading: 0 };
     const EXIT = { x: 26.5 * WL_K, z: -2.2 * WL_K };
-    return { root, boxes, zones, lights, lamp, flare, labels, SPAWN, EXIT };
+    return { root, boxes, zones, lights, lsLight, lamp, flare, labels, SPAWN, EXIT };
   })();
 
 
@@ -16443,6 +16444,114 @@ body.in-wreck .cam-buttons { display: none; }
     return { A, SPAWN, CX, ZI, ZO, outsideEnter, insideLeave, arrive, departed, tick, camFor, inChamber };
   })();
 
+  // ============================================================
+  // CONTROL BOARDS (v0.20.1) — lit detail in the red rooms. Each board
+  // is a canvas (buttons, small screens, gauges) on a bulkhead. Rooms
+  // without power show only scattered fault lights and a dead screen or
+  // two; the life-support board comes alive when the stabiliser is fixed,
+  // and the room light goes from red to white with a stutter.
+  // ============================================================
+  const wreckBoards = (function () {
+    const R = wreckLevel.root;
+    let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const boards = [];
+    // room: 'flight' | 'crew' | 'life' | 'suit' | 'cargo'
+    function board(room, x, z, yaw, w, h, y, title, spill) {
+      const c = document.createElement('canvas'); c.width = 512; c.height = Math.round(512 * h / w);
+      const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+      const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = yaw; R.add(g);
+      const back = new THREE.Mesh(new THREE.BoxGeometry(w + 0.12, h + 0.12, 0.08), new THREE.MeshPhongMaterial({ color: 0x25272b, flatShading: true }));
+      back.position.z = -0.03; g.add(back);
+      const face = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: tex, toneMapped: false }));
+      face.position.z = 0.015; g.add(face);
+      // a sloped desk lip under the big boards, so it reads as a console
+      if (h > 1.2) { const lip = new THREE.Mesh(new THREE.BoxGeometry(w + 0.1, 0.08, 0.45), back.material); lip.position.set(0, -h / 2 - 0.02, 0.2); lip.rotation.x = 0.25; g.add(lip); }
+      // layout, generated once
+      const L = [], W = c.width, H = c.height;
+      L.push({ k: 'title', t: title });
+      const cols = Math.max(2, Math.round(w / 0.9));
+      for (let i = 0; i < cols; i++) {
+        const cx = 14 + i * (W - 28) / cols, cw = (W - 28) / cols - 12;
+        if (rnd() < 0.55) L.push({ k: 'screen', x: cx, y: 40, w: cw, h: H * 0.38, seed: rnd(), dead: rnd() < 0.5 });
+        else L.push({ k: 'gauge', x: cx + cw / 2, y: 40 + H * 0.19, r: Math.min(cw, H * 0.38) * 0.42, v: rnd() });
+        const rows = 2 + Math.floor(rnd() * 3), bc = 4 + Math.floor(rnd() * 3);
+        for (let r = 0; r < rows; r++) for (let b = 0; b < bc; b++)
+          L.push({ k: 'btn', x: cx + b * cw / bc + 3, y: 52 + H * 0.38 + r * 26, w: cw / bc - 6, h: 16, col: ['#4fd27a', '#ffb347', '#5ab8ff', '#e8e8e0', '#ff5a4a'][Math.floor(rnd() * 5)], ph: rnd() * 6.28, fault: rnd() < 0.12 });
+      }
+      let light = null;
+      if (spill) { light = new THREE.PointLight(0xff5040, 0.4, 3.2, 2); light.position.set(0, 0, 0.6); g.add(light); }
+      const b = { room, c, tex, L, light, last: -1 };
+      boards.push(b); return b;
+    }
+    function draw(b, t, on, boot) {
+      const g = b.c.getContext('2d'), W = b.c.width, H = b.c.height;
+      g.fillStyle = '#16181b'; g.fillRect(0, 0, W, H);
+      for (const e of b.L) {
+        if (e.k === 'title') { g.fillStyle = on ? '#9aa4ad' : '#5a4a48'; g.font = '700 18px monospace'; g.fillText(e.t, 14, 26); continue; }
+        if (e.k === 'btn') {
+          const lit = on ? (rnd2(e.ph + Math.floor(t * 0.7)) > 0.25 && e.ph / 6.28 < boot) : (e.fault && Math.sin(t * 5 + e.ph * 3) > 0);
+          g.fillStyle = lit ? (on ? e.col : '#ff3b2f') : '#2a2c30'; g.fillRect(e.x, e.y, e.w, e.h);
+          if (lit) { g.fillStyle = 'rgba(255,255,255,0.25)'; g.fillRect(e.x, e.y, e.w, 3); }
+          continue;
+        }
+        if (e.k === 'screen') {
+          g.fillStyle = '#05080a'; g.fillRect(e.x, e.y, e.w, e.h);
+          if (on && e.seed < boot) {
+            g.strokeStyle = '#4fd27a'; g.lineWidth = 2; g.beginPath();
+            for (let i = 0; i <= 24; i++) { const xx = e.x + 6 + i * (e.w - 12) / 24, yy = e.y + e.h * 0.6 - Math.sin(i * 0.7 + t * 2 + e.seed * 9) * e.h * 0.18 * (0.6 + 0.4 * Math.sin(i * 1.7 + e.seed));
+              if (i) g.lineTo(xx, yy); else g.moveTo(xx, yy); } g.stroke();
+            g.fillStyle = '#4fd27a'; g.font = '13px monospace'; g.fillText('O2 ' + (98 + Math.sin(t + e.seed) * 1.2).toFixed(1) + '%', e.x + 6, e.y + 16);
+          } else if (!on && !e.dead) {
+            // dead screen with a weak flicker of a fault line
+            if (Math.sin(t * 13 + e.seed * 40) > -0.3) { g.fillStyle = '#ff3b2f'; g.font = '13px monospace'; g.fillText('NO POWER', e.x + 6, e.y + 18); }
+          }
+          continue;
+        }
+        if (e.k === 'gauge') {
+          g.strokeStyle = on ? '#5a6068' : '#3a3434'; g.lineWidth = 3; g.beginPath(); g.arc(e.x, e.y, e.r, Math.PI * 0.8, Math.PI * 2.2); g.stroke();
+          const v = on ? 0.55 + 0.1 * Math.sin(t * 0.8 + e.v * 6) : 0.02;
+          const a = Math.PI * 0.8 + v * Math.PI * 1.4;
+          g.strokeStyle = on ? '#ffb347' : '#6a3a34'; g.beginPath(); g.moveTo(e.x, e.y); g.lineTo(e.x + Math.cos(a) * e.r * 0.85, e.y + Math.sin(a) * e.r * 0.85); g.stroke();
+        }
+      }
+      b.tex.needsUpdate = true;
+    }
+    function rnd2(x) { const s = Math.sin(x * 127.1) * 43758.5453; return s - Math.floor(s); }
+    const X = (d) => d * WL_K, HW = WL_HALF_W * WL_K, PI = Math.PI;
+    // flight deck: the main console across the nose
+    board('flight', 6.4, HW - 0.2, PI, 3.6, 1.5, 1.85, 'FLIGHT  —  MAIN BUS OFFLINE', true);   // +z wall (the nose is crushed)
+    // crew quarters: environment panel by the forward door
+    board('crew', X(7) + 0.22, -2.7, PI / 2, 2.0, 0.9, 1.6, 'CREW DECK  ENV', false);
+    // life support: the big board beside the door — wakes with the stabiliser
+    const life = board('life', X(19.5), HW - 0.2, PI, 3.0, 1.45, 1.8, 'LIFE SUPPORT', true);   // +z wall, clear of the stabiliser
+    // suit bay: suit status, powered
+    board('suit', X(23) + 0.22, -2.6, PI / 2, 2.4, 1.0, 1.7, 'SUIT BAY  STATUS', false);
+    // cargo bay: manifest terminal
+    board('cargo', X(30) + 0.22, 2.6, PI / 2, 2.4, 1.0, 1.7, 'CARGO  MANIFEST', false);
+    let lsOn = 0, lsT = -1, acc = 0, time = 0;
+    function powered(room) { return room === 'suit' || (room === 'life' && wreckInterior.solved); }
+    function tick(dt) {
+      time += dt; acc += dt;
+      const solved = !!wreckInterior.solved;
+      if (solved && lsT < 0) lsT = 0;
+      if (lsT >= 0) lsT += dt;
+      // the stutter: three blinks, then on
+      const stut = lsT < 0 ? 0 : lsT < 0.15 ? 1 : lsT < 0.3 ? 0 : lsT < 0.4 ? 1 : lsT < 0.7 ? 0 : lsT < 0.8 ? 1 : lsT < 0.95 ? 0.3 : 1;
+      lsOn = stut;
+      const L = wreckLevel.lsLight;
+      if (L) { L.color.setHex(lsOn > 0.5 ? 0xdfe8ff : 0xff2a1e); L.intensity = lsOn > 0.5 ? 2.2 : (lsT >= 0 && lsT < 1 ? 0.4 : 2.0); }
+      if (life.light) { life.light.color.setHex(lsOn > 0.5 ? 0x60d0ff : 0xff5040); life.light.intensity = lsOn > 0.5 ? 0.7 : 0.4; }
+      if (acc < 0.2) return; acc = 0;                      // boards redraw at 5 Hz
+      for (const b of boards) {
+        const on = powered(b.room) && !(b.room === 'life' && lsOn < 0.5);
+        const boot = b.room === 'life' ? Math.min(1, Math.max(0, (lsT - 0.9) / 1.5)) : 1;
+        draw(b, time, on, boot);
+      }
+    }
+    for (const b of boards) draw(b, 0, powered(b.room), 1);
+    return { tick, boards };
+  })();
+
   // ── v0.11.0: Puzzle B (structural brace) and M-08 live in the cargo bay ──
   // Same idea as Puzzle A below: the set was built in crater coordinates
   // (brace at 13.0, −2.95); with ?wreck2 everything moves by one offset,
@@ -16845,7 +16954,7 @@ body.in-wreck .cam-buttons { display: none; }
     try { updateRobotCues(Math.min(0.1, (performance.now() - (updateRobotCues._t || performance.now())) / 1000)); } catch (e) { }
     updateRobotCues._t = performance.now();
     try { updateWristPad(); } catch (e) { }
-    if (level.id === 'wreck') { try { wreckDress.tick(); } catch (e) { } }
+    if (level.id === 'wreck') { try { wreckDress.tick(); } catch (e) { } try { wreckBoards.tick(dt); } catch (e) { console.warn('[boards]', e); } }
     try { airlockCycle.tick(dt); } catch (e) { console.warn('[airlock]', e); }
     try { updateMusic(); } catch (e) { }
     syncRobotGlbs();
