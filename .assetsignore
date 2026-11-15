@@ -7,3 +7,6 @@ vercel.json
 .wrangler
 node_modules
 worker.js
+
+# Parked games: kept in the repo, not published
+lock-in
