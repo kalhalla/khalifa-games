@@ -667,7 +667,7 @@ body.in-wreck .cam-buttons { display: none; }
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.22.1';  // O2 warnings at 20% / 10%; robots' devotion. was v0.22.0;  // robot minds, stage 1. was v0.21.3;  // pick-up pose and two-handed carry. was v0.21.2;  // M-08 lifting pose; rougher ridge rocks. was v0.21.0;  // brace becomes a load puzzle with M-08; ice pocket becomes a light puzzle. was v0.20.1;  // red emergency light back in unpowered rooms; life support goes white when fixed; lit control boards. was v0.20.0;  // airlock cycle replaces the breach; interior relit. was v0.19.1;  // KHAL on the hull; wreck interior dressed; blockout labels dev-only. was v0.19.0;  // helmet radio for all voices; robot chirps + eye flash; wrist-pad questions to the robots. was v0.18.7;  // robot legs double-sided with dark cores; toe flaps 1.6x. was v0.18.6;  // robot ankles: foot pad on a ball joint, kept level while planted. was v0.18.5;  // robot toes bend to stay on the ground through stance. was v0.18.4;  // robot gait: bird-like stance/swing, bigger leg swing, pistons follow, body dip, feet planted. was v0.18.3;  // engine nozzles 25% larger. was v0.18.2;  // wreck: four landing legs in housings (two intact, two buckled), half-size blackened nozzles. was v0.18.1;  // wreck: sealed middle/nose, rear-only damage + tanks, doorway recess, NASA stacked, regolith imprint. was v0.18.0;  // wreck exterior: painted skin, round hull, ogive nose, engine bells, landing legs. was v0.17.3;  // robot eyes blink and look; gestures: wave, hand up, tap-and-point. was v0.17.2;  // robot legs: piston shins, hinged toes, less body sway. was v0.17.1;  // built tools on the Meshy robots: drill + saw, gripper, three-finger claws. was v0.17.0;  // Meshy robots, cut into jointed parts and driven by the walk rig. was v0.16.0;  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.22.2';  // L-07's spare bottle after the first rescue. was v0.22.1;  // O2 warnings at 20% / 10%; robots' devotion. was v0.22.0;  // robot minds, stage 1. was v0.21.3;  // pick-up pose and two-handed carry. was v0.21.2;  // M-08 lifting pose; rougher ridge rocks. was v0.21.0;  // brace becomes a load puzzle with M-08; ice pocket becomes a light puzzle. was v0.20.1;  // red emergency light back in unpowered rooms; life support goes white when fixed; lit control boards. was v0.20.0;  // airlock cycle replaces the breach; interior relit. was v0.19.1;  // KHAL on the hull; wreck interior dressed; blockout labels dev-only. was v0.19.0;  // helmet radio for all voices; robot chirps + eye flash; wrist-pad questions to the robots. was v0.18.7;  // robot legs double-sided with dark cores; toe flaps 1.6x. was v0.18.6;  // robot ankles: foot pad on a ball joint, kept level while planted. was v0.18.5;  // robot toes bend to stay on the ground through stance. was v0.18.4;  // robot gait: bird-like stance/swing, bigger leg swing, pistons follow, body dip, feet planted. was v0.18.3;  // engine nozzles 25% larger. was v0.18.2;  // wreck: four landing legs in housings (two intact, two buckled), half-size blackened nozzles. was v0.18.1;  // wreck: sealed middle/nose, rear-only damage + tanks, doorway recess, NASA stacked, regolith imprint. was v0.18.0;  // wreck exterior: painted skin, round hull, ogive nose, engine bells, landing legs. was v0.17.3;  // robot eyes blink and look; gestures: wave, hand up, tap-and-point. was v0.17.2;  // robot legs: piston shins, hinged toes, less body sway. was v0.17.1;  // built tools on the Meshy robots: drill + saw, gripper, three-finger claws. was v0.17.0;  // Meshy robots, cut into jointed parts and driven by the walk rig. was v0.16.0;  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -5400,6 +5400,7 @@ body.in-wreck .cam-buttons { display: none; }
         if (msgEl)  msgEl.style.opacity = '0';
         oxygen.dead = false;
         oxygen.rescueT = 0;
+        try { robotMinds.unlockBottle(); } catch (e) { }          // v0.22.2: L-07 starts carrying spare air
         if (rescueSit.active && !rescueSit.spoke) {
           rescueSit.spoke = true;
           speak('SUIT', 'emergency umbilical attached — O₂ flow nominal', 3.2,
@@ -8217,7 +8218,7 @@ body.in-wreck .cam-buttons { display: none; }
     robot.rotation.y = r.heading;
 
     const ud = robot.userData;
-    const moving = (r.state === 'walking') || r.state === 'mind_walk' || ((r.state === 'escort' || r.state === 'lead') && r._moving)
+    const moving = (r.state === 'walking') || r.state === 'mind_walk' || ((r.state === 'escort' || r.state === 'lead' || r.state === 'share') && r._moving)
                 || ((r.state === 'studying_rock' || r.state === 'investigating_tunnel')
                      && r.subPhase === 'approach');
     if (moving) {
@@ -15373,7 +15374,60 @@ body.in-wreck .cam-buttons { display: none; }
       wait: [['come.'], ['come. hurry.'], ['come.']],
       high: [['careful.'], ['careful.', 'down.'], ['high.']],
       still: [[''], ['here.'], ['here.', 'with you.']],
+      share: [[''], ['air. take.', 'share.'], ['']],
     };
+    // ── v0.22.2: L-07's spare bottle. After it has dragged him back from a
+    // blackout once, L-07 carries a small bottle: one top-up of 15% of his
+    // tank — enough to buy time, not to promise he gets home. It refills
+    // when L-07 next passes the O₂ station.
+    const bottle = { has: false, full: false, mesh: null, hose: null, hoseT: 0 };
+    function bottleMesh() {
+      if (bottle.mesh) return;
+      const ud = robots[1].userData, host = ud.bodyGroup || robots[1];
+      const g = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.34, 10), new THREE.MeshPhongMaterial({ color: 0xd8dde3, shininess: 60 }));
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.06, 0.07, 8), new THREE.MeshPhongMaterial({ color: 0xe0782a }));
+      cap.position.y = 0.2; g.add(body, cap);
+      const band = new THREE.Mesh(new THREE.CylinderGeometry(0.078, 0.078, 0.05, 10), new THREE.MeshBasicMaterial({ color: 0x3ad06a }));
+      band.position.y = 0.05; g.add(band); g.userData.band = band;
+      g.position.set(-0.16, 0.42, -0.26); g.rotation.z = 0.15; host.add(g);
+      bottle.mesh = g;
+      const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+      bottle.hose = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0xe0782a })); bottle.hose.visible = false; scene.add(bottle.hose);
+    }
+    function bottleShow() {
+      if (!bottle.mesh) return;
+      bottle.mesh.visible = bottle.has;
+      bottle.mesh.userData.band.material.color.setHex(bottle.full ? 0x3ad06a : 0x55302a);
+    }
+    function unlockBottle() {
+      if (bottle.has) return; bottleMesh(); bottle.has = true; bottle.full = true; bottleShow();
+      setTimeout(() => { try { speak('L-07', 'spare. for you.', 2.6, { kind: 'robot' }); } catch (e) { } }, 6500);
+    }
+    function giveAir(m) {
+      if (!bottle.full) return;
+      const cap = Math.max(1, oxygen.capacity);
+      oxygen.percent = Math.min(cap, oxygen.percent + cap * 0.15);
+      bottle.full = false; bottleShow(); bottle.hoseT = 2.4; bottle.hose.visible = true;
+      try { if (o2w.el) o2w.el.classList.remove('on'); } catch (e) { }
+      lastBark = -99; bark(m, 'share');
+      speak('SUIT', 'O₂ +15% — from L-07\'s spare bottle', 3.0, { kind: 'system', delay: 0.6 });
+      if (audioCtx && masterGain) { const t0 = audioCtx.currentTime, n = audioCtx.sampleRate * 1.6, bf = audioCtx.createBuffer(1, n, audioCtx.sampleRate), d = bf.getChannelData(0);
+        for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1; const sN = audioCtx.createBufferSource(); sN.buffer = bf; const f = audioCtx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1400;
+        const e = audioCtx.createGain(); e.gain.setValueAtTime(0, t0); e.gain.linearRampToValueAtTime(0.05, t0 + 0.2); e.gain.linearRampToValueAtTime(0, t0 + 1.6); sN.connect(f); f.connect(e); e.connect(masterGain); sN.start(t0); }
+    }
+    function bottleTick(dt) {
+      if (!bottle.has) return;
+      // recharge at the station
+      if (!bottle.full && Math.hypot(robotStates[1].pos.x - REFILL_PANEL_POS.x, robotStates[1].pos.z - REFILL_PANEL_POS.z) < 6) { bottle.full = true; bottleShow(); }
+      if (bottle.hoseT > 0) {
+        bottle.hoseT -= dt;
+        const a = new THREE.Vector3(); (bottle.mesh || robots[1]).getWorldPosition(a);
+        const bpos = bottle.hose.geometry.attributes.position;
+        bpos.setXYZ(0, a.x, a.y, a.z); bpos.setXYZ(1, player.pos.x, player.pos.y + 1.1, player.pos.z); bpos.needsUpdate = true;
+        if (bottle.hoseT <= 0) bottle.hose.visible = false;
+      }
+    }
     const M = robotStates.map((r, i) => ({
       i, d: { mission: 0.4 + Math.random() * 0.3, protect: 0.2, curious: 0.3, company: 0.3 },
       affinity: 0.35, intent: 'rest', since: 0, nextThink: 1 + i, events: [], said: {}, label: null,
@@ -15422,11 +15476,18 @@ body.in-wreck .cam-buttons { display: none; }
       const out = [];
       const add = (name, s) => out.push({ name, s: s + Math.random() * 0.08 + (name === m.intent ? 0.15 : 0) });   // a little loyalty to what it is doing
       add('work', p.mission * d.mission);
+      if (m.i === 1 && bottle.has && !bottle.full) add('refillBottle', 0.55);
       add('rest', 0.12);
       const crit = recent('oxygenCritical', 10), low = recent('oxygenLow', 10), fall = recent('hardLanding', 8);
       if ((crit || low || fall) && dist < 80) add('checkOn', 1.2 * p.protect * p.devotion + (crit ? 0.6 : 0) + (fall ? 0.2 : 0));
+      // L-07's spare bottle comes first when he is dangerously low
+      const critNow = oxygen.percent / Math.max(1, oxygen.capacity) <= 0.11 && !refill.connected;   // as it is now, not just the alarm
+      // L-07 judges it: go now if the air he has left won't get him back to the station
+      const ratio = oxygen.percent / Math.max(1, oxygen.capacity), secsLeft = oxygen.percent / Math.max(0.01, OXYGEN_DRAIN_RATE);
+      const shortOfAir = !refill.connected && ratio <= 0.25 && o2Dist() / 2.8 > secsLeft * 0.8;
+      if (m.i === 1 && bottle.full && (critNow || shortOfAir) && dist < 90) add('share', 3.0);
       // dangerously low and nowhere near air: one of them leads him to it
-      if (crit && o2Dist() > 8 && (leadBy < 0 || leadBy === m.i)) add('lead', 2.2 * p.protect * p.devotion);
+      if (critNow && o2Dist() > 8 && (leadBy < 0 || leadBy === m.i)) add('lead', 2.2 * p.protect * p.devotion);
       if (recent('highUp', 6) && dist < 40) add('spot', 1.0 * p.protect * p.devotion);
       if (recent('leftWreck', 4) && dist < 50) add('greet', 0.9 * p.company * p.devotion + 0.2);
       if (P.still > 20 && dist < 40 && !P.atO2) add('comfort', 0.8 * p.company * p.devotion);
@@ -15469,6 +15530,10 @@ body.in-wreck .cam-buttons { display: none; }
       } else if (name === 'escort') {
         escortBy = m.i; r.state = 'escort'; r.stateTimer = 20 + Math.random() * 15;
         if (Math.random() < 0.3) bark(m, 'escort');
+      } else if (name === 'share') {
+        r.state = 'share'; r.stateTimer = 60;                 // runs to him, wherever he goes
+      } else if (name === 'refillBottle') {
+        goTo(r, REFILL_PANEL_POS.x + 1.6, REFILL_PANEL_POS.z + 1.0, 0.45, { state: 'manipulating', dur: 4 });
       } else if (name === 'lead') {
         leadBy = m.i; r.state = 'lead'; r.stateTimer = 90; bark(m, 'lead');
       } else if (name === 'spot') {                       // stand below him while he is up high
@@ -15498,6 +15563,7 @@ body.in-wreck .cam-buttons { display: none; }
     function tick(dt) {
       if (!ON) return;
       now += dt;
+      bottleTick(dt);
       // perception (the player)
       const g = !!player.grounded;
       if (!g) P.fallVy = Math.min(P.fallVy, player.vel.y);
@@ -15512,7 +15578,7 @@ body.in-wreck .cam-buttons { display: none; }
       let nearest = 1e9; for (const m of M) nearest = Math.min(nearest, Math.hypot(robotStates[m.i].pos.x - player.pos.x, robotStates[m.i].pos.z - player.pos.z));
       P.alone = (nearest > 15 && level.id === 'crater' && controlMode === 'walking') ? (P.alone || 0) + dt : 0;
       if (P.alone > 12 && escortBy < 0) {
-        let best = null, bs = -1; for (const m of M) { if (!canThink(m)) continue; const sc = PERS[m.i].devotion * (0.6 + m.affinity) - Math.hypot(robotStates[m.i].pos.x - player.pos.x, robotStates[m.i].pos.z - player.pos.z) * 0.004; if (sc > bs) { bs = sc; best = m; } }
+        let best = null, bs = -1; for (const m of M) { if (!canThink(m) || ['share', 'lead', 'checkOn'].includes(m.intent)) continue; const sc = PERS[m.i].devotion * (0.6 + m.affinity) - Math.hypot(robotStates[m.i].pos.x - player.pos.x, robotStates[m.i].pos.z - player.pos.z) * 0.004; if (sc > bs) { bs = sc; best = m; } }
         if (best) { start(best, 'escort'); best.nextThink = now + 6; P.alone = 0; }
       }
       const inWreck = level.id === 'wreck';
@@ -15533,12 +15599,12 @@ body.in-wreck .cam-buttons { display: none; }
         // an alarm (low oxygen, a fall, a pickup nearby) breaks into whatever it is doing
         for (let k = ev.length - 1; k >= 0 && now - ev[k].t < 2.5; k--) {
           const e = ev[k]; if (!urgent(e.type) || m.handled === e) continue;
-          m.handled = e; if (now >= ev[k].t + 0.3 + m.i * 0.35) { const pick = score(m); if (['checkOn', 'watch', 'lead', 'spot', 'greet'].includes(pick) && !(m.intent === 'lead' && pick !== 'lead')) { start(m, pick); m.nextThink = now + 3; } }
+          m.handled = e; if (now >= ev[k].t + 0.3 + m.i * 0.35) { const pick = score(m); if (['share', 'checkOn', 'watch', 'lead', 'spot', 'greet'].includes(pick) && !(m.intent === 'lead' && pick !== 'lead') && !(m.intent === 'share' && pick !== 'share')) { start(m, pick); m.nextThink = now + 3; } }
           else m.handled = null;
           break;
         }
         const idleish = r.state === 'idle' || r.state === 'attend' || r.state === 'manipulating' || r.state === 'escort' || r.state === 'walking'
-          || (now - m.since > 8 && m.intent !== 'checkOn' && m.intent !== 'lead');             // any job can be reconsidered after a while
+          || (now - m.since > 8 && m.intent !== 'checkOn' && m.intent !== 'lead' && m.intent !== 'share');             // any job can be reconsidered after a while
         if (now >= m.nextThink && idleish && now - m.since > 3) {
           const pick = score(m);
           if (pick !== m.intent || r.state === 'idle') start(m, pick);
@@ -15564,6 +15630,13 @@ body.in-wreck .cam-buttons { display: none; }
         const f = r.faceAt === 'player' ? player.pos : (typeof r.faceAt === 'number' ? robotStates[r.faceAt].pos : null);
         if (f) turnTo(r, f.x, f.z, dt);
         if (r.stateTimer <= 0) { r.state = 'idle'; r.stateTimer = 0.5; }
+        return true;
+      }
+      if (r.state === 'share') {
+        const dd = Math.hypot(player.pos.x - r.pos.x, player.pos.z - r.pos.z);
+        if (dd > 1.5) { if (!r._mindT) r._mindT = new THREE.Vector3(); r._mindT.set(player.pos.x, r.pos.y, player.pos.z); r.target = r._mindT; r.mindSpeed = dd > 6 ? 2.2 : 1.2; stepWalk(); r._moving = true; }
+        else { r._moving = false; r.mindSpeed = 0.4; giveAir(M[1]); r.state = 'attend'; r.faceAt = 'player'; r.stateTimer = 3; }
+        if (r.stateTimer <= 0 || !bottle.full || level.id !== 'crater' || refill.connected || oxygen.percent / Math.max(1, oxygen.capacity) > 0.3) { r.state = 'idle'; r.stateTimer = 0.5; r._moving = false; r.mindSpeed = 0.4; }
         return true;
       }
       if (r.state === 'lead') {
@@ -15623,7 +15696,7 @@ body.in-wreck .cam-buttons { display: none; }
       m.label.scale.set(1.6, 0.3, 1); m.label.position.y = 1.9; robots[m.i].add(m.label);
     }
     function asked(i) { M[i].affinity = Math.min(1, M[i].affinity + 0.06); }
-    return { tick, step, event, asked, M, ON, get escortBy() { return escortBy; }, get leadBy() { return leadBy; } };
+    return { tick, step, event, asked, M, ON, unlockBottle, bottle, get escortBy() { return escortBy; }, get leadBy() { return leadBy; } };
   })();
 
   const ROBOT_RADIO_IDX = { 'P-03': 0, 'L-07': 1, 'M-08': 2 };
