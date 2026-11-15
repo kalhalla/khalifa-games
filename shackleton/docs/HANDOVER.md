@@ -5,7 +5,7 @@ Last updated 15 Nov 2026, at **v0.22.3**. This file supersedes the older handoff
 ## Where things are
 
 - **Repo:** `kalhalla/khalifa-games`, folder `shackleton/`. The game is one file, `index.html` (about 17.5k lines). Alongside it: `lunar-terrain.js`, `o2-panel.js`, `assets/` (robots, music).
-- **Live:** khalifa.games/shackleton, built by Cloudflare Workers Builds from `main`. Branch commits always fail the Workers check; that's normal. Only `main` matters.
+- **Live:** khalifa.games/shackleton, at **v0.22.3** since 15 Nov. Built by Cloudflare Workers Builds from `main`. Branch commits always fail the Workers check; that's normal. Only `main` matters.
 - **Preview:** branch `stage1-pipeline`, built by Vercel: https://khalifa-games-git-stage1-pipeline-khalifa-sabers-projects.vercel.app/shackleton/
 - **URL switches:**
   - `?debug`: `window.__shk(src)` evaluates inside the game closure; `window.__step(n, dt)` advances in fixed steps. Robots show their intention, state and affinity.
@@ -35,7 +35,7 @@ Last updated 15 Nov 2026, at **v0.22.3**. This file supersedes the older handoff
 awk 'BEGIN{n=0} /^<script type="module">$/{n++} n==3' index.html | sed '1d' | sed '/^<\/script>$/,$d' > /tmp/game.js && node --check /tmp/game.js
 ```
 
-## Version history since live v0.19.0
+## Version history (all live since 15 Nov 2026, merge `16a0ad7`)
 
 | Version | What |
 |---|---|
