@@ -75,11 +75,12 @@ The sandbox can't reach CDNs, so use a local harness:
 - Headless Chrome never decodes audio.
 - The stabiliser uses a real-time 900 ms `setTimeout`, so wait 4 s after the drops.
 - Regression scripts used: full chain, wrong-then-right brace, ice puzzle by prompts, rescue, O₂ warnings, bottle, minds, collision. They lived in `/tmp` and are lost with the sandbox; rewrite from the puzzle docs.
+- **Since 15 Nov the filming harness is saved in `shackleton/docs/harness/`** (film.js, shot setups, captions, edit and cue scripts; see its README). Its setups run the page on a virtual clock: robot sway, gait flag, cue timers and wreck lights read `performance.now()`, so filming on the wall clock (2–4 s per frame) made the robots look like they vibrate.
 
 ## Open, in rough order
 
 1. **Khal:** test v0.22.3 on his phone (aim mode on the stick, the robot tones, music, airlock sounds, the wrist pad, frame rate with the extra lights).
-2. **Trailer re-shoot at 1080p.** Let the robots run free (pinning them caused the vibration). Replace the breach shot with the airlock and the life-support power-up.
+2. ~~Trailer re-shoot at 1080p.~~ **Done 15 Nov (trailer v2):** 28.5 s, 1920×1080, 30 fps, H.264 + AAC, 8.7 Mbps. Robots run free; the breach is replaced by the airlock (outside, then the chamber) and the life-support power-up. Order: wake → L-07 → wreck → walk with robots → M-08 → airlock out → chamber → power-up → radio → ice → Earth → "...Elias?" → title. Sent to Khal, not in the repo (31 MB). Vibration cause: the wall clock in the harness (fixed), plus a real one: robot stride rate scales linearly with speed, so at the escort jog (1.3 m/s) the body bobs ~8.5 Hz. Offered to Khal as a gait fix; not changed.
 3. **Robot minds, stage 2** (offered, not yet asked for): investigate, inspect the return path, line of sight on events, greeting and affinity, remembered places.
 4. Tune the bottle (15% vs 10%) after Khal plays it.
 5. The demo ending (ice memory, then Michel's cut-off warning, then a "3 parts missing" card with the wishlist prompt). Decided 13 Nov, not built.
