@@ -30,3 +30,9 @@ Setup steps: `{waitload}`, `{wait}`, `{key}`, `{eval}`, `{shot}`. Shots: `{name,
 ## Trailer
 `render.sh` films everything at 1920×1080 (~4 s/frame, ~1 h). `edit.py` cuts it with the captions in `cap/`
 (PNG overlays, 1920×1080) and the cue from `trailer_cue_compose.py`.
+
+## v3 notes (15 Nov)
+- `run.sh` starts the local server if it is down (it gets stopped between turns), detached so the shell doesn't hang.
+- Puzzles can be filmed by script: `O2Panel._turn(i)` (turn cells until `turns % 4 == 0`), `braceV2.S` (grip 'lug', valve, pin, phase 'lift' — film after the stabiliser is solved so scene 4 is active), `iceV2.A` (footing 1, mirror −1.52, reflector ≈ 0.6; set `scene6.aligned` first so the solve doesn't fire), the rescue jump (`keys[' ']`; point the game camera along the run before each frame, because movement follows the camera).
+- Robot size: measure meshes part by part. Box3 of the cut GLB 'body' mesh spans the whole original model.
+- Keep robots behind or beside him in shots; close-ups make 1.2 m robots look huge.

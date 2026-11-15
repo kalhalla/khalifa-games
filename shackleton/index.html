@@ -667,7 +667,7 @@ body.in-wreck .cam-buttons { display: none; }
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.23.0';  // robot minds stage 2: sight, investigate, inspect the Flyer, remembered places, affinity from helping. was v0.22.3;  // shadow acne fix (small sun/lamp bias). was v0.22.2;  // L-07's spare bottle after the first rescue. was v0.22.1;  // O2 warnings at 20% / 10%; robots' devotion. was v0.22.0;  // robot minds, stage 1. was v0.21.3;  // pick-up pose and two-handed carry. was v0.21.2;  // M-08 lifting pose; rougher ridge rocks. was v0.21.0;  // brace becomes a load puzzle with M-08; ice pocket becomes a light puzzle. was v0.20.1;  // red emergency light back in unpowered rooms; life support goes white when fixed; lit control boards. was v0.20.0;  // airlock cycle replaces the breach; interior relit. was v0.19.1;  // KHAL on the hull; wreck interior dressed; blockout labels dev-only. was v0.19.0;  // helmet radio for all voices; robot chirps + eye flash; wrist-pad questions to the robots. was v0.18.7;  // robot legs double-sided with dark cores; toe flaps 1.6x. was v0.18.6;  // robot ankles: foot pad on a ball joint, kept level while planted. was v0.18.5;  // robot toes bend to stay on the ground through stance. was v0.18.4;  // robot gait: bird-like stance/swing, bigger leg swing, pistons follow, body dip, feet planted. was v0.18.3;  // engine nozzles 25% larger. was v0.18.2;  // wreck: four landing legs in housings (two intact, two buckled), half-size blackened nozzles. was v0.18.1;  // wreck: sealed middle/nose, rear-only damage + tanks, doorway recess, NASA stacked, regolith imprint. was v0.18.0;  // wreck exterior: painted skin, round hull, ogive nose, engine bells, landing legs. was v0.17.3;  // robot eyes blink and look; gestures: wave, hand up, tap-and-point. was v0.17.2;  // robot legs: piston shins, hinged toes, less body sway. was v0.17.1;  // built tools on the Meshy robots: drill + saw, gripper, three-finger claws. was v0.17.0;  // Meshy robots, cut into jointed parts and driven by the walk rig. was v0.16.0;  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.23.1';  // wreck interior: darker ambient + lamp pools, haze, big hull plates, ribs and stringers. was v0.23.0;  // robot minds stage 2: sight, investigate, inspect the Flyer, remembered places, affinity from helping. was v0.22.3;  // shadow acne fix (small sun/lamp bias). was v0.22.2;  // L-07's spare bottle after the first rescue. was v0.22.1;  // O2 warnings at 20% / 10%; robots' devotion. was v0.22.0;  // robot minds, stage 1. was v0.21.3;  // pick-up pose and two-handed carry. was v0.21.2;  // M-08 lifting pose; rougher ridge rocks. was v0.21.0;  // brace becomes a load puzzle with M-08; ice pocket becomes a light puzzle. was v0.20.1;  // red emergency light back in unpowered rooms; life support goes white when fixed; lit control boards. was v0.20.0;  // airlock cycle replaces the breach; interior relit. was v0.19.1;  // KHAL on the hull; wreck interior dressed; blockout labels dev-only. was v0.19.0;  // helmet radio for all voices; robot chirps + eye flash; wrist-pad questions to the robots. was v0.18.7;  // robot legs double-sided with dark cores; toe flaps 1.6x. was v0.18.6;  // robot ankles: foot pad on a ball joint, kept level while planted. was v0.18.5;  // robot toes bend to stay on the ground through stance. was v0.18.4;  // robot gait: bird-like stance/swing, bigger leg swing, pistons follow, body dip, feet planted. was v0.18.3;  // engine nozzles 25% larger. was v0.18.2;  // wreck: four landing legs in housings (two intact, two buckled), half-size blackened nozzles. was v0.18.1;  // wreck: sealed middle/nose, rear-only damage + tanks, doorway recess, NASA stacked, regolith imprint. was v0.18.0;  // wreck exterior: painted skin, round hull, ogive nose, engine bells, landing legs. was v0.17.3;  // robot eyes blink and look; gestures: wave, hand up, tap-and-point. was v0.17.2;  // robot legs: piston shins, hinged toes, less body sway. was v0.17.1;  // built tools on the Meshy robots: drill + saw, gripper, three-finger claws. was v0.17.0;  // Meshy robots, cut into jointed parts and driven by the walk rig. was v0.16.0;  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -16586,6 +16586,7 @@ body.in-wreck .cam-buttons { display: none; }
   const WL_R2 = Math.hypot(WL_HALF_W * WL_K, WL_AXIS_Y2);   // hull still meets the deck edge
   const level = { id: 'crater', fading: false };
 
+  const WL_LIGHT_K = 0.5;   // v0.23.1: wreck room lights, scaled against a darker ambient
   const wreckLevel = (function () {
     const root = new THREE.Group();
     root.position.copy(WL_ORIGIN);
@@ -16716,7 +16717,7 @@ body.in-wreck .cam-buttons { display: none; }
     // ── Lights: dark interior, emergency red/amber, daylight at the rip ──
     const lights = [];
     function pl(c, i, d, x, y, z) {
-      const l = new THREE.PointLight(c, i, d * WL_K, 2);
+      const l = new THREE.PointLight(c, i * WL_LIGHT_K, d * WL_K, 2);   // v0.23.1: brighter pools, less ambient
       l.position.set(x * WL_K, y, z * WL_K); root.add(l); lights.push(l); return l;
     }
     // v0.20.1 lighting: the rooms without power run on red emergency
@@ -16724,7 +16725,7 @@ body.in-wreck .cam-buttons { display: none; }
     // the stabiliser is fixed — then it comes on white). The suit bay has
     // power: the airlock works. Detail comes from the lit control boards
     // (wreckBoards) and the chest lamp.
-    const amb = new THREE.AmbientLight(0x2c2426, 0.55); root.add(amb);
+    const amb = new THREE.AmbientLight(0x2c2426, 0.32); root.add(amb);     // v0.23.1: was 0.55 — flat; now the lamps make the light
     pl(0xff2a1e, 2.0, 9, 3.6, 5.2, 0);                                   // flight deck — no power
     pl(0xff2a1e, 1.9, 8, 10.5, 5.5, 0.6);                                // crew quarters — no power
     const lsLight = pl(0xff2a1e, 2.0, 9, 18.5, 5.0, -0.3);               // life support — white once fixed
@@ -16809,35 +16810,39 @@ body.in-wreck .cam-buttons { display: none; }
       return t;
     }
     const R2 = (i) => rng(i + 77000);
+    // v0.23.1: large, uneven plates with soft seams (the old 4×4 grid read as bathroom tiles)
     function panelDraw(base, seam, rivet, seed) {
       return (g, w, h) => {
         g.fillStyle = base; g.fillRect(0, 0, w, h);
-        const n = 4;
-        for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
-          const k = (R2(seed + i * 7 + j * 13) - 0.5) * 18;
-          g.fillStyle = `rgba(${k > 0 ? '255,255,255' : '0,0,0'},${Math.abs(k) / 255})`;
-          g.fillRect(i * w / n + 2, j * h / n + 2, w / n - 4, h / n - 4);
+        const rows = [0, 0.38, 0.62, 1], cols = [[0, 0.55, 1], [0, 0.3, 1], [0, 0.7, 1]];
+        for (let j = 0; j < 3; j++) for (let i = 0; i < cols[j].length - 1; i++) {
+          const x0 = cols[j][i] * w, x1 = cols[j][i + 1] * w, y0 = rows[j] * h, y1 = rows[j + 1] * h;
+          const k = (R2(seed + i * 7 + j * 13) - 0.5) * 22;
+          g.fillStyle = `rgba(${k > 0 ? '255,255,255' : '0,0,0'},${Math.abs(k) / 255})`; g.fillRect(x0 + 2, y0 + 2, x1 - x0 - 4, y1 - y0 - 4);
+          g.fillStyle = 'rgba(255,255,255,0.05)'; g.fillRect(x0 + 2, y0 + 2, x1 - x0 - 4, 2);      // top bevel
+          g.fillStyle = seam; g.fillRect(x0 - 1, y0, 2, y1 - y0); g.fillRect(x0, y0 - 1, x1 - x0, 2);
+          g.fillStyle = rivet; for (const [rx, ry] of [[x0 + 7, y0 + 7], [x1 - 9, y0 + 7], [x0 + 7, y1 - 9], [x1 - 9, y1 - 9]]) g.fillRect(rx, ry, 3, 3);
         }
-        g.fillStyle = seam;
-        for (let i = 0; i <= n; i++) { g.fillRect(i * w / n - 1.5, 0, 3, h); g.fillRect(0, i * h / n - 1.5, w, 3); }
-        g.fillStyle = rivet;
-        for (let i = 0; i <= n; i++) for (let px = 8; px < w; px += 16) { g.fillRect(px, i * h / n + 5, 3, 3); g.fillRect(i * w / n + 5, px, 3, 3); }
+        if (seed === 1) {                              // a vent grille and a small label on some plates
+          g.fillStyle = 'rgba(20,22,25,0.55)'; for (let k = 0; k < 6; k++) g.fillRect(w * 0.62, h * 0.44 + k * 9, w * 0.22, 4);
+          g.fillStyle = 'rgba(210,200,170,0.35)'; g.fillRect(w * 0.08, h * 0.08, w * 0.14, h * 0.035);
+        }
         for (let i = 0; i < 40; i++) {               // grime streaks
           g.fillStyle = `rgba(20,18,16,${0.04 + R2(seed + 500 + i) * 0.08})`;
           g.fillRect(R2(seed + 600 + i) * w, R2(seed + 700 + i) * h, 2 + R2(seed + 800 + i) * 4, 20 + R2(seed + 900 + i) * 120);
         }
       };
     }
-    const texWall  = canvasTex(512, 512, panelDraw('#6a6e75', 'rgba(30,32,36,0.8)', 'rgba(40,42,46,0.7)', 1));
-    const texHull  = canvasTex(512, 512, panelDraw('#4e5258', 'rgba(22,24,28,0.85)', 'rgba(30,32,36,0.7)', 2));
+    const texWall  = canvasTex(512, 512, panelDraw('#5f636a', 'rgba(30,32,36,0.55)', 'rgba(40,42,46,0.5)', 1));
+    const texHull  = canvasTex(512, 512, panelDraw('#4e5258', 'rgba(22,24,28,0.6)', 'rgba(30,32,36,0.5)', 2));
     const texDeck  = canvasTex(256, 256, (g, w, h) => {      // deck grating
       g.fillStyle = '#3b3e43'; g.fillRect(0, 0, w, h);
-      g.strokeStyle = 'rgba(15,16,18,0.9)'; g.lineWidth = 3;
-      for (let i = -h; i < w; i += 18) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i + h, h); g.stroke(); }
-      for (let i = 0; i < w + h; i += 18) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i - h, h); g.stroke(); }
+      g.strokeStyle = 'rgba(15,16,18,0.5)'; g.lineWidth = 2;      // v0.23.1: softer, wider mesh (no shimmer)
+      for (let i = -h; i < w; i += 32) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i + h, h); g.stroke(); }
+      for (let i = 0; i < w + h; i += 32) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i - h, h); g.stroke(); }
       g.fillStyle = 'rgba(0,0,0,0.5)'; g.fillRect(0, 0, w, 4); g.fillRect(0, 0, 4, h);
     });
-    const texHab   = canvasTex(256, 256, panelDraw('#8c9198', 'rgba(40,42,46,0.6)', 'rgba(60,62,66,0.5)', 3));
+    const texHab   = canvasTex(256, 256, panelDraw('#7d828a', 'rgba(40,42,46,0.45)', 'rgba(60,62,66,0.4)', 3));
     const texHaz   = canvasTex(128, 128, (g, w, h) => {
       g.fillStyle = '#1c1c1e'; g.fillRect(0, 0, w, h); g.fillStyle = '#d9a21e';
       for (let i = -h; i < w; i += 32) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i + 16, 0); g.lineTo(i + 16 + h, h); g.lineTo(i + h, h); g.fill(); }
@@ -16865,10 +16870,10 @@ body.in-wreck .cam-buttons { display: none; }
         o.material = PM({ map: t, side: THREE.BackSide }); return;
       }
       if (o.geometry.type !== 'BoxGeometry') return;
-      if (hex === 0x4a4d52) { tileBoxUV(o.geometry, 2.2); o.material = mDeck; }           // floor
-      else if (hex === 0x8f959c) { tileBoxUV(o.geometry, 1.8); o.material = mHab; }       // habitat floor panels
-      else if (hex === 0x5d6066) { tileBoxUV(o.geometry, 3); o.material = mHullF; }       // side walls / crushed nose
-      else if (hex === 0x7b7f86) { tileBoxUV(o.geometry, 2.4); o.material = mWall; }      // bulkheads, plates, debris
+      if (hex === 0x4a4d52) { tileBoxUV(o.geometry, 2.6); o.material = mDeck; }           // floor
+      else if (hex === 0x8f959c) { tileBoxUV(o.geometry, 3.4); o.material = mHab; }       // habitat floor panels (v0.23.1: bigger)
+      else if (hex === 0x5d6066) { tileBoxUV(o.geometry, 5.2); o.material = mHullF; }     // side walls / crushed nose
+      else if (hex === 0x7b7f86) { tileBoxUV(o.geometry, 4.0); o.material = mWall; }      // bulkheads, plates, debris
       else if (hex === 0xb3393a) { tileBoxUV(o.geometry, 1.2); o.material = mHaz; }       // sealed tail
       else if (hex === 0x3f78c8) { o.material = mDark; }                                   // devices (dressed below)
       else if (hex === 0x8a5cc8) { o.material = PM({ color: 0x5c6470 }); }                // personal locker
@@ -17099,6 +17104,47 @@ body.in-wreck .cam-buttons { display: none; }
       bl.position.copy(beacon.position); R.add(bl); R.add(bl.target);
       anim.push({ tick(t) { const a = t * 2.4; bl.target.position.set(beacon.position.x - 4 * Math.cos(a), 2, Math.sin(a) * 4); } });
     }
+    // ── v0.23.1: structure and light ──
+    // Ring frames (ribs) and two stringers on each side wall make it read as a
+    // hull, not a box. Lamp fixtures on the walls, with soft additive pools on
+    // the floor and halos on the wall, give the rooms light and dark — no
+    // extra real lights (phones pay per light). Pools follow their room light.
+    const WZ = HW - 0.11 * 0 - 0.0;                       // inner wall plane (m)
+    const skip = { '1': [[3.0, 5.6], [13.4, 16.6], [18.4, 20.6]], '-1': [[25.2, 27.8]] };   // boards, stabiliser, airlock chamber (d)
+    const free = (side, xd) => ![[6.4, 7.6], [13.4, 14.6], [22.4, 23.6], [29.4, 30.6]].some(([a, b]) => xd > a && xd < b)
+      && !(skip[side] || []).some(([a, b]) => xd > a && xd < b);
+    const mRib = PM({ color: 0x3e4247 }), mRibEdge = PM({ color: 0x55595f });
+    for (const side of [1, -1]) {
+      for (const xd of [2.2, 4.6, 9.2, 11.6, 16.2, 18.6, 21.0, 25.0, 28.4, 32.4, 35.4, 38.4, 41.4]) {
+        if (!free(side, xd)) continue;
+        add(B(0.34, 10.4, 0.2), mRib, X(xd), 5.2, side * (WZ - 0.1));
+        add(B(0.4, 10.4, 0.05), mRibEdge, X(xd), 5.2, side * (WZ - 0.22));
+      }
+      for (const [x0, x1] of [[0.4, 6.6], [7.4, 13.6], [14.4, 22.6], [23.4, 29.6], [30.4, 42.8]]) {
+        for (const y of [3.3, 6.2]) add(B(X(x1 - x0), 0.14, 0.16), mRib, X((x0 + x1) / 2), y, side * (WZ - 0.08));
+      }
+    }
+    const roomLights = wreckLevel.lights;
+    const nearestLight = (x, z) => { let b = null, bd = 1e9; for (const l of roomLights) { const d = Math.hypot(l.position.x - x, l.position.z - z); if (d < bd) { bd = d; b = l; } } return b; };
+    const poolTex = canvasTex(128, 128, (g, w, h) => { const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.35, 'rgba(255,255,255,0.45)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, h); });
+    const pools = [];
+    function pool(x, y, z, r, rot, src, k) {
+      const m = new THREE.MeshBasicMaterial({ map: poolTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -3 });
+      const p = add(new THREE.PlaneGeometry(r * 2, r * 2), m, x, y, z, rot[0], rot[1], rot[2]); p.renderOrder = 2;
+      pools.push({ m, src, k, base: src.intensity }); return p;
+    }
+    function fixture(xd, y, side) {                       // a caged wall lamp
+      const x = X(xd), z = side * (WZ - 0.12), src = nearestLight(x, z);
+      add(B(0.5, 0.22, 0.16), mDark, x, y, z);
+      const lens = add(B(0.4, 0.12, 0.05), new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false }), x, y - 0.02, z - side * 0.09);
+      pools.push({ m: lens.material, src, k: 0.9, base: src.intensity, lens: true });
+      for (const dx of [-0.12, 0, 0.12]) add(B(0.02, 0.16, 0.12), mCable, x + dx, y - 0.02, z - side * 0.12);
+      pool(x, y - 0.4, side * (WZ - 0.02), 1.4, [0, side > 0 ? Math.PI : 0, 0], src, 0.45);      // halo on the wall
+      pool(x, 0.03, side * (WZ - 1.3), 2.0, [-Math.PI / 2, 0, 0], src, 0.32);                // pool on the deck below
+    }
+    [[2.4, 1], [5.0, -1], [9.6, -1], [12.4, 1], [15.4, -1], [21.2, -1], [17.6, 1], [24.4, 1], [28.8, -1], [31.6, 1], [33.8, -1], [37.2, 1], [40.6, -1]].forEach(([xd, side]) => { if (free(side, xd)) fixture(xd, 4.1, side); });
+    for (const l of roomLights) pool(l.position.x, 0.03, l.position.z, 3.6, [-Math.PI / 2, 0, 0], l, 0.3);   // under each room light
+    anim.push({ tick() { for (const q of pools) { const k = q.k * Math.min(1.4, q.src.intensity / Math.max(0.01, q.base)); q.m.color.copy(q.src.color).multiplyScalar(q.lens ? Math.max(0.25, k) : k); } } });
     let t0 = performance.now();
     return { tick() { const t = (performance.now() - t0) / 1000; for (const a of anim) a.tick(t); } };
   })();
@@ -17355,7 +17401,7 @@ body.in-wreck .cam-buttons { display: none; }
   // two; the life-support board comes alive when the stabiliser is fixed,
   // and the room light goes from red to white with a stutter.
   // ============================================================
-  const wreckBoards = (function () {
+  const wreckBoards = (function () {   // (room light levels × WL_LIGHT_K)
     const R = wreckLevel.root;
     let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
     const boards = [];
@@ -17443,7 +17489,7 @@ body.in-wreck .cam-buttons { display: none; }
       const stut = lsT < 0 ? 0 : lsT < 0.15 ? 1 : lsT < 0.3 ? 0 : lsT < 0.4 ? 1 : lsT < 0.7 ? 0 : lsT < 0.8 ? 1 : lsT < 0.95 ? 0.3 : 1;
       lsOn = stut;
       const L = wreckLevel.lsLight;
-      if (L) { L.color.setHex(lsOn > 0.5 ? 0xdfe8ff : 0xff2a1e); L.intensity = lsOn > 0.5 ? 2.2 : (lsT >= 0 && lsT < 1 ? 0.4 : 2.0); }
+      if (L) { L.color.setHex(lsOn > 0.5 ? 0xdfe8ff : 0xff2a1e); L.intensity = WL_LIGHT_K * (lsOn > 0.5 ? 2.2 : (lsT >= 0 && lsT < 1 ? 0.4 : 2.0)); }
       if (life.light) { life.light.color.setHex(lsOn > 0.5 ? 0x60d0ff : 0xff5040); life.light.intensity = lsOn > 0.5 ? 0.7 : 0.4; }
       if (acc < 0.2) return; acc = 0;                      // boards redraw at 5 Hz
       for (const b of boards) {
@@ -18095,6 +18141,8 @@ body.in-wreck .cam-buttons { display: none; }
     try { robotMinds.tick(dt); } catch (e) { console.warn('[minds]', e); }
     if (level.id === 'crater') { try { iceV2.tick(dt); } catch (e) { console.warn('[ice]', e); } }
     if (level.id === 'wreck') { try { wreckDress.tick(); } catch (e) { } try { wreckBoards.tick(dt); } catch (e) { console.warn('[boards]', e); } }
+    if (scene.fog) { const w = level.id === 'wreck'; if (w !== scene.fog._wreck) { scene.fog._wreck = w;            // v0.23.1: a dark haze indoors for depth
+      if (w) { scene.fog.color.setHex(0x090708); scene.fog.near = 5; scene.fog.far = 34; } else { scene.fog.color.setHex(0x182030); scene.fog.near = 90; scene.fog.far = 280; } } }
     try { airlockCycle.tick(dt); } catch (e) { console.warn('[airlock]', e); }
     try { updateMusic(); } catch (e) { }
     syncRobotGlbs();

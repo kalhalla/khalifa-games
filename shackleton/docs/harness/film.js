@@ -10,7 +10,7 @@ const puppeteer = require('puppeteer-core'); const fs = require('fs');
   const p = await b.newPage();
   await p.setViewport({ width: +(process.env.VW||1280), height: +(process.env.VH||720) });
   p.on('pageerror', e => console.log('PAGEERROR: ' + e.message));
-  p.on('console', m => { const t = m.text(); if (/warn|error|\[minds\]|\[brace\]|\[airlock\]/i.test(m.type()+t) && !/404|Failed to load/.test(t)) console.log('CONSOLE', t.slice(0,200)); });
+  p.on('console', m => { const t = m.text(); if (!/emissive/.test(m.text()) && /warn|error|\[minds\]|\[brace\]|\[airlock\]/i.test(m.type()+t) && !/404|Failed to load/.test(t)) console.log('CONSOLE', t.slice(0,200)); });
   await p.goto((process.env.URL||'http://localhost:8765/shackleton/index.html?debug'), { waitUntil: 'load', timeout: 180000 });
   const ev = async (src) => { try { return await p.evaluate(s => { const v = window.__shk(s); try { return JSON.stringify(v); } catch (e) { return String(v); } }, src); } catch (e) { return 'EVALERR ' + e.message; } };
   for (const s of setup) {
