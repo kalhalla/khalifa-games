@@ -1,11 +1,11 @@
 # Shackleton — handover (read this first)
 
-Last updated 15 Nov 2026, at **v0.22.3**. This file supersedes the older handoff docs for **build state**. For story, use `SCRIPT.md` and `MEMORY_SPEC.md`. For systems, use the design docs in this folder.
+Last updated 16 Nov 2026, at **v0.23.4**. This file supersedes the older handoff docs for **build state**. For story, use `SCRIPT.md` and `MEMORY_SPEC.md`. For systems, use the design docs in this folder.
 
 ## Where things are
 
 - **Repo:** `kalhalla/khalifa-games`, folder `shackleton/`. The game is one file, `index.html` (about 17.5k lines). Alongside it: `lunar-terrain.js`, `o2-panel.js`, `assets/` (robots, music).
-- **Live:** khalifa.games/shackleton, at **v0.22.3** since 15 Nov. Built by Cloudflare Workers Builds from `main`. Branch commits always fail the Workers check; that's normal. Only `main` matters.
+- **Live:** khalifa.games/shackleton, at **v0.23.4** since 16 Nov (merge 068d214). Built by Cloudflare Workers Builds from `main`. Branch commits always fail the Workers check; that's normal. Only `main` matters.
 - **Preview:** branch `stage1-pipeline`, built by Vercel: https://khalifa-games-git-stage1-pipeline-khalifa-sabers-projects.vercel.app/shackleton/
 - **URL switches:**
   - `?debug`: `window.__shk(src)` evaluates inside the game closure; `window.__step(n, dt)` advances in fixed steps. Robots show their intention, state and affinity.
@@ -48,11 +48,11 @@ awk 'BEGIN{n=0} /^<script type="module">$/{n++} n==3' index.html | sed '1d' | se
 | v0.22.1 | Devotion; suit O₂ warnings at 20% and 10% |
 | v0.22.2 | L-07's spare O₂ bottle |
 | v0.22.3 | Shadow acne fix (the flicker on the hull and robots) |
-| **v0.23.4** | **Preview only.** (1) Collision pass: the starship hull and nose are box colliders (`hullColliders`, tag `'hull'`, x 6.6–44.6, stepped to the nose profile; disabled while `airlockLock`/`airlockDrive` so the hatch walk works). O₂ tanks box (`'o2tanks'`), station crates (`'stationCrates'`), Flyer body box (`flyerBodyCollider`, walking only, hx 2.0 so the brace mount stays reachable). Walk-in tests stop him at surface + 0.35 m on every face. (2) Slow rise from the seat at the tanks (`seatRise`): 1.1 s holding still whatever the stick does, then speed ramps in over 0.8 s. (3) Boulder contact shadows: dark ring decals (`boulderContacts`, one InstancedMesh, +0.1 m because the ground mesh sits up to ~4 cm above the analytic height) and a base-darkening band on floor boulders (`boulderFloorMat`). The pale sliver is shadow-map resolution at the contact; deeper burial wouldn't fix it. |
-| **v0.23.3** | **Preview only.** Shadow contact gap ("gap at the bottom of the boulders", from v0.22.3's acne fix): sun shadow depth range 0.5–600 → 20–420, bias −0.0004 → −0.00003, normalBias 0.03 → 0.01. Contact gap ~30 cm → ~4 cm. Khal to check on his phone that the hull/robot flicker hasn't come back. |
-| **v0.23.2** | **Preview only.** Bug fix: the robot GLB was fitted to the procedural robot's box *including sprites*; with `?debug` the mind label (y 1.9) made robots ~2 m. Only `?debug` was affected (so every harness render and trailers v1–v3), not normal play. Now measured from meshes only: robots ~1.15–1.2 m. |
-| **v0.23.1** | **Preview only.** Wreck interior: ambient 0.55 → 0.32, room lights × `WL_LIGHT_K` (0.5), wall lamps with additive light pools (no extra real lights), dark haze in the wreck (fog swapped on entry/exit), large hull plates instead of the tile grid, softer grating, ribs and stringers |
-| **v0.23.0** | **Preview only.** Robot minds stage 2: sight, investigate, inspect the Flyer, remembered places, affinity from helping. See `ROBOT_MINDS.md` |
+| **v0.23.4** | **Live since 16 Nov.** (1) Collision pass: the starship hull and nose are box colliders (`hullColliders`, tag `'hull'`, x 6.6–44.6, stepped to the nose profile; disabled while `airlockLock`/`airlockDrive` so the hatch walk works). O₂ tanks box (`'o2tanks'`), station crates (`'stationCrates'`), Flyer body box (`flyerBodyCollider`, walking only, hx 2.0 so the brace mount stays reachable). Walk-in tests stop him at surface + 0.35 m on every face. (2) Slow rise from the seat at the tanks (`seatRise`): 1.1 s holding still whatever the stick does, then speed ramps in over 0.8 s. (3) Boulder contact shadows: dark ring decals (`boulderContacts`, one InstancedMesh, +0.1 m because the ground mesh sits up to ~4 cm above the analytic height) and a base-darkening band on floor boulders (`boulderFloorMat`). The pale sliver is shadow-map resolution at the contact; deeper burial wouldn't fix it. |
+| **v0.23.3** | **Live since 16 Nov.** Shadow contact gap ("gap at the bottom of the boulders", from v0.22.3's acne fix): sun shadow depth range 0.5–600 → 20–420, bias −0.0004 → −0.00003, normalBias 0.03 → 0.01. Contact gap ~30 cm → ~4 cm. Khal to check on his phone that the hull/robot flicker hasn't come back. |
+| **v0.23.2** | **Live since 16 Nov.** Bug fix: the robot GLB was fitted to the procedural robot's box *including sprites*; with `?debug` the mind label (y 1.9) made robots ~2 m. Only `?debug` was affected (so every harness render and trailers v1–v3), not normal play. Now measured from meshes only: robots ~1.15–1.2 m. |
+| **v0.23.1** | **Live since 16 Nov.** Wreck interior: ambient 0.55 → 0.32, room lights × `WL_LIGHT_K` (0.5), wall lamps with additive light pools (no extra real lights), dark haze in the wreck (fog swapped on entry/exit), large hull plates instead of the tile grid, softer grating, ribs and stringers |
+| **v0.23.0** | **Live since 16 Nov.** Robot minds stage 2: sight, investigate, inspect the Flyer, remembered places, affinity from helping. See `ROBOT_MINDS.md` |
 
 ## Key systems and where they live in `index.html`
 
@@ -84,7 +84,7 @@ The sandbox can't reach CDNs, so use a local harness:
 
 ## Open, in rough order
 
-1. **Khal:** test v0.22.3 on his phone (aim mode on the stick, the robot tones, music, airlock sounds, the wrist pad, frame rate with the extra lights).
+1. **Khal:** test v0.23.4 on his phone (first check: shadows meet feet and boulders, no hull flicker) (aim mode on the stick, the robot tones, music, airlock sounds, the wrist pad, frame rate with the extra lights).
 2. ~~Trailer re-shoot at 1080p.~~ **Done 15 Nov (trailer v2):** 28.5 s, 1920×1080, 30 fps, H.264 + AAC, 8.7 Mbps. Robots run free; the breach is replaced by the airlock (outside, then the chamber) and the life-support power-up. Order: wake → L-07 → wreck → walk with robots → M-08 → airlock out → chamber → power-up → radio → ice → Earth → "...Elias?" → title. Sent to Khal, not in the repo (31 MB). Vibration cause: the wall clock in the harness (fixed), plus a real one: robot stride rate scales linearly with speed, so at the escort jog (1.3 m/s) the body bobs ~8.5 Hz. Offered to Khal as a gait fix; not changed.
 2b. **Trailer v3 (15 Nov):** 28.5 s, 1080p. Robots were filmed ~1.7× too big in v1–v3 because of the `?debug` fit bug fixed in v0.23.2. Measure robot size by rendered pixels (side-on orthographic), never Box3. Adds quick puzzle cuts (stabiliser panel, brace lift with M-08, rescue jump) under "REBUILD A WAY HOME.", the ice beam ("FIND WATER.") and the relit interior. Shots: `docs/harness/tr/shots*3.json`, edit `edit3.py`.
 2c. **Trailer v4 (16 Nov), the story cut:** 47.6 s, 1080p, robots at true size. Radio static ("…Shackleton… Elias? …respond…") → YOU WAKE ON THE MOON → YOUR SHIP CAME DOWN HARD → YOU DON'T REMEMBER WHO YOU ARE → THREE ROBOTS KEPT YOU ALIVE → airlock and power → memory flash (M01 lines) / PIECES COME BACK → broken Flyer + Michel M04 ("Do not attempt launch…") / THE FLYER IS YOUR WAY HOME. IT'S BROKEN. → puzzle cuts / REBUILD IT, PIECE BY PIECE → Earth + "If you can hear me… key your mic." → WHO ARE YOU? / WHY ARE YOU HERE? / HOW DO YOU GET HOME? → title. New 49 s cue (`trailer_v4_cue_compose.py`, audio starts 0.8 s in). Files: `edit4.py`, `render4.sh`, `tr/shots*4.json`, `cap4/`.
