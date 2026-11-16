@@ -667,7 +667,7 @@ body.in-wreck .cam-buttons { display: none; }
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.22.3';  // shadow acne fix (small sun/lamp bias). was v0.22.2;  // L-07's spare bottle after the first rescue. was v0.22.1;  // O2 warnings at 20% / 10%; robots' devotion. was v0.22.0;  // robot minds, stage 1. was v0.21.3;  // pick-up pose and two-handed carry. was v0.21.2;  // M-08 lifting pose; rougher ridge rocks. was v0.21.0;  // brace becomes a load puzzle with M-08; ice pocket becomes a light puzzle. was v0.20.1;  // red emergency light back in unpowered rooms; life support goes white when fixed; lit control boards. was v0.20.0;  // airlock cycle replaces the breach; interior relit. was v0.19.1;  // KHAL on the hull; wreck interior dressed; blockout labels dev-only. was v0.19.0;  // helmet radio for all voices; robot chirps + eye flash; wrist-pad questions to the robots. was v0.18.7;  // robot legs double-sided with dark cores; toe flaps 1.6x. was v0.18.6;  // robot ankles: foot pad on a ball joint, kept level while planted. was v0.18.5;  // robot toes bend to stay on the ground through stance. was v0.18.4;  // robot gait: bird-like stance/swing, bigger leg swing, pistons follow, body dip, feet planted. was v0.18.3;  // engine nozzles 25% larger. was v0.18.2;  // wreck: four landing legs in housings (two intact, two buckled), half-size blackened nozzles. was v0.18.1;  // wreck: sealed middle/nose, rear-only damage + tanks, doorway recess, NASA stacked, regolith imprint. was v0.18.0;  // wreck exterior: painted skin, round hull, ogive nose, engine bells, landing legs. was v0.17.3;  // robot eyes blink and look; gestures: wave, hand up, tap-and-point. was v0.17.2;  // robot legs: piston shins, hinged toes, less body sway. was v0.17.1;  // built tools on the Meshy robots: drill + saw, gripper, three-finger claws. was v0.17.0;  // Meshy robots, cut into jointed parts and driven by the walk rig. was v0.16.0;  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.23.4';  // collision pass (hull, nose, O2 tanks, crates, Flyer), slow rise from the seat, boulder contact shadows. was v0.23.3;  // shadow contact gap: tighter sun depth range, bias −0.00003, normalBias 0.01. was v0.23.2;  // robot GLB fit ignores sprites (debug labels made robots ~1.7x too tall with ?debug). was v0.23.1;  // wreck interior: darker ambient + lamp pools, haze, big hull plates, ribs and stringers. was v0.23.0;  // robot minds stage 2: sight, investigate, inspect the Flyer, remembered places, affinity from helping. was v0.22.3;  // shadow acne fix (small sun/lamp bias). was v0.22.2;  // L-07's spare bottle after the first rescue. was v0.22.1;  // O2 warnings at 20% / 10%; robots' devotion. was v0.22.0;  // robot minds, stage 1. was v0.21.3;  // pick-up pose and two-handed carry. was v0.21.2;  // M-08 lifting pose; rougher ridge rocks. was v0.21.0;  // brace becomes a load puzzle with M-08; ice pocket becomes a light puzzle. was v0.20.1;  // red emergency light back in unpowered rooms; life support goes white when fixed; lit control boards. was v0.20.0;  // airlock cycle replaces the breach; interior relit. was v0.19.1;  // KHAL on the hull; wreck interior dressed; blockout labels dev-only. was v0.19.0;  // helmet radio for all voices; robot chirps + eye flash; wrist-pad questions to the robots. was v0.18.7;  // robot legs double-sided with dark cores; toe flaps 1.6x. was v0.18.6;  // robot ankles: foot pad on a ball joint, kept level while planted. was v0.18.5;  // robot toes bend to stay on the ground through stance. was v0.18.4;  // robot gait: bird-like stance/swing, bigger leg swing, pistons follow, body dip, feet planted. was v0.18.3;  // engine nozzles 25% larger. was v0.18.2;  // wreck: four landing legs in housings (two intact, two buckled), half-size blackened nozzles. was v0.18.1;  // wreck: sealed middle/nose, rear-only damage + tanks, doorway recess, NASA stacked, regolith imprint. was v0.18.0;  // wreck exterior: painted skin, round hull, ogive nose, engine bells, landing legs. was v0.17.3;  // robot eyes blink and look; gestures: wave, hand up, tap-and-point. was v0.17.2;  // robot legs: piston shins, hinged toes, less body sway. was v0.17.1;  // built tools on the Meshy robots: drill + saw, gripper, three-finger claws. was v0.17.0;  // Meshy robots, cut into jointed parts and driven by the walk rig. was v0.16.0;  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -765,7 +765,7 @@ body.in-wreck .cam-buttons { display: none; }
   // loop.
   const SHADOW_R = 90;
   Object.assign(sun.shadow.camera,
-    { left:-SHADOW_R, right:SHADOW_R, top:SHADOW_R, bottom:-SHADOW_R, near:0.5, far:600 });
+    { left:-SHADOW_R, right:SHADOW_R, top:SHADOW_R, bottom:-SHADOW_R, near:20, far:420 });   // v0.23.3: was 0.5–600; the sun sits 300 m out, so 20–420 covers ±90 m with 1.5× the depth precision
   const _sunDir   = new THREE.Vector3(60, 60 * Math.tan(SUN_ELEV_DEG * Math.PI / 180), 0).normalize();
   const _sunRight = new THREE.Vector3().crossVectors(_sunDir, new THREE.Vector3(0,1,0)).normalize();
   const _sunUp    = new THREE.Vector3().crossVectors(_sunRight, _sunDir).normalize();
@@ -798,8 +798,12 @@ body.in-wreck .cam-buttons { display: none; }
   // fine stripes and rings that crawl as the shadow frustum follows him
   // (Khal: "a texture on the ship and the robots that causes flickering").
   // These values clear it without lifting contact shadows off the ground.
-  sun.shadow.bias = -0.0004;
-  sun.shadow.normalBias = 0.03;
+  // v0.23.3: those values cut ~30 cm of shadow off every contact (Khal:
+  // "a gap at the bottom of the boulders"): bias −0.0004 × the 600 m depth
+  // range = 24 cm along the ray, plus normalBias 0.03 ≈ 10 cm at a 17° sun.
+  // With the tighter depth range above, −0.00003 is ~1.2 cm and 0.01 ≈ 3 cm.
+  sun.shadow.bias = -0.00003;
+  sun.shadow.normalBias = 0.01;
   scene.add(sun);
 
   function makeEarthTexture() {
@@ -2162,11 +2166,55 @@ body.in-wreck .cam-buttons { display: none; }
   // unique). Cheap to scale to hundreds of boulders.
   // ============================================================
   const boulderGeom = new THREE.IcosahedronGeometry(1, 0);
+  // v0.23.4: CONTACT SHADOWS. The sun's shadow map is 4.4 cm a texel and
+  // soft-filtered, so right at a boulder's foot the cast shadow fades and a
+  // pale sliver shows (Khal: "around the bottom of the boulders"). Burying
+  // them deeper wouldn't help — they're already a third under. A soft dark
+  // ring on the ground at each foot (fake ambient occlusion) closes it and
+  // seats them. One InstancedMesh for all of them: one draw call.
+  const boulderContacts = [];
+  function buildBoulderContacts() {
+    if (!boulderContacts.length) return;
+    // Radial falloff as a DataTexture (a canvas gradient sampled as empty
+    // in testing). Dark core under the rock, soft edge out to 1.0.
+    // Dark core (hidden under the rock), soft fade beyond its foot.
+    const makeTex = () => {
+      const N = 64, d = new Uint8Array(N * N * 4);
+      for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+        const r = Math.hypot(i + 0.5 - N / 2, j + 0.5 - N / 2) / (N / 2);
+        const a = r >= 1 ? 0 : r < 0.45 ? 0.8 : 0.8 * Math.pow(1 - (r - 0.45) / 0.55, 1.4);
+        d[(j * N + i) * 4 + 3] = Math.round(a * 255);
+      }
+      const t = new THREE.DataTexture(d, N, N); t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearFilter; t.needsUpdate = true; return t;
+    };
+    const mat = new THREE.MeshBasicMaterial({ color: 0x000000, map: makeTex(), transparent: true, depthWrite: false,
+      polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4, fog: true });
+    const geo = new THREE.PlaneGeometry(2, 2); geo.rotateX(-Math.PI / 2);
+    const im = new THREE.InstancedMesh(geo, mat, boulderContacts.length);
+    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), ps = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
+    boulderContacts.forEach((b, i) => { q.setFromAxisAngle(up, b.yaw); sc.set(b.r, 1, b.r); ps.set(b.x, b.y + 0.1, b.z); im.setMatrixAt(i, m4.compose(ps, q, sc)); });   // +0.1: ground mesh sits up to ~4 cm off the analytic height
+    im.instanceMatrix.needsUpdate = true; im.frustumCulled = false; im.renderOrder = 1; im.name = 'boulderContacts';
+    root.add(im);
+  }
   const boulderMat = rockify(new THREE.MeshPhongMaterial({
     shininess: 0,
     color: 0x33302d,           // v0.7.3: darker, warmer — boulders read as rock against dust
     flatShading: true
   }));
+  // v0.23.4: floor boulders get a base-occlusion band. The pale sliver at a
+  // boulder's foot is on the ROCK: the bottom few cm of a sunlit face sit
+  // inside the shadow bias, so they read lit right where they meet the
+  // ground. Darken the rock as it nears the ground line. The ground is
+  // derived per object: origin.y - 0.3 * scaleY (placeBoulder buries 30%),
+  // and scaleY is the length of the model matrix's Y column.
+  const boulderFloorMat = rockify(new THREE.MeshPhongMaterial({ shininess: 0, color: 0x33302d, flatShading: true }));
+  { const rk = boulderFloorMat.onBeforeCompile;
+    boulderFloorMat.onBeforeCompile = (sh) => { rk(sh);
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying float vBaseH;')
+        .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvBaseH = (modelMatrix * vec4(transformed, 1.0)).y - (modelMatrix[3].y - 0.3 * length(modelMatrix[1].xyz));');
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vBaseH;')
+        .replace('#include <opaque_fragment>', 'outgoingLight *= mix(0.3, 1.0, smoothstep(0.0, 0.16, vBaseH));\n#include <opaque_fragment>');
+    }; }
 
   // Place a boulder at world (x, surfaceY, z) with the given
   // diameter. Diameter ~= the boulder's largest dimension; we
@@ -2175,7 +2223,7 @@ body.in-wreck .cam-buttons { display: none; }
     const sx = diameter * (0.5 + rng(seed + 0.1) * 0.5);
     const sy = diameter * (0.4 + rng(seed + 0.2) * 0.5);
     const sz = diameter * (0.5 + rng(seed + 0.3) * 0.5);
-    const m = new THREE.Mesh(boulderGeom, boulderMat);
+    const m = new THREE.Mesh(boulderGeom, collide === false ? boulderMat : boulderFloorMat);
     m.scale.set(sx, sy, sz);
     m.rotation.set(
       rng(seed + 0.4) * Math.PI * 2,
@@ -2188,6 +2236,7 @@ body.in-wreck .cam-buttons { display: none; }
     m.castShadow = true;
     m.receiveShadow = true;
     root.add(m);
+    if (sy >= 0.15 && collide !== false) boulderContacts.push({ x, y: surfaceY, z, r: Math.max(sx, sz) * 1.55, yaw: rng(seed + 0.7) * Math.PI });
     // Collider — gated by sy threshold so tiny pebbles don't block.
     // Caller can pass collide=false to opt out entirely (wall boulders).
     if (collide !== false && sy >= 0.2) {
@@ -2349,6 +2398,7 @@ body.in-wreck .cam-buttons { display: none; }
     const y = -CRATER_DEPTH + floorHeight(x, z);
     placeBoulder(x, y, z, diameter, i + 0.9);
   }
+  buildBoulderContacts();   // v0.23.4
 
   // Outer-zone boulder helper retained for the outer plain.
   function bigRock(x, z, sx, sy, sz, ry, mat, shadow) {
@@ -2917,9 +2967,9 @@ body.in-wreck .cam-buttons { display: none; }
                         Math.abs(input.strafe) > 0.05 || input.jump;
       if (wantsMove) {
         rescueSit.active = false;
-        astroSeat.want = false;          // pose blends out over ~0.5s — he rises
+        astroSeat.want = false;          // pose unfolds over seatRise.HOLD
+        seatRise.t = 0;
         setAnimation('Idle_Breath');
-        // fall through — this frame runs the normal controller
       } else {
         player.vel.set(0, 0, 0);
         player.pos.y = shackletonScene.getGroundY(player.pos.x, player.pos.z);
@@ -2930,6 +2980,19 @@ body.in-wreck .cam-buttons { display: none; }
         }
         return;
       }
+    }
+
+    // v0.23.4: rising from the seat — hold him in place until he is up
+    if (seatRise.t >= 0) {
+      seatRise.t += dt;
+      if (seatRise.t < seatRise.HOLD) {
+        player.vel.set(0, 0, 0);
+        player.pos.y = shackletonScene.getGroundY(player.pos.x, player.pos.z);
+        player.grounded = true;
+        if (astronautRoot) { astronautRoot.position.copy(player.pos); astronautRoot.rotation.y = player.heading; }
+        return;
+      }
+      if (seatRise.t > seatRise.HOLD + seatRise.RAMP) seatRise.t = -1;
     }
 
     // Ground check (v0.5.0: terrain OR a walkable box top)
@@ -2993,7 +3056,8 @@ body.in-wreck .cam-buttons { display: none; }
     // speed/clip-rate/bob read as stuttering, not as a lope. The
     // lunar feel now comes solely from the 0.78× gait timescale in
     // setAnimation: original movement, slightly slow limbs.
-    const targetSpeed = (level.id === 'wreck' || airlockDrive) ? WRECK_WALK_SPEED : (input.run ? RUN_SPEED : JOG_SPEED);
+    const _riseK = seatRise.t >= 0 ? Math.min(1, Math.max(0.15, (seatRise.t - seatRise.HOLD) / seatRise.RAMP)) : 1;   // v0.23.4
+    const targetSpeed = ((level.id === 'wreck' || airlockDrive) ? WRECK_WALK_SPEED : (input.run ? RUN_SPEED : JOG_SPEED)) * _riseK;
     const accel = player.grounded ? ACCEL_GROUND : ACCEL_AIR;
     // v0.13.5: no steering in the air. Once he has left the ground on a
     // jump (or has been falling for more than a moment) he is a
@@ -3349,6 +3413,9 @@ body.in-wreck .cam-buttons { display: none; }
     }
 
     // Box colliders (v0.5.0) — GLB proxies and authored blockers.
+    { const viaHatch = airlockLock || !!airlockDrive;                 // v0.23.4
+      for (const c of hullColliders) c.enabled = !viaHatch;
+      flyerBodyCollider.enabled = controlMode === 'walking'; }
     boxResolvePlayer(player.pos, player.vel);
     robotResolvePlayer(player.pos, player.vel);
 
@@ -7721,6 +7788,11 @@ body.in-wreck .cam-buttons { display: none; }
     2.0,
     FLYER_ASSEMBLED_POS.y + 1.6
   );
+  // v0.23.4: the frame is 7 m long; the round collider left both ends open.
+  // Across the craft it stops him where the circle did (the brace mount is
+  // reached from there); along it, the full length. Off unless walking.
+  const flyerBodyCollider = addBoxCollider({ x: FLYER_ASSEMBLED_POS.x, z: FLYER_ASSEMBLED_POS.z - 0.15, hx: 2.0, hz: 3.2,
+    y0: -CRATER_DEPTH - 0.5, y1: FLYER_ASSEMBLED_POS.y + 1.6, walkable: false, tag: 'flyer' });
   // Store each part's "assembled" local transform so the assembly
   // animation can lerp from a stowed-in-crate origin back to here.
   const u = flyer.userData;
@@ -7832,6 +7904,10 @@ body.in-wreck .cam-buttons { display: none; }
     active: false,
     spoke: false,                      // one-time wake suit line fired
   };
+  // v0.23.4: getting up from the seat is a fixed, slow rise whatever the
+  // stick does (Khal: fast input made it disorientating). He stays put
+  // while the pose unfolds (RISE_HOLD), then his speed ramps in (RISE_RAMP).
+  const seatRise = { t: -1, HOLD: 1.1, RAMP: 0.8 };
   // Debug — press = to bump capacity up by 25 (max 100). Lets us test
   // each phase's leash without wiring repair triggers yet. Wired in
   // the keydown handler.
@@ -9963,6 +10039,16 @@ body.in-wreck .cam-buttons { display: none; }
     if (/[?&]oldwreck\b/.test(location.search)) scene.add(ramp);   // v0.18.1: led to a side hole that is now sealed
   }
 
+  // v0.23.4: the hull is solid from outside. The interior is its own level
+  // now (airlock), so nothing walks inside this hull any more. Measured
+  // with rays at chest height: half-width 4.37 m about z = STARSHIP_Z from
+  // the tail dome (x 6.6) to x 36, then the nose narrows to a tip at 44.6.
+  // Box half-widths exclude the player's radius (boxResolvePlayer adds it).
+  // Off while the airlock walks him in or out through the hatch.
+  const hullColliders = [
+    [6.6, 37.0, 4.35], [37.0, 39.0, 4.15], [39.0, 41.0, 3.75], [41.0, 42.5, 3.1], [42.5, 43.7, 2.3], [43.7, 44.6, 1.3],
+  ].map(([x0, x1, hz]) => addBoxCollider({ x: (x0 + x1) / 2, z: STARSHIP_Z, hx: (x1 - x0) / 2, hz,
+      y0: -CRATER_DEPTH - 1, y1: -CRATER_DEPTH + 6.5, walkable: false, tag: 'hull' }));
   // Wreck end colliders — REMOVED (v0.4.6). The two legacy cylinders
   // (at wreckX(1) and wreckX(13), r 2.4) predate the real hull
   // collision system. The tail one sat squarely in the middle of the
@@ -10107,6 +10193,12 @@ body.in-wreck .cam-buttons { display: none; }
   // Small collider so the player walks UP to the panel rather than
   // through it.
   addCollider(REFILL_PANEL_POS.x, REFILL_PANEL_POS.z, 0.45, refillPanel.position.y + 1.2);
+  // v0.23.4: the two O₂ bottles beside the panel (1.9 m tall) and the three
+  // supply crates in front of them (0.8 m, you can jump on to them).
+  addBoxCollider({ x: REFILL_PANEL_POS.x, z: REFILL_PANEL_POS.z - 0.55, hx: 0.56, hz: 0.27,
+    y0: -CRATER_DEPTH - 0.5, y1: -CRATER_DEPTH + 1.95, walkable: false, tag: 'o2tanks' });
+  addBoxCollider({ x: REFILL_PANEL_POS.x + 1.0, z: REFILL_PANEL_POS.z + 3.3, hx: 1.2, hz: 0.4,
+    y0: -CRATER_DEPTH - 0.5, y1: -CRATER_DEPTH + 0.8, walkable: true, tag: 'stationCrates' });
 
   // ============================================================
   // O₂ UMBILICAL HOSE (v0.4.3)
@@ -11403,6 +11495,7 @@ body.in-wreck .cam-buttons { display: none; }
         reachStart(rs.pinned.pos.clone().setY(top.y1 + 0.6), {
           onContact() {
             rescue.done = true;
+            try { robotMinds.helped(0, 0.3); } catch (e) { }          // v0.23.0: he saved P-03
             rs.pinned = null;
             robots[0].rotation.set(0, 0, 0);
             rs.pos.set(top.x - 1.6, top.y1, top.z - 1.4);      // set down beside the player, then it makes its own way
@@ -11603,6 +11696,7 @@ body.in-wreck .cam-buttons { display: none; }
     flyerRepair.installed = true;
     applyFlyerDamage(0);
     speak('SUIT', 'Flyer frame stabilised — 3 parts missing', 3.4, { kind: 'system' });
+    try { robotMinds.helped(2, 0.12); robotMinds.helped(0, 0.04); robotMinds.helped(1, 0.04); robotMinds.event('repaired', FLYER_ASSEMBLED_POS); } catch (e) { }   // v0.23.0
     // Michel's Transmission 02 used to play here. From v0.12.0 it closes
     // the demo instead (see demoEnd): it lands after the ice-pocket memory.
     setTimeout(() => setObjective('find the ice pocket — north-west wall'), 5000);
@@ -11970,6 +12064,7 @@ body.in-wreck .cam-buttons { display: none; }
   function _scene6Check() {
     if (scene6.done || !scene6.power || !scene6.aligned || !scene6.cleared) return;
     scene6.done = true;
+    try { robotMinds.event('iceDone', new THREE.Vector3(ICE_POCKET.x, shackletonScene.getGroundY(ICE_POCKET.x, ICE_POCKET.z), ICE_POCKET.z)); } catch (e) { }   // v0.23.0
     // Light hits the ice: beam on, crystals wake.
     s6.beam.material.opacity = 0.16;
     const bp = s6.beam.position;
@@ -13342,7 +13437,10 @@ body.in-wreck .cam-buttons { display: none; }
 
   function applySeatedPose(dt) {
     const target = astroSeat.want ? 1 : 0;
-    astroSeat.w += (target - astroSeat.w) * Math.min(1, dt * (astroSeat.want ? 8 : 5));
+    if (!astroSeat.want && seatRise.t >= 0) {          // v0.23.4: a slow, eased rise
+      const u = Math.min(1, seatRise.t / seatRise.HOLD);
+      astroSeat.w = Math.min(astroSeat.w, 1 - u * u * (3 - 2 * u));
+    } else astroSeat.w += (target - astroSeat.w) * Math.min(1, dt * (astroSeat.want ? 8 : 5));
     if (!astroSeat.want && astroSeat.w < 0.01) {
       astroSeat.w = 0;
       const b0 = astroSeat.bones;
@@ -15128,7 +15226,11 @@ body.in-wreck .cam-buttons { display: none; }
       const savedRot = robot.rotation.y, savedPos = robot.position.clone();
       robot.rotation.y = 0; robot.position.set(0, 0, 0);
       robot.updateMatrixWorld(true);
-      const pb = new THREE.Box3().setFromObject(robot);
+      // v0.23.2: meshes only. setFromObject also counted sprites, so with
+      // ?debug the mind label (y 1.9) stretched the box and the GLB was
+      // fitted ~1.7× too tall (it showed in every harness render and trailer).
+      const pb = new THREE.Box3(), _bb = new THREE.Box3();
+      robot.traverse(o => { if (!o.isMesh || o.isSprite) return; if (!o.geometry.boundingBox) o.geometry.computeBoundingBox(); pb.union(_bb.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld)); });
       robot.rotation.y = savedRot; robot.position.copy(savedPos);
       const wrapped = assetLib.fit(model, pb.max.y - pb.min.y);
       robot.traverse(o => { if (o.isMesh) o.visible = false; });
@@ -15363,9 +15465,9 @@ body.in-wreck .cam-buttons { display: none; }
     // trained on — protect crew above the mission — so it scales every
     // protective choice; personality decides how they show it.
     const PERS = [
-      { mission: 1.0, protect: 0.75, curious: 0.8, company: 0.45, devotion: 0.85 },   // P-03: the cutter, the path
-      { mission: 0.6, protect: 1.0, curious: 0.5, company: 0.7, devotion: 1.0 },      // L-07: the protector
-      { mission: 0.7, protect: 0.85, curious: 0.6, company: 1.0, devotion: 0.95 },    // M-08: the heart
+      { mission: 1.0, protect: 0.75, curious: 0.8, company: 0.45, devotion: 0.85, restore: 0.9 },   // P-03: the cutter, the path
+      { mission: 0.6, protect: 1.0, curious: 0.5, company: 0.7, devotion: 1.0, restore: 0.45 },     // L-07: the protector
+      { mission: 0.7, protect: 0.85, curious: 0.6, company: 1.0, devotion: 0.95, restore: 0.6 },    // M-08: the heart
     ];
     const BARK = {
       hardLanding: [['ok?'], ['careful.', 'ok?'], ['ok?']],
@@ -15380,6 +15482,12 @@ body.in-wreck .cam-buttons { display: none; }
       high: [['careful.'], ['careful.', 'down.'], ['high.']],
       still: [[''], ['here.'], ['here.', 'with you.']],
       share: [[''], ['air. take.', 'share.'], ['']],
+      // v0.23.0 (stage 2)
+      look: [['hm.'], ['ok.'], ['look.', 'new.']],
+      inspect: [['parts.'], [''], ['home?']],
+      inspect2: [['three.'], [''], ['home?']],             // after the brace: "3 parts missing"
+      rememberFall: [['loose.'], ['careful.'], ['fell here.']],
+      rememberAir: [['air.'], ['careful.'], ['air?']],
     };
     // ── v0.22.2: L-07's spare bottle. After it has dragged him back from a
     // blackout once, L-07 carries a small bottle: one top-up of 15% of his
@@ -15415,7 +15523,7 @@ body.in-wreck .cam-buttons { display: none; }
       oxygen.percent = Math.min(cap, oxygen.percent + cap * 0.15);
       bottle.full = false; bottleShow(); bottle.hoseT = 2.4; bottle.hose.visible = true;
       try { if (o2w.el) o2w.el.classList.remove('on'); } catch (e) { }
-      lastBark = -99; bark(m, 'share');
+      lastBark = -99; bark(m, 'share'); helped(1, 0.08);
       speak('SUIT', 'O₂ +15% — from L-07\'s spare bottle', 3.0, { kind: 'system', delay: 0.6 });
       if (audioCtx && masterGain) { const t0 = audioCtx.currentTime, n = audioCtx.sampleRate * 1.6, bf = audioCtx.createBuffer(1, n, audioCtx.sampleRate), d = bf.getChannelData(0);
         for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1; const sN = audioCtx.createBufferSource(); sN.buffer = bf; const f = audioCtx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1400;
@@ -15434,19 +15542,70 @@ body.in-wreck .cam-buttons { display: none; }
       }
     }
     const M = robotStates.map((r, i) => ({
-      i, d: { mission: 0.4 + Math.random() * 0.3, protect: 0.2, curious: 0.3, company: 0.3 },
-      affinity: 0.35, intent: 'rest', since: 0, nextThink: 1 + i, events: [], said: {}, label: null,
+      i, d: { mission: 0.4 + Math.random() * 0.3, protect: 0.2, curious: 0.3, company: 0.3, restore: 0.2 + Math.random() * 0.2 },
+      affinity: 0.35, base: 0.35, intent: 'rest', since: 0, nextThink: 1 + i, events: [], said: {}, label: null,
+      mem: [], warnT: -99, dangerT: -99, danger: null,
     }));
+    // ── v0.23.0 stage 2: perception. A robot reacts to what it can see
+    // (45 m, rocks / ground / the hull block it). The suit's oxygen alarms
+    // go out on the radio, so every robot hears those.
+    const SIGHT = 45, RADIO = { oxygenLow: 1, oxygenCritical: 1 };
+    const NOVEL = { placed: 1, iceDone: 1 };   // changes worth a look (a repair is for 'inspect')
+    let _shipB = null;
+    function shipBox() { if (!_shipB && typeof starship !== 'undefined' && starship) _shipB = new THREE.Box3().setFromObject(starship); return _shipB; }
+    function sees(i, p) {
+      const r = robotStates[i]; if (!robots[i].visible || level.id !== 'crater') return false;
+      const dx = p.x - r.pos.x, dz = p.z - r.pos.z, L = Math.hypot(dx, dz);
+      if (L > SIGHT) return false; if (L < 2) return true;
+      const y0 = r.pos.y + 1.0, y1 = p.y + 0.8, n = Math.ceil(L / 1.2), b = shipBox();
+      for (let k = 1; k < n; k++) {
+        const u = k / n, dd = u * L; if (dd < 0.8 || L - dd < 0.8) continue;
+        const x = r.pos.x + dx * u, z = r.pos.z + dz * u, h = y0 + (y1 - y0) * u;
+        if (rockTopAt(x, z) > h || shackletonScene.getGroundY(x, z) > h) return false;
+        if (b && L - dd > 2.5 && x > b.min.x && x < b.max.x && z > b.min.z && z < b.max.z && h < b.max.y) return false;
+      }
+      return true;
+    }
+    // remembered places: where he fell, where his air ran out, what it has looked at
+    function remember(m, kind, x, z) {
+      for (const q of m.mem) if (q.kind === kind && Math.hypot(q.x - x, q.z - z) < 3) { q.t = now; return; }
+      m.mem.push({ kind, x, z, t: now }); if (m.mem.length > 16) m.mem.shift();
+    }
+    // affinity from helping: part of every gain stays (the base it relaxes to)
+    function helped(i, amt) {
+      const m = M[i]; if (!m) return;
+      m.affinity = Math.min(1, m.affinity + amt); m.base = Math.min(0.7, m.base + amt * 0.3);
+    }
     const ev = [];                                         // { type, t, pos }
     let now = 0, lastBark = -99, escortBy = -1;
     const P = { lastGrounded: true, fallVy: 0, still: 0, o2Low: false, o2Crit: false, wasWreck: false };
     function event(type, pos) {
-      ev.push({ type, t: now, pos: pos ? pos.clone() : player.pos.clone() });
+      const e = { type, t: now, pos: pos ? pos.clone() : player.pos.clone() };
+      e.seen = M.map(m => !!RADIO[type] || sees(m.i, e.pos));
+      ev.push(e);
       if (ev.length > 30) ev.shift();
-      for (const m of M) if (urgent(type) && canThink(m)) m.nextThink = Math.min(m.nextThink, now + 0.3 + m.i * 0.25);
+      for (const m of M) {
+        if (!e.seen[m.i]) continue;
+        if (type === 'hardLanding') remember(m, 'fall', e.pos.x, e.pos.z);
+        if (type === 'oxygenCritical') remember(m, 'air', e.pos.x, e.pos.z);
+        if (NOVEL[type]) m.d.curious = Math.min(1, m.d.curious + 0.35);
+        if (type === 'repaired') m.d.restore = Math.min(1, m.d.restore + 0.6);
+        if (urgent(type) && canThink(m)) m.nextThink = Math.min(m.nextThink, now + 0.3 + m.i * 0.25);
+      }
     }
     const urgent = (t) => t === 'hardLanding' || t === 'oxygenLow' || t === 'oxygenCritical' || t === 'pickedUp' || t === 'highUp' || t === 'leftWreck';
-    function recent(type, within) { for (let k = ev.length - 1; k >= 0; k--) { if (now - ev[k].t > within) break; if (ev[k].type === type) return ev[k]; } return null; }
+    function recent(type, within, m) { for (let k = ev.length - 1; k >= 0; k--) { if (now - ev[k].t > within) break; if (ev[k].type === type && (!m || ev[k].seen[m.i])) return ev[k]; } return null; }
+    // the nearest change it saw and hasn't looked at yet
+    function novelFor(m) {
+      const r = robotStates[m.i]; let best = null, bd = 40;
+      for (const e of ev) {
+        if (!NOVEL[e.type] || !e.seen[m.i] || now - e.t > 180) continue;
+        if (m.mem.some(q => q.kind === 'looked' && q.t >= e.t && Math.hypot(q.x - e.pos.x, q.z - e.pos.z) < 2.5)) continue;
+        const d = Math.hypot(e.pos.x - r.pos.x, e.pos.z - r.pos.z); if (d < bd) { bd = d; best = e; }
+      }
+      return best;
+    }
+    const flyerBusy = () => (scene4.braceHeld && !scene5.done) || scene5.installing;
     function canThink(m) {
       const r = robotStates[m.i];
       return ON && !r.scripted && !r.pinned && robots[m.i].visible && level.id === 'crater' && controlMode === 'walking'
@@ -15468,7 +15627,9 @@ body.in-wreck .cam-buttons { display: none; }
       return [{ x: F.x - 1.8, z: F.z - 1.4 }, { x: F.x + 3.0, z: F.z - 1.0 }, { x: 14, z: 4 }];
     }
     // no-go: puzzle spots, so an idle robot never blocks a prompt
-    const ZONES = () => [{ x: ICE_POCKET.x, z: ICE_POCKET.z + 2, r: 8 }];
+    const ZONES = () => { const z = [{ x: ICE_POCKET.x, z: ICE_POCKET.z + 2, r: 8 }];
+      if (flyerBusy()) z.push({ x: FLYER_ASSEMBLED_POS.x, z: FLYER_ASSEMBLED_POS.z, r: 4.6 });   // v0.23.0: the install prompt
+      return z; };
     function outsideZones(x, z) {
       for (const Z of ZONES()) { const d = Math.hypot(x - Z.x, z - Z.z); if (d < Z.r) { const k = Z.r / Math.max(d, 0.01); return { x: Z.x + (x - Z.x) * k, z: Z.z + (z - Z.z) * k }; } }
       return { x, z };
@@ -15483,7 +15644,7 @@ body.in-wreck .cam-buttons { display: none; }
       add('work', p.mission * d.mission);
       if (m.i === 1 && bottle.has && !bottle.full) add('refillBottle', 0.55);
       add('rest', 0.12);
-      const crit = recent('oxygenCritical', 10), low = recent('oxygenLow', 10), fall = recent('hardLanding', 8);
+      const crit = recent('oxygenCritical', 10, m), low = recent('oxygenLow', 10, m), fall = recent('hardLanding', 8, m);
       if ((crit || low || fall) && dist < 80) add('checkOn', 1.2 * p.protect * p.devotion + (crit ? 0.6 : 0) + (fall ? 0.2 : 0));
       // L-07's spare bottle comes first when he is dangerously low
       const critNow = oxygen.percent / Math.max(1, oxygen.capacity) <= 0.11 && !refill.connected;   // as it is now, not just the alarm
@@ -15493,14 +15654,19 @@ body.in-wreck .cam-buttons { display: none; }
       if (m.i === 1 && bottle.full && (critNow || shortOfAir) && dist < 90) add('share', 3.0);
       // dangerously low and nowhere near air: one of them leads him to it
       if (critNow && o2Dist() > 8 && (leadBy < 0 || leadBy === m.i)) add('lead', 2.2 * p.protect * p.devotion);
-      if (recent('highUp', 6) && dist < 40) add('spot', 1.0 * p.protect * p.devotion);
-      if (recent('leftWreck', 4) && dist < 50) add('greet', 0.9 * p.company * p.devotion + 0.2);
+      if (recent('highUp', 6, m) && dist < 40) add('spot', 1.0 * p.protect * p.devotion);
+      if (recent('leftWreck', 4, m) && dist < 50) add('greet', (0.9 * p.company * p.devotion + 0.2) * (0.6 + m.affinity));
       if (P.still > 20 && dist < 40 && !P.atO2) add('comfort', 0.8 * p.company * p.devotion);
-      const act = recent('pickedUp', 5) || recent('jumped', 3);
+      const act = recent('pickedUp', 5, m) || recent('jumped', 3, m);
       if (act && dist < 18) add('watch', 0.75 * p.curious + 0.2);
       const away = Math.max(0, Math.min(1, (dist - 10) / 25));          // he is heading off on his own
       if (dist < 90 && (escortBy < 0 || escortBy === m.i)) add('escort', p.protect * p.protect * (0.25 + d.protect + away * 0.6) * (0.6 + m.affinity) * (P.still > 6 ? 0.4 : 1));
       add('visit', p.company * d.company * 0.8);
+      // v0.23.0 stage 2
+      const nov = novelFor(m); if (nov) add('investigate', 0.9 * p.curious * (0.4 + d.curious));
+      const F = FLYER_ASSEMBLED_POS, fd = Math.hypot(r.pos.x - F.x, r.pos.z - F.z);
+      if (fd < 70 && !flyerBusy()) add('inspect', p.restore * d.restore * (M.some(o => o !== m && o.intent === 'inspect') ? 0.5 : 1));
+      if (now - m.dangerT < 6 && dist < 40 && !M.some(o => o !== m && o.intent === 'guard')) add('guard', 1.4 * p.protect * p.devotion);
       out.sort((a, b) => b.s - a.s);
       return out[0].name;
     }
@@ -15528,7 +15694,7 @@ body.in-wreck .cam-buttons { display: none; }
         const f = fwd(); const s = outsideZones(player.pos.x + f.x * 1.4 + (m.i - 1) * 0.9, player.pos.z + f.z * 1.4);
         goTo(r, s.x, s.z, 1.2, { state: 'attend', faceAt: 'player', dur: 4 });
         const crit = recent('oxygenCritical', 10), low = recent('oxygenLow', 10);
-        r.onArrive = () => bark(m, crit ? 'oxygenCritical' : low ? 'oxygenLow' : 'hardLanding');
+        r.onArrive = () => { bark(m, crit ? 'oxygenCritical' : low ? 'oxygenLow' : 'hardLanding'); helped(m.i, 0.04); };
       } else if (name === 'watch') {
         r.state = 'attend'; r.faceAt = 'player'; r.stateTimer = 3.5;
         if (recent('pickedUp', 5)) bark(m, 'pickedUp');
@@ -15543,26 +15709,57 @@ body.in-wreck .cam-buttons { display: none; }
         leadBy = m.i; r.state = 'lead'; r.stateTimer = 90; bark(m, 'lead');
       } else if (name === 'spot') {                       // stand below him while he is up high
         const f = fwd(); goTo(r, player.pos.x + f.x * 2.2 + (m.i - 1), player.pos.z + f.z * 2.2, 1.2, { state: 'attend', faceAt: 'player', dur: 6 });
-        r.onArrive = () => bark(m, 'high');
+        r.onArrive = () => { bark(m, 'high'); helped(m.i, 0.03); };
       } else if (name === 'greet') {
         const f = fwd(); goTo(r, player.pos.x + f.x * 2.5 + (m.i - 1) * 1.2, player.pos.z + f.z * 2.5, 1.1, { state: 'attend', faceAt: 'player', dur: 4 });
-        r.onArrive = () => bark(m, 'back');
+        r.onArrive = () => { bark(m, 'back'); helped(m.i, 0.02); if (m.affinity > 0.6) robotEmote(m.i, 'wave', player.pos); };
       } else if (name === 'comfort') {                    // stand beside him, looking where he looks
         const f = fwd(), side = m.i === 2 ? 1 : -1;
         goTo(r, player.pos.x + f.z * side * 1.3, player.pos.z - f.x * side * 1.3, 0.5, { state: 'attend', faceAt: null, dur: 14 });
-        r.onArrive = () => { r.heading = player.heading; bark(m, 'still'); };
+        r.onArrive = () => { r.heading = player.heading; bark(m, 'still'); helped(m.i, 0.03); };
       } else if (name === 'visit') {
         const others = [0, 1, 2].filter(k => k !== m.i && robots[k].visible && Math.hypot(robotStates[k].pos.x - r.pos.x, robotStates[k].pos.z - r.pos.z) < 45);
         if (!others.length) { r.state = 'attend'; r.faceAt = null; r.stateTimer = 3; return; }
         const k = others[Math.floor(Math.random() * others.length)], o = robotStates[k], a = Math.random() * 6.28;
         goTo(r, o.pos.x + Math.cos(a) * 1.8, o.pos.z + Math.sin(a) * 1.8, 0.45, { state: 'attend', faceAt: k, dur: 5 + Math.random() * 3 });
         m.d.company = Math.max(0, m.d.company - 0.5);
+      } else if (name === 'investigate') {                // go and look at something that changed
+        const e = novelFor(m); if (!e) { r.state = 'attend'; r.faceAt = null; r.stateTimer = 2; return; }
+        const dx = r.pos.x - e.pos.x, dz = r.pos.z - e.pos.z, L = Math.max(0.01, Math.hypot(dx, dz));
+        goTo(r, e.pos.x + dx / L * 1.3, e.pos.z + dz / L * 1.3, 0.45, { state: 'attend', faceAt: { x: e.pos.x, z: e.pos.z }, dur: 3 + Math.random() * 2 });
+        r.onArrive = () => { remember(m, 'looked', e.pos.x, e.pos.z); m.d.curious = Math.max(0, m.d.curious - 0.5); bark(m, 'look'); };
+      } else if (name === 'inspect') {                    // the way home: look the Flyer over
+        const F = FLYER_ASSEMBLED_POS, done = flyerRepair.installed, R = done ? 2.9 : 3.8;
+        const a = Math.atan2(r.pos.x - F.x, r.pos.z - F.z) + (Math.random() - 0.5) * 1.2;
+        const works = done && m.i === 0;                    // P-03 gets its tools on it once the frame holds
+        goTo(r, F.x + Math.sin(a) * R, F.z + Math.cos(a) * R, 0.4,
+          works ? { state: 'manipulating', dur: 6 + Math.random() * 4 } : { state: 'attend', faceAt: { x: F.x, z: F.z }, dur: 5 + Math.random() * 3 });
+        r.onArrive = () => { r.heading = Math.atan2(F.x - r.pos.x, F.z - r.pos.z); m.d.restore = Math.max(0, m.d.restore - 0.6); remember(m, 'flyer', F.x, F.z); bark(m, done ? 'inspect2' : 'inspect'); };
+      } else if (name === 'guard') {                      // back where something went wrong: stay close
+        const q = m.danger || { kind: 'fall' }, f = fwd(), side = m.i === 1 ? -1 : 1;
+        goTo(r, player.pos.x + f.x * 0.8 + f.z * side * 1.4, player.pos.z + f.z * 0.8 - f.x * side * 1.4, 1.0, { state: 'attend', faceAt: 'player', dur: 5 });
+        r.onArrive = () => bark(m, q.kind === 'air' ? 'rememberAir' : 'rememberFall');
       }
     }
     function goTo(r, x, z, speed, after) {
       const s = outsideZones(x, z);
       if (!r._mindT) r._mindT = new THREE.Vector3();
       r._mindT.set(s.x, r.pos.y, s.z); r.target = r._mindT; r.state = 'mind_walk'; r.stateTimer = 40; r.mindSpeed = speed; r.after = after;
+      // v0.23.0: they steer round rocks, not the Flyer: if the straight line
+      // passes too close to it, go round by one waypoint first
+      r._final = null;
+      const F = FLYER_ASSEMBLED_POS, R = flyerBusy() ? 5.2 : 3.6;
+      const ax = r.pos.x, az = r.pos.z, bx = s.x - ax, bz = s.z - az, L2 = bx * bx + bz * bz;
+      if (L2 > 1) {
+        const u = Math.max(0, Math.min(1, ((F.x - ax) * bx + (F.z - az) * bz) / L2));
+        const cx = ax + bx * u - F.x, cz = az + bz * u - F.z, cd = Math.hypot(cx, cz);
+        if (cd < R && u > 0.02 && u < 0.98) {
+          const L = Math.sqrt(L2); let nx = cd > 0.05 ? cx / cd : -bz / L, nz = cd > 0.05 ? cz / cd : bx / L;
+          if (!r._viaT) r._viaT = new THREE.Vector3();
+          r._viaT.set(F.x + nx * (R + 0.8), r.pos.y, F.z + nz * (R + 0.8));
+          r._final = r._mindT; r.target = r._viaT;
+        }
+      }
     }
     // ── per-frame: perception, drives, thinking ──
     function tick(dt) {
@@ -15596,20 +15793,28 @@ body.in-wreck .cam-buttons { display: none; }
         d.mission = Math.min(1, d.mission + dt * 0.02);
         d.company = Math.min(1, Math.max(0, d.company + dt * (near ? -0.03 : 0.012)));
         d.protect = Math.min(1, Math.max(0.1, d.protect + dt * (near ? -0.01 : 0.008)));
-        m.affinity += (0.35 - m.affinity) * dt * 0.002;
+        d.curious = Math.min(1, d.curious + dt * 0.004);
+        d.restore = Math.min(1, d.restore + dt * (flyerRepair.installed ? 0.012 : 0.008));
+        m.affinity += (m.base - m.affinity) * dt * 0.002;
+        // he is back where it saw him fall, or nearly run out of air
+        if (now - m.warnT > 90 && level.id === 'crater') {
+          for (const q of m.mem) if ((q.kind === 'fall' || q.kind === 'air') && Math.hypot(q.x - player.pos.x, q.z - player.pos.z) < 5 && now - q.t > 30) {
+            m.warnT = now; m.dangerT = now; m.danger = q; m.nextThink = Math.min(m.nextThink, now + 0.4 + m.i * 0.3); break; }
+        }
         if (near) m.affinity = Math.min(1, m.affinity + dt * 0.002);
         if (!canThink(m)) { if (escortBy === m.i && r.scripted) escortBy = -1; continue; }
         // back from the wreck: the ones that like him come to the door
-        if (recent('leftWreck', 1.5) && m.affinity > 0.4 && !m.said.back) { m.said.back = now; m.nextThink = now + 0.5 + m.i; }
+        if (recent('leftWreck', 1.5, m) && m.affinity > 0.4 && !m.said.back) { m.said.back = now; m.nextThink = now + 0.5 + m.i; }
         // an alarm (low oxygen, a fall, a pickup nearby) breaks into whatever it is doing
         for (let k = ev.length - 1; k >= 0 && now - ev[k].t < 2.5; k--) {
-          const e = ev[k]; if (!urgent(e.type) || m.handled === e) continue;
+          const e = ev[k]; if (!urgent(e.type) || m.handled === e || !e.seen[m.i]) continue;
           m.handled = e; if (now >= ev[k].t + 0.3 + m.i * 0.35) { const pick = score(m); if (['share', 'checkOn', 'watch', 'lead', 'spot', 'greet'].includes(pick) && !(m.intent === 'lead' && pick !== 'lead') && !(m.intent === 'share' && pick !== 'share')) { start(m, pick); m.nextThink = now + 3; } }
           else m.handled = null;
           break;
         }
         const idleish = r.state === 'idle' || r.state === 'attend' || r.state === 'manipulating' || r.state === 'escort' || r.state === 'walking'
-          || (now - m.since > 8 && m.intent !== 'checkOn' && m.intent !== 'lead' && m.intent !== 'share');             // any job can be reconsidered after a while
+          || (now - m.since > 8 && m.intent !== 'checkOn' && m.intent !== 'lead' && m.intent !== 'share'
+              && !((m.intent === 'greet' || m.intent === 'guard') && r.state === 'mind_walk'));   // v0.23.0: a greeting or a guard finishes its walk             // any job can be reconsidered after a while
         if (now >= m.nextThink && idleish && now - m.since > 3) {
           const pick = score(m);
           if (pick !== m.intent || r.state === 'idle') start(m, pick);
@@ -15621,7 +15826,13 @@ body.in-wreck .cam-buttons { display: none; }
     // ── the robot side: new states run from updateRobotCore ──
     function step(robot, r, dt, stepWalk) {
       if (r.state === 'mind_walk') {
-        if (!stepWalk() || r.stateTimer <= 0) {
+        if (r._final && (r.target !== r._viaT || Math.hypot(r._viaT.x - r.pos.x, r._viaT.z - r.pos.z) < 0.9)) { r.target = r._final; r._final = null; }   // round the Flyer: on to the real spot
+        // v0.23.0: no progress for 1.5 s (a leg, a hull, a rock) counts as arrived
+        const ox = r._stuckP ? r._stuckP.x : 1e9, oz = r._stuckP ? r._stuckP.z : 1e9;
+        if (!r._stuckP || Math.hypot(r.pos.x - ox, r.pos.z - oz) > 0.15) { r._stuckP = { x: r.pos.x, z: r.pos.z }; r._stuckT = 0; } else r._stuckT += dt;
+        const stuck = r._stuckT > 1.5 && !r._final; if (r._stuckT > 1.5 && r._final) { r.target = r._final; r._final = null; r._stuckT = 0; }
+        if (stuck || !stepWalk() || r.stateTimer <= 0) {
+          r._stuckP = null; r._stuckT = 0;
           r.target = null; r.mindSpeed = 0.4;
           if (r.onArrive) { r.onArrive(); r.onArrive = null; }
           const a = r.after; r.after = null;
@@ -15632,7 +15843,7 @@ body.in-wreck .cam-buttons { display: none; }
         return true;
       }
       if (r.state === 'attend') {
-        const f = r.faceAt === 'player' ? player.pos : (typeof r.faceAt === 'number' ? robotStates[r.faceAt].pos : null);
+        const f = r.faceAt === 'player' ? player.pos : (typeof r.faceAt === 'number' ? robotStates[r.faceAt].pos : (r.faceAt && typeof r.faceAt === 'object' ? r.faceAt : null));
         if (f) turnTo(r, f.x, f.z, dt);
         if (r.stateTimer <= 0) { r.state = 'idle'; r.stateTimer = 0.5; }
         return true;
@@ -15650,21 +15861,26 @@ body.in-wreck .cam-buttons { display: none; }
         const toO = Math.hypot(o.x - player.pos.x, o.z - player.pos.z), ux = (o.x - player.pos.x) / Math.max(toO, 0.01), uz = (o.z - player.pos.z) / Math.max(toO, 0.01);
         const ahead = Math.min(3.5, Math.max(0, toO - 1.5));
         let tx = player.pos.x + ux * ahead, tz = player.pos.z + uz * ahead;
-        if (pd > 7) { tx = r.pos.x; tz = r.pos.z; turnTo(r, player.pos.x, player.pos.z, dt); r._moving = false;
+        if (pd < 5) r._leadNear = true;
+        if (!r._leadNear) {                                // v0.23.0: reach him first; only then wait for him
+          if (!r._mindT) r._mindT = new THREE.Vector3(); r._mindT.set(player.pos.x, r.pos.y, player.pos.z); r.target = r._mindT; r.mindSpeed = 1.5; stepWalk(); r._moving = true;
+        } else if (pd > 7 && (r.pos.x - player.pos.x) * ux + (r.pos.z - player.pos.z) * uz > 0) { tx = r.pos.x; tz = r.pos.z; turnTo(r, player.pos.x, player.pos.z, dt); r._moving = false;   // ahead of him: wait
           if (!r._waitT || performance.now() - r._waitT > 6000) { r._waitT = performance.now(); bark(M[r.number - 1], 'wait'); } }
         else {
           const dd = Math.hypot(tx - r.pos.x, tz - r.pos.z);
-          if (dd > 0.6) { if (!r._mindT) r._mindT = new THREE.Vector3(); r._mindT.set(tx, r.pos.y, tz); r.target = r._mindT; r.mindSpeed = Math.min(1.5, 0.5 + dd * 0.35); stepWalk(); r._moving = true; }
+          if (dd > 0.6) { if (!r._mindT) r._mindT = new THREE.Vector3(); r._mindT.set(tx, r.pos.y, tz); r.target = r._mindT; r.mindSpeed = Math.min(2.0, 0.5 + dd * 0.35); stepWalk(); r._moving = true; }   // v0.23.0: catches up if he outpaces it
           else { r._moving = false; turnTo(r, o.x, o.z, dt); }
         }
         const ratio = oxygen.percent / Math.max(1, oxygen.capacity);
-        if (toO < 3 || refill.connected || ratio > 0.35 || r.stateTimer <= 0 || level.id !== 'crater') { r.state = 'idle'; r.stateTimer = 0.5; r._moving = false; r.mindSpeed = 0.4; if (leadBy === r.number - 1) leadBy = -1; }
+        if ((toO < 3 || refill.connected) && !r._ledHome) { r._ledHome = true; helped(r.number - 1, 0.08); }
+        if (toO < 3 || refill.connected || ratio > 0.35 || r.stateTimer <= 0 || level.id !== 'crater') { r._ledHome = false; r._leadNear = false; r.state = 'idle'; r.stateTimer = 0.5; r._moving = false; r.mindSpeed = 0.4; if (leadBy === r.number - 1) leadBy = -1; }
         return true;
       }
       if (r.state === 'escort') {
         // off his shoulder, a little behind; hurry when far; never in his path
         const f = fwd(), side = (r.number % 2 ? 1 : -1);
-        let tx = player.pos.x - f.x * 1.8 + f.z * side * 2.2, tz = player.pos.z - f.z * 1.8 - f.x * side * 2.2;
+        const sd = 2.2 - Math.max(0, M[r.number - 1].affinity - 0.35) * 1.4;   // v0.23.0: the fonder, the closer
+        let tx = player.pos.x - f.x * 1.8 + f.z * side * sd, tz = player.pos.z - f.z * 1.8 - f.x * side * sd;
         const s = outsideZones(tx, tz); tx = s.x; tz = s.z;
         const inRock = (x, z) => rockTopAt(x, z) > shackletonScene.getGroundY(x, z) + 0.45;
         if (inRock(tx, tz)) { const ax = player.pos.x - f.x * 1.8 - f.z * side * 2.2, az = player.pos.z - f.z * 1.8 + f.x * side * 2.2;   // other shoulder
@@ -15689,19 +15905,19 @@ body.in-wreck .cam-buttons { display: none; }
     // ── ?debug: what each robot is thinking, over its head ──
     const DEBUG = /[?&]debug\b/.test(location.search);
     function updateLabel(m) {
-      const r = robotStates[m.i]; const txt = m.intent + ' · ' + r.state + ' · a' + m.affinity.toFixed(2);
+      const r = robotStates[m.i]; const txt = m.intent + ' · ' + r.state + ' · a' + m.affinity.toFixed(2) + ' c' + m.d.curious.toFixed(1) + ' r' + m.d.restore.toFixed(1);
       if (m.labelTxt === txt) return; m.labelTxt = txt;
-      const c = m.label.material.map.image, g = c.getContext('2d'); g.clearRect(0, 0, 256, 48);
-      g.fillStyle = 'rgba(0,0,0,0.55)'; g.fillRect(0, 0, 256, 48); g.fillStyle = ['#7fb8ff', '#ffe066', '#ff7a6a'][m.i]; g.font = '20px monospace'; g.fillText(txt, 6, 30);
+      const c = m.label.material.map.image, g = c.getContext('2d'); g.clearRect(0, 0, 384, 48);
+      g.fillStyle = 'rgba(0,0,0,0.55)'; g.fillRect(0, 0, 384, 48); g.fillStyle = ['#7fb8ff', '#ffe066', '#ff7a6a'][m.i]; g.font = '15px monospace'; g.fillText(txt, 4, 29);
       m.label.material.map.needsUpdate = true;
     }
     if (DEBUG) for (const m of M) {
-      const c = document.createElement('canvas'); c.width = 256; c.height = 48;
+      const c = document.createElement('canvas'); c.width = 384; c.height = 48;
       m.label = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false, transparent: true }));
-      m.label.scale.set(1.6, 0.3, 1); m.label.position.y = 1.9; robots[m.i].add(m.label);
+      m.label.scale.set(2.4, 0.3, 1); m.label.position.y = 1.9; robots[m.i].add(m.label);
     }
     function asked(i) { M[i].affinity = Math.min(1, M[i].affinity + 0.06); }
-    return { tick, step, event, asked, M, ON, unlockBottle, bottle, get escortBy() { return escortBy; }, get leadBy() { return leadBy; } };
+    return { tick, step, event, asked, helped, sees, M, ON, unlockBottle, bottle, get escortBy() { return escortBy; }, get leadBy() { return leadBy; } };
   })();
 
   const ROBOT_RADIO_IDX = { 'P-03': 0, 'L-07': 1, 'M-08': 2 };
@@ -16066,6 +16282,7 @@ body.in-wreck .cam-buttons { display: none; }
     c.mesh.position.x = x; c.mesh.position.z = z;
     stabDrag.mesh = c.mesh;
     _stabDrop();                              // stab parts and extras both route here
+    try { if (level.id === 'crater') robotMinds.event('placed', c.mesh.position); } catch (e) { }   // v0.23.0: something new to look at
     sndUi('confirm');
   }
   function updateCarry(dt) {
@@ -16468,6 +16685,7 @@ body.in-wreck .cam-buttons { display: none; }
   const WL_R2 = Math.hypot(WL_HALF_W * WL_K, WL_AXIS_Y2);   // hull still meets the deck edge
   const level = { id: 'crater', fading: false };
 
+  const WL_LIGHT_K = 0.5;   // v0.23.1: wreck room lights, scaled against a darker ambient
   const wreckLevel = (function () {
     const root = new THREE.Group();
     root.position.copy(WL_ORIGIN);
@@ -16598,7 +16816,7 @@ body.in-wreck .cam-buttons { display: none; }
     // ── Lights: dark interior, emergency red/amber, daylight at the rip ──
     const lights = [];
     function pl(c, i, d, x, y, z) {
-      const l = new THREE.PointLight(c, i, d * WL_K, 2);
+      const l = new THREE.PointLight(c, i * WL_LIGHT_K, d * WL_K, 2);   // v0.23.1: brighter pools, less ambient
       l.position.set(x * WL_K, y, z * WL_K); root.add(l); lights.push(l); return l;
     }
     // v0.20.1 lighting: the rooms without power run on red emergency
@@ -16606,7 +16824,7 @@ body.in-wreck .cam-buttons { display: none; }
     // the stabiliser is fixed — then it comes on white). The suit bay has
     // power: the airlock works. Detail comes from the lit control boards
     // (wreckBoards) and the chest lamp.
-    const amb = new THREE.AmbientLight(0x2c2426, 0.55); root.add(amb);
+    const amb = new THREE.AmbientLight(0x2c2426, 0.32); root.add(amb);     // v0.23.1: was 0.55 — flat; now the lamps make the light
     pl(0xff2a1e, 2.0, 9, 3.6, 5.2, 0);                                   // flight deck — no power
     pl(0xff2a1e, 1.9, 8, 10.5, 5.5, 0.6);                                // crew quarters — no power
     const lsLight = pl(0xff2a1e, 2.0, 9, 18.5, 5.0, -0.3);               // life support — white once fixed
@@ -16691,35 +16909,39 @@ body.in-wreck .cam-buttons { display: none; }
       return t;
     }
     const R2 = (i) => rng(i + 77000);
+    // v0.23.1: large, uneven plates with soft seams (the old 4×4 grid read as bathroom tiles)
     function panelDraw(base, seam, rivet, seed) {
       return (g, w, h) => {
         g.fillStyle = base; g.fillRect(0, 0, w, h);
-        const n = 4;
-        for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
-          const k = (R2(seed + i * 7 + j * 13) - 0.5) * 18;
-          g.fillStyle = `rgba(${k > 0 ? '255,255,255' : '0,0,0'},${Math.abs(k) / 255})`;
-          g.fillRect(i * w / n + 2, j * h / n + 2, w / n - 4, h / n - 4);
+        const rows = [0, 0.38, 0.62, 1], cols = [[0, 0.55, 1], [0, 0.3, 1], [0, 0.7, 1]];
+        for (let j = 0; j < 3; j++) for (let i = 0; i < cols[j].length - 1; i++) {
+          const x0 = cols[j][i] * w, x1 = cols[j][i + 1] * w, y0 = rows[j] * h, y1 = rows[j + 1] * h;
+          const k = (R2(seed + i * 7 + j * 13) - 0.5) * 22;
+          g.fillStyle = `rgba(${k > 0 ? '255,255,255' : '0,0,0'},${Math.abs(k) / 255})`; g.fillRect(x0 + 2, y0 + 2, x1 - x0 - 4, y1 - y0 - 4);
+          g.fillStyle = 'rgba(255,255,255,0.05)'; g.fillRect(x0 + 2, y0 + 2, x1 - x0 - 4, 2);      // top bevel
+          g.fillStyle = seam; g.fillRect(x0 - 1, y0, 2, y1 - y0); g.fillRect(x0, y0 - 1, x1 - x0, 2);
+          g.fillStyle = rivet; for (const [rx, ry] of [[x0 + 7, y0 + 7], [x1 - 9, y0 + 7], [x0 + 7, y1 - 9], [x1 - 9, y1 - 9]]) g.fillRect(rx, ry, 3, 3);
         }
-        g.fillStyle = seam;
-        for (let i = 0; i <= n; i++) { g.fillRect(i * w / n - 1.5, 0, 3, h); g.fillRect(0, i * h / n - 1.5, w, 3); }
-        g.fillStyle = rivet;
-        for (let i = 0; i <= n; i++) for (let px = 8; px < w; px += 16) { g.fillRect(px, i * h / n + 5, 3, 3); g.fillRect(i * w / n + 5, px, 3, 3); }
+        if (seed === 1) {                              // a vent grille and a small label on some plates
+          g.fillStyle = 'rgba(20,22,25,0.55)'; for (let k = 0; k < 6; k++) g.fillRect(w * 0.62, h * 0.44 + k * 9, w * 0.22, 4);
+          g.fillStyle = 'rgba(210,200,170,0.35)'; g.fillRect(w * 0.08, h * 0.08, w * 0.14, h * 0.035);
+        }
         for (let i = 0; i < 40; i++) {               // grime streaks
           g.fillStyle = `rgba(20,18,16,${0.04 + R2(seed + 500 + i) * 0.08})`;
           g.fillRect(R2(seed + 600 + i) * w, R2(seed + 700 + i) * h, 2 + R2(seed + 800 + i) * 4, 20 + R2(seed + 900 + i) * 120);
         }
       };
     }
-    const texWall  = canvasTex(512, 512, panelDraw('#6a6e75', 'rgba(30,32,36,0.8)', 'rgba(40,42,46,0.7)', 1));
-    const texHull  = canvasTex(512, 512, panelDraw('#4e5258', 'rgba(22,24,28,0.85)', 'rgba(30,32,36,0.7)', 2));
+    const texWall  = canvasTex(512, 512, panelDraw('#5f636a', 'rgba(30,32,36,0.55)', 'rgba(40,42,46,0.5)', 1));
+    const texHull  = canvasTex(512, 512, panelDraw('#4e5258', 'rgba(22,24,28,0.6)', 'rgba(30,32,36,0.5)', 2));
     const texDeck  = canvasTex(256, 256, (g, w, h) => {      // deck grating
       g.fillStyle = '#3b3e43'; g.fillRect(0, 0, w, h);
-      g.strokeStyle = 'rgba(15,16,18,0.9)'; g.lineWidth = 3;
-      for (let i = -h; i < w; i += 18) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i + h, h); g.stroke(); }
-      for (let i = 0; i < w + h; i += 18) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i - h, h); g.stroke(); }
+      g.strokeStyle = 'rgba(15,16,18,0.5)'; g.lineWidth = 2;      // v0.23.1: softer, wider mesh (no shimmer)
+      for (let i = -h; i < w; i += 32) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i + h, h); g.stroke(); }
+      for (let i = 0; i < w + h; i += 32) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i - h, h); g.stroke(); }
       g.fillStyle = 'rgba(0,0,0,0.5)'; g.fillRect(0, 0, w, 4); g.fillRect(0, 0, 4, h);
     });
-    const texHab   = canvasTex(256, 256, panelDraw('#8c9198', 'rgba(40,42,46,0.6)', 'rgba(60,62,66,0.5)', 3));
+    const texHab   = canvasTex(256, 256, panelDraw('#7d828a', 'rgba(40,42,46,0.45)', 'rgba(60,62,66,0.4)', 3));
     const texHaz   = canvasTex(128, 128, (g, w, h) => {
       g.fillStyle = '#1c1c1e'; g.fillRect(0, 0, w, h); g.fillStyle = '#d9a21e';
       for (let i = -h; i < w; i += 32) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i + 16, 0); g.lineTo(i + 16 + h, h); g.lineTo(i + h, h); g.fill(); }
@@ -16747,10 +16969,10 @@ body.in-wreck .cam-buttons { display: none; }
         o.material = PM({ map: t, side: THREE.BackSide }); return;
       }
       if (o.geometry.type !== 'BoxGeometry') return;
-      if (hex === 0x4a4d52) { tileBoxUV(o.geometry, 2.2); o.material = mDeck; }           // floor
-      else if (hex === 0x8f959c) { tileBoxUV(o.geometry, 1.8); o.material = mHab; }       // habitat floor panels
-      else if (hex === 0x5d6066) { tileBoxUV(o.geometry, 3); o.material = mHullF; }       // side walls / crushed nose
-      else if (hex === 0x7b7f86) { tileBoxUV(o.geometry, 2.4); o.material = mWall; }      // bulkheads, plates, debris
+      if (hex === 0x4a4d52) { tileBoxUV(o.geometry, 2.6); o.material = mDeck; }           // floor
+      else if (hex === 0x8f959c) { tileBoxUV(o.geometry, 3.4); o.material = mHab; }       // habitat floor panels (v0.23.1: bigger)
+      else if (hex === 0x5d6066) { tileBoxUV(o.geometry, 5.2); o.material = mHullF; }     // side walls / crushed nose
+      else if (hex === 0x7b7f86) { tileBoxUV(o.geometry, 4.0); o.material = mWall; }      // bulkheads, plates, debris
       else if (hex === 0xb3393a) { tileBoxUV(o.geometry, 1.2); o.material = mHaz; }       // sealed tail
       else if (hex === 0x3f78c8) { o.material = mDark; }                                   // devices (dressed below)
       else if (hex === 0x8a5cc8) { o.material = PM({ color: 0x5c6470 }); }                // personal locker
@@ -16981,6 +17203,47 @@ body.in-wreck .cam-buttons { display: none; }
       bl.position.copy(beacon.position); R.add(bl); R.add(bl.target);
       anim.push({ tick(t) { const a = t * 2.4; bl.target.position.set(beacon.position.x - 4 * Math.cos(a), 2, Math.sin(a) * 4); } });
     }
+    // ── v0.23.1: structure and light ──
+    // Ring frames (ribs) and two stringers on each side wall make it read as a
+    // hull, not a box. Lamp fixtures on the walls, with soft additive pools on
+    // the floor and halos on the wall, give the rooms light and dark — no
+    // extra real lights (phones pay per light). Pools follow their room light.
+    const WZ = HW - 0.11 * 0 - 0.0;                       // inner wall plane (m)
+    const skip = { '1': [[3.0, 5.6], [13.4, 16.6], [18.4, 20.6]], '-1': [[25.2, 27.8]] };   // boards, stabiliser, airlock chamber (d)
+    const free = (side, xd) => ![[6.4, 7.6], [13.4, 14.6], [22.4, 23.6], [29.4, 30.6]].some(([a, b]) => xd > a && xd < b)
+      && !(skip[side] || []).some(([a, b]) => xd > a && xd < b);
+    const mRib = PM({ color: 0x3e4247 }), mRibEdge = PM({ color: 0x55595f });
+    for (const side of [1, -1]) {
+      for (const xd of [2.2, 4.6, 9.2, 11.6, 16.2, 18.6, 21.0, 25.0, 28.4, 32.4, 35.4, 38.4, 41.4]) {
+        if (!free(side, xd)) continue;
+        add(B(0.34, 10.4, 0.2), mRib, X(xd), 5.2, side * (WZ - 0.1));
+        add(B(0.4, 10.4, 0.05), mRibEdge, X(xd), 5.2, side * (WZ - 0.22));
+      }
+      for (const [x0, x1] of [[0.4, 6.6], [7.4, 13.6], [14.4, 22.6], [23.4, 29.6], [30.4, 42.8]]) {
+        for (const y of [3.3, 6.2]) add(B(X(x1 - x0), 0.14, 0.16), mRib, X((x0 + x1) / 2), y, side * (WZ - 0.08));
+      }
+    }
+    const roomLights = wreckLevel.lights;
+    const nearestLight = (x, z) => { let b = null, bd = 1e9; for (const l of roomLights) { const d = Math.hypot(l.position.x - x, l.position.z - z); if (d < bd) { bd = d; b = l; } } return b; };
+    const poolTex = canvasTex(128, 128, (g, w, h) => { const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.35, 'rgba(255,255,255,0.45)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, h); });
+    const pools = [];
+    function pool(x, y, z, r, rot, src, k) {
+      const m = new THREE.MeshBasicMaterial({ map: poolTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -3 });
+      const p = add(new THREE.PlaneGeometry(r * 2, r * 2), m, x, y, z, rot[0], rot[1], rot[2]); p.renderOrder = 2;
+      pools.push({ m, src, k, base: src.intensity }); return p;
+    }
+    function fixture(xd, y, side) {                       // a caged wall lamp
+      const x = X(xd), z = side * (WZ - 0.12), src = nearestLight(x, z);
+      add(B(0.5, 0.22, 0.16), mDark, x, y, z);
+      const lens = add(B(0.4, 0.12, 0.05), new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false }), x, y - 0.02, z - side * 0.09);
+      pools.push({ m: lens.material, src, k: 0.9, base: src.intensity, lens: true });
+      for (const dx of [-0.12, 0, 0.12]) add(B(0.02, 0.16, 0.12), mCable, x + dx, y - 0.02, z - side * 0.12);
+      pool(x, y - 0.4, side * (WZ - 0.02), 1.4, [0, side > 0 ? Math.PI : 0, 0], src, 0.45);      // halo on the wall
+      pool(x, 0.03, side * (WZ - 1.3), 2.0, [-Math.PI / 2, 0, 0], src, 0.32);                // pool on the deck below
+    }
+    [[2.4, 1], [5.0, -1], [9.6, -1], [12.4, 1], [15.4, -1], [21.2, -1], [17.6, 1], [24.4, 1], [28.8, -1], [31.6, 1], [33.8, -1], [37.2, 1], [40.6, -1]].forEach(([xd, side]) => { if (free(side, xd)) fixture(xd, 4.1, side); });
+    for (const l of roomLights) pool(l.position.x, 0.03, l.position.z, 3.6, [-Math.PI / 2, 0, 0], l, 0.3);   // under each room light
+    anim.push({ tick() { for (const q of pools) { const k = q.k * Math.min(1.4, q.src.intensity / Math.max(0.01, q.base)); q.m.color.copy(q.src.color).multiplyScalar(q.lens ? Math.max(0.25, k) : k); } } });
     let t0 = performance.now();
     return { tick() { const t = (performance.now() - t0) / 1000; for (const a of anim) a.tick(t); } };
   })();
@@ -17237,7 +17500,7 @@ body.in-wreck .cam-buttons { display: none; }
   // two; the life-support board comes alive when the stabiliser is fixed,
   // and the room light goes from red to white with a stutter.
   // ============================================================
-  const wreckBoards = (function () {
+  const wreckBoards = (function () {   // (room light levels × WL_LIGHT_K)
     const R = wreckLevel.root;
     let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
     const boards = [];
@@ -17325,7 +17588,7 @@ body.in-wreck .cam-buttons { display: none; }
       const stut = lsT < 0 ? 0 : lsT < 0.15 ? 1 : lsT < 0.3 ? 0 : lsT < 0.4 ? 1 : lsT < 0.7 ? 0 : lsT < 0.8 ? 1 : lsT < 0.95 ? 0.3 : 1;
       lsOn = stut;
       const L = wreckLevel.lsLight;
-      if (L) { L.color.setHex(lsOn > 0.5 ? 0xdfe8ff : 0xff2a1e); L.intensity = lsOn > 0.5 ? 2.2 : (lsT >= 0 && lsT < 1 ? 0.4 : 2.0); }
+      if (L) { L.color.setHex(lsOn > 0.5 ? 0xdfe8ff : 0xff2a1e); L.intensity = WL_LIGHT_K * (lsOn > 0.5 ? 2.2 : (lsT >= 0 && lsT < 1 ? 0.4 : 2.0)); }
       if (life.light) { life.light.color.setHex(lsOn > 0.5 ? 0x60d0ff : 0xff5040); life.light.intensity = lsOn > 0.5 ? 0.7 : 0.4; }
       if (acc < 0.2) return; acc = 0;                      // boards redraw at 5 Hz
       for (const b of boards) {
@@ -17977,6 +18240,8 @@ body.in-wreck .cam-buttons { display: none; }
     try { robotMinds.tick(dt); } catch (e) { console.warn('[minds]', e); }
     if (level.id === 'crater') { try { iceV2.tick(dt); } catch (e) { console.warn('[ice]', e); } }
     if (level.id === 'wreck') { try { wreckDress.tick(); } catch (e) { } try { wreckBoards.tick(dt); } catch (e) { console.warn('[boards]', e); } }
+    if (scene.fog) { const w = level.id === 'wreck'; if (w !== scene.fog._wreck) { scene.fog._wreck = w;            // v0.23.1: a dark haze indoors for depth
+      if (w) { scene.fog.color.setHex(0x090708); scene.fog.near = 5; scene.fog.far = 34; } else { scene.fog.color.setHex(0x182030); scene.fog.near = 90; scene.fog.far = 280; } } }
     try { airlockCycle.tick(dt); } catch (e) { console.warn('[airlock]', e); }
     try { updateMusic(); } catch (e) { }
     syncRobotGlbs();
