@@ -48,6 +48,7 @@ awk 'BEGIN{n=0} /^<script type="module">$/{n++} n==3' index.html | sed '1d' | se
 | v0.22.1 | Devotion; suit O₂ warnings at 20% and 10% |
 | v0.22.2 | L-07's spare O₂ bottle |
 | v0.22.3 | Shadow acne fix (the flicker on the hull and robots) |
+| **v0.23.3** | **Preview only.** Shadow contact gap ("gap at the bottom of the boulders", from v0.22.3's acne fix): sun shadow depth range 0.5–600 → 20–420, bias −0.0004 → −0.00003, normalBias 0.03 → 0.01. Contact gap ~30 cm → ~4 cm. Khal to check on his phone that the hull/robot flicker hasn't come back. |
 | **v0.23.2** | **Preview only.** Bug fix: the robot GLB was fitted to the procedural robot's box *including sprites*; with `?debug` the mind label (y 1.9) made robots ~2 m. Only `?debug` was affected (so every harness render and trailers v1–v3), not normal play. Now measured from meshes only: robots ~1.15–1.2 m. |
 | **v0.23.1** | **Preview only.** Wreck interior: ambient 0.55 → 0.32, room lights × `WL_LIGHT_K` (0.5), wall lamps with additive light pools (no extra real lights), dark haze in the wreck (fog swapped on entry/exit), large hull plates instead of the tile grid, softer grating, ribs and stringers |
 | **v0.23.0** | **Preview only.** Robot minds stage 2: sight, investigate, inspect the Flyer, remembered places, affinity from helping. See `ROBOT_MINDS.md` |
@@ -63,7 +64,7 @@ awk 'BEGIN{n=0} /^<script type="module">$/{n++} n==3' index.html | sed '1d' | se
 - **Pickup pose:** `_pickupPose`, `reach.crouch`.
 - **Robot minds:** `robotMinds` IIFE after `ROBOT_NAMES`. See `ROBOT_MINDS.md`.
 - **O₂ warnings:** `_o2Warnings(dt)`, `#o2-warn`, `#o2-edge`.
-- **Shadows:** about line 796. Sun bias −0.0004, normalBias 0.03 (v0.22.3). Sun at 17° (`SUN_ELEV_DEG`), PCFSoft, 4096 map, follows him ±90 m.
+- **Shadows:** about line 796. Sun bias −0.00003, normalBias 0.01, depth range 20–420 (v0.23.3). Sun at 17° (`SUN_ELEV_DEG`), PCFSoft, 4096 map, follows him ±90 m.
 - **Robot indices:** `robots[0]` = P-03 (blue), `[1]` = L-07 (yellow), `[2]` = M-08 (red).
 
 ## Test harness (rebuild in a new sandbox)
