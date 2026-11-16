@@ -48,6 +48,7 @@ awk 'BEGIN{n=0} /^<script type="module">$/{n++} n==3' index.html | sed '1d' | se
 | v0.22.1 | Devotion; suit O₂ warnings at 20% and 10% |
 | v0.22.2 | L-07's spare O₂ bottle |
 | v0.22.3 | Shadow acne fix (the flicker on the hull and robots) |
+| **v0.23.4** | **Preview only.** (1) Collision pass: the starship hull and nose are box colliders (`hullColliders`, tag `'hull'`, x 6.6–44.6, stepped to the nose profile; disabled while `airlockLock`/`airlockDrive` so the hatch walk works). O₂ tanks box (`'o2tanks'`), station crates (`'stationCrates'`), Flyer body box (`flyerBodyCollider`, walking only, hx 2.0 so the brace mount stays reachable). Walk-in tests stop him at surface + 0.35 m on every face. (2) Slow rise from the seat at the tanks (`seatRise`): 1.1 s holding still whatever the stick does, then speed ramps in over 0.8 s. (3) Boulder contact shadows: dark ring decals (`boulderContacts`, one InstancedMesh, +0.1 m because the ground mesh sits up to ~4 cm above the analytic height) and a base-darkening band on floor boulders (`boulderFloorMat`). The pale sliver is shadow-map resolution at the contact; deeper burial wouldn't fix it. |
 | **v0.23.3** | **Preview only.** Shadow contact gap ("gap at the bottom of the boulders", from v0.22.3's acne fix): sun shadow depth range 0.5–600 → 20–420, bias −0.0004 → −0.00003, normalBias 0.03 → 0.01. Contact gap ~30 cm → ~4 cm. Khal to check on his phone that the hull/robot flicker hasn't come back. |
 | **v0.23.2** | **Preview only.** Bug fix: the robot GLB was fitted to the procedural robot's box *including sprites*; with `?debug` the mind label (y 1.9) made robots ~2 m. Only `?debug` was affected (so every harness render and trailers v1–v3), not normal play. Now measured from meshes only: robots ~1.15–1.2 m. |
 | **v0.23.1** | **Preview only.** Wreck interior: ambient 0.55 → 0.32, room lights × `WL_LIGHT_K` (0.5), wall lamps with additive light pools (no extra real lights), dark haze in the wreck (fog swapped on entry/exit), large hull plates instead of the tile grid, softer grating, ribs and stringers |
@@ -60,7 +61,7 @@ awk 'BEGIN{n=0} /^<script type="module">$/{n++} n==3' index.html | sed '1d' | se
 - **Wreck lighting and boards:** `wreckBoards` IIFE; `wreckLevel.lsLight`.
 - **Brace puzzle:** `braceV2` IIFE. See `PUZZLES_V2.md`.
 - **Ice pocket puzzle:** `iceV2` IIFE. See `PUZZLES_V2.md`.
-- **Collision:** `boxResolvePlayer` (head bump, grounded-only step-up), `robotResolvePlayer` (radius 0.42), `wreckPropColliders` (tag `'wreckProps'`).
+- **Collision:** `boxResolvePlayer` (head bump, grounded-only step-up, adds `BOX_PLAYER_R` 0.35), `robotResolvePlayer` (radius 0.42), `wreckPropColliders` (tag `'wreckProps'`). Exterior: `hullColliders`, `flyerBodyCollider`, `'o2tanks'`, `'stationCrates'` (v0.23.4). Robots don't use the player's box colliders yet.
 - **Pickup pose:** `_pickupPose`, `reach.crouch`.
 - **Robot minds:** `robotMinds` IIFE after `ROBOT_NAMES`. See `ROBOT_MINDS.md`.
 - **O₂ warnings:** `_o2Warnings(dt)`, `#o2-warn`, `#o2-edge`.

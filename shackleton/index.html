@@ -667,7 +667,7 @@ body.in-wreck .cam-buttons { display: none; }
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.23.3';  // shadow contact gap: tighter sun depth range, bias −0.00003, normalBias 0.01. was v0.23.2;  // robot GLB fit ignores sprites (debug labels made robots ~1.7x too tall with ?debug). was v0.23.1;  // wreck interior: darker ambient + lamp pools, haze, big hull plates, ribs and stringers. was v0.23.0;  // robot minds stage 2: sight, investigate, inspect the Flyer, remembered places, affinity from helping. was v0.22.3;  // shadow acne fix (small sun/lamp bias). was v0.22.2;  // L-07's spare bottle after the first rescue. was v0.22.1;  // O2 warnings at 20% / 10%; robots' devotion. was v0.22.0;  // robot minds, stage 1. was v0.21.3;  // pick-up pose and two-handed carry. was v0.21.2;  // M-08 lifting pose; rougher ridge rocks. was v0.21.0;  // brace becomes a load puzzle with M-08; ice pocket becomes a light puzzle. was v0.20.1;  // red emergency light back in unpowered rooms; life support goes white when fixed; lit control boards. was v0.20.0;  // airlock cycle replaces the breach; interior relit. was v0.19.1;  // KHAL on the hull; wreck interior dressed; blockout labels dev-only. was v0.19.0;  // helmet radio for all voices; robot chirps + eye flash; wrist-pad questions to the robots. was v0.18.7;  // robot legs double-sided with dark cores; toe flaps 1.6x. was v0.18.6;  // robot ankles: foot pad on a ball joint, kept level while planted. was v0.18.5;  // robot toes bend to stay on the ground through stance. was v0.18.4;  // robot gait: bird-like stance/swing, bigger leg swing, pistons follow, body dip, feet planted. was v0.18.3;  // engine nozzles 25% larger. was v0.18.2;  // wreck: four landing legs in housings (two intact, two buckled), half-size blackened nozzles. was v0.18.1;  // wreck: sealed middle/nose, rear-only damage + tanks, doorway recess, NASA stacked, regolith imprint. was v0.18.0;  // wreck exterior: painted skin, round hull, ogive nose, engine bells, landing legs. was v0.17.3;  // robot eyes blink and look; gestures: wave, hand up, tap-and-point. was v0.17.2;  // robot legs: piston shins, hinged toes, less body sway. was v0.17.1;  // built tools on the Meshy robots: drill + saw, gripper, three-finger claws. was v0.17.0;  // Meshy robots, cut into jointed parts and driven by the walk rig. was v0.16.0;  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.23.4';  // collision pass (hull, nose, O2 tanks, crates, Flyer), slow rise from the seat, boulder contact shadows. was v0.23.3;  // shadow contact gap: tighter sun depth range, bias −0.00003, normalBias 0.01. was v0.23.2;  // robot GLB fit ignores sprites (debug labels made robots ~1.7x too tall with ?debug). was v0.23.1;  // wreck interior: darker ambient + lamp pools, haze, big hull plates, ribs and stringers. was v0.23.0;  // robot minds stage 2: sight, investigate, inspect the Flyer, remembered places, affinity from helping. was v0.22.3;  // shadow acne fix (small sun/lamp bias). was v0.22.2;  // L-07's spare bottle after the first rescue. was v0.22.1;  // O2 warnings at 20% / 10%; robots' devotion. was v0.22.0;  // robot minds, stage 1. was v0.21.3;  // pick-up pose and two-handed carry. was v0.21.2;  // M-08 lifting pose; rougher ridge rocks. was v0.21.0;  // brace becomes a load puzzle with M-08; ice pocket becomes a light puzzle. was v0.20.1;  // red emergency light back in unpowered rooms; life support goes white when fixed; lit control boards. was v0.20.0;  // airlock cycle replaces the breach; interior relit. was v0.19.1;  // KHAL on the hull; wreck interior dressed; blockout labels dev-only. was v0.19.0;  // helmet radio for all voices; robot chirps + eye flash; wrist-pad questions to the robots. was v0.18.7;  // robot legs double-sided with dark cores; toe flaps 1.6x. was v0.18.6;  // robot ankles: foot pad on a ball joint, kept level while planted. was v0.18.5;  // robot toes bend to stay on the ground through stance. was v0.18.4;  // robot gait: bird-like stance/swing, bigger leg swing, pistons follow, body dip, feet planted. was v0.18.3;  // engine nozzles 25% larger. was v0.18.2;  // wreck: four landing legs in housings (two intact, two buckled), half-size blackened nozzles. was v0.18.1;  // wreck: sealed middle/nose, rear-only damage + tanks, doorway recess, NASA stacked, regolith imprint. was v0.18.0;  // wreck exterior: painted skin, round hull, ogive nose, engine bells, landing legs. was v0.17.3;  // robot eyes blink and look; gestures: wave, hand up, tap-and-point. was v0.17.2;  // robot legs: piston shins, hinged toes, less body sway. was v0.17.1;  // built tools on the Meshy robots: drill + saw, gripper, three-finger claws. was v0.17.0;  // Meshy robots, cut into jointed parts and driven by the walk rig. was v0.16.0;  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -2166,11 +2166,55 @@ body.in-wreck .cam-buttons { display: none; }
   // unique). Cheap to scale to hundreds of boulders.
   // ============================================================
   const boulderGeom = new THREE.IcosahedronGeometry(1, 0);
+  // v0.23.4: CONTACT SHADOWS. The sun's shadow map is 4.4 cm a texel and
+  // soft-filtered, so right at a boulder's foot the cast shadow fades and a
+  // pale sliver shows (Khal: "around the bottom of the boulders"). Burying
+  // them deeper wouldn't help — they're already a third under. A soft dark
+  // ring on the ground at each foot (fake ambient occlusion) closes it and
+  // seats them. One InstancedMesh for all of them: one draw call.
+  const boulderContacts = [];
+  function buildBoulderContacts() {
+    if (!boulderContacts.length) return;
+    // Radial falloff as a DataTexture (a canvas gradient sampled as empty
+    // in testing). Dark core under the rock, soft edge out to 1.0.
+    // Dark core (hidden under the rock), soft fade beyond its foot.
+    const makeTex = () => {
+      const N = 64, d = new Uint8Array(N * N * 4);
+      for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+        const r = Math.hypot(i + 0.5 - N / 2, j + 0.5 - N / 2) / (N / 2);
+        const a = r >= 1 ? 0 : r < 0.45 ? 0.8 : 0.8 * Math.pow(1 - (r - 0.45) / 0.55, 1.4);
+        d[(j * N + i) * 4 + 3] = Math.round(a * 255);
+      }
+      const t = new THREE.DataTexture(d, N, N); t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearFilter; t.needsUpdate = true; return t;
+    };
+    const mat = new THREE.MeshBasicMaterial({ color: 0x000000, map: makeTex(), transparent: true, depthWrite: false,
+      polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4, fog: true });
+    const geo = new THREE.PlaneGeometry(2, 2); geo.rotateX(-Math.PI / 2);
+    const im = new THREE.InstancedMesh(geo, mat, boulderContacts.length);
+    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), ps = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
+    boulderContacts.forEach((b, i) => { q.setFromAxisAngle(up, b.yaw); sc.set(b.r, 1, b.r); ps.set(b.x, b.y + 0.1, b.z); im.setMatrixAt(i, m4.compose(ps, q, sc)); });   // +0.1: ground mesh sits up to ~4 cm off the analytic height
+    im.instanceMatrix.needsUpdate = true; im.frustumCulled = false; im.renderOrder = 1; im.name = 'boulderContacts';
+    root.add(im);
+  }
   const boulderMat = rockify(new THREE.MeshPhongMaterial({
     shininess: 0,
     color: 0x33302d,           // v0.7.3: darker, warmer — boulders read as rock against dust
     flatShading: true
   }));
+  // v0.23.4: floor boulders get a base-occlusion band. The pale sliver at a
+  // boulder's foot is on the ROCK: the bottom few cm of a sunlit face sit
+  // inside the shadow bias, so they read lit right where they meet the
+  // ground. Darken the rock as it nears the ground line. The ground is
+  // derived per object: origin.y - 0.3 * scaleY (placeBoulder buries 30%),
+  // and scaleY is the length of the model matrix's Y column.
+  const boulderFloorMat = rockify(new THREE.MeshPhongMaterial({ shininess: 0, color: 0x33302d, flatShading: true }));
+  { const rk = boulderFloorMat.onBeforeCompile;
+    boulderFloorMat.onBeforeCompile = (sh) => { rk(sh);
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying float vBaseH;')
+        .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvBaseH = (modelMatrix * vec4(transformed, 1.0)).y - (modelMatrix[3].y - 0.3 * length(modelMatrix[1].xyz));');
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vBaseH;')
+        .replace('#include <opaque_fragment>', 'outgoingLight *= mix(0.3, 1.0, smoothstep(0.0, 0.16, vBaseH));\n#include <opaque_fragment>');
+    }; }
 
   // Place a boulder at world (x, surfaceY, z) with the given
   // diameter. Diameter ~= the boulder's largest dimension; we
@@ -2179,7 +2223,7 @@ body.in-wreck .cam-buttons { display: none; }
     const sx = diameter * (0.5 + rng(seed + 0.1) * 0.5);
     const sy = diameter * (0.4 + rng(seed + 0.2) * 0.5);
     const sz = diameter * (0.5 + rng(seed + 0.3) * 0.5);
-    const m = new THREE.Mesh(boulderGeom, boulderMat);
+    const m = new THREE.Mesh(boulderGeom, collide === false ? boulderMat : boulderFloorMat);
     m.scale.set(sx, sy, sz);
     m.rotation.set(
       rng(seed + 0.4) * Math.PI * 2,
@@ -2192,6 +2236,7 @@ body.in-wreck .cam-buttons { display: none; }
     m.castShadow = true;
     m.receiveShadow = true;
     root.add(m);
+    if (sy >= 0.15 && collide !== false) boulderContacts.push({ x, y: surfaceY, z, r: Math.max(sx, sz) * 1.55, yaw: rng(seed + 0.7) * Math.PI });
     // Collider — gated by sy threshold so tiny pebbles don't block.
     // Caller can pass collide=false to opt out entirely (wall boulders).
     if (collide !== false && sy >= 0.2) {
@@ -2353,6 +2398,7 @@ body.in-wreck .cam-buttons { display: none; }
     const y = -CRATER_DEPTH + floorHeight(x, z);
     placeBoulder(x, y, z, diameter, i + 0.9);
   }
+  buildBoulderContacts();   // v0.23.4
 
   // Outer-zone boulder helper retained for the outer plain.
   function bigRock(x, z, sx, sy, sz, ry, mat, shadow) {
@@ -2921,9 +2967,9 @@ body.in-wreck .cam-buttons { display: none; }
                         Math.abs(input.strafe) > 0.05 || input.jump;
       if (wantsMove) {
         rescueSit.active = false;
-        astroSeat.want = false;          // pose blends out over ~0.5s — he rises
+        astroSeat.want = false;          // pose unfolds over seatRise.HOLD
+        seatRise.t = 0;
         setAnimation('Idle_Breath');
-        // fall through — this frame runs the normal controller
       } else {
         player.vel.set(0, 0, 0);
         player.pos.y = shackletonScene.getGroundY(player.pos.x, player.pos.z);
@@ -2934,6 +2980,19 @@ body.in-wreck .cam-buttons { display: none; }
         }
         return;
       }
+    }
+
+    // v0.23.4: rising from the seat — hold him in place until he is up
+    if (seatRise.t >= 0) {
+      seatRise.t += dt;
+      if (seatRise.t < seatRise.HOLD) {
+        player.vel.set(0, 0, 0);
+        player.pos.y = shackletonScene.getGroundY(player.pos.x, player.pos.z);
+        player.grounded = true;
+        if (astronautRoot) { astronautRoot.position.copy(player.pos); astronautRoot.rotation.y = player.heading; }
+        return;
+      }
+      if (seatRise.t > seatRise.HOLD + seatRise.RAMP) seatRise.t = -1;
     }
 
     // Ground check (v0.5.0: terrain OR a walkable box top)
@@ -2997,7 +3056,8 @@ body.in-wreck .cam-buttons { display: none; }
     // speed/clip-rate/bob read as stuttering, not as a lope. The
     // lunar feel now comes solely from the 0.78× gait timescale in
     // setAnimation: original movement, slightly slow limbs.
-    const targetSpeed = (level.id === 'wreck' || airlockDrive) ? WRECK_WALK_SPEED : (input.run ? RUN_SPEED : JOG_SPEED);
+    const _riseK = seatRise.t >= 0 ? Math.min(1, Math.max(0.15, (seatRise.t - seatRise.HOLD) / seatRise.RAMP)) : 1;   // v0.23.4
+    const targetSpeed = ((level.id === 'wreck' || airlockDrive) ? WRECK_WALK_SPEED : (input.run ? RUN_SPEED : JOG_SPEED)) * _riseK;
     const accel = player.grounded ? ACCEL_GROUND : ACCEL_AIR;
     // v0.13.5: no steering in the air. Once he has left the ground on a
     // jump (or has been falling for more than a moment) he is a
@@ -3353,6 +3413,9 @@ body.in-wreck .cam-buttons { display: none; }
     }
 
     // Box colliders (v0.5.0) — GLB proxies and authored blockers.
+    { const viaHatch = airlockLock || !!airlockDrive;                 // v0.23.4
+      for (const c of hullColliders) c.enabled = !viaHatch;
+      flyerBodyCollider.enabled = controlMode === 'walking'; }
     boxResolvePlayer(player.pos, player.vel);
     robotResolvePlayer(player.pos, player.vel);
 
@@ -7725,6 +7788,11 @@ body.in-wreck .cam-buttons { display: none; }
     2.0,
     FLYER_ASSEMBLED_POS.y + 1.6
   );
+  // v0.23.4: the frame is 7 m long; the round collider left both ends open.
+  // Across the craft it stops him where the circle did (the brace mount is
+  // reached from there); along it, the full length. Off unless walking.
+  const flyerBodyCollider = addBoxCollider({ x: FLYER_ASSEMBLED_POS.x, z: FLYER_ASSEMBLED_POS.z - 0.15, hx: 2.0, hz: 3.2,
+    y0: -CRATER_DEPTH - 0.5, y1: FLYER_ASSEMBLED_POS.y + 1.6, walkable: false, tag: 'flyer' });
   // Store each part's "assembled" local transform so the assembly
   // animation can lerp from a stowed-in-crate origin back to here.
   const u = flyer.userData;
@@ -7836,6 +7904,10 @@ body.in-wreck .cam-buttons { display: none; }
     active: false,
     spoke: false,                      // one-time wake suit line fired
   };
+  // v0.23.4: getting up from the seat is a fixed, slow rise whatever the
+  // stick does (Khal: fast input made it disorientating). He stays put
+  // while the pose unfolds (RISE_HOLD), then his speed ramps in (RISE_RAMP).
+  const seatRise = { t: -1, HOLD: 1.1, RAMP: 0.8 };
   // Debug — press = to bump capacity up by 25 (max 100). Lets us test
   // each phase's leash without wiring repair triggers yet. Wired in
   // the keydown handler.
@@ -9967,6 +10039,16 @@ body.in-wreck .cam-buttons { display: none; }
     if (/[?&]oldwreck\b/.test(location.search)) scene.add(ramp);   // v0.18.1: led to a side hole that is now sealed
   }
 
+  // v0.23.4: the hull is solid from outside. The interior is its own level
+  // now (airlock), so nothing walks inside this hull any more. Measured
+  // with rays at chest height: half-width 4.37 m about z = STARSHIP_Z from
+  // the tail dome (x 6.6) to x 36, then the nose narrows to a tip at 44.6.
+  // Box half-widths exclude the player's radius (boxResolvePlayer adds it).
+  // Off while the airlock walks him in or out through the hatch.
+  const hullColliders = [
+    [6.6, 37.0, 4.35], [37.0, 39.0, 4.15], [39.0, 41.0, 3.75], [41.0, 42.5, 3.1], [42.5, 43.7, 2.3], [43.7, 44.6, 1.3],
+  ].map(([x0, x1, hz]) => addBoxCollider({ x: (x0 + x1) / 2, z: STARSHIP_Z, hx: (x1 - x0) / 2, hz,
+      y0: -CRATER_DEPTH - 1, y1: -CRATER_DEPTH + 6.5, walkable: false, tag: 'hull' }));
   // Wreck end colliders — REMOVED (v0.4.6). The two legacy cylinders
   // (at wreckX(1) and wreckX(13), r 2.4) predate the real hull
   // collision system. The tail one sat squarely in the middle of the
@@ -10111,6 +10193,12 @@ body.in-wreck .cam-buttons { display: none; }
   // Small collider so the player walks UP to the panel rather than
   // through it.
   addCollider(REFILL_PANEL_POS.x, REFILL_PANEL_POS.z, 0.45, refillPanel.position.y + 1.2);
+  // v0.23.4: the two O₂ bottles beside the panel (1.9 m tall) and the three
+  // supply crates in front of them (0.8 m, you can jump on to them).
+  addBoxCollider({ x: REFILL_PANEL_POS.x, z: REFILL_PANEL_POS.z - 0.55, hx: 0.56, hz: 0.27,
+    y0: -CRATER_DEPTH - 0.5, y1: -CRATER_DEPTH + 1.95, walkable: false, tag: 'o2tanks' });
+  addBoxCollider({ x: REFILL_PANEL_POS.x + 1.0, z: REFILL_PANEL_POS.z + 3.3, hx: 1.2, hz: 0.4,
+    y0: -CRATER_DEPTH - 0.5, y1: -CRATER_DEPTH + 0.8, walkable: true, tag: 'stationCrates' });
 
   // ============================================================
   // O₂ UMBILICAL HOSE (v0.4.3)
@@ -13349,7 +13437,10 @@ body.in-wreck .cam-buttons { display: none; }
 
   function applySeatedPose(dt) {
     const target = astroSeat.want ? 1 : 0;
-    astroSeat.w += (target - astroSeat.w) * Math.min(1, dt * (astroSeat.want ? 8 : 5));
+    if (!astroSeat.want && seatRise.t >= 0) {          // v0.23.4: a slow, eased rise
+      const u = Math.min(1, seatRise.t / seatRise.HOLD);
+      astroSeat.w = Math.min(astroSeat.w, 1 - u * u * (3 - 2 * u));
+    } else astroSeat.w += (target - astroSeat.w) * Math.min(1, dt * (astroSeat.want ? 8 : 5));
     if (!astroSeat.want && astroSeat.w < 0.01) {
       astroSeat.w = 0;
       const b0 = astroSeat.bones;
