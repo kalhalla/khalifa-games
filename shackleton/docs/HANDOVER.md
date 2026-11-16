@@ -48,6 +48,7 @@ awk 'BEGIN{n=0} /^<script type="module">$/{n++} n==3' index.html | sed '1d' | se
 | v0.22.1 | Devotion; suit O₂ warnings at 20% and 10% |
 | v0.22.2 | L-07's spare O₂ bottle |
 | v0.22.3 | Shadow acne fix (the flicker on the hull and robots) |
+| **v0.23.2** | **Preview only.** Bug fix: the robot GLB was fitted to the procedural robot's box *including sprites*; with `?debug` the mind label (y 1.9) made robots ~2 m. Only `?debug` was affected (so every harness render and trailers v1–v3), not normal play. Now measured from meshes only: robots ~1.15–1.2 m. |
 | **v0.23.1** | **Preview only.** Wreck interior: ambient 0.55 → 0.32, room lights × `WL_LIGHT_K` (0.5), wall lamps with additive light pools (no extra real lights), dark haze in the wreck (fog swapped on entry/exit), large hull plates instead of the tile grid, softer grating, ribs and stringers |
 | **v0.23.0** | **Preview only.** Robot minds stage 2: sight, investigate, inspect the Flyer, remembered places, affinity from helping. See `ROBOT_MINDS.md` |
 
@@ -83,7 +84,7 @@ The sandbox can't reach CDNs, so use a local harness:
 
 1. **Khal:** test v0.22.3 on his phone (aim mode on the stick, the robot tones, music, airlock sounds, the wrist pad, frame rate with the extra lights).
 2. ~~Trailer re-shoot at 1080p.~~ **Done 15 Nov (trailer v2):** 28.5 s, 1920×1080, 30 fps, H.264 + AAC, 8.7 Mbps. Robots run free; the breach is replaced by the airlock (outside, then the chamber) and the life-support power-up. Order: wake → L-07 → wreck → walk with robots → M-08 → airlock out → chamber → power-up → radio → ice → Earth → "...Elias?" → title. Sent to Khal, not in the repo (31 MB). Vibration cause: the wall clock in the harness (fixed), plus a real one: robot stride rate scales linearly with speed, so at the escort jog (1.3 m/s) the body bobs ~8.5 Hz. Offered to Khal as a gait fix; not changed.
-2b. **Trailer v3 (15 Nov):** 28.5 s, 1080p. Robots stay ~1.2 m in the game (bodies 1.04–1.30 m; an earlier 2.8 m figure was a bounding-box error from the shared vertex buffer of the cut GLB). They read big only in close-ups, so v3 frames them beside the astronaut. Adds quick puzzle cuts (stabiliser panel, brace lift with M-08, rescue jump) under "REBUILD A WAY HOME.", the ice beam ("FIND WATER.") and the relit interior. Shots: `docs/harness/tr/shots*3.json`, edit `edit3.py`.
+2b. **Trailer v3 (15 Nov):** 28.5 s, 1080p. Robots were filmed ~1.7× too big in v1–v3 because of the `?debug` fit bug fixed in v0.23.2. Measure robot size by rendered pixels (side-on orthographic), never Box3. Adds quick puzzle cuts (stabiliser panel, brace lift with M-08, rescue jump) under "REBUILD A WAY HOME.", the ice beam ("FIND WATER.") and the relit interior. Shots: `docs/harness/tr/shots*3.json`, edit `edit3.py`.
 3. ~~Robot minds, stage 2~~ **Built in v0.23.0 on the preview** (15 Nov). Khal to try it, then "push live". Next: stage 3 (robot-to-robot moments, job-site props).
 4. Tune the bottle (15% vs 10%) after Khal plays it.
 5. The demo ending (ice memory, then Michel's cut-off warning, then a "3 parts missing" card with the wishlist prompt). Decided 13 Nov, not built.
