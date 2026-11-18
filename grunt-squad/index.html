@@ -506,7 +506,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
     <button id="tset">SETTINGS <small>sound · music · graphics</small></button>
   </div>
   <div class="foot">© KHALIFA.GAMES · NO GRUNTS WERE CONSULTED</div>
-  <div id="tver">v181</div>
+  <div id="tver">v182</div>
 </div>
 
 <div id="ops" class="screen">
@@ -3348,7 +3348,9 @@ function boomFX(x, y, z, k) {
   spawnParts(x, y + 0.2, z, Math.round(10 * k), 0xffe2a0, 13 * Math.sqrt(k), 0.12, 0.35, 9);    // sparks
   spawnParts(x, y + 0.1, z, Math.round(12 * k), 0x4a3a26, 8 * Math.sqrt(k), 0.26, 1.3, 17);    // clods of earth
 }
+const fbQueue = [];   // v182: fireballs to set off a moment later: { t, x, y, z, k }
 function stepFireballs(dt) {
+  for (let i = fbQueue.length - 1; i >= 0; i--) { const q = fbQueue[i]; if ((q.t -= dt) <= 0) { fbQueue.splice(i, 1); boomFX(q.x, q.y, q.z, q.k); SFX.arty(q.x, q.z); } }
   for (const f of fbs) {
     if (f.t >= f.T) continue;
     f.t += dt; const u = Math.min(1, f.t / f.T), k = f.k;
@@ -13904,7 +13906,7 @@ function stepRefugees(dt) {
           E.ring.visible = false;
           boomFX(cx, groundY(cx, cz) + 0.5, cz, 2.6); spawnParts(cx, groundY(cx, cz) + 1, cz, 60, 0xffb060, 14, 0.24, 0.9, 10); SFX.bigBoom(cx, cz);   // v124: the fireball; v133: the recorded blast
           camShake = Math.min(camShake + 1.2, 1.5); flashScreen(0.6);   // v133: v124's comment had swallowed these
-          destroyTarget(T, 'charge'); globalAlert = 2; noiseEvent(cx, cz, 60, 1); civScare(cx, cz, 26);
+          T.fxDone = true; destroyTarget(T, 'charge'); globalAlert = 2; noiseEvent(cx, cz, 60, 1); civScare(cx, cz, 26);   // v182: fxDone, its blast is above
           const dai = sol.find(q => !q.dead && q.name === 'Dai'); if (dai) setTimeout(() => sayLine(dai, 'dai_bang', 1.8), 900);   // v125
         }
       }
@@ -14939,6 +14941,20 @@ function crewTargets() {
 }
 // v33: the big ones — slow the clock, pull the camera back, shake it
 let camPull = 0;
+/* v182 (Khal: "make the Iron Bridge explode with a proper fireball"): until now a bridge blown by a charge only tipped over
+   in a puff of dust (the Dyle Bridge's exploder had its own blast, v124; the charge's blast is a charge's, at the pier).
+   Now: a big fireball on the deck at mid-span, two more running down the span 0.18 s and 0.38 s after, the recorded
+   blast, the flash and the shake, burning debris and a black smoke column. Looks only: no extra damage or noise. */
+function bridgeBlast(T) {
+  const Z = T.zone, alongZ = Z.z1 - Z.z0 > Z.x1 - Z.x0, half = (alongZ ? Z.z1 - Z.z0 : Z.x1 - Z.x0) / 2;
+  const deck = Math.max(groundY(T.x, T.z), T.mesh.position.y) + 0.8, at = f => alongZ ? [T.x, T.z + f * half] : [T.x + f * half, T.z];
+  boomFX(T.x, deck, T.z, 3.2); SFX.bigBoom(T.x, T.z);
+  spawnParts(T.x, deck + 0.8, T.z, 80, 0xffa040, 16, 0.34, 1.1, 6); spawnParts(T.x, deck + 1.2, T.z, 40, 0x2a2622, 6, 0.6, 2.8, -1.0); spawnParts(T.x, deck + 0.5, T.z, 40, 0xff5a20, 11, 0.26, 0.8, 10);
+  for (const [f, t, k] of [[-0.55, 0.18, 2.0], [0.6, 0.38, 2.2]]) { const [x, z] = at(f); fbQueue.push({ t, x, y: deck, z, k }); }
+  camShake = Math.min(camShake + 1.6, 1.8); hitStop = Math.max(hitStop, 0.1); flashScreen(0.85);
+  muzzleT = 0.5; muzzleLight.position.set(T.x, deck + 3, T.z);
+  addSmoker(T.x, T.z, { life: 45, rate: 5, size: 2.4, col: 0x1e1d1c, a: 0.62, rise: 2.8, burst: 10 });
+}
 function bigMoment(k) { slowT = Math.max(slowT, 0.75 * (k || 1)); camPull = Math.min(1.4, camPull + (k || 1)); camShake = Math.min(1.4, camShake + 0.5); }
 function destroyTarget(T, how) {
   if (T.dead) return;
@@ -14982,6 +14998,7 @@ function destroyTarget(T, how) {
     const left = targets.filter(t => t.kind === 'gun' && !t.dead).length;
     showToast(how === 'quiet' ? 'GUN SPIKED' : 'GUN WRECKED', left ? `${left} still firing` : 'the battery is silent');
   } else if (T.kind === 'bridge') {
+    if (!T.fxDone && how !== 'quiet') bridgeBlast(T);   // v182 (Khal): a bridge goes up in a fireball, not just over
     bridgeZones = bridgeZones.filter(r => r !== T.zone);
     T.mesh.rotation.z = 0.35; T.mesh.position.y -= 1.6;
     buildRoadDelta(); rebuildTerrain(); buildRoadStrips(); buildRailStrip(); buildWater(); buildGrid(); buildPathGrid(); bakeLookHeights();   // v28: the road goes with the bridge
@@ -15301,7 +15318,7 @@ function initMission(idx) {
   missT = 8 + Math.random() * 14; missSaid = 0;   // v160
   kills = 0; globalAlert = 0; missionTime = 0; coldT = -1e9; chatT = 4; squadSkis = false; skiChangeT = 0; reinfSent = false; standTo = false; fightT = 0; searchQ = []; avalanche = null; reinfBlocked = false; wavering = false; outcome = null;
   grenCount = startGren = M.grenades + upgLvl('webb'); everSpotted = false; weapon = 'gun'; setWeapon('gun');
-  cryQ = null; hitStop = 0; bloodTimer = 0; camShake = 0; squadProne = false; noiseTimer = 0; spotted = false;
+  cryQ = null; hitStop = 0; fbQueue.length = 0; bloodTimer = 0; camShake = 0; squadProne = false; noiseTimer = 0; spotted = false;
   wetN = 0; wetT = -1e9;   // v63: the wet grumble's per-op allowance
   split = false; selTeam = 0; teamProne = [false, false, false]; teamSup = [null, null, null]; posH2 = []; pinShown = false;   // v32
   sniperMark = null; sniperShots = 0;
