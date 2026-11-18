@@ -677,7 +677,7 @@ body.in-wreck .cam-buttons { display: none; }
   // free — semver, date, or whatever's useful. The whole point is
   // that the tag is different from the previous deploy.
   // ============================================================
-  const BUILD_VERSION = 'v0.24.0';  // rescue: smaller jump at a walk, P-03 in plain sight with a strobe, waypoint and call-outs. was v0.23.5;  // arms hold the load (reach aim was shadowed since v0.5.1); deck plates carried level; door-frame shimmer; flight console and radio slot collide. was v0.23.4;  // collision pass (hull, nose, O2 tanks, crates, Flyer), slow rise from the seat, boulder contact shadows. was v0.23.3;  // shadow contact gap: tighter sun depth range, bias −0.00003, normalBias 0.01. was v0.23.2;  // robot GLB fit ignores sprites (debug labels made robots ~1.7x too tall with ?debug). was v0.23.1;  // wreck interior: darker ambient + lamp pools, haze, big hull plates, ribs and stringers. was v0.23.0;  // robot minds stage 2: sight, investigate, inspect the Flyer, remembered places, affinity from helping. was v0.22.3;  // shadow acne fix (small sun/lamp bias). was v0.22.2;  // L-07's spare bottle after the first rescue. was v0.22.1;  // O2 warnings at 20% / 10%; robots' devotion. was v0.22.0;  // robot minds, stage 1. was v0.21.3;  // pick-up pose and two-handed carry. was v0.21.2;  // M-08 lifting pose; rougher ridge rocks. was v0.21.0;  // brace becomes a load puzzle with M-08; ice pocket becomes a light puzzle. was v0.20.1;  // red emergency light back in unpowered rooms; life support goes white when fixed; lit control boards. was v0.20.0;  // airlock cycle replaces the breach; interior relit. was v0.19.1;  // KHAL on the hull; wreck interior dressed; blockout labels dev-only. was v0.19.0;  // helmet radio for all voices; robot chirps + eye flash; wrist-pad questions to the robots. was v0.18.7;  // robot legs double-sided with dark cores; toe flaps 1.6x. was v0.18.6;  // robot ankles: foot pad on a ball joint, kept level while planted. was v0.18.5;  // robot toes bend to stay on the ground through stance. was v0.18.4;  // robot gait: bird-like stance/swing, bigger leg swing, pistons follow, body dip, feet planted. was v0.18.3;  // engine nozzles 25% larger. was v0.18.2;  // wreck: four landing legs in housings (two intact, two buckled), half-size blackened nozzles. was v0.18.1;  // wreck: sealed middle/nose, rear-only damage + tanks, doorway recess, NASA stacked, regolith imprint. was v0.18.0;  // wreck exterior: painted skin, round hull, ogive nose, engine bells, landing legs. was v0.17.3;  // robot eyes blink and look; gestures: wave, hand up, tap-and-point. was v0.17.2;  // robot legs: piston shins, hinged toes, less body sway. was v0.17.1;  // built tools on the Meshy robots: drill + saw, gripper, three-finger claws. was v0.17.0;  // Meshy robots, cut into jointed parts and driven by the walk rig. was v0.16.0;  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
+  const BUILD_VERSION = 'v0.24.1';  // rescue: distress pulse rings + ping from P-03; L-07 comes over, tells him and points. was v0.24.0;  // rescue: smaller jump at a walk, P-03 in plain sight with a strobe, waypoint and call-outs. was v0.23.5;  // arms hold the load (reach aim was shadowed since v0.5.1); deck plates carried level; door-frame shimmer; flight console and radio slot collide. was v0.23.4;  // collision pass (hull, nose, O2 tanks, crates, Flyer), slow rise from the seat, boulder contact shadows. was v0.23.3;  // shadow contact gap: tighter sun depth range, bias −0.00003, normalBias 0.01. was v0.23.2;  // robot GLB fit ignores sprites (debug labels made robots ~1.7x too tall with ?debug). was v0.23.1;  // wreck interior: darker ambient + lamp pools, haze, big hull plates, ribs and stringers. was v0.23.0;  // robot minds stage 2: sight, investigate, inspect the Flyer, remembered places, affinity from helping. was v0.22.3;  // shadow acne fix (small sun/lamp bias). was v0.22.2;  // L-07's spare bottle after the first rescue. was v0.22.1;  // O2 warnings at 20% / 10%; robots' devotion. was v0.22.0;  // robot minds, stage 1. was v0.21.3;  // pick-up pose and two-handed carry. was v0.21.2;  // M-08 lifting pose; rougher ridge rocks. was v0.21.0;  // brace becomes a load puzzle with M-08; ice pocket becomes a light puzzle. was v0.20.1;  // red emergency light back in unpowered rooms; life support goes white when fixed; lit control boards. was v0.20.0;  // airlock cycle replaces the breach; interior relit. was v0.19.1;  // KHAL on the hull; wreck interior dressed; blockout labels dev-only. was v0.19.0;  // helmet radio for all voices; robot chirps + eye flash; wrist-pad questions to the robots. was v0.18.7;  // robot legs double-sided with dark cores; toe flaps 1.6x. was v0.18.6;  // robot ankles: foot pad on a ball joint, kept level while planted. was v0.18.5;  // robot toes bend to stay on the ground through stance. was v0.18.4;  // robot gait: bird-like stance/swing, bigger leg swing, pistons follow, body dip, feet planted. was v0.18.3;  // engine nozzles 25% larger. was v0.18.2;  // wreck: four landing legs in housings (two intact, two buckled), half-size blackened nozzles. was v0.18.1;  // wreck: sealed middle/nose, rear-only damage + tanks, doorway recess, NASA stacked, regolith imprint. was v0.18.0;  // wreck exterior: painted skin, round hull, ogive nose, engine bells, landing legs. was v0.17.3;  // robot eyes blink and look; gestures: wave, hand up, tap-and-point. was v0.17.2;  // robot legs: piston shins, hinged toes, less body sway. was v0.17.1;  // built tools on the Meshy robots: drill + saw, gripper, three-finger claws. was v0.17.0;  // Meshy robots, cut into jointed parts and driven by the walk rig. was v0.16.0;  // central peak rebuilt: smaller, irregular, one mesh, one clear spiral path. was v0.7.3;  // darker powdery soil + grit + litter, pitted dust-mantled rocks, dark sheet-thrown dust. was v0.7.2;  // lit footprint depressions, longer ballistic dust, Apollo bounding lope. was v0.7.1;  // crater floor rebuilt on MASCON's lunar generator (real craters, rock, dust, albedo) at 1.5m. was v0.7.0;  // three.js r187 (ES modules, r128-look compat bridge). was v0.6.2;  // MASCON-style regolith (albedo, rock/dust facets, grain, lunar photometry) + ballistic dust. was v0.6.1;  // central peak halved (PEAK_SCALE 0.5), sun 17°. was v0.6.0;  // wreck interior as its own level (blockout, ?wreck2) with set cameras. was v0.5.1;  // seated against the O₂ bottle (bone-solved sit), hose valve → neck ring. was v0.5.0;  // stage 1: asset library + box colliders, unified interaction + carry, O₂ station feedback. was v0.4.7:  // wreck GLB EMBEDDED (single-file deploy), seated-at-tanks opening, Flyer moved + wrecked-looking, deck floors + runners, 2nd deck
   document.querySelectorAll('.build-version').forEach(el => {
     el.textContent = BUILD_VERSION;
   });
@@ -11541,6 +11541,19 @@ body.in-wreck .cam-buttons { display: none; }
       const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false, opacity: 0 }));
       sp.position.set(PX, top.y1 + 1.55, PZ); sp.renderOrder = 6; scene.add(sp);
       rescue.strobe = sp;
+      // v0.24.1: a distress pulse — three rings that spread out from him,
+      // one after the other, every 2.6 s, with a ping in the helmet that
+      // comes from his side and gets louder as you close. They face the
+      // camera and grow with distance, so they read from the wake.
+      const rc = document.createElement('canvas'); rc.width = rc.height = 256;
+      const rg = rc.getContext('2d');
+      rg.strokeStyle = 'rgba(150,205,255,1)'; rg.lineWidth = 7; rg.beginPath(); rg.arc(128, 128, 118, 0, Math.PI * 2); rg.stroke();
+      rg.strokeStyle = 'rgba(150,205,255,0.35)'; rg.lineWidth = 16; rg.beginPath(); rg.arc(128, 128, 112, 0, Math.PI * 2); rg.stroke();
+      const rt = new THREE.CanvasTexture(rc);
+      rescue.rings = [0, 1, 2].map(() => {
+        const r = new THREE.Sprite(new THREE.SpriteMaterial({ map: rt, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false, opacity: 0 }));
+        r.position.set(PX, top.y1 + 1.2, PZ); r.renderOrder = 6; r.visible = false; scene.add(r); return r;
+      });
     }
     worldInteractables.push({
       x: PX, z: PZ, r: 2.4,
@@ -11652,9 +11665,10 @@ body.in-wreck .cam-buttons { display: none; }
     const W = window.innerWidth, H = window.innerHeight, behind = _wpV.z > 1;
     let sx = (_wpV.x * 0.5 + 0.5) * W, sy = (-_wpV.y * 0.5 + 0.5) * H;
     if (behind) { sx = W - sx; sy = H * 2; }                       // behind the camera: push it off the bottom, mirrored
-    const x0 = 86, x1 = W - 86, y0 = 118, y1 = H - 250;
-    const cx = Math.max(x0, Math.min(x1, sx)), cy = Math.max(y0, Math.min(y1, sy));
+    const x0 = 86, x1 = W - 86, y0 = 168, y1 = H - 250;
+    const cx = Math.max(x0, Math.min(x1, sx)); let cy = Math.max(y0, Math.min(y1, sy));
     const off = behind || cx !== sx || cy !== sy;
+    if (cx < 150 && cy < 330) cy = 330;                              // keep clear of the O₂ gauge
     el.style.left = cx + 'px'; el.style.top = cy + 'px';
     el.classList.toggle('edge', off);
     const ar = el.firstChild, tx_ = el.lastChild;
@@ -11663,28 +11677,113 @@ body.in-wreck .cam-buttons { display: none; }
     if (tx_.textContent !== t) tx_.textContent = t;
     el.classList.add('on');
   }
-  function updateRescue() {
-    const live = rescue.active && !rescue.done;
-    if (rescue.strobe) {
-      const ph = (performance.now() / 1000) % 1.4;
-      const fl = live && robotStates[0].pinned && (ph < 0.09 || (ph > 0.22 && ph < 0.31)) ? 1 : 0;
-      rescue.strobe.visible = live; rescue.strobe.material.opacity = fl;
-      const d = rescue.strobe.position.distanceTo(camera.position);
-      rescue.strobe.scale.setScalar(Math.max(1.1, d * 0.05));       // holds its size on screen from far off
+  // The ping: two short falling tones, panned to P-03's side of the view,
+  // louder the nearer he is.
+  function _rescuePing(dist, pan) {
+    if (!audioCtx || !masterGain) return;
+    const t0 = audioCtx.currentTime, vol = 0.05 + 0.13 * Math.max(0, 1 - dist / 60);
+    let out = masterGain;
+    try { if (audioCtx.createStereoPanner) { const pn = audioCtx.createStereoPanner(); pn.pan.value = Math.max(-0.85, Math.min(0.85, pan)); pn.connect(masterGain); out = pn; } } catch (e) { }
+    for (const [dt0, f0, f1] of [[0, 1320, 990], [0.16, 1320, 880]]) {
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain(); o.type = 'sine';
+      o.frequency.setValueAtTime(f0, t0 + dt0); o.frequency.exponentialRampToValueAtTime(f1, t0 + dt0 + 0.12);
+      g.gain.setValueAtTime(0.0001, t0 + dt0); g.gain.exponentialRampToValueAtTime(vol, t0 + dt0 + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dt0 + 0.42);
+      o.connect(g); g.connect(out); o.start(t0 + dt0); o.stop(t0 + dt0 + 0.46);
     }
+  }
+  const _rsV = new THREE.Vector3(), _rsR = new THREE.Vector3();
+  function updateRescue(dt) {
+    dt = dt || 0.016;
+    const live = rescue.active && !rescue.done;
     const playing = live && level.id === 'crater' && controlMode === 'walking' && !demoEnd.active &&
       !shackletonMemory.isActive() && !oxygen.dead && (typeof opening === 'undefined' || opening.phase === 'done');
     const up = playing && !rescueSit.active;
+    // ── strobe and pulse rings, on one 2.6 s cycle ──
+    if (rescue.strobe) {
+      const on = live && !!robotStates[0].pinned && level.id === 'crater';
+      rescue.pulseT = on ? (rescue.pulseT || 0) + dt : 0;
+      const CYC = 2.6, ph = rescue.pulseT % CYC;
+      rescue.strobe.visible = on; rescue.strobe.material.opacity = on && (ph < 0.09 || (ph > 0.2 && ph < 0.29)) ? 1 : 0;
+      const d = rescue.strobe.position.distanceTo(camera.position);
+      rescue.strobe.scale.setScalar(Math.max(1.1, d * 0.05));       // holds its size on screen from far off
+      const R = Math.max(7, d * 0.42);                               // ring diameter at full spread
+      rescue.rings.forEach((r, i) => {
+        const u = (ph - i * 0.38) / 1.7;                             // each ring's own 0..1 life
+        r.visible = on && u > 0 && u < 1;
+        if (r.visible) { const e = 1 - (1 - u) * (1 - u); r.scale.setScalar(0.8 + (R - 0.8) * e); r.material.opacity = 0.85 * (1 - u) * (1 - u * 0.4); }
+      });
+      const cyc = Math.floor(rescue.pulseT / CYC);
+      if (on && up && rescue.called && cyc !== rescue.pingCyc) {
+        rescue.pingCyc = cyc;
+        _rsV.copy(rescue.strobe.position).sub(camera.position);
+        _rsR.set(1, 0, 0).applyQuaternion(camera.quaternion);
+        _rescuePing(_rsV.length(), _rsV.normalize().dot(_rsR));
+      }
+    }
     _rescueWaypoint(up && rescue.called);
     if (up && !rescue.called) {
       rescue.called = true;
       const obj = $('objective-hud');
       if (obj && /P-03/.test(obj.textContent)) obj.textContent = RESCUE_OBJ;
-      const at = robots[0].position.clone();
+      const at = robots[0].position;
       speak('SUIT', 'distress signal — P-03, ' + Math.round(Math.hypot(player.pos.x - at.x, player.pos.z - at.z)) + ' m', 3.6, { kind: 'system', delay: 0.8 });
-      speak('L-07', 'P-03.', 2.0, { kind: 'robot', delay: 3.2 });
-      speak('L-07', 'stuck. up.', 2.2, { kind: 'robot', delay: 5.4 });
-      setTimeout(() => { try { if (!rescue.done) robotEmote(1, 'tapPoint', at); } catch (e) { } }, 3200);
+      rescue.tell = { phase: 'go', t: 0, x0: player.pos.x, z0: player.pos.z, said: 0 };
+    }
+    // (v0.24.1 tried swinging the chase camera round to face the stack at the
+    // call. At the tanks the camera is pinned against them, so the turn left
+    // the astronaut filling the screen. Removed; L-07 stands where the camera
+    // can already see him instead.)
+    // ── L-07 comes round in front of him, says where P-03 is, and points ──
+    // He stands 2.6 m off, part-way between the line to the stack and where
+    // the camera is looking, so he is on screen when he points, and off the
+    // direct line so he never blocks the way. He points again every few seconds until the
+    // astronaut sets off (6 m from where he stood up), or 40 s have passed.
+    const T = rescue.tell, r1 = robotStates[1];
+    if (T && T.phase !== 'done') {
+      T.t += dt;
+      const at = robots[0].position, moved = Math.hypot(player.pos.x - T.x0, player.pos.z - T.z0);
+      if (!playing || moved > 6 || T.t > 40 || r1.pinned) {
+        if (r1.scripted && r1.scripted._rescueTell) { r1.scripted = null; r1.mindSpeed = 0; }
+        T.phase = 'done';
+      } else {
+        if (T.ux === undefined || (T.phase === 'go' && T.t > (T.pickAt || 0))) {
+          T.pickAt = T.t + 0.7;                  // re-picked while he walks over: the camera is still settling after the wake
+          // Pick his spot: the first place round the astronaut, starting
+          // on P-03's side, that is clear of solid things, on screen, and not
+          // hidden from the camera by one (the O₂ tanks stand right there).
+          const dx = at.x - player.pos.x, dz = at.z - player.pos.z, a0 = Math.atan2(dx, dz);
+          const solidAt = (x, z, pad, minTop) => { for (const b of boxColliders) { if (b.enabled === false || (b.level || 'crater') !== 'crater' || b.y1 < player.pos.y + (minTop || 0.3) || b.y0 > player.pos.y + 1.6) continue;
+            const ex = x - b.x, ez = z - b.z, c = b.c === undefined ? 1 : b.c, sn = b.s || 0, lx = ex * c - ez * sn, lz = ex * sn + ez * c;
+            if (Math.abs(lx) < b.hx + pad && Math.abs(lz) < b.hz + pad) return true; } return false; };
+          let best = null, fall = null;
+          for (const deg of [0, 40, -40, 75, -75, 110, -110, 150, -150, 180]) {
+            const a = a0 + deg * Math.PI / 180, x = player.pos.x + Math.sin(a) * 2.8, z = player.pos.z + Math.cos(a) * 2.8;
+            if (solidAt(x, z, 0.55)) continue;
+            if (!fall) fall = a;
+            _rsV.set(x, player.pos.y + 0.7, z).project(camera);
+            if (_rsV.z > 1 || Math.abs(_rsV.x) > 0.62 || _rsV.y > 0.45 || _rsV.y < -0.5) continue;
+            let hid = false; const cx = camera.position.x, cz = camera.position.z;
+            for (let k = 1; k < 24 && !hid; k++) hid = solidAt(cx + (x - cx) * k / 24, cz + (z - cz) * k / 24, 0.65, 1.3);   // wide: he is half a metre across, and props overhang their colliders; only things taller than him hide him
+            if (!hid) { best = a; break; }
+          }
+          const a = best !== null ? best : (fall !== null ? fall : a0);
+          T.ux = Math.sin(a); T.uz = Math.cos(a);
+        }
+        const sx = player.pos.x + T.ux * 2.8, sz = player.pos.z + T.uz * 2.8;
+        if (!r1.scripted || r1.scripted._rescueTell) { r1.scripted = { x: sx, z: sz, faceX: at.x, faceZ: at.z, _rescueTell: true }; r1.mindSpeed = 1.3; }   // he hurries over (0.4 m/s is his stroll)
+        const there = r1.scripted._rescueTell && Math.hypot(r1.pos.x - sx, r1.pos.z - sz) < 0.6;
+        if (T.phase === 'go' && (there || T.t > 16)) { T.phase = 'tell'; T.next = 0.4; }
+        if (T.phase === 'tell') {
+          T.next -= dt;
+          if (T.next <= 0) {
+            T.next = 6.5;
+            robotEmote(1, 'point', at.clone());
+            if (T.said === 0) { speak('L-07', 'P-03.', 1.8, { kind: 'robot' }); speak('L-07', 'stuck. there.', 2.4, { kind: 'robot', delay: 2.0 }); }
+            else speak('L-07', T.said % 2 ? 'there.' : 'P-03. up.', 2.0, { kind: 'robot' });
+            T.said++;
+          }
+        }
+      }
     }
     if (!live || rescue.hailed || level.id === 'wreck') return;
     if (Math.hypot(player.pos.x - rescue.cx, player.pos.z - rescue.cz) < 26) {
@@ -12253,7 +12352,7 @@ body.in-wreck .cam-buttons { display: none; }
   let _s5SparkT = 0;
   function updateScenes(dt) {
     updateWreckDoorway();
-    updateRescue();
+    updateRescue(dt);
     updateLandMark(dt);
     // Scene 4: engine-bay entry beat
     if (scene4.active && !scene4.entered &&
@@ -15517,7 +15616,7 @@ body.in-wreck .cam-buttons { display: none; }
       e.mesh.scale.y = open * (1 + fk * 0.15);
     }
   }
-  const EMOTE_LEN = { wave: 2.4, attention: 2.0, tapPoint: 3.8, face: 2.2 };
+  const EMOTE_LEN = { wave: 2.4, attention: 2.0, tapPoint: 3.8, face: 2.2, point: 4.2 };   // v0.24.1: point = arm held out at the target
   function robotEmote(i, kind, target) {
     const r = robotStates[i]; if (!r || !EMOTE_LEN[kind]) return false;
     if (r.emote) return false;
@@ -15542,6 +15641,14 @@ body.in-wreck .cam-buttons { display: none; }
         r.heading += dH * Math.min(1, dt * 4); robot.rotation.y = r.heading;
       }
       return;
+    }
+    else if (e.kind === 'point') {
+      sx = r.number === 2 ? -0.30 : -1.5; sz = 0; el = 0.05 + 0.06 * Math.sin(t * 5);
+      if (e.target && !r.pinned) {
+        const th = Math.atan2(e.target.x - r.pos.x, e.target.z - r.pos.z);
+        let dH = th - r.heading; while (dH > Math.PI) dH -= Math.PI * 2; while (dH < -Math.PI) dH += Math.PI * 2;
+        r.heading += dH * Math.min(1, dt * 4); robot.rotation.y = r.heading;
+      }
     }
     else if (e.kind === 'tapPoint') {
       if (t < 1.4) { sx = -0.25; sz = -s * 0.10; sy = -s * 1.15; el = -1.45 - 0.30 * Math.max(0, Math.sin(t * 11)); }   // forearm flexed in to tap its own chest (negative = flex)
