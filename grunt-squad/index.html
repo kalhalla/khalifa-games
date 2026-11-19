@@ -506,7 +506,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
     <button id="tset">SETTINGS <small>sound · music · graphics</small></button>
   </div>
   <div class="foot">© KHALIFA.GAMES · NO GRUNTS WERE CONSULTED</div>
-  <div id="tver">v182</div>
+  <div id="tver">v184</div>
 </div>
 
 <div id="ops" class="screen">
@@ -1015,7 +1015,7 @@ function lookInject(sh, m) {
   // v67: snow lies on whatever faces up (roofs, tree tiers, rocks, wall tops, vehicles). uSnow is the op's snow
   // (0 or 1), uSnK this material's share: 0 for the ground (coloured in terrCol), water and men; about half on roads.
   if (phong) {
-    sh.uniforms.uSnow = ATMO.snow; sh.uniforms.uSnK = { value: ud.snowK === undefined ? 1 : ud.snowK }; sh.uniforms.uSnClump = { value: ud.sway ? 1 : 0 };   // v81: foliage holds snow in clumps
+    sh.uniforms.uSnow = ATMO.snow; sh.uniforms.uSnK = ud.snowKU || { value: ud.snowK === undefined ? 1 : ud.snowK }; sh.uniforms.uSnClump = { value: ud.sway ? 1 : 0 };   // v81: foliage holds snow in clumps
     vs = vs.replace('#include <common>', '#include <common>\nvarying vec3 vSnN; varying vec2 vSnW; varying float vSnY;')
       .replace('#include <fog_vertex>', `#include <fog_vertex>
   {
@@ -1697,7 +1697,26 @@ scene.add(gnd);
    1 edge). Nothing else in the game reads them — they are scenery with a purpose: they
    lead your eye from the spawn to the objective. */
 let roads = [];
-function setRoads(list) { roads = list || []; for (const r of roads) if (r.kind !== 'road' && !r._tw) { r.w *= TRACK_W; r._tw = 1; }   // v42
+/* v184 (Khal: tidy the tracks and roads; the survey of all 45 ops is in the build notes): a corner in a road's line is
+   rounded before anything is built from it (the strip, the relief, roadDist), so they all agree. Each corner sharper than
+   about 11 degrees becomes a curve that leaves the line up to 4 m (a road) or 3 m (a track) before it, never more than 45%
+   of a leg. The ends stay where they were. */
+function filletPts(pts, R) {
+  if (pts.length < 3 || pts.some(q => !isFinite(q[0]) || !isFinite(q[1]))) return pts;
+  const out = [pts[0]];
+  for (let i = 1; i + 1 < pts.length; i++) {
+    const A = pts[i - 1], V = pts[i], B = pts[i + 1], ax = V[0] - A[0], az = V[1] - A[1], bx = B[0] - V[0], bz = B[1] - V[1], la = Math.hypot(ax, az), lb = Math.hypot(bx, bz);
+    const turn = la > 0.5 && lb > 0.5 ? Math.acos(Math.max(-1, Math.min(1, (ax * bx + az * bz) / (la * lb)))) : 0;
+    if (turn < 0.2) { out.push(V); continue; }
+    const d = Math.min(R * (turn > 1.2 ? 1.4 : 1), 0.45 * la, 0.45 * lb), P0 = [V[0] - ax / la * d, V[1] - az / la * d], P2 = [V[0] + bx / lb * d, V[1] + bz / lb * d], N = turn > 1.2 ? 8 : 5;
+    for (let k = 0; k <= N; k++) { const t = k / N, u = 1 - t; out.push([u * u * P0[0] + 2 * u * t * V[0] + t * t * P2[0], u * u * P0[1] + 2 * u * t * V[1] + t * t * P2[1]]); }
+  }
+  out.push(pts[pts.length - 1]);
+  return out;
+}
+function setRoads(list) { roads = (list || []).filter(r => r.pts && r.pts.length > 1 && r.pts.every(q => isFinite(q[0]) && isFinite(q[1])));   // v184: a road with a broken point is dropped, not half-built
+  for (const r of roads) if (!r._sm) { r.pts = filletPts(r.pts, r.kind === 'road' ? 4 : 3); r._sm = 1; }
+  for (const r of roads) if (r.kind !== 'road' && !r._tw) { r.w *= TRACK_W; r._tw = 1; }   // v42
   if (roadDelta) { roadDelta.fill(0); roadFoot.fill(0); } }
 /* v34: road relief, baked to a 0.4 m grid over the map (and a margin) so groundY stays cheap.
    A road sits on a low cambered bank, 0.2 m up with a crown, its shoulders running out to 1.6 half-widths.
@@ -1785,20 +1804,25 @@ function roadDist(x, z, vis) {
    A road: worn tarmac with patched repairs, a band of tan verge whose outer edge frays into the grass.
    A track: packed earth, two darker ruts, grass up the crown. No paint anywhere — this is 1944. */
 const roadRoot = new THREE.Group(); scene.add(roadRoot);
-const roadMat = (m => { m.userData.snowK = 0.5; return m; })(new THREE.MeshPhongMaterial({ vertexColors: true, flatShading: true, shininess: 3, specular: SC(0x0c0c0c), polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 }));
+const ROAD_SNK = { value: 0.5 };   // v184: the strips' share of the snow film: 0.5 in deep snow, none where it lies in patches
+const roadMat = (m => { m.userData.snowK = 0.5; m.userData.snowKU = ROAD_SNK; return m; })(new THREE.MeshPhongMaterial({ vertexColors: true, flatShading: true, shininess: 3, specular: SC(0x0c0c0c), polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 }));
 let tarMat = null;   // v42: roadMat carries the track texture, tarMat the tarmac (maps set lazily: RTEX is declared further down the file)
 function buildRoadStrips() {
   for (const m of roadRoot.children.slice()) { roadRoot.remove(m); m.geometry.dispose(); }
   const c = new THREE.Color();
   if (!roadMat.map) { roadMat.map = RTEX.track; tarMat = roadMat.clone(); tarMat.map = RTEX.tar; roadMat.flatShading = false; roadMat.needsUpdate = true; }   // v45: tracks are smooth-lit with up normals (the ruts read from the texture, not as dark facets)
   const tracks = roads.filter(o => o.kind !== 'road');
+  ROAD_SNK.value = ATMO.snow.value > 0.98 ? 0.5 : 0;   // v184: no snow film on a strip where the snow is in patches (the film's patches weren't the ground's: bands across the track)
+  const BARE_LIN = SC(0xb39a6e);
+  const inMap = q => q[0] > 1 && q[0] < MW - 1 && q[1] > 1 && q[1] < MH - 1;
   roads.forEach((r, ri) => {
-    const hw = r.w / 2, road = r.kind === 'road', lift = 0.012 + ri * 0.005;   // v26: the ground is sunk beneath, so the strip lies on groundY
+    const hw = r.w / 2, road = r.kind === 'road', lift = (road ? 0.012 : 0.036) + ri * 0.005;   // v184: a track a touch higher, so it lies over a road's verge where it runs onto it   // v26: the ground is sunk beneath, so the strip lies on groundY
     // columns across: [offset, kind]. v42: each kind has its band in the texture (RT_U); outer columns keep the ground's colours
     const cols = road
       ? [[-hw * 1.58, 'bank'], [-hw * 1.25, 'bank'], [-(hw + 0.18), 'verge'], [-hw + 0.12, 'edge'], [-hw * 0.62, 'wear'], [-hw * 0.2, 'tar'], [hw * 0.2, 'tar'], [hw * 0.62, 'wear'], [hw - 0.12, 'edge'], [hw + 0.18, 'verge'], [hw * 1.25, 'bank'], [hw * 1.58, 'bank']]
       : [[-hw * 1.16, 'fray'], [-hw * 0.88, 'dirt'], [-hw * 0.62, 'rut'], [-hw * 0.38, 'dirtI'], [-hw * 0.12, 'crown'], [hw * 0.12, 'crown'], [hw * 0.38, 'dirtI'], [hw * 0.62, 'rut'], [hw * 0.88, 'dirt'], [hw * 1.16, 'fray']];
     const UT = road ? RT_U.road : RT_U.track;
+    const bare = !road && (SAND || SNOW);   // v184: no grass up the crown or along the edges of a track in sand or deep snow
     const colU = cols.map(([off, kind], j) => { const u = UT[kind === 'bank' && (j === 0 || j === cols.length - 1) ? 'bankO' : kind]; return off < 0 ? u : 1 - u; });
     // densify the centre line
     const P = [], S = [];
@@ -1809,21 +1833,33 @@ function buildRoadStrips() {
     P.push(r.pts[r.pts.length - 1]);
     for (let i = 0; i < P.length; i++) S.push(i ? S[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]) : hash2(ri * 3.1, 7.7) * 40);
     const VL = road ? RTEX_L.tar : RTEX_L.track;
-    const rows = [];
+    const rows = [], Send = S[S.length - 1];
+    // v184: a track that stops in open ground peters out over its last 3.5 m (it used to end in a square cut)
+    const free = q => inMap(q) && !roads.some(o => o !== r && segDist(o.pts, q[0], q[1]) < o.w * 0.9 + hw) && railDist(q[0], q[1]) > 3 && waterFactor(q[0], q[1]) < 0.04 && !onBridge(q[0], q[1], 1.5) && !onStreet(q[0], q[1], 1.5);
+    const taper0 = !road && free(P[0]), taper1 = !road && free(P[P.length - 1]);
     for (let i = 0; i < P.length; i++) {
       const a = P[Math.max(0, i - 1)], b = P[Math.min(P.length - 1, i + 1)], dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz) || 1, nx = -dz / l, nz = dx / l;
       const [x, z] = P[i];
       // v28: the strip stops at a bridge's ends (the deck carries the road across) and at water
       const tn = r.tun ? tunAt(x, z) : null;
       // v31: a track stops at the edge of a road it crosses (the two strips fought where they overlapped)
-      if (r.kind !== 'road' && roads.some(o => o !== r && o.kind === 'road' && segDist(o.pts, x, z) < o.w / 2 * 1.5)) { rows.push(null); continue; }
-      if (railDist(x, z) < RAIL.hw * 1.3) { rows.push(null); continue; }   // v43: roads and tracks stop at the railway (a level crossing carries them over)
+      // v184: it runs up to the tarmac's edge now and lies over the road's verge there (it stopped 1.5 half-widths out, short of
+      // the road, with the kerb unbroken across its mouth); and a side road stops at the edge of an earlier road's tarmac
+      if (r.kind !== 'road' && roads.some(o => o !== r && o.kind === 'road' && segDist(o.pts, x, z) < o.w / 2 - 0.25)) { rows.push(null); continue; }
+      if (road && roads.some((o, oi) => oi < ri && o.kind === 'road' && segDist(o.pts, x, z) < o.w / 2 - 0.2)) { rows.push(null); continue; }
+      if (railDist(x, z) < Math.min(RAIL.hw * 1.3, 1.4)) { rows.push(null); continue; }   // v43: roads and tracks stop at the railway (a level crossing carries them over)
       if ((tn && tn.side < tn.T.hw + 0.4) || waterFactor(x, z) > 0.04 || onBridge(x, z, 0.3) || x < -60 || x > MW + 60 || z < -60 || z > MH + 60) { rows.push(null); continue; }
+      const s0 = S[i] - S[0], s1 = Send - S[i], sm = v => { const t = Math.max(0, Math.min(1, v / 3.5)); return 0.22 + 0.78 * t * t * (3 - 2 * t); };
+      const tk = (taper0 ? sm(s0) : 1) * (taper1 ? sm(s1) : 1);
       rows.push(cols.map(([off, kind], j) => {
         const outer = j === 0 || j === cols.length - 1;
-        const fr = outer ? (hash2(x * 1.7 + j, z * 1.3) - 0.3) * (road ? 0.35 : 0.5) : kind === 'edge' ? (hash2(x * 2.9, z * 1.1 + j) - 0.5) * 0.18 : 0, o = off + Math.sign(off) * fr;
+        // v184: the outer edge wanders smoothly along the strip (a hash per step made it a sawtooth)
+        const fr = outer ? (vnoise(S[i] * 0.33 + j * 9.1, ri * 3.3 + 1.7) - 0.3) * (road ? 0.4 : 0.5) : kind === 'edge' ? (hash2(x * 2.9, z * 1.1 + j) - 0.5) * 0.18 : 0, o = (off + Math.sign(off) * fr) * tk;
         const px = x + nx * o, pz = z + nz * o, h = hash2(px * 2.3, pz * 1.9), along = vnoise(px * 0.09 + pz * 0.09, 3.7), patch = vnoise(px * 0.21 + 11, pz * 0.21 - 5);
-        if (kind === 'bank') { if (SAND) c.copy(LP.sand).lerp(LP.sandD, 0.2 + h * 0.4); else { c.copy(outer ? LP.mid : LP.lush).lerp(LP.dry, 0.2 + h * 0.3); if (!outer) c.lerp(LP.verge, 0.15); } }   // v92: sand banks in the desert
+        if (kind === 'bank') { if (SAND) c.copy(LP.sand).lerp(LP.sandD, 0.2 + h * 0.4);   // v92: sand banks in the desert
+          else if (SNOW || SNOWP) { terrCol(px, pz, groundY(px, pz), 1, h, c); if (!outer) c.multiplyScalar(0.94); }   // v184: in snow the bank is the ground's own colour (it was grass green)
+          else { c.copy(outer ? LP.mid : LP.lush).lerp(LP.dry, 0.2 + h * 0.3); if (!outer) c.lerp(LP.verge, 0.15); } }
+        else if (kind === 'fray' && bare) { terrCol(px, pz, groundY(px, pz), 1, hash2(px * 1.7, pz * 1.3), c); const q = (v, t) => Math.max(0.5, Math.min(2.2, v / t)); c.setRGB(q(c.r, BARE_LIN.r), q(c.g, BARE_LIN.g), q(c.b, BARE_LIN.b)); }   // v184: the edge takes the ground's colour over the bare texture
         else if (kind === 'fray') { terrCol(px, pz, groundY(px, pz), 1, hash2(px * 1.7, pz * 1.3), c); const rt = (v, t) => 0.4 + 0.6 * Math.max(0.4, Math.min(2.0, v / t)); c.setRGB(rt(c.r, 0.159), rt(c.g, 0.254), rt(c.b, 0.042)); if (weatherRain) c.multiplyScalar(0.8); }   // v42: the ragged edge leans to the ground's colour, over the texture
         else {
           // v42: inside the strip the texture does the work; the vertex colour only shades it
@@ -1837,7 +1873,7 @@ function buildRoadStrips() {
             const m = Math.min(1, Math.max(0, mudAt(px, pz) - 0.55) * 1.6 + (weatherRain ? 0.3 : 0));   // a trodden apron or the wet: darker, browner
             c.r *= 1 - 0.22 * m; c.g *= 1 - 0.3 * m; c.b *= 1 - 0.38 * m;
             if (weatherRain) { c.multiplyScalar(0.8); if (kind === 'rut') { c.multiplyScalar(0.72); c.b *= 1.08; } }
-            if (kind === 'crown') c.g *= 1.04;
+            if (kind === 'crown' && !bare) c.g *= 1.04;
           }
         }
         if (kind === 'bank') c.multiplyScalar(0.94 + hash2(px * 5.1, pz * 4.3) * 0.12);
@@ -1861,6 +1897,8 @@ function buildRoadStrips() {
       g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.computeVertexNormals(); }
     if (!road) { const N = g.attributes.normal; for (let i = 0; i < N.count; i++) N.setXYZ(i, 0, 1, 0); N.needsUpdate = true; }
     const base = road ? tarMat : roadMat, mt = ri ? base.clone() : base; if (ri) mt.polygonOffsetUnits = -4 - ri * 3;   // a later road wins where two cross
+    if (!road) { mt.polygonOffsetUnits = -40 - ri * 3; mt.map = bare ? RTEX.trackBare : RTEX.track; }   // v184: and a track lies over any road's verge it runs onto
+    mt.userData.snowKU = ROAD_SNK;   // (a clone copies userData by value)
     mt.shininess = weatherRain ? 34 : 3; mt.specular = SC(weatherRain ? 0x2c3236 : 0x0c0c0c);   // v36: wet mud and tar shine
     const m = new THREE.Mesh(g, mt); m.receiveShadow = true; m.renderOrder = 0; roadRoot.add(m);
   });
@@ -7325,16 +7363,14 @@ function stripTex(W, H, seed, draw) {
 }
 // draw f(dy) three times so anything crossing the top or bottom edge comes back on the other (the texture repeats along v)
 const wrapV = (H, f) => { for (const dy of [-H, 0, H]) f(dy); };
-const RTEX = {
-  // v45: rebuilt after the "Dirt tracks" sheet: two broad, light, compacted wheel ruts with tyre streaks, a grass strip
-  // down the middle, grassy verges with grey stones, a ragged dirt lip between. Edges wander on periodic noise (whole
-  // cycles per repeat), so the 8 m repeat is seamless.
-  track: stripTex(256, 512, 911, (x, W, H) => {
+// v184: the track texture's painter; bare leaves the grass off (the verges and crown are packed earth)
+const RT_BARE = '#b39a6e';
+function trackDraw(bare) { return (x, W, H) => {
     const U = u => u * W, per = (y, s) => { let v = 0; for (const [n, a, p] of s) v += a * Math.sin(6.2832 * n * y / H + p); return v; };
     const wob = () => [[1, 0.5 + trnd(), trnd() * 6.3], [3, 0.4 + trnd() * 0.5, trnd() * 6.3], [7, 0.25 + trnd() * 0.3, trnd() * 6.3], [13, 0.15, trnd() * 6.3]];
-    const grassBase = '#6f8a3a';
+    const grassBase = bare ? RT_BARE : '#6f8a3a';
     x.fillStyle = grassBase; x.fillRect(0, 0, W, H);
-    for (let i = 0; i < 900; i++) { const px = trnd() * W, py = trnd() * H, r = 2 + trnd() * 6; x.fillStyle = trnd() < 0.5 ? `rgba(140,170,70,${0.12 + trnd() * 0.12})` : `rgba(60,90,30,${0.12 + trnd() * 0.12})`; wrapV(H, dy => { x.beginPath(); x.arc(px, py + dy, r, 0, 6.283); x.fill(); }); }
+    for (let i = 0; i < (bare ? 0 : 900); i++) { const px = trnd() * W, py = trnd() * H, r = 2 + trnd() * 6; x.fillStyle = trnd() < 0.5 ? `rgba(140,170,70,${0.12 + trnd() * 0.12})` : `rgba(60,90,30,${0.12 + trnd() * 0.12})`; wrapV(H, dy => { x.beginPath(); x.arc(px, py + dy, r, 0, 6.283); x.fill(); }); }
     // a dirt band from a0 to a1 (u), each edge wandering by amp (u)
     const band = (a0, a1, amp, fill) => {
       const s0 = wob(), s1 = wob(); x.fillStyle = fill; x.beginPath();
@@ -7355,7 +7391,7 @@ const RTEX = {
       x.beginPath(); for (let y = 0; y <= H; y += 6) x[y ? 'lineTo' : 'moveTo'](ox + Math.sin(y / H * 6.283 * k + ph) * amp, y); x.stroke();
     }
     // grass: tufts thick on the verges and down the middle strip, a few straying into the ruts
-    const tuft = (px, py, n) => { for (let k = 0; k < n; k++) { const L = 4 + trnd() * 8, a = (trnd() - 0.5) * 1.3; x.strokeStyle = ['#5f7f34', '#7a9a40', '#4d6c2c', '#8aa448', '#6a8a3a'][(trnd() * 5) | 0]; x.lineWidth = 1 + trnd() * 1.2; wrapV(H, dy => { x.beginPath(); x.moveTo(px, py + dy); x.quadraticCurveTo(px + Math.sin(a) * L * 0.4, py + dy - L * 0.6, px + Math.sin(a) * L, py + dy - Math.cos(a) * L); x.stroke(); }); } };
+    const tuft = (px, py, n) => { for (let k = 0; k < (bare ? 0 : n); k++) { const L = 4 + trnd() * 8, a = (trnd() - 0.5) * 1.3; x.strokeStyle = ['#5f7f34', '#7a9a40', '#4d6c2c', '#8aa448', '#6a8a3a'][(trnd() * 5) | 0]; x.lineWidth = 1 + trnd() * 1.2; wrapV(H, dy => { x.beginPath(); x.moveTo(px, py + dy); x.quadraticCurveTo(px + Math.sin(a) * L * 0.4, py + dy - L * 0.6, px + Math.sin(a) * L, py + dy - Math.cos(a) * L); x.stroke(); }); } };
     for (let i = 0; i < 420; i++) { const s = trnd() < 0.5, u = s ? trnd() * 0.11 : 1 - trnd() * 0.11; tuft(U(u), trnd() * H, 3 + (trnd() * 4 | 0)); }
     for (let i = 0; i < 330; i++) { const u = 0.5 + (trnd() - 0.5) * 0.17; tuft(U(u), trnd() * H, 2 + (trnd() * 4 | 0)); }
     for (let i = 0; i < 40; i++) { const u = trnd() < 0.5 ? 0.17 + trnd() * 0.22 : 0.61 + trnd() * 0.22; tuft(U(u), trnd() * H, 1 + (trnd() * 2 | 0)); }
@@ -7364,7 +7400,13 @@ const RTEX = {
       const s = trnd() < 0.5, u = s ? 0.01 + trnd() * 0.12 : 0.87 + trnd() * 0.12, px = U(u), py = trnd() * H, r = 1.5 + trnd() * (trnd() < 0.2 ? 5 : 2.5), g = 130 + trnd() * 60 | 0, rot = trnd() * 3;
       wrapV(H, dy => { x.fillStyle = 'rgba(30,30,25,0.35)'; x.beginPath(); x.ellipse(px + 1, py + dy + 1.2, r * 1.15, r * 0.9, rot, 0, 6.283); x.fill(); x.fillStyle = `rgb(${g},${g},${g - 6})`; x.beginPath(); x.ellipse(px, py + dy, r * 1.15, r * 0.9, rot, 0, 6.283); x.fill(); x.fillStyle = 'rgba(255,255,250,0.3)'; x.beginPath(); x.arc(px - r * 0.35, py + dy - r * 0.3, r * 0.4, 0, 6.283); x.fill(); });
     }
-  }),
+  }; }
+const RTEX = {
+  // v45: rebuilt after the "Dirt tracks" sheet: two broad, light, compacted wheel ruts with tyre streaks, a grass strip
+  // down the middle, grassy verges with grey stones, a ragged dirt lip between. Edges wander on periodic noise (whole
+  // cycles per repeat), so the 8 m repeat is seamless.
+  track: stripTex(256, 512, 911, trackDraw(false)),
+  trackBare: stripTex(256, 512, 911, trackDraw(true)),   // v184: the same track with no grass on it, for sand and deep snow
   tar: stripTex(256, 512, 733, (x, W, H) => {
     const U = u => u * W;
     // the gravel verge, under everything
@@ -12646,40 +12688,134 @@ function mkParapet(z, x0, x1, gaps) {
 // parked aircraft, three types, nose toward local +z (a: 0 faces south). hw: the fuselage's half-width, L its length,
 // wz: where the wing roots are along it (a bomb goes on one)
 const AC_DIM = { fighter: { hw: 0.55, L: 8.6, wz: 1.0 }, biplane: { hw: 0.5, L: 7.4, wz: 0.8 }, transport: { hw: 1.05, L: 15, wz: 1.2 } };
-function mkAircraft(T, type) {
-  const p = [], D = AC_DIM[type] || AC_DIM.fighter, H = Math.PI / 2;
-  const prop = (y, z, n, r) => { for (let k = 0; k < n; k++) p.push({ g: GEO.box, m: M4e(0, y, z, 0.1, r, 0.04, 0, 0, k * Math.PI * 2 / n + 0.3), c: 0x2a2826 }); };
-  const wheels = (xs, z, r) => { for (const x of xs) p.push({ g: GEO.box, m: M4(x, r + 0.3, z, 0.08, 0.8, 0.08), c: 0x3a3a34 }, { g: GEO.cyl, m: M4e(x, r, z, r * 2, 0.18, r * 2, 0, 0, H), c: 0x1e1e1c }); };
-  if (type === 'transport') {   // a three-engined transport, corrugated skin, grey
-    const C = 0x8c8a80, Dk = 0x6c6a62;
-    p.push({ g: GEO.box, m: M4(0, 2.1, 0.6, 2.1, 2.2, 9), c: C }, { g: GEO.box, m: M4(0, 2.05, 5.5, 1.6, 1.8, 1.2), c: C });
-    p.push({ g: GEO.cone, m: M4e(0, 2.35, -6.1, 1.9, 4.2, 2.0, -H), c: C });
-    for (let i = 0; i < 5; i++) p.push({ g: GEO.box, m: M4(-0.8 + i * 0.4, 3.22, 0.6, 0.03, 0.03, 9), c: Dk });
-    for (const s of [-1, 1]) for (let i = 0; i < 6; i++) p.push({ g: GEO.box, m: M4(s * 1.06, 2.5, 3.6 - i * 1.15, 0.02, 0.34, 0.5), c: 0x2a2e30 });
-    p.push({ g: GEO.box, m: M4(0, 1.45, 1.2, 18, 0.22, 3.3), c: C }, { g: GEO.box, m: M4(0, 1.47, 1.2, 18.1, 0.05, 0.5), c: Dk });
-    p.push({ g: GEO.cyl, m: M4e(0, 2.0, 6.3, 1.15, 0.9, 1.15, H), c: 0x4a4a44 }); prop(2.0, 6.8, 3, 2.6);
-    for (const s of [-1, 1]) { p.push({ g: GEO.cyl, m: M4e(s * 4.2, 1.55, 3.0, 1.0, 1.8, 1.0, H), c: 0x4a4a44 }); p.push({ g: GEO.box, m: M4e(s * 4.2, 1.55, 3.95, 0.1, 2.4, 0.04, 0, 0, 0.6), c: 0x2a2826 }); }
-    p.push({ g: GEO.box, m: M4(0, 2.6, -7.4, 6.2, 0.1, 1.7), c: C }, { g: GEO.box, m: M4(0, 3.6, -7.7, 0.1, 2.2, 1.9), c: C });
-    wheels([-4.2, 4.2], 2.6, 0.5); wheels([0], -7.6, 0.2);
-  } else if (type === 'biplane') {   // a biplane fighter, sand yellow
-    const C = 0xb8a062, Dk = 0x8a7848;
-    p.push({ g: GEO.box, m: M4(0, 1.45, 0.4, 0.95, 1.05, 4.8), c: C }, { g: GEO.cone, m: M4e(0, 1.55, -2.9, 0.9, 3.0, 0.9, -H), c: C });
-    p.push({ g: GEO.cyl, m: M4e(0, 1.45, 3.0, 1.2, 0.5, 1.2, H), c: 0x4a4a40 }); prop(1.45, 3.3, 2, 2.4);
-    p.push({ g: GEO.box, m: M4(0, 2.75, 0.9, 9.2, 0.1, 1.5), c: C }, { g: GEO.box, m: M4(0, 1.0, 0.8, 8.6, 0.1, 1.4), c: C });
-    for (const s of [-1, 1]) { p.push({ g: GEO.box, m: M4e(s * 3.0, 1.88, 0.85, 0.06, 1.75, 0.06, 0, 0, -s * 0.06), c: 0x5a4a32 }); p.push({ g: GEO.box, m: M4(s * 0.5, 2.25, 0.9, 0.05, 0.95, 0.05), c: 0x5a4a32 }); }
-    p.push({ g: GEO.box, m: M4(0, 1.9, -0.2, 0.6, 0.3, 0.6), c: 0x2a2e30 });
-    p.push({ g: GEO.box, m: M4(0, 1.6, -3.7, 3.0, 0.07, 0.8), c: C }, { g: GEO.box, m: M4(0, 2.2, -3.9, 0.07, 1.1, 0.9), c: Dk });
-    wheels([-0.9, 0.9], 1.4, 0.35);
-  } else {   // a single-engined fighter, low wing, olive grey
-    const C = 0x7c7a62, Dk = 0x5e5c48;
-    p.push({ g: GEO.cyl, m: M4e(0, 1.35, 1.2, 1.05, 4.2, 1.05, H), c: C }, { g: GEO.cone, m: M4e(0, 1.45, -2.6, 1.0, 3.6, 0.9, -H), c: C });
-    p.push({ g: GEO.cyl, m: M4e(0, 1.35, 3.5, 1.12, 0.6, 1.12, H), c: 0x3a3a34 }, { g: GEO.cone, m: M4e(0, 1.35, 3.95, 0.3, 0.4, 0.3, H), c: 0x3a3a34 }); prop(1.35, 3.9, 3, 2.3);
-    p.push({ g: GEO.box, m: M4(0, 1.0, 1.0, 10, 0.12, 1.9), c: C }, { g: GEO.box, m: M4(0, 1.02, 0.3, 10.05, 0.04, 0.3), c: Dk });
-    p.push({ g: GEO.sph, m: M4(0, 1.95, 0.4, 0.6, 0.55, 1.5), c: 0x2a3036 });
-    p.push({ g: GEO.box, m: M4(0, 1.55, -3.9, 3.4, 0.08, 0.9), c: C }, { g: GEO.box, m: M4(0, 2.2, -4.0, 0.08, 1.3, 1.1), c: Dk });
-    wheels([-1.3, 1.3], 1.4, 0.32); wheels([0], -3.9, 0.14);
+/* v183 (Khal: improve the planes): the three parked aircraft rebuilt as shaped airframes, still faceted and flat-coloured.
+   The kit: akMesh turns triangles into a part with its own vertex colours, each triangle turned to face out and painted by
+   which way it faces (desert camouflage in blotches on top, pale underneath); akLoft is a body lofted through oval
+   sections along z (fuselage, cowling, nacelle, spat, canopy); akSpan a wing, tailplane or fin through lozenge sections;
+   akStrut a bar between two points. Tail-draggers sit nose-up on their tailwheels (the airframe is built level and pitched
+   about the main axle). No markings, as before. One geometry per type, shared by every aircraft of it. */
+const AK_ID = new THREE.Matrix4();
+function akMesh(tris, paint, dir) {
+  const P = [], C = []; let cx = 0, cy = 0, cz = 0, n = 0;
+  for (const t of tris) for (const v of t) { cx += v[0]; cy += v[1]; cz += v[2]; n++; }
+  cx /= n; cy /= n; cz /= n;
+  for (const [a, b, c] of tris) {
+    const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
+    let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx; const l = Math.hypot(nx, ny, nz); if (l < 1e-9) continue; nx /= l; ny /= l; nz /= l;
+    const mx = (a[0] + b[0] + c[0]) / 3, my = (a[1] + b[1] + c[1]) / 3, mz = (a[2] + b[2] + c[2]) / 3;
+    const flip = (dir ? nx * dir[0] + ny * dir[1] + nz * dir[2] : nx * (mx - cx) + ny * (my - cy) + nz * (mz - cz)) < 0;
+    const col = paint(flip ? -ny : ny, mx, my, mz);
+    for (const v of flip ? [a, c, b] : [a, b, c]) { P.push(v[0], v[1], v[2]); C.push(col.r, col.g, col.b); }
   }
-  const yaw = T.a || 0, m = new THREE.Mesh(mergeGeos(p), propMat); m.castShadow = true; m.receiveShadow = true;
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(C, 3));
+  return { g, m: AK_ID, vc: true };
+}
+// sections [z, y, halfWidth, halfHeight]; n sides; sq 0 an oval, toward 1 a box; ox moves it sideways
+function akLoft(secs, n, sq, ox) {
+  const rings = secs.map(([z, y, hw, hh]) => { const R = []; for (let k = 0; k < n; k++) { const a = (k + 0.5) / n * 6.2832, ca = Math.cos(a), sa = Math.sin(a), e = 1 - (sq || 0) * 0.7;
+    R.push([(ox || 0) + hw * Math.sign(ca) * Math.pow(Math.abs(ca), e), y + hh * Math.sign(sa) * Math.pow(Math.abs(sa), e), z]); } return R; });
+  const T = [];
+  for (let r = 0; r + 1 < rings.length; r++) for (let k = 0; k < n; k++) { const a = rings[r][k], b = rings[r][(k + 1) % n], c = rings[r + 1][(k + 1) % n], d = rings[r + 1][k]; T.push([a, b, c], [a, c, d]); }
+  for (const r of [0, rings.length - 1]) { const [z, y] = secs[r], R = rings[r], o = [ox || 0, y, z]; for (let k = 0; k < n; k++) T.push([o, R[k], R[(k + 1) % n]]); }
+  return T;
+}
+// sections [u, v, zLeading, zTrailing, thickness]: u out along the span, v the height (kind 'h', a wing), or u up and v
+// sideways (kind 'v', a fin). sx -1 mirrors it to the other side
+function akSpan(secs, kind, sx) {
+  const pt = (u, v, z, t) => kind === 'v' ? [v + t, u, z] : [(sx || 1) * u, v + t, z];
+  const rings = secs.map(([u, v, zl, zt, t]) => [pt(u, v, zl, 0), pt(u, v, zl - (zl - zt) * 0.3, t / 2), pt(u, v, zt, 0), pt(u, v, zl - (zl - zt) * 0.3, -t / 2)]);
+  const T = [];
+  for (let r = 0; r + 1 < rings.length; r++) for (let k = 0; k < 4; k++) { const a = rings[r][k], b = rings[r][(k + 1) % 4], c = rings[r + 1][(k + 1) % 4], d = rings[r + 1][k]; T.push([a, b, c], [a, c, d]); }
+  for (const r of [0, rings.length - 1]) T.push([rings[r][0], rings[r][1], rings[r][2]], [rings[r][0], rings[r][2], rings[r][3]]);
+  return T;
+}
+function akStrut(p, a, b, th, c) {
+  const A = new THREE.Vector3(...a), B = new THREE.Vector3(...b), d = B.clone().sub(A), L = d.length();
+  p.push({ g: GEO.box, m: new THREE.Matrix4().compose(A.clone().add(B).multiplyScalar(0.5), new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize()), new THREE.Vector3(th, L, th * 0.6)), c });
+}
+// camouflage: the top colour with blotches of a second, a pale underside; one flat colour for cowlings and glass
+function akCamo(top, blot, under) {
+  const A = SC(top), B = SC(blot), U = SC(under), dk = A.clone().multiplyScalar(0.86);
+  return (ny, x, y, z) => ny < -0.3 ? U : (Math.sin(x * 0.85 + z * 0.55) + Math.sin(z * 1.15 - x * 0.45 + 1.7) > 0.75 ? B : (ny < 0.25 ? dk : A));
+}
+const akFlat = c => { const A = SC(c), D = A.clone().multiplyScalar(0.8); return ny => ny < -0.2 ? D : A; };
+const AC_GEO = {};
+function acGeo(type) {
+  if (AC_GEO[type]) return AC_GEO[type];
+  const p = [], H = Math.PI / 2, glass = akFlat(0x2a3840), metal = akFlat(0x45463f), tyre = 0x1e1e1c, leg = 0x3c3c36;
+  // n blades from the hub, each its own length (not a bar across it)
+  const prop = (x, y, z, n, r) => { for (let k = 0; k < n; k++) { const a = k * 6.2832 / n + 0.35; p.push({ g: GEO.box, m: M4e(x - Math.sin(a) * r / 2, y + Math.cos(a) * r / 2, z, 0.16, r, 0.05, 0, 0, a), c: 0x24221f }); } };
+  const wheel = (x, r, z, w) => p.push({ g: GEO.cyl, m: M4e(x, r, z, r * 2, w, r * 2, 0, 0, H), c: tyre }, { g: GEO.cyl, m: M4e(x, r, z, r * 0.9, w + 0.03, r * 0.9, 0, 0, H), c: 0x6a6a60 });
+  const both = (secs, paint, kind) => { p.push(akMesh(akSpan(secs, kind, 1), paint)); p.push(akMesh(akSpan(secs, kind, -1), paint)); };
+  let axle, wr, pitch;
+  if (type === 'transport') {   // a three-engined transport: a slab-sided corrugated fuselage, a long tapered wing, fixed wheels
+    axle = 2.6; wr = 0.5; pitch = 0.125;
+    const sk = akCamo(0x9a988c, 0xb4a47c, 0xa8b4bc);
+    p.push(akMesh(akLoft([[6.5, 2.15, 0.72, 0.78], [5.6, 2.3, 1.0, 1.05], [4.4, 2.45, 1.05, 1.2], [-1.5, 2.45, 1.05, 1.2], [-4.5, 2.55, 0.75, 0.92], [-7.2, 2.75, 0.25, 0.42], [-7.75, 2.8, 0.07, 0.15]], 8, 0.55), sk));
+    p.push(akMesh(akLoft([[7.25, 2.15, 0.5, 0.5], [7.1, 2.15, 0.62, 0.62], [6.45, 2.15, 0.64, 0.64]], 8, 0), metal));   // the nose engine's cowl
+    p.push(akMesh(akLoft([[5.85, 3.02, 0.62, 0.16], [5.3, 3.5, 0.84, 0.2], [4.5, 3.6, 0.9, 0.14]], 6, 0.5), glass));     // the cockpit glazing
+    for (let i = 0; i < 5; i++) p.push({ g: GEO.box, m: M4(-0.76 + i * 0.38, 3.655, 1.45, 0.035, 0.03, 5.9), c: 0x74726a });   // the corrugations, along the roof
+    for (const s of [-1, 1]) {
+      for (let i = 0; i < 3; i++) p.push({ g: GEO.box, m: M4(s * 1.045, 1.75 + i * 0.3, 1.45, 0.02, 0.03, 5.9), c: 0x7c7a70 });   // and the sides
+      for (let i = 0; i < 6; i++) p.push({ g: GEO.box, m: M4(s * 1.06, 2.95, 3.7 - i * 0.92, 0.03, 0.34, 0.5), c: 0x242a2e });    // cabin windows
+      p.push(akMesh(akLoft([[5.0, 1.9, 0.42, 0.42], [4.88, 1.9, 0.56, 0.56], [4.25, 1.9, 0.58, 0.58]], 8, 0, s * 4.3), metal));    // wing engines
+      p.push(akMesh(akLoft([[4.25, 1.9, 0.44, 0.44], [2.3, 1.82, 0.26, 0.26], [1.2, 1.8, 0.05, 0.06]], 6, 0, s * 4.3), sk));
+      akStrut(p, [s * 4.3, 1.5, 3.0], [s * 4.3, 0.55, 2.6], 0.16, leg); akStrut(p, [s * 1.0, 1.4, 2.4], [s * 4.1, 0.6, 2.6], 0.09, leg);
+      wheel(s * 4.3, 0.5, 2.6, 0.3);
+    }
+    p.push({ g: GEO.box, m: M4(-1.07, 2.35, -1.9, 0.03, 1.45, 0.85), c: 0x6e6c64 });   // the cabin door
+    both([[0.95, 1.5, 4.3, -0.6, 0.52], [5, 1.75, 3.6, 0.1, 0.34], [8.6, 1.98, 2.9, 0.9, 0.16], [9.2, 2.02, 2.5, 1.25, 0.04]], sk, 'h');
+    both([[0.15, 2.85, -6.3, -7.9, 0.14], [2.9, 2.9, -6.7, -7.9, 0.08], [3.3, 2.9, -7.05, -7.8, 0.02]], sk, 'h');
+    p.push(akMesh(akSpan([[2.95, 0, -5.9, -8.0, 0.14], [4.45, 0, -6.9, -8.1, 0.09], [4.8, 0, -7.3, -8.0, 0.02]], 'v'), sk));
+    prop(0, 2.15, 7.33, 2, 1.35); for (const s of [-1, 1]) prop(s * 4.3, 1.9, 5.07, 2, 1.25);
+    akStrut(p, [0, 2.4, -6.9], [0, 1.4, -7.0], 0.1, leg); wheel(0, 0.2, -7.0, 0.14); p[p.length - 1].m = M4e(0, 1.25, -7.0, 0.36, 0.17, 0.36, 0, 0, H); p[p.length - 2].m = M4e(0, 1.25, -7.0, 0.4, 0.14, 0.4, 0, 0, H);
+  } else if (type === 'biplane') {   // a biplane fighter: a radial engine in a ring cowl, staggered wings, spatted wheels, an open cockpit
+    axle = 1.6; wr = 0.36; pitch = 0.2;
+    const sk = akCamo(0xc2aa68, 0x7c7444, 0xb4b8b4);
+    p.push(akMesh(akLoft([[2.6, 1.5, 0.48, 0.55], [1.2, 1.52, 0.5, 0.62], [-0.3, 1.52, 0.42, 0.56], [-2.2, 1.53, 0.24, 0.36], [-3.6, 1.56, 0.05, 0.13]], 8, 0.15), sk));
+    p.push(akMesh(akLoft([[3.38, 1.5, 0.46, 0.46], [3.26, 1.5, 0.62, 0.62], [2.55, 1.5, 0.65, 0.65]], 8, 0), metal));
+    p.push({ g: GEO.box, m: M4(0, 2.06, -0.15, 0.5, 0.1, 0.8), c: 0x1e1c1a });                                              // the open cockpit
+    p.push(akMesh(akLoft([[0.55, 2.1, 0.04, 0.03], [0.32, 2.24, 0.26, 0.14], [0.28, 2.1, 0.3, 0.03]], 4, 0), glass));        // its windscreen
+    p.push(akMesh(akLoft([[-0.55, 2.08, 0.2, 0.14], [-1.9, 1.86, 0.06, 0.05]], 6, 0), sk));                                   // the headrest fairing
+    both([[0, 2.75, 1.95, 0.4, 0.16], [4.2, 2.8, 1.85, 0.5, 0.12], [4.7, 2.8, 1.55, 0.72, 0.03]], sk, 'h');                  // the upper wing, forward
+    both([[0.42, 1.05, 1.45, 0.2, 0.14], [3.4, 1.12, 1.4, 0.3, 0.1], [3.8, 1.13, 1.2, 0.45, 0.03]], sk, 'h');
+    for (const s of [-1, 1]) {
+      akStrut(p, [s * 2.9, 1.14, 1.2], [s * 2.9, 2.76, 1.65], 0.08, 0x5a4a32); akStrut(p, [s * 2.9, 1.14, 0.5], [s * 2.9, 2.76, 0.75], 0.08, 0x5a4a32); akStrut(p, [s * 2.9, 1.14, 0.5], [s * 2.9, 2.76, 1.65], 0.05, 0x5a4a32);
+      akStrut(p, [s * 0.36, 2.02, 1.5], [s * 0.55, 2.72, 1.7], 0.06, 0x5a4a32); akStrut(p, [s * 0.36, 2.02, 0.6], [s * 0.55, 2.72, 0.75], 0.06, 0x5a4a32);
+      akStrut(p, [s * 0.42, 1.1, 1.75], [s * 0.95, 0.5, 1.6], 0.1, leg); akStrut(p, [s * 0.42, 1.1, 1.0], [s * 0.95, 0.5, 1.6], 0.07, leg);
+      wheel(s * 0.95, 0.36, 1.6, 0.16);
+      p.push(akMesh(akLoft([[2.15, 0.44, 0.02, 0.05], [1.8, 0.5, 0.13, 0.27], [1.35, 0.5, 0.13, 0.24], [0.95, 0.46, 0.02, 0.06]], 6, 0.2, s * 0.95), sk));   // the spat
+    }
+    both([[0.1, 1.62, -2.7, -3.55, 0.08], [1.4, 1.62, -2.9, -3.55, 0.05], [1.6, 1.62, -3.1, -3.5, 0.02]], sk, 'h');
+    p.push(akMesh(akSpan([[1.6, 0, -2.6, -3.75, 0.08], [2.45, 0, -3.1, -3.8, 0.06], [2.65, 0, -3.3, -3.75, 0.02]], 'v'), sk));
+    prop(0, 1.5, 3.45, 2, 1.25); p.push(akMesh(akLoft([[3.62, 1.5, 0.02, 0.02], [3.36, 1.5, 0.16, 0.16]], 6, 0), metal));
+    akStrut(p, [0, 1.42, -3.3], [0, 1.02, -3.45], 0.07, leg);
+  } else {   // a single-engined fighter: a low tapered wing with dihedral, an in-line engine, a framed canopy, wheels that fold inward
+    axle = 1.5; wr = 0.33; pitch = 0.17;
+    const sk = akCamo(0xb09a66, 0x5e6a48, 0xa4b4c0);
+    p.push(akMesh(akLoft([[3.9, 1.45, 0.4, 0.46], [3.2, 1.45, 0.52, 0.6], [1.6, 1.48, 0.55, 0.68], [0.2, 1.5, 0.5, 0.66], [-1.5, 1.5, 0.38, 0.5], [-3.2, 1.5, 0.2, 0.3], [-4.4, 1.52, 0.05, 0.12]], 8, 0.12), sk));
+    p.push(akMesh(akLoft([[4.36, 1.45, 0.02, 0.02], [4.1, 1.45, 0.22, 0.22], [3.88, 1.45, 0.34, 0.34]], 8, 0), metal));       // the spinner
+    p.push(akMesh(akLoft([[1.35, 2.04, 0.05, 0.04], [0.95, 2.14, 0.3, 0.27], [0.1, 2.17, 0.33, 0.3], [-0.75, 2.04, 0.14, 0.12]], 6, 0.3), glass));
+    p.push({ g: GEO.box, m: M4(0, 0.86, 0.9, 0.5, 0.24, 1.1), c: 0x54584c });                                                   // the radiator
+    for (const s of [-1, 1]) {
+      for (let i = 0; i < 5; i++) p.push({ g: GEO.box, m: M4(s * 0.55, 1.52, 3.05 - i * 0.24, 0.1, 0.09, 0.14), c: 0x2a2826 });   // exhaust stubs
+      akStrut(p, [s * 1.25, 1.02, 1.55], [s * 1.25, 0.36, 1.5], 0.1, leg); p.push({ g: GEO.box, m: M4(s * 1.33, 0.68, 1.5, 0.04, 0.62, 0.34), c: 0x9aa8b2 });
+      wheel(s * 1.25, 0.33, 1.5, 0.17);
+    }
+    both([[0.45, 1.0, 2.25, 0.15, 0.26], [2.8, 1.16, 1.95, 0.45, 0.18], [4.6, 1.28, 1.6, 0.75, 0.1], [5.0, 1.31, 1.4, 0.95, 0.03]], sk, 'h');
+    both([[0.1, 1.6, -3.3, -4.25, 0.1], [1.5, 1.62, -3.55, -4.25, 0.06], [1.75, 1.62, -3.75, -4.2, 0.02]], sk, 'h');
+    p.push(akMesh(akSpan([[1.6, 0, -3.2, -4.45, 0.1], [2.5, 0, -3.75, -4.5, 0.07], [2.75, 0, -3.95, -4.45, 0.02]], 'v'), sk));
+    p.push({ g: GEO.box, m: M4(0, 2.2, -1.2, 0.03, 0.5, 0.03), c: 0x3a3a34 });                                                   // the aerial mast
+    prop(0, 1.45, 4.02, 3, 1.3);
+    akStrut(p, [0, 1.36, -3.95], [0, 1.02, -4.05], 0.07, leg); p.push({ g: GEO.cyl, m: M4e(0, 0.93, -4.05, 0.26, 0.1, 0.26, 0, 0, H), c: tyre });
+  }
+  const g = mergeGeos(p);
+  g.translate(0, -wr, -axle); g.rotateX(-pitch); g.translate(0, wr, axle); g.computeBoundingSphere();   // nose up, on its tailwheel
+  return (AC_GEO[type] = g);
+}
+function mkAircraft(T, type) {
+  const D = AC_DIM[type] || AC_DIM.fighter;
+  const yaw = T.a || 0, m = new THREE.Mesh(acGeo(AC_DIM[type] ? type : 'fighter'), propMat); m.castShadow = true; m.receiveShadow = true;
   m.position.set(T.x, groundY(T.x, T.z), T.z); m.rotation.y = yaw; propRoot.add(m);
   // the progress ring at the wing root nearest the runway side (the side men come from is either; the ring is a marker)
   const rx = T.x + Math.cos(yaw) * (D.hw + 0.9) + Math.sin(yaw) * D.wz, rz = T.z - Math.sin(yaw) * (D.hw + 0.9) + Math.cos(yaw) * D.wz;
@@ -12807,16 +12943,42 @@ function mkRubble(x, z, w) {
 // the hangar: a half-round roof of corrugated iron on ribs, plank doors half open at the front (+z). A target (`hangar`:
 // it takes a bomb and burns like the dump)
 function mkHangar(T, w, d) {
-  const p = [], R = w / 2, n = 9;
-  for (let i = 0; i < n; i++) {
-    const a0 = Math.PI * i / n, a1 = Math.PI * (i + 1) / n, am = (a0 + a1) / 2, x = Math.cos(am) * R, y = Math.sin(am) * R * 0.75;
-    p.push({ g: GEO.box, m: M4(x, y, 0, R * Math.PI / n * 1.05, 0.08, d, 0, am - Math.PI / 2), c: i % 2 ? 0x8a7e66 : 0x7e735c });
+  /* v183 (Khal: improve the hangars): the roof's sheets now follow its curve (they were laid out for a circle on a flattened
+     arch, and gaped), with hoops and a ridge; real end walls; a dark doorway with two sliding doors half open on a rail, a
+     lamp over it; windows in the back; a concrete apron in slabs; a low kerb each side; drums, crates and a windsock. The
+     footprint and the target are as they were. */
+  const p = [], R = w / 2, Hh = R * 0.75, n = 14, zf = d / 2, zb = -d / 2;
+  const arc = k => { const a = Math.PI * k / n; return [Math.cos(a) * R, Math.sin(a) * Hh]; };
+  const iron = [0xa39c88, 0x968f7c, 0x9c9480, 0x8e8672, 0xa69a7e], rust = 0x8a6a4a;
+  for (let i = 0; i < n; i++) {   // the sheets, each from one point on the arch to the next
+    const [x0, y0] = arc(i), [x1, y1] = arc(i + 1), L = Math.hypot(x1 - x0, y1 - y0), a = Math.atan2(y1 - y0, x1 - x0);
+    for (let k = 0; k < 2; k++) p.push({ g: GEO.box, m: M4((x0 + x1) / 2, (y0 + y1) / 2, (k ? 0.25 : -0.25) * d, L * 1.04, 0.07, d / 2 + 0.3, 0, a), c: hash2(i * 3.1, k + w) < 0.14 ? rust : iron[(i * 2 + k) % 5] });
+    for (let k = 0; k <= 4; k++) p.push({ g: GEO.box, m: M4((x0 + x1) / 2 * 1.012, (y0 + y1) / 2 * 1.012 + 0.02, zb + 0.15 + k * (d - 0.3) / 4, L * 1.06, 0.07, 0.12, 0, a), c: 0x5c5648 });   // the hoops
   }
-  for (let k = 0; k <= 4; k++) for (let i = 0; i < n; i++) { const am = Math.PI * (i + 0.5) / n; p.push({ g: GEO.box, m: M4(Math.cos(am) * (R + 0.05), Math.sin(am) * R * 0.75, -d / 2 + k * d / 4, R * Math.PI / n, 0.1, 0.1, 0, am - Math.PI / 2), c: 0x4a4038 }); }
-  p.push({ g: GEO.box, m: M4(0, R * 0.36, -d / 2, w - 0.4, R * 0.72, 0.1), c: 0x7a6e58 });
-  for (const s of [-1, 1]) p.push({ g: GEO.box, m: M4(s * (R - 1.4), R * 0.33, d / 2 + 0.1, 2.6, R * 0.66, 0.1, s * 0.25), c: 0x8a7a5a });
-  p.push({ g: GEO.box, m: M4(0, 0.03, d / 2 + 1.5, w, 0.06, 3), c: 0x9a907a });
-  for (let i = 0; i < 4; i++) p.push({ g: GEO.cyl, m: M4(R + 0.8, 0.45, d / 2 - 0.6 - i * 0.7, 0.6, 0.9, 0.6), c: [0x4a5240, 0x5a5a48][i % 2] });
+  p.push({ g: GEO.box, m: M4(0, Hh + 0.06, 0, 0.5, 0.08, d + 0.4), c: 0x6e6858 });   // the ridge
+  const wallC = SC(0x8c8470), wallD = SC(0x7a7260), wall = (z, dir) => { const T3 = []; for (let i = 0; i < n; i++) { const [x0, y0] = arc(i), [x1, y1] = arc(i + 1); T3.push([[0, 0, z], [x0, y0, z], [x1, y1, z]]); }
+    p.push(akMesh(T3, (ny, x) => (Math.floor((x + R) / 0.55) % 2 ? wallC : wallD), dir)); };
+  wall(zf, [0, 0, 1]); wall(zb, [0, 0, -1]);
+  const wD = w * 0.6, hD = Hh * 0.74, dw = wD * 0.4;
+  p.push({ g: GEO.box, m: M4(0, hD / 2, zf + 0.03, wD, hD, 0.06), c: 0x2c2820 });                        // the doorway: dark inside
+  p.push({ g: GEO.box, m: M4(0, hD + 0.12, zf + 0.14, w * 0.92, 0.12, 0.12), c: 0x4a463c });             // the door rail
+  for (const sd of [-1, 1]) {                                                                              // two sliding doors, half open
+    const x = sd * (wD / 2 + dw * 0.18);
+    p.push({ g: GEO.box, m: M4(x, hD / 2, zf + 0.16, dw, hD, 0.08), c: 0x86795c });
+    for (let k = 0; k < 5; k++) p.push({ g: GEO.box, m: M4(x - dw / 2 + (k + 0.5) * dw / 5, hD / 2, zf + 0.205, 0.04, hD - 0.1, 0.02), c: 0x6c6148 });
+    for (const y of [0.3, hD - 0.3]) p.push({ g: GEO.box, m: M4(x, y, zf + 0.215, dw, 0.14, 0.03), c: 0x5e5440 });
+    p.push({ g: GEO.box, m: M4(x, hD / 2, zf + 0.215, Math.hypot(dw, hD - 0.6), 0.12, 0.03, 0, sd * Math.atan2(hD - 0.6, dw)), c: 0x5e5440 });
+    p.push({ g: GEO.box, m: M4(sd * (R - 0.25), 0.2, 0, 0.5, 0.4, d + 0.1), c: 0xa8a090 });               // a concrete kerb under each eave
+  }
+  p.push({ g: GEO.box, m: M4(0, hD + 0.55, zf + 0.2, 0.34, 0.2, 0.3), c: 0x3a382e }, { g: GEO.box, m: M4(0, hD + 0.43, zf + 0.22, 0.2, 0.06, 0.2), c: 0xf0e2a8 });   // the lamp
+  for (let i = 0; i < 4; i++) p.push({ g: GEO.box, m: M4(-R * 0.6 + i * R * 0.4, Hh * 0.42, zb - 0.03, 0.9, 0.7, 0.06), c: 0x2a3238 }, { g: GEO.box, m: M4(-R * 0.6 + i * R * 0.4, Hh * 0.42, zb - 0.05, 0.05, 0.7, 0.04), c: 0x5c5648 });   // back windows
+  for (let i = 0; i < 3; i++) for (let k = 0; k < 2; k++) p.push({ g: GEO.box, m: M4((i - 1) * (w + 1.6) / 3, 0.03, zf + 1.3 + k * 2.5, (w + 1.6) / 3 - 0.06, 0.06, 2.44), c: [0xb0a892, 0xa69e88, 0xaca48e][(i + k) % 3] });   // the apron
+  p.push({ g: GEO.cyl, m: M4(1.2, 0.066, zf + 2.2, 1.5, 0.01, 1.1), c: 0x80786a });                       // an oil stain
+  for (let i = 0; i < 4; i++) p.push({ g: GEO.cyl, m: M4(R + 0.8, 0.45, zf - 0.6 - i * 0.7, 0.6, 0.9, 0.6), c: [0x4a5240, 0x5a5a48][i % 2] }, { g: GEO.cyl, m: M4(R + 0.8, 0.62, zf - 0.6 - i * 0.7, 0.62, 0.05, 0.62), c: 0x3a3e34 });
+  p.push({ g: GEO.box, m: M4(-R - 0.9, 0.35, zf - 1.0, 1.0, 0.7, 0.8, 0.3), c: 0x8a744c }, { g: GEO.box, m: M4(-R - 0.8, 0.95, zf - 1.05, 0.7, 0.5, 0.6, -0.2), c: 0x9a8458 });   // crates
+  // the windsock: a pole by the apron, the sock in orange and white rings, hanging out to one side
+  p.push({ g: GEO.box, m: M4(-R - 2.2, 2.2, zf + 2.6, 0.09, 4.4, 0.09), c: 0x4a463c });
+  for (let k = 0; k < 4; k++) p.push({ g: GEO.cyl, m: M4e(-R - 2.2 + 0.3 + k * 0.42, 4.25 - k * 0.07, zf + 2.6, 0.42 - k * 0.07, 0.42, 0.42 - k * 0.07, 0, 0, Math.PI / 2 - 0.16), c: k % 2 ? 0xe8e2d0 : 0xd8742a });
   const m = new THREE.Mesh(mergeGeos(p), propMat); m.castShadow = true; m.receiveShadow = true;
   m.position.set(T.x, groundY(T.x, T.z), T.z); propRoot.add(m);
   const ring = new THREE.Mesh(new THREE.RingGeometry(0.7, 0.85, 30, 1, 0, 0.001), basic(0xffb347, { transparent: true, opacity: 0.85, depthWrite: false, side: THREE.DoubleSide }).clone());
@@ -16139,13 +16301,14 @@ function buildRailStrip() {
   // a level crossing where a track meets the line: planks laid flush between and outside the rails
   for (const r of roads) {
     const T = densifyLine(r.pts, 0.4); let best = null;
-    for (const [x, z] of T) { const d = railDist(x, z); if (d < 0.6 && (!best || d < best.d)) best = { x, z, d }; }
+    T.forEach(([x, z], k) => { const d = railDist(x, z); if (d < 0.6 && (!best || d < best.d)) best = { x, z, d, k }; });
     if (!best || beyondEdge(best.x, best.z) > 0) continue;
     let fi = 0, fd = 1e9; frame.forEach((f, i) => { const d = Math.hypot(f.x - best.x, f.z - best.z); if (d < fd) { fd = d; fi = i; } });
-    const f = frame[fi], gy = groundY(f.x, f.z), len = r.w + 0.8;
+    const f = frame[fi], gy = groundY(f.x, f.z), A0 = T[Math.max(0, best.k - 3)], A1 = T[Math.min(T.length - 1, best.k + 3)], dl = Math.hypot(A1[0] - A0[0], A1[1] - A0[1]) || 1,
+      sn = Math.max(0.35, Math.abs((A1[0] - A0[0]) * f.nx + (A1[1] - A0[1]) * f.nz) / dl), len = Math.min(16, r.w / sn + 2.6 * Math.sqrt(1 - sn * sn) / sn + 0.8);   // v184: under the road where it crosses (they sat at the nearest sleeper frame, off to one side), and long enough for a road that crosses at an angle
     for (let o = -1.25; o <= 1.26; o += 0.25) {
       if (Math.abs(Math.abs(o) - RAIL.gauge) < 0.1) continue;
-      parts.push({ g: GEO.box, m: M4(f.x + f.nx * o, gy + 0.24, f.z + f.nz * o, 0.23, 0.06, len, f.yaw), c: [0x7a6448, 0x6e5a40, 0x857052][(hash2(o * 7, fi) * 3) | 0] });
+      parts.push({ g: GEO.box, m: M4(best.x + f.nx * o, gy + 0.24, best.z + f.nz * o, 0.23, 0.06, len, f.yaw), c: [0x7a6448, 0x6e5a40, 0x857052][(hash2(o * 7, fi) * 3) | 0] });
     }
   }
   if (parts.length) { const m = new THREE.Mesh(mergeGeos(parts), propMat); m.receiveShadow = true; m.castShadow = true; railRoot.add(m); }
