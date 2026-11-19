@@ -506,7 +506,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
     <button id="tset">SETTINGS <small>sound · music · graphics</small></button>
   </div>
   <div class="foot">© KHALIFA.GAMES · NO GRUNTS WERE CONSULTED</div>
-  <div id="tver">v184</div>
+  <div id="tver">v185</div>
 </div>
 
 <div id="ops" class="screen">
@@ -1779,6 +1779,22 @@ function segDist(pts, x, z) {
     best = Math.min(best, Math.hypot(ax + dx * t - x, az + dz * t - z));
   }
   return best;
+}
+/* v185 (Khal: nudge scattered bushes, rocks and trees off roads): how far a thing of radius r must stand from a road's centre
+   line to be clear of its tarmac and bank (1.6 half-widths), or of a track's ruts and lip (1.2). roadClear says whether a spot
+   is; offRoad moves a spot straight out from the nearest road until it is (twice, in case the move lands it by another). */
+function roadClear(x, z, r) { for (const o of roads) if (segDist(o.pts, x, z) < o.w / 2 * (o.kind === 'road' ? 1.6 : 1.2) + r) return false; return true; }
+function offRoad(x, z, r) {
+  for (let pass = 0; pass < 2; pass++) for (const o of roads) {
+    const need = o.w / 2 * (o.kind === 'road' ? 1.6 : 1.2) + r; let bd = 1e9, bx = 0, bz = 0, tx = 0, tz = 1;
+    for (let i = 0; i + 1 < o.pts.length; i++) { const [ax, az] = o.pts[i], [cx, cz] = o.pts[i + 1], dx = cx - ax, dz = cz - az, l2 = dx * dx + dz * dz, t = l2 > 0 ? Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2)) : 0,
+      px = ax + dx * t, pz = az + dz * t, d = Math.hypot(px - x, pz - z); if (d < bd) { bd = d; bx = px; bz = pz; const l = Math.sqrt(l2) || 1; tx = -dz / l; tz = dx / l; } }
+    if (bd >= need) continue;
+    let ux = x - bx, uz = z - bz; const ul = Math.hypot(ux, uz);
+    if (ul < 0.05) { const sg = hash2(x * 3.3, z * 7.1) < 0.5 ? -1 : 1; ux = tx * sg; uz = tz * sg; } else { ux /= ul; uz /= ul; }
+    x = bx + ux * (need + 0.1); z = bz + uz * (need + 0.1);
+  }
+  return [x, z];
 }
 function roadDist(x, z, vis) {
   let best = null, tn;
@@ -8424,7 +8440,9 @@ const MISSIONS = [
     name: 'Night Wire',
     night: true, guards: true, charges: 3, truck: 360, weather: 'storm',
     // the road runs from the top of the map down to the gate; the truck comes down it
-    roads: [{ k: 'road', w: 3.6, pts: [[.62, 0.0], [.62, .22], [.62, .50], [.6, .66], [.52, .78], [.5, .97]] }],
+    // v185: the camp road ran straight through hut 2 (x .54 to .68, the road at .62), and stopped short of the map's foot. The
+    // huts can't move (the wire is 4 m beyond them), so the road now comes in by the gate and turns up the yard between the two
+    roads: [{ k: 'road', w: 3.6, pts: [[.5, 0.0], [.5, .22], [.5, .38], [.52, .415], [.6, .43], [.62, .455], [.62, .50], [.6, .66], [.52, .78], [.5, 1.02]] }],
     obj: 'Free the prisoners and get them out',
     sub: "Picardy · Night · Storm · Wire · Dogs · Charges", drawn: "Drawn from the raid on Amiens prison, February 1944.",   // v69
     brief: "Our men are in the two long huts. Two towers with lamps, and a dog. A man through each door, a charge on the gate, everyone out. Wake the camp and a lorry comes.",
@@ -8440,7 +8458,7 @@ const MISSIONS = [
       { t: 'fence', x: .72, z: .22, w: .006, d: .28 },                // east
       { t: 'tower', x: .545, z: .462, yaw: 3.0, speed: .33 },         // gate towers, lamps sweeping the approach
       { t: 'tower', x: .672, z: .462, yaw: 3.4, speed: .41 },
-      { t: 'crate', x: .50, z: .40 }, { t: 'crate', x: .52, z: .41 }, { t: 'crate', x: .36, z: .44 },
+      { t: 'crate', x: .47, z: .40 }, { t: 'crate', x: .472, z: .42 }, { t: 'crate', x: .36, z: .44 },
       { t: 'tree', x: .08, z: .30 }, { t: 'tree', x: .12, z: .55 }, { t: 'tree', x: .88, z: .34 }, { t: 'tree', x: .92, z: .58 },
       { t: 'tree', x: .18, z: .72 }, { t: 'tree', x: .82, z: .76 }, { t: 'tree', x: .32, z: .86 }, { t: 'tree', x: .76, z: .88 },
       { t: 'tree', x: .10, z: .10 }, { t: 'tree', x: .90, z: .10 }, { t: 'tree', x: .40, z: .08 }, { t: 'tree', x: .80, z: .14 },
@@ -8837,7 +8855,7 @@ const MISSIONS = [
       { t: 'ridge', style: 'granite', x: -.12, z: .15, w: .33, d: .6, h: 9 }, { t: 'ridge', style: 'granite', x: .86, z: -.12, w: .26, d: .66, h: 10 },
       { t: 'pipes', a: [[.465, .135], [.535, .27], [.585, .42], [.615, .595]], b: [[.505, .135], [.575, .27], [.625, .42], [.655, .595]], gap: [.555, .345] },
       { t: 'house', style: 'valve', x: .44, z: .055, w: 10, d: 7 }, { t: 'house', style: 'app', x: .525, z: .625, w: 5.5, d: 6 },
-      { t: 'house', style: 'ctrl', x: .77, z: .585, w: 8, d: 6.5 }, { t: 'house', style: 'ghut', x: .8, z: .665, w: 4, d: 3.6 },
+      { t: 'house', style: 'ctrl', x: .77, z: .585, w: 8, d: 6.5 }, { t: 'house', style: 'ghut', x: .8, z: .65, w: 4, d: 3.6 },
       { t: 'trawler', x: .75, z: .87, a: Math.PI / 2 }, { t: 'dinghy', x: .12, z: .8, a: .5 },
       ...[[.62, .72], [.7, .72], [.66, .79], [.9, .67]].map(([x, z]) => ({ t: 'lamp', x, z })),
       { t: 'crate', x: .76, z: .7 }, { t: 'drums', x: .74, z: .705 }, { t: 'drums', x: .56, z: .7 }, { t: 'crate', x: .68, z: .815 },
@@ -8854,7 +8872,9 @@ const MISSIONS = [
     // the frozen river (thin ice by the rapids), up the climb to the railway spur and in through the cable tunnel. Charges on the
     // cells, then the whole valley wakes (M.search): up the mountain beside the switchback road to the plateau.
     name: 'Heavy Water', th: 'no', snow: 1, night: true, noTraffic: true, noExtras: true, size: [100, 220],
-    roads: [{ k: 'road', w: 4.2, pts: [[0.52, -0.02], [0.52, 0.05], [0.2, 0.098], [0.78, 0.154], [0.22, 0.209], [0.7, 0.263], [0.56, 0.31], [0.5, 0.36], [0.5, 0.43]] }, { k: 'road', w: 4.6, pts: [[-0.05, .7], [.3, .705], [.6, .7], [1.05, .695]] }],
+    // v185: the plant road stopped dead in the yard at z .43. It now runs west along the shelf, over the guarded bridge and down to
+    // the valley road (listed first, so the plant road stops at its edge)
+    roads: [{ k: 'road', w: 4.6, pts: [[-0.05, .7], [.3, .705], [.6, .7], [1.05, .695]] }, { k: 'road', w: 4.2, pts: [[0.52, -0.02], [0.52, 0.05], [0.2, 0.098], [0.78, 0.154], [0.22, 0.209], [0.7, 0.263], [0.56, 0.31], [0.5, 0.36], [0.5, 0.425], [0.47, 0.458], [0.2, 0.466], [0.1, 0.466], [0.07, 0.474], [0.07, 0.49], [0.07, 0.66], [0.07, 0.702]] }],
     obj: "Charges on the heavy-water cells, then up the mountain",
     sub: "Vemork · Night · Bitter cold · Norway", drawn: "Drawn from the 1943 raid on the Vemork heavy-water plant.",
     brief: "The bridge is floodlit, so go round: down the gorge, over the river, in by the cable tunnel. Nobody guards it. Charges on the cells, then up the mountain.",
@@ -8885,12 +8905,12 @@ const MISSIONS = [
     obstacles: [
       { t: 'pipes', a: [[.7, -.05], [.7, .15], [.71, .33]], b: [[.75, -.05], [.75, .15], [.76, .33]], gap: [.725, .2] },
       { t: 'house', style: 'pstat', x: .58, z: .33, w: 30, d: 13 }, { t: 'house', style: 'barr', x: .03, z: .33, w: 12, d: 6 },
-      { t: 'house', style: 'ghut', x: .11, z: .45, w: 3, d: 3 }, { t: 'house', style: 'ghut', x: .11, z: .676, w: 3, d: 3 },
+      { t: 'house', style: 'ghut', x: .125, z: .437, w: 3, d: 3 }, { t: 'house', style: 'ghut', x: .11, z: .676, w: 3, d: 3 },
       { t: 'house', style: 'logh', x: .74, z: .862, w: 5.5, d: 4.5 },
       { t: 'ctunnel', x: .39, z: .455, L: 6 },
       { t: 'spur', z: .474, a: .14, b: 1.02, wagons: [.6, .68, .85] },
       ...[[.025, .474], [.115, .474], [.025, .676], [.115, .676], [.3, .44], [.52, .432], [.62, .41], [.45, .33], [.06, .4]].map(([x, z]) => ({ t: 'lamp', x, z })),
-      { t: 'crate', x: .5, z: .41 }, { t: 'drums', x: .54, z: .43 }, { t: 'crate', x: .9, z: .41 }, { t: 'drums', x: .16, z: .43 },
+      { t: 'crate', x: .535, z: .41 }, { t: 'drums', x: .54, z: .43 }, { t: 'crate', x: .9, z: .41 }, { t: 'drums', x: .16, z: .43 },
       ...[[0.2, 0.505], [0.25, 0.505], [0.3, 0.505], [0.477, 0.505], [0.607, 0.505], [0.676, 0.505], [0.809, 0.505], [0.889, 0.505], [0.16, 0.645], [0.244, 0.645], [0.346, 0.645], [0.441, 0.645], [0.612, 0.645], [0.709, 0.645], [0.864, 0.645], [0.949, 0.645]].map(([x, z]) => ({ t: 'rock', x, z, s: 1.2 })),
       ...[[0.115, 0.878], [0.207, 0.801], [0.097, 0.972], [0.335, 0.989], [0.446, 0.877], [0.041, 0.882], [0.847, 0.875], [0.669, 0.845], [0.183, 0.903], [0.101, 0.783]].map(([x, z]) => ({ t: 'rock', x, z, s: 1.4 })),
       ...[[0.496, 0.27], [0.105, 0.136], [0.067, 0.212], [0.806, 0.045], [0.241, 0.155], [0.18, 0.249], [0.039, 0.242], [0.199, 0.291], [0.324, 0.157], [0.921, 0.197], [0.894, 0.231], [0.905, 0.066], [0.374, 0.258], [0.651, 0.204], [0.93, 0.106], [0.172, 0.202], [0.766, 0.79], [0.656, 0.814], [0.069, 0.733], [0.659, 0.782], [0.3, 0.881], [0.389, 0.924], [0.223, 0.746], [0.917, 0.84], [0.834, 0.73], [0.501, 0.897], [0.12, 0.929], [0.655, 0.915], [0.927, 0.949], [0.965, 0.747]].map(([x, z]) => ({ t: 'tree', x, z, kind: 'pine' })),
@@ -8996,7 +9016,7 @@ const MISSIONS = [
       { t: 'house', style: 'redh', x: 0.2, z: 0.82, w: 7.1, d: 6.0 },
       { t: 'house', style: 'ochh', x: 0.34, z: 0.839, w: 7.1, d: 6.0 },
       { t: 'house', style: 'redh', x: 0.42, z: 0.899, w: 7.1, d: 6.0 },
-      { t: 'house', style: 'hotel', x: .28, z: .172, w: 12, d: 5.6 }, { t: 'house', style: 'church', x: .1, z: .42, w: 6, d: 9 },
+      { t: 'house', style: 'hotel', x: .28, z: .172, w: 12, d: 5.6 }, { t: 'house', style: 'church', x: .1, z: .395, w: 6, d: 9 },
       { t: 'fire', x: .315, z: .43 }, { t: 'fire', x: .375, z: .61 },
       { t: 'casemate', x: .885, z: .14, a: -Math.PI / 2 }, { t: 'casemate', x: .9, z: .4, a: -Math.PI / 2 }, { t: 'casemate', x: .885, z: .66, a: -Math.PI / 2 },
       { t: 'boat', x: .575, z: .965, a: Math.PI },
@@ -9695,12 +9715,12 @@ const MISSIONS = [
        { t: 'ridge', x: .17, z: .705, w: .29, d: .045, h: 3.2 }, { t: 'ridge', x: .54, z: .705, w: .29, d: .045, h: 3.2 },
       { t: 'ridge', x: .17, z: .425, w: .045, d: .28, h: 3.2 }, { t: 'ridge', x: .785, z: .425, w: .045, d: .28, h: 3.2 },
       { t: 'lighthouse', x: .88, z: .16 }, { t: 'boat', x: .44, z: .11, a: 0 },
-      { t: 'house', style: 'farm', x: .06, z: .23, w: 8, d: 6 }, { t: 'house', style: 'farm', x: .16, z: .25, w: 8, d: 6 }, { t: 'house', style: 'farm', x: .84, z: .25, w: 8, d: 6 },
+      { t: 'house', style: 'farm', x: .02, z: .23, w: 8, d: 6 }, { t: 'house', style: 'farm', x: .11, z: .25, w: 8, d: 6 }, { t: 'house', style: 'farm', x: .84, z: .25, w: 8, d: 6 },   // v185: the first two 4 and 5 m west: the second stood on the quay road
       { t: 'house', style: 'farm', x: .9, z: .5, w: 7, d: 6 }, { t: 'house', style: 'ruin', x: .08, z: .56, w: 7, d: 6 },
       { t: 'house', style: 'ruin', x: .06, z: .83, w: 8, d: 6 }, { t: 'house', style: 'farm', x: .9, z: .83, w: 7, d: 6 }, { t: 'house', style: 'farm', x: .3, z: .88, w: 8, d: 6 }, { t: 'house', style: 'ruin', x: .64, z: .88, w: 8, d: 6 },
       { t: 'house', style: 'farm', x: .5, z: .23, w: 8, d: 5 }, { t: 'house', style: 'farm', x: .66, z: .23, w: 8, d: 5 },
       { t: 'fire', x: .1, z: .59 }, { t: 'fire', x: .68, z: .91 },
-      ...[[.44, .73], [.47, .735], [.53, .735], [.56, .73], [.35, .21], [.36, .225]].map(([x, z]) => ({ t: 'crate', x, z })),
+      ...[[.44, .73], [.47, .735], [.53, .735], [.56, .73], [.35, .25], [.36, .265]].map(([x, z]) => ({ t: 'crate', x, z })),   // v185: the last two off the quay road
       ...[[.3, .5], [.45, .45], [.6, .55], [.7, .48], [.35, .62], [.66, .64]].map(([x, z]) => ({ t: 'tree', x, z, kind: 'broad' })),
       ...[[.1, .45], [.92, .42], [.2, .9], [.8, .9], [.04, .32], [.96, .3]].map(([x, z]) => ({ t: 'tree', x, z, kind: 'poplar' })),
     ],
@@ -9718,7 +9738,7 @@ const MISSIONS = [
     reinfAt: { x: .97, z: .3, r: 5 },   // v114: along the cliff top from the east (they used to come out of the sea and drown)
     edge: { z: .245, h: 6, foot: 4.5, ropes: [.4, .5] },   // 6 m, not the real 30: any higher and the camera, looking north over the top, can't see the beach under it
     water: [{ x1: -.02, z1: -.02, x2: 1.02, z2: .145, still: true, sea: true }],
-    roads: [{ k: 'road', w: 4, pts: [[.8, .275], [.8, .64], [.8, 1.02]] }],
+    roads: [{ k: 'road', w: 4, pts: [[1.04, .283], [.86, .287], [.8, .31], [.8, .64], [.8, 1.02]] }],   // v185: it stopped at the cliff top; it turns east along it and off the map
     grounds: [{ k: 'sand', x0: -.02, z0: .135, x1: 1.02, z1: .225 }, { k: 'crop', x0: 0, z0: .66, x1: .76, z1: 1 }, { k: 'crop', x0: .84, z0: .64, x1: 1, z1: 1 }],
     clock: { t: 360, label: 'BOATS GO', fail: ['THE BOATS HAVE GONE', 'and the light is coming. Not this way, then'] },
     objectives: [{ t: 'extract', label: 'To the ropes, down the cliff, into the boats' }],
@@ -11497,7 +11517,7 @@ function scatterCover(M, n, seed) {
     if (Math.hypot(x - sx, z - sz) < 9) continue;            // keep the drop zone clear
     if (waterFactor(x, z) > 0.02 || onBridge(x, z, 1.6)) continue;
     if (padBlend(x, z)) continue;                            // nothing sprouting indoors
-    { const rd = roadDist(x, z); if (rd && rd.t < 1.1) continue; }   // nor in the road
+    if (!roadClear(x, z, 1.0)) continue;   // nor in the road (v185: nor on its kerb or bank, nor on a track's lip)
     if ((streets.length || squares.length) && onStreet(x, z, 1.5)) continue;   // v40: nor in the street
     if (blocked(x, z, 2.6)) continue;
     let clash = false;
@@ -15608,8 +15628,10 @@ function initMission(idx) {
 
   let seed = 1;
   for (const o of M.obstacles) {
-    const x = o.x * MW, z = o.z * MH;
-    if ((o.t === 'tree' || o.t === 'rock' || o.t === 'bush') && (roadDist(x, z) || { t: 9 }).t < 1.3) continue;   // nothing growing in a road
+    let x = o.x * MW, z = o.z * MH;
+    // v185: nothing growing in a road, on its kerb or on a track's ruts: it is moved to the roadside (it used to be dropped if
+    // it stood in the tarmac, and left where it was on the kerb)
+    if (o.t === 'tree' || o.t === 'rock' || o.t === 'bush' || o.t === 'lamp') { const q = offRoad(x, z, o.t === 'bush' ? 1.0 : o.t === 'rock' ? 0.8 : o.t === 'lamp' ? -0.6 : 0.5); x = q[0]; z = q[1]; }   // (a lamp post stands on the verge)
     if (o.t === 'tree') obs.push(mkTree(x, z, seed++, o.kind ? TREE_KINDS.indexOf(SNOW && /broad/.test(o.kind) ? 'bare' : o.kind) : undefined));
     else if (o.t === 'casemate') obs.push(...mkCasemate(x, z, o.a || 0));   // v70
     else if (o.t === 'trawler') obs.push(mkTrawler(x, z, o.a || 0));   // v75
