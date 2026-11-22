@@ -506,7 +506,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
     <button id="tset">SETTINGS <small>sound · music · graphics</small></button>
   </div>
   <div class="foot">© KHALIFA.GAMES · NO GRUNTS WERE CONSULTED</div>
-  <div id="tver">v185</div>
+  <div id="tver">v186</div>
 </div>
 
 <div id="ops" class="screen">
@@ -13507,7 +13507,12 @@ function jeepHit(J, n) {
 }
 // v171: steering. Three lanes across the runway; the buttons show only on the run
 function setJeepLanes(on) { $('jl').style.display = $('jr').style.display = on ? 'block' : 'none'; }
-function jeepSteer(d) { const R = jeepRun; if (!R || R.phase !== 'run' || outcome || paused) return; const n = clamp(R.lane + d, -1, 1); if (n !== R.lane) { R.lane = n; SFX.ui(); } }
+/* v186 (Khal: the arrows move the jeep the wrong way): d is the way the player means on screen (-1 left, +1 right). The lane
+   offset is laid along (cos yaw, -sin yaw), which points west when the jeeps drive north up the runway: the camera looks north,
+   so west is screen left. Turn the player's direction into the offset's by the sign of that vector's x (screen right is +x). */
+function jeepSteer(d) { const R = jeepRun; if (!R || R.phase !== 'run' || outcome || paused) return;
+  const P = R.route, a = P[R.seg], b = P[Math.min(P.length - 1, R.seg + 1)], s = Math.cos(Math.atan2(b[0] - a[0], b[1] - a[1])) < 0 ? -1 : 1;
+  const n = clamp(R.lane + d * s, -1, 1); if (n !== R.lane) { R.lane = n; SFX.ui(); } }
 function stepJeeps(dt) {
   const R = jeepRun; if (!R || phase !== 'play') return;
   stepTracers(dt);
