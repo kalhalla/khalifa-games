@@ -506,7 +506,7 @@ body.mobile #pause{backdrop-filter:none;background:rgba(6,12,4,.78)}
     <button id="tset">SETTINGS <small>sound · music · graphics</small></button>
   </div>
   <div class="foot">© KHALIFA.GAMES · NO GRUNTS WERE CONSULTED</div>
-  <div id="tver">v186</div>
+  <div id="tver">v187</div>
 </div>
 
 <div id="ops" class="screen">
@@ -13606,19 +13606,17 @@ function stepJeeps(dt) {
   if (spotter && spotter.seen && !spotter.bombed) { spotter.bombed = true; const s = sol.find(q => !q.dead && !q.prone); if (s) divebomb(s.x, s.z); }
   for (let i = R.bombs.length - 1; i >= 0; i--) {
     const B = R.bombs[i]; B.t -= dt;
-    const k = Math.max(0, B.t / 3.2); B.m.position.set(B.x - B.dx * k * 60, groundY(B.x, B.z) + 2 + k * 45, B.z - B.dz * k * 60); B.m.rotation.set(-0.6, Math.atan2(B.dx, B.dz), 0, 'YXZ');
     if (B.t <= 0) {
-      R.bombs.splice(i, 1); scene.remove(B.m);
+      R.bombs.splice(i, 1);
       lorryFireball({ x: B.x, z: B.z, mesh: { material: null } });
       for (const J of live) if (Math.hypot(J.x - B.x, J.z - B.z) < 6) jeepHit(J, 99);
     }
   }
 }
-// a dive-bomber: in on a steep line, a bomb at the bottom of it (3.2 s from the call)
+// a dive-bomber: a Stuka down a steep line, its bomb on the mark 3.2 s from the call (v187: the plane pulls out and climbs away)
 function divebomb(x, z) {
-  const P_ = mkPlane(), a = Math.random() * Math.PI * 2;
-  P_.m.scale.setScalar(1.2); scene.add(P_.m);
-  jeepRun.bombs.push({ x, z, t: 3.2, m: P_.m, dx: Math.sin(a), dz: Math.cos(a) });
+  stukaRun(x, z);
+  jeepRun.bombs.push({ x, z, t: STUKA_T });
   showToast('DIVE-BOMBER', 'they’ve seen something. Down!'); SFX.horn(x, z);
 }
 // v101: the water clock (AS2, M.canteens = { time, well: { x, z }, add }): it runs out and the op is lost. A man at the well
@@ -14516,7 +14514,7 @@ function crowdGeo() {
   return mergeGeos(p);
 }
 function beachInit(M) {
-  if (stukaSt) for (const B of stukaSt.bombs) scene.remove(B.m);
+  clearStukaFx();   // v187: and any Stuka still in the air from the last op
   stukaSt = M.stukas ? { next: M.stukas.first || 40, every: M.stukas.every || [55, 80], also: !!M.stukas.also, bombs: [], flat: 0, n: 0 } : null;
   if (crowdIM) crowdIM.count = 0;
   if (!M.crowd) return;
@@ -14534,10 +14532,82 @@ function crowdPlace(flat) {
   });
   crowdIM.instanceMatrix.needsUpdate = true; crowdIM.userData.flat = flat;
 }
+/* v187 (Khal: "the whole plane lands on them and explodes"): a Stuka's attack, the look of it only. Until now the plane itself
+   was moved down onto the target and vanished when the bomb went off. Now a Ju 87 (stukaGeo: inverted gull wings, spatted
+   wheels, the long glasshouse, a bomb under its belly) comes in from the east or the west at 30 m, dives at about 35°, lets
+   the bomb go at 10 m, pulls out 5 m over the target and climbs away out of the other side of the screen. (The game's camera
+   is 17 m up looking down at 40°: it sees nothing more than about 10 m above the squad, so a steep dive from high up only
+   ever showed as a shadow.) The bomb runs on down the dive line and lands where
+   the plane was aimed, STUKA_T after the call: when the game's own countdown (stukaSt.bombs, jeepRun.bombs, unchanged) sets
+   off the blast. stukaRun(x, z) starts one; stepStukaFx moves them all (game time, so pause and __sim keep them in step). */
+const STUKA_T = 3.2, STUKA_REL = 2.45, STUKA_FX = [];   // the bomb away 0.75 s before it lands: it keeps the plane's speed down the line (released at 2.05 s it fell behind the plane)
+let stukaG = {}, stukaPropG = null, stukaBombG = null;
+function stukaGeo(sand) {   // sand: the desert's tropical scheme, sand with olive blotches (Europe: two greens)
+  const key = sand ? 'sand' : 'eu'; if (stukaG[key]) return stukaG[key];
+  const p = [], sk = sand ? akCamo(0xb49c64, 0x6c6a42, 0x9eb2c2) : akCamo(0x4c5a3a, 0x36422c, 0x8ea2b4), glass = akFlat(0x2a3840), metal = akFlat(0x3c3e38), dk = 0x2c2e2a;
+  p.push(akMesh(akLoft([[5.55, 0.05, 0.22, 0.26], [5.25, 0.05, 0.58, 0.62], [3.7, 0.12, 0.62, 0.74], [1.6, 0.22, 0.56, 0.8], [-1.4, 0.22, 0.44, 0.62], [-4.4, 0.28, 0.2, 0.34], [-5.6, 0.32, 0.05, 0.12]], 8, 0.35), sk));
+  p.push(akMesh(akLoft([[5.6, 0.05, 0.42, 0.46], [5.45, 0.05, 0.58, 0.62], [4.4, 0.08, 0.62, 0.68]], 8, 0.2), metal));   // the engine's cowl
+  p.push(akMesh(akLoft([[2.5, 0.98, 0.05, 0.05], [1.95, 1.2, 0.36, 0.3], [-0.7, 1.2, 0.36, 0.3], [-1.35, 0.98, 0.14, 0.08]], 6, 0.35), glass));   // the glasshouse, pilot and gunner
+  for (const z of [1.2, 0.3, -0.5]) p.push({ g: GEO.box, m: M4(0, 1.22, z, 0.72, 0.6, 0.05), c: sand ? 0x8a7a50 : 0x55603e });
+  p.push({ g: GEO.box, m: M4(0, -0.66, 4.3, 0.7, 0.4, 1.0), c: 0x3a4234 });                                         // the chin radiator
+  for (const sd of [-1, 1]) {   // the inverted gull wing: down from the root to the knee, up to the tip
+    p.push(akMesh(akSpan([[0.5, -0.2, 1.35, -1.25, 0.32], [2.6, -0.78, 1.2, -1.15, 0.26], [5.2, -0.38, 0.95, -0.85, 0.16], [6.8, -0.1, 0.55, -0.5, 0.05]], 'h', sd), sk));
+    p.push(akMesh(akLoft([[1.55, -1.55, 0.04, 0.08], [1.05, -1.45, 0.26, 0.5], [0.15, -1.6, 0.26, 0.42], [-0.55, -1.72, 0.04, 0.08]], 6, 0.2, sd * 2.6), sk));   // the spat
+    akStrut(p, [sd * 2.6, -0.85, 0.6], [sd * 2.6, -1.25, 0.5], 0.42, sand ? 0xb49c64 : 0x4c5a3a);
+    p.push({ g: GEO.cyl, m: M4e(sd * 2.6, -1.95, 0.55, 0.62, 0.14, 0.62, 0, 0, Math.PI / 2), c: 0x1e1e1c });
+    p.push({ g: GEO.box, m: M4(sd * 3.9, -0.82, 0.05, 1.3, 0.06, 0.22), c: dk });                                      // the dive brake
+    p.push({ g: GEO.box, m: M4(sd * 2.0, -0.82, 0.9, 0.12, 0.28, 0.28), c: 0x6a6a60 }, { g: GEO.cone, m: M4e(sd * 2.0, -0.82, 1.1, 0.1, 0.18, 0.1, Math.PI / 2), c: 0x6a6a60 });   // the siren on the leg
+  }
+  p.push(akMesh(akSpan([[0.1, 0.42, -4.3, -5.4, 0.1], [2.7, 0.46, -4.6, -5.4, 0.06], [2.95, 0.46, -4.85, -5.3, 0.02]], 'h', 1), sk), akMesh(akSpan([[0.1, 0.42, -4.3, -5.4, 0.1], [2.7, 0.46, -4.6, -5.4, 0.06], [2.95, 0.46, -4.85, -5.3, 0.02]], 'h', -1), sk));
+  p.push(akMesh(akSpan([[0.35, 0, -3.9, -5.65, 0.12], [2.05, 0, -4.75, -5.75, 0.08], [2.35, 0, -5.05, -5.65, 0.02]], 'v'), sk));
+  stukaG[key] = mergeGeos(p);
+  stukaPropG = mergeGeos([0, 1, 2].map(k => ({ g: GEO.box, m: M4e(-Math.sin(k * 2.094) * 0.85, Math.cos(k * 2.094) * 0.85, 0, 0.2, 1.7, 0.05, 0, 0, k * 2.094), c: 0x24221f })));
+  stukaBombG = mergeGeos([{ g: GEO.cyl, m: M4e(0, 0, 0, 0.4, 1.3, 0.4, Math.PI / 2), c: 0x3e4034 }, { g: GEO.cone, m: M4e(0, 0, 0.85, 0.4, 0.4, 0.4, Math.PI / 2), c: 0x2e302a },
+    { g: GEO.cone, m: M4e(0, 0, -0.85, 0.36, 0.4, 0.36, -Math.PI / 2), c: 0x3e4034 }, { g: GEO.box, m: M4(0, 0, -1.05, 0.62, 0.04, 0.3), c: 0x34362e }, { g: GEO.box, m: M4(0, 0, -1.05, 0.04, 0.62, 0.3), c: 0x34362e }]);
+  return stukaG[key];
+}
+function stukaRun(x, z) {
+  const m = new THREE.Mesh(stukaGeo(SAND), propMat); m.castShadow = true;
+  const prop = new THREE.Mesh(stukaPropG, propMat); prop.position.set(0, 0.05, 5.7); m.add(prop);
+  const bomb = new THREE.Mesh(stukaBombG, propMat); bomb.castShadow = true; bomb.position.set(0, -0.95, 0.6); m.add(bomb);
+  scene.add(m);
+  // across the screen: in from the east or the west, a little slanted
+  const a = (Math.random() < 0.5 ? -1 : 1) * Math.PI / 2 + (Math.random() - 0.5) * 0.6;
+  STUKA_FX.push({ m, prop, bomb, x, z, gy: groundY(x, z), dx: Math.sin(a), dz: Math.cos(a), age: 0, out: false });
+}
+const _skP = new THREE.Vector3(), _skQ = new THREE.Vector3();
+// where the plane is at `age` (seconds from the call), into v
+function stukaPos(F, age, v) {
+  const { x, z, gy, dx, dz } = F, h = (h0, y) => v.set(x - dx * h0, gy + y, z - dz * h0);
+  // the dive line: 42 m out at 30 m up to the release 13 m out at 10 m (about 35°), which runs on to the mark
+  if (age <= STUKA_REL) { const u = Math.pow(Math.max(0, age) / STUKA_REL, 1.5); return h(42 + (13 - 42) * u, 30 + (10 - 30) * u); }   // quickening, to about 18 m/s across
+  const e = age - STUKA_REL;
+  if (e <= 1) {   // the pull-out: on down the line, round over the mark at 5 m, to 12 m past it and climbing gently
+    const u = e, w0 = (1 - u) * (1 - u), w1 = 2 * u * (1 - u), w2 = u * u, o = -13 * w0 - 4 * w1 + 12 * w2;
+    return v.set(x + dx * o, gy + w0 * 10 + w1 * 3.2 + w2 * 7, z + dz * o);
+  }
+  const s = e - 1; return v.set(x + dx * (12 + 26 * s), gy + 7 + 3 * s + 5 * s * s, z + dz * (12 + 26 * s));   // and away, climbing
+}
+function stepStukaFx(dt) {
+  for (let i = STUKA_FX.length - 1; i >= 0; i--) {
+    const F = STUKA_FX[i]; F.age += dt;
+    stukaPos(F, F.age, _skP); F.m.position.copy(_skP); stukaPos(F, F.age + 0.05, _skQ); F.m.lookAt(_skQ);
+    F.prop.rotation.z += dt * 40;
+    if (!F.out && F.age >= STUKA_REL) {   // the bomb away: off the belly, into the world where it hangs
+      F.out = true; F.m.updateMatrixWorld(); F.bomb.getWorldPosition(_skP); F.m.remove(F.bomb); scene.add(F.bomb); F.bomb.position.copy(_skP); F.b0 = _skP.clone();
+    }
+    if (F.out && F.bomb.parent) {   // down the dive line, quickening, onto the mark
+      const u = Math.min(1, (F.age - STUKA_REL) / (STUKA_T - STUKA_REL)), k = 0.9 * u + 0.1 * u * u;   // leaving at nearly the plane's speed
+      _skQ.set(F.x, F.gy + 0.3, F.z); F.bomb.position.copy(F.b0).lerp(_skQ, k); F.bomb.lookAt(_skQ);
+      if (F.age >= STUKA_T) scene.remove(F.bomb);
+    }
+    if (F.age > 6.5) { scene.remove(F.m); if (F.bomb.parent) F.bomb.parent.remove(F.bomb); STUKA_FX.splice(i, 1); }
+  }
+}
+function clearStukaFx() { for (const F of STUKA_FX) { scene.remove(F.m); if (F.bomb.parent) F.bomb.parent.remove(F.bomb); } STUKA_FX.length = 0; }
 function stukaDive(x, z, house) {
-  const P_ = mkPlane(), a = Math.random() * Math.PI * 2;
-  P_.m.scale.setScalar(1.3); scene.add(P_.m);
-  stukaSt.bombs.push({ x, z, t: 3.2, m: P_.m, dx: Math.sin(a), dz: Math.cos(a), house });
+  stukaRun(x, z);
+  stukaSt.bombs.push({ x, z, t: STUKA_T, house });
 }
 function stepBeach(dt) {
   const S = stukaSt; if (!S || phase !== 'play') return;
@@ -14573,9 +14643,8 @@ function stepBeach(dt) {
   }
   for (let i = S.bombs.length - 1; i >= 0; i--) {
     const B = S.bombs[i]; B.t -= dt;
-    const k = Math.max(0, B.t / 3.2); B.m.position.set(B.x - B.dx * k * 60, groundY(B.x, B.z) + 2 + k * 45, B.z - B.dz * k * 60); B.m.rotation.set(-0.6, Math.atan2(B.dx, B.dz), 0, 'YXZ');
     if (B.t <= 0) {
-      S.bombs.splice(i, 1); scene.remove(B.m);
+      S.bombs.splice(i, 1);
       const gy = groundY(B.x, B.z);
       spawnParts(B.x, gy + 0.5, B.z, 50, 0xffb060, 13, 0.24, 0.7, 10); spawnParts(B.x, gy + 0.6, B.z, 30, 0xc8b88a, 8, 0.3, 1.4, 6);
       decal(B.x, B.z, 3.2, 0x2a2016, 0.55); addSmoker(B.x, B.z, { life: 8, rate: 5, size: 2.2, col: 0x6a6258, a: 0.55, burst: 8 }); boomFX(B.x, gy, B.z, 1.6);   // v124
@@ -17141,6 +17210,7 @@ function update(dt) {
   stepStakes();   // v156
   stepMissing();   // v160
   stepBeach(dt);   // v110
+  stepStukaFx(dt);   // v187
   stepRopes(dt);   // v112
   stepAllies(dt);   // v113
   if (MISSIONS[missionIdx].jeeps && !jeepRun && phase === 'play' && !outcome) jeepInit(MISSIONS[missionIdx]);   // v100
@@ -19789,6 +19859,8 @@ window.GS = { MISSIONS, get roster() { return roster; }, get fallen() { return f
   rail() { return railLine ? { pts: railLine.pts.map(p => [+p[0].toFixed(1), +p[1].toFixed(1)]), portals: portals.filter(q => q.rail).length, dead: railDead } : null; },
   tbench(z) { const k = Object.keys(TRAIN_CARS); let x = MW / 2 - 24; const out = []; for (const kind of k) { const m = new THREE.Mesh(trainGeo(kind), propMat); m.castShadow = true; const zz = z || MH * 0.7; m.position.set(x, groundY(x, zz), zz); m.rotation.y = Math.PI / 2; propRoot.add(m); out.push(kind); x += TRAIN_CARS[kind] + 1.2; } return out; },
   strike() { strike(); return flashT; },
+  raid() { if (stukaSt) { stukaSt.next = 0; return stukaSt.n + 1; } const J = jeepRun && jeepRun.jeeps.find(j => !j.dead); if (J) { divebomb(J.x, J.z); return 'dive'; } return null; },   // v187: the next Stuka raid now (The Beaches), or a dive-bomber on a jeep (The Jeep Run)
+  stukaFx() { const w = new THREE.Vector3(); return STUKA_FX.map(F => { F.bomb.getWorldPosition(w); return { age: +F.age.toFixed(2), tgt: [+F.x.toFixed(1), +F.z.toFixed(1)], d: [+F.dx.toFixed(2), +F.dz.toFixed(2)], plane: F.m.position.toArray().map(v => +v.toFixed(1)), bomb: w.toArray().map(v => +v.toFixed(1)), out: F.out }; }); },   // v187 dev
   atmo() { return { light: lightName, cloud: ATMO.cloud.value, wind: [+windAng.toFixed(2), windMag], rain: weatherRain, mists: mists.map(P => [+P.x.toFixed(1), +P.z.toFixed(1), +P.r.toFixed(1)]), smoke: smoke.length, smokers: smokers.length }; },
   smoke(x, z) { return addSmoker(x, z, { life: 12, rate: 5, size: 2.0, col: 0x8a857c, a: 0.62, burst: 8 }) && smokers.length; },
   split(v) { setSplit(v === undefined ? !split : !!v); return split; },
