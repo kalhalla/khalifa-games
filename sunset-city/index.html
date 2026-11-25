@@ -14,7 +14,7 @@
 <meta name="twitter:card" content="summary_large_image"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <link rel="apple-touch-icon" href="/sunset-city/square.png"/>
-<meta name="build-version" content="v0.38"/>
+<meta name="build-version" content="v0.39"/>
 <style>
   html,body{margin:0;padding:0;overflow:hidden;background:#1a1420;height:100%;touch-action:none;}
   canvas{display:block;}
@@ -10999,8 +10999,8 @@ function flattenCar(g){
   // ---- the screen ----
   for(const dz of [-8,8]){
     const pier=new THREE.Mesh(new THREE.BoxGeometry(1.4,10,1.4),lambert(0x4a4238));
-    pier.position.set(XS,5,SZ+dz); pier.castShadow=true; scr.add(pier);
-    colB({x0:XS-1.1,x1:XS+1.1,z0:SZ+dz-1.1,z1:SZ+dz+1.1});
+    pier.position.set(XS+2.3,5,SZ+dz); pier.castShadow=true; scr.add(pier);     // v0.39: BEHIND the board (they stood in front of the picture)
+    colB({x0:XS+1.2,x1:XS+3.4,z0:SZ+dz-1.1,z1:SZ+dz+1.1});
   }
   const board=new THREE.Mesh(new THREE.BoxGeometry(0.5,11,20),lambert(0xd8d2c2,{emissive:0x3a3830,emissiveIntensity:0.2}));
   board.position.set(XS+0.6,6.8,SZ); board.rotation.z=0.06; board.castShadow=true; scr.add(board);
@@ -20116,6 +20116,6 @@ addEventListener('resize',()=>{
   if(meOn){ mecv.width=innerWidth; mecv.height=innerHeight; }
 });
 </script>
-<div id="buildver" style="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(2px + env(safe-area-inset-bottom));font:600 10px/1.2 ui-monospace,Menlo,monospace;color:#fff;opacity:.6;letter-spacing:.06em;pointer-events:none;z-index:2147483000;text-shadow:0 1px 2px #000">v0.38 · 25 Nov · drive-in, crater</div>
+<div id="buildver" style="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(2px + env(safe-area-inset-bottom));font:600 10px/1.2 ui-monospace,Menlo,monospace;color:#fff;opacity:.6;letter-spacing:.06em;pointer-events:none;z-index:2147483000;text-shadow:0 1px 2px #000">v0.39 · 25 Nov · clear screen</div>
 </body>
 </html>
