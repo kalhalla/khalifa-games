@@ -14,7 +14,7 @@
 <meta name="twitter:card" content="summary_large_image"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <link rel="apple-touch-icon" href="/sunset-city/square.png"/>
-<meta name="build-version" content="v0.37"/>
+<meta name="build-version" content="v0.38"/>
 <style>
   html,body{margin:0;padding:0;overflow:hidden;background:#1a1420;height:100%;touch-action:none;}
   canvas{display:block;}
@@ -394,9 +394,17 @@ const SUBURBS=[{x:246,z:-510},{x:510,z:-170},{x:-170,z:-510},{x:246,z:510},{x:-1
 const inSuburb=(x,z,m)=>SUBURBS.some(s=>Math.hypot(x-s.x,z-s.z)<104+(m||0));
 const AIRPORT={cx:510,cz:170,rwLen:260,rwW:24};  // airport in the clear country cell x 340..680, z 0..340 (old site sat on the x=262/x=340 roads)
 const OVERPASS={cx:158,z0:-350,z1:350,y:6.76,W:24,RAMP:85}; // ROADS r3: the motorway's elevated stretch (deck top y+0.84); column i=6 has no buildings
+// MCR: the meteor crater's profile, one analytic function shared by its mesh, groundHeight() and everything that
+// stands on it. A smooth ramp up from the plain (RO) to a rounded lip (RL, height H), then a bowl down to a small
+// floor (RF, height F) where the stone sits. Off until the strike. It sits in the dirt strip between the city's
+// edge (x 192) and the ring road (x 255), which is what bounds its size.
+const MCR={on:false,x:224,z:-150,RO:31,RL:17,RF:5.5,H:3.6,F:0.5};
+function craterH(x,z){ const r=Math.hypot(x-MCR.x,z-MCR.z); if(r>=MCR.RO) return 0;
+  if(r>=MCR.RL){ const t=(MCR.RO-r)/(MCR.RO-MCR.RL); return MCR.H*t*t*(3-2*t); }
+  const t=Math.min(1,(MCR.RL-r)/(MCR.RL-MCR.RF)); return MCR.H-(MCR.H-MCR.F)*t*t*(3-2*t); }
 // reserved ground for roadside landmarks (keeps desert scatter clear)
 const LANDMARKS=[{x:-240,z:120,r:24},{x:6,z:224,r:14},{x:-180,z:-249,r:17},{x:43,z:198,r:13},
-  {x:216,z:-150,r:20},{x:242,z:-152,r:52}];   // the fallen star's crater + the derelict drive-in
+  {x:224,z:-150,r:36},{x:224,z:-150,r:56}];   // the fallen star's crater + the drive-in
 const EXTRA_PALMS=[[-247,108],[-247,132],[-160,12],[-151,7],[-162,-9],
   [44,-169],[60,-169],[67,-166],[50,196],[0,217],[-172,-242]];
 
@@ -2465,6 +2473,7 @@ function groundHeight(x,z,refY){
     if(Math.abs(x-b.cx)<b.hx && Math.abs(z-b.cz)<b.hz){ base=0.34; break; }
   const lim=(refY||0)+1.0; let best=base;
   mwSurf(x,z,h=>{ h=Math.max(0.02,h); if(h<=lim&&h>best) best=h; });
+  if(MCR.on){ const h=craterH(x,z); if(h>best) best=h; }          // MCR: the crater's slopes
   return best;
 }
 // height of a traffic vehicle on its lane / junction curve (ROADS r3 hook for TRAFFIC)
@@ -9204,6 +9213,7 @@ function airportHard(x,z){ const A=AIRPORT, dx=x-A.cx, dz=z-A.cz;
 function onPavement(x,z){
   if(mtnIn(x,z)) return mtnOnRoad(x,z,0.4);   // MTN: only the road itself is hard
   if(airportHard(x,z)) return true;
+  if(typeof DRIVEIN!=='undefined'&&driveInHard(x,z)) return true;   // the drive-in's concrete lot
   if(overpassHeight(x,z)>=0) return true;   // flyover corridor: deck, ramps, apron beneath
   for(const b of world.blocks)
     if(Math.abs(x-b.cx)<b.hx && Math.abs(z-b.cz)<b.hz) return true;
@@ -10951,60 +10961,210 @@ function ending(){
 }
 
 // ---------------- the fallen star: crater + zombie survival ----------------
-const CRASH={x:216,z:-150};
+const CRASH={x:MCR.x,z:MCR.z};          // v0.38: the strike point is the middle of the drive-in lot (was 216,-150)
 
-// Derelict drive-in theatre east of the crash site — the meteor lands
-// square in front of the screen. Folk-horror set dressing and a natural
-// arena for the waves. (Its footprint is reserved in LANDMARKS so the
-// farmland, fences and scatter all keep clear.)
+// Sunset Drive-In (v0.38): a working drive-in on a concrete lot between the city edge and the ring road. Five ramps
+// of speaker posts, cars parked nose to the screen, a ticket booth and marquee at the city-side entrance, and a
+// projection hut throwing a beam at the screen, where a looping creature feature plays (drawn frame by frame on a
+// canvas at 12 fps, only while you are near). The meteor lands in the middle of it: driveInDestroy() swaps all of
+// this for the fallen screen and the burning wrecks.
+const DRIVEIN={x0:197,x1:243,z0:-177,z1:-123,XS:246,SZ:-150,live:true,scr:null,rest:null,signG:null,cars:[],wrecks:[],boxes:[],circ:[],
+  film:null,ctx:null,tex:null,beam:null,lamp:null,t:0,fr:-1,lum:0.5,fallen:null};
+function driveInHard(x,z){ const D=DRIVEIN;
+  if(MCR.on&&Math.hypot(x-MCR.x,z-MCR.z)<MCR.RO) return false;                   // the crater is bare earth
+  return (x>D.x0&&x<D.x1&&z>D.z0&&z<D.z1)||(x>187&&x<=D.x0&&z>-129&&z<-117); }
+// one vertex-coloured mesh out of a built car (a parked car is scenery: 1 draw call, not a dozen)
+function flattenCar(g){
+  g.updateMatrixWorld(true); const pos=[],nor=[],col=[],c=new THREE.Color(),nm=new THREE.Matrix3();
+  g.traverse(o=>{ if(!o.isMesh||!o.visible||o.isInstancedMesh) return; const m=Array.isArray(o.material)?o.material[0]:o.material;
+    if(!m||m.blending===THREE.AdditiveBlending||(m.transparent&&m.opacity<0.5)) return;
+    const s=o.geometry.index?o.geometry.toNonIndexed():o.geometry.clone(); s.applyMatrix4(o.matrixWorld); if(!s.attributes.normal) s.computeVertexNormals();
+    const pa=s.attributes.position, na=s.attributes.normal, ca=m.vertexColors?s.attributes.color:null;
+    for(let i=0;i<pa.count;i++){ pos.push(pa.getX(i),pa.getY(i),pa.getZ(i)); nor.push(na.getX(i),na.getY(i),na.getZ(i));
+      if(ca) col.push(ca.getX(i)*m.color.r,ca.getY(i)*m.color.g,ca.getZ(i)*m.color.b); else { c.copy(m.color); col.push(c.r,c.g,c.b); } } });
+  const out=new THREE.BufferGeometry(); out.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+  out.setAttribute('normal',new THREE.Float32BufferAttribute(nor,3)); out.setAttribute('color',new THREE.Float32BufferAttribute(col,3));
+  out.computeBoundingBox(); out.computeBoundingSphere(); return out;
+}
 (function buildDriveIn(){
-  const SX=254, SZ=-150;
-  // AUDIT: the screen, its braces and the speaker rows stand 8 m further west (XS) — at SX the back
-  // braces leant 5 m into the x=262 ring road. Hut + marquee keep their spots (SX-relative).
-  const XS=SX-8;
-  // screen piers
+  const D=DRIVEIN, XS=D.XS, SZ=D.SZ;
+  const scr=D.scr=new THREE.Group(), rest=D.rest=new THREE.Group(); scene.add(scr); scene.add(rest);
+  const colB=b=>{ world.boxes.push(b); D.boxes.push(b); }, colC=c=>{ world.circles.push(c); D.circ.push(c); };
+  // ---- the lot: a concrete slab, a darker ramp under each row, the driveway in from the city side ----
+  const rows=[239,233.5,228,222.5,217], lot=[{g:new THREE.BoxGeometry(D.x1-D.x0,0.05,D.z1-D.z0),c:'#8d8a84',x:(D.x0+D.x1)/2,y:0.035,z:(D.z0+D.z1)/2},
+    {g:new THREE.BoxGeometry(10,0.05,12),c:'#86837d',x:192,y:0.035,z:-123}];
+  for(const rx of rows){ lot.push({g:new THREE.BoxGeometry(3.4,0.03,D.z1-D.z0-6),c:'#7b7872',x:rx-1.3,y:0.06,z:SZ});
+    lot.push({g:new THREE.BoxGeometry(0.14,0.03,D.z1-D.z0-6),c:'#c9c4b4',x:rx+0.7,y:0.065,z:SZ}); }
+  const lotM=new THREE.Mesh(mergeParts(lot),MAT.vc); lotM.receiveShadow=true; rest.add(lotM);
+  // ---- the screen ----
   for(const dz of [-8,8]){
     const pier=new THREE.Mesh(new THREE.BoxGeometry(1.4,10,1.4),lambert(0x4a4238));
-    pier.position.set(XS,5,SZ+dz); pier.castShadow=true; scene.add(pier);
-    world.boxes.push({x0:XS-1.1,x1:XS+1.1,z0:SZ+dz-1.1,z1:SZ+dz+1.1});
+    pier.position.set(XS,5,SZ+dz); pier.castShadow=true; scr.add(pier);
+    colB({x0:XS-1.1,x1:XS+1.1,z0:SZ+dz-1.1,z1:SZ+dz+1.1});
   }
-  // the screen: weathered off-white board, tilted back a touch, glowing
-  // faintly at dusk like it never quite switched off
-  const board=new THREE.Mesh(new THREE.BoxGeometry(0.5,11,20),
-    lambert(0xd8d2c2,{emissive:0x3a3830,emissiveIntensity:0.35}));
-  board.position.set(XS+0.6,6.8,SZ); board.rotation.z=0.06;
-  board.castShadow=true; scene.add(board);
+  const board=new THREE.Mesh(new THREE.BoxGeometry(0.5,11,20),lambert(0xd8d2c2,{emissive:0x3a3830,emissiveIntensity:0.2}));
+  board.position.set(XS+0.6,6.8,SZ); board.rotation.z=0.06; board.castShadow=true; scr.add(board);
   const frame=new THREE.Mesh(new THREE.BoxGeometry(0.7,11.6,20.8),lambert(0x3a3228));
-  frame.position.set(XS+1.0,6.8,SZ); frame.rotation.z=0.06; scene.add(frame);
-  // back braces
+  frame.position.set(XS+1.0,6.8,SZ); frame.rotation.z=0.06; scr.add(frame);
   for(const dz of [-7,0,7]){
     const br=new THREE.Mesh(new THREE.BoxGeometry(0.3,9,0.3),lambert(0x3a3228));
-    br.position.set(XS+3.2,4.5,SZ+dz); br.rotation.z=-0.42; scene.add(br);
+    br.position.set(XS+3.2,4.5,SZ+dz); br.rotation.z=-0.42; scr.add(br);
   }
-  // rows of speaker posts, merged into one mesh
+  // the picture: a canvas the projector "throws" on the board
+  const cv=document.createElement('canvas'); cv.width=256; cv.height=144; D.ctx=cv.getContext('2d');
+  const tex=D.tex=new THREE.CanvasTexture(cv); tex.minFilter=tex.magFilter=THREE.LinearFilter; tex.generateMipmaps=false;
+  const film=D.film=new THREE.Mesh(new THREE.PlaneGeometry(19.2,10.4),new THREE.MeshBasicMaterial({map:tex}));
+  film.position.set(-0.27,0,0); film.rotation.y=-Math.PI/2; board.add(film);
+  // ---- speaker posts, five ramps ----
   const posts=[];
-  for(let r=0;r<3;r++)for(let cP=0;cP<6;cP++){                   // 3 rows: a 4th would sit in the crater
-    const px=XS-7-r*5.5+rand(-0.4,0.4), pz=SZ-15+cP*6+rand(-0.4,0.4);
-    posts.push({g:new THREE.CylinderGeometry(0.06,0.08,1.1,5),c:'#4a4450',x:px,y:0.55,z:pz});
-    posts.push({g:new THREE.BoxGeometry(0.24,0.3,0.18),c:'#2e2a34',x:px,y:1.2,z:pz,ry:rand(-0.5,0.5)});
-  }
-  const pm=new THREE.Mesh(mergeParts(posts),MAT.vc); pm.castShadow=true; scene.add(pm);
-  // projection hut with a lit slot window
-  const hut=new THREE.Mesh(new THREE.BoxGeometry(4.5,2.8,3.4),lambert(0x8a7460));
-  hut.position.set(SX-34,1.74,SZ); hut.castShadow=hut.receiveShadow=true; scene.add(hut);
-  world.boxes.push({x0:SX-36.7,x1:SX-31.3,z0:SZ-2.1,z1:SZ+2.1});
-  const slot=new THREE.Mesh(new THREE.BoxGeometry(0.1,0.4,1.6),
-    lambert(0xffe9a0,{emissive:0xffd070,emissiveIntensity:1.2}));
-  slot.position.set(SX-31.7,2.2,SZ); scene.add(slot);
-  // marquee sign by the road approach
-  const sm=signMat(textTexture('SUNSET DRIVE-IN','#2a2440','#ffd76a',1024,180,86),0.5);
-  const nv=lambert(0x2a2440);
-  const sign=new THREE.Mesh(new THREE.BoxGeometry(0.4,1.9,9),[sm,sm,nv,nv,nv,nv]);
-  sign.position.set(SX-38,4.6,SZ+14); scene.add(sign);
-  const sp=new THREE.Mesh(new THREE.CylinderGeometry(0.14,0.18,3.7,6),MAT.pole);
-  sp.position.set(SX-38,1.85,SZ+14); scene.add(sp);
-  world.boxes.push({x0:SX-38.6,x1:SX-37.4,z0:SZ+13.4,z1:SZ+14.6});
+  for(const rx of rows) for(let k=0;k<8;k++){ const px=rx+rand(-0.15,0.15), pz=-171+k*6+rand(-0.15,0.15);
+    posts.push({g:new THREE.CylinderGeometry(0.06,0.08,1.1,5),c:'#4a4450',x:px,y:0.6,z:pz});
+    posts.push({g:new THREE.BoxGeometry(0.24,0.3,0.18),c:'#2e2a34',x:px,y:1.25,z:pz,ry:rand(-0.5,0.5)}); }
+  const pm=new THREE.Mesh(mergeParts(posts),MAT.vc); pm.castShadow=true; rest.add(pm);
+  // ---- projection hut at the back of the lot, its port facing the screen ----
+  const HX=204;
+  const hut=new THREE.Mesh(mergeParts([{g:new THREE.BoxGeometry(4.5,2.8,3.6),c:'#8a7460',x:HX,y:1.45,z:SZ},
+    {g:new THREE.BoxGeometry(5.0,0.22,4.1),c:'#5e4f42',x:HX,y:2.96,z:SZ},{g:new THREE.BoxGeometry(0.5,0.45,0.5),c:'#2a2a30',x:HX+2.4,y:2.2,z:SZ}]),MAT.vc);
+  hut.castShadow=hut.receiveShadow=true; rest.add(hut); colB({x0:HX-2.4,x1:HX+2.4,z0:SZ-2.0,z1:SZ+2.0});
+  const port=new THREE.Mesh(new THREE.BoxGeometry(0.1,0.3,0.34),new THREE.MeshBasicMaterial({color:0xf2f6ff})); port.position.set(HX+2.68,2.2,SZ); rest.add(port);
+  { const ax=HX+2.7, ay=2.2, sx=XS+0.3, y0=1.6, y1=12.0, zh=9.5;                      // the beam: a faint pyramid of light
+    const P=[ax,ay,SZ, sx,y0,SZ-zh, sx,y1,SZ-zh,  ax,ay,SZ, sx,y1,SZ-zh, sx,y1,SZ+zh,  ax,ay,SZ, sx,y1,SZ+zh, sx,y0,SZ+zh,  ax,ay,SZ, sx,y0,SZ+zh, sx,y0,SZ-zh];
+    const bg=new THREE.BufferGeometry(); bg.setAttribute('position',new THREE.Float32BufferAttribute(P,3));
+    const beam=D.beam=new THREE.Mesh(bg,new THREE.MeshBasicMaterial({color:0xd4e2ff,transparent:true,opacity:0.08,blending:THREE.AdditiveBlending,depthWrite:false,fog:false,side:THREE.DoubleSide}));
+    beam.renderOrder=3; rest.add(beam); }
+  const lamp=D.lamp=new THREE.PointLight(0xc4d2ff,0.6,48,2); lamp.position.set(XS-8,5,SZ); rest.add(lamp);
+  // ---- the audience: cars parked nose to the screen, one draw call each ----
+  const paints=[0x6fb3aa,0xd69a9c,0xe4dcc2,0x8a2a26,0x2c3e55,0xa5c2d6,0x55705a,0x1c1c20,0xc9a24a,0xe8e6e0], kinds=['sedan','caddy','riviera'];
+  const slots=[]; for(let r=0;r<rows.length;r++) for(let k=0;k<8;k++){ const pz=-171+k*6+1.9; if(Math.abs(pz-SZ)<3.2) continue; slots.push([rows[r]-1.5,pz,r]); }
+  for(let i=slots.length-1;i>0;i--){ const j=(Math.random()*(i+1))|0, t=slots[i]; slots[i]=slots[j]; slots[j]=t; }
+  const tpl=new Map(), nCars=typeof LOWQ!=='undefined'&&LOWQ?11:15;
+  for(let i=0;i<nCars&&i<slots.length;i++){ const [cx,cz]=slots[i], kind=kinds[i%kinds.length], hex=paints[i%paints.length], key=kind+hex;
+    let geo=tpl.get(key);
+    if(!geo){ let car=null; try{ car=MODELS[kind].build(hex); }catch(e){ car=null; }       // a model whose builder is not ready this early: a sedan instead
+      if(!car){ try{ car=buildCar({body:hex,type:'civ'}); }catch(e){ console.warn('drive-in car',e); continue; } }
+      geo=flattenCar(car.g); tpl.set(key,geo); }
+    const m=new THREE.Mesh(geo,MAT.vc); m.position.set(cx+rand(-0.25,0.25),0.06,cz+rand(-0.2,0.2)); m.rotation.y=Math.PI/2+rand(-0.07,0.07);
+    m.castShadow=m.receiveShadow=true; rest.add(m); D.cars.push(m);
+    colC({x:m.position.x+1.15,z:m.position.z,r:1.08}); colC({x:m.position.x-1.15,z:m.position.z,r:1.08}); }
+  // ---- ticket booth and marquee at the entrance ----
+  const booth=new THREE.Mesh(mergeParts([{g:new THREE.BoxGeometry(2.2,2.3,2.2),c:'#c8bfa6',x:199.2,y:1.2,z:-130.4},
+    {g:new THREE.BoxGeometry(2.9,0.2,2.9),c:'#8a2a26',x:199.2,y:2.45,z:-130.4},{g:new THREE.BoxGeometry(0.06,0.7,1.4),c:'#23262e',x:198.07,y:1.55,z:-130.4}]),MAT.vc);
+  booth.castShadow=true; rest.add(booth); colB({x0:198,x1:200.4,z0:-131.6,z1:-129.2});
+  const sg=D.signG=new THREE.Group(); sg.position.set(196.4,0,-115.6);
+  const sm=signMat(textTexture('SUNSET DRIVE-IN','#2a2440','#ffd76a',1024,180,86),0.5), nv=lambert(0x2a2440);
+  const sign=new THREE.Mesh(new THREE.BoxGeometry(0.4,1.9,9),[sm,sm,nv,nv,nv,nv]); sign.position.set(0,5.0,0); sg.add(sign);
+  const sm2=signMat(textTexture('TONIGHT · I MARRIED A TEENAGE ALIEN MONSTER','#e9e2cc','#2a2440',1024,120,44),0.35);
+  const sub=new THREE.Mesh(new THREE.BoxGeometry(0.34,1.0,9),[sm2,sm2,nv,nv,nv,nv]); sub.position.set(0,3.5,0); sg.add(sub);
+  for(const dz of [-3.6,3.6]){ const sp=new THREE.Mesh(new THREE.CylinderGeometry(0.14,0.18,4.2,6),MAT.pole); sp.position.set(0,2.1,dz); sp.castShadow=true; sg.add(sp); }
+  rest.add(sg); colB({x0:195.9,x1:196.9,z0:-119.6,z1:-118.8}); colB({x0:195.9,x1:196.9,z0:-112.4,z1:-111.6});
 })();
+// ---- the feature: "I MARRIED A TEENAGE ALIEN MONSTER", 44 s on a loop, 12 frames a second ----
+function driveInFrame(f){
+  const D=DRIVEIN, c=D.ctx, W=256, H=144; f%=528;
+  const R=n=>{ const s=Math.sin(n*127.1+f*0.013)*43758.5453; return s-Math.floor(s); };     // steady per-shot noise
+  const J=()=>Math.random();
+  const g=(v,a)=>'rgba('+v+','+v+','+(v>20?v-6:v)+','+(a===undefined?1:a)+')';
+  const txt=(s,x,y,px,v,font)=>{ c.font=(font||'bold ')+px+'px Impact, "Arial Black", Haettenschweiler, sans-serif'; c.textAlign='center'; c.textBaseline='middle';
+    c.fillStyle=g(0,0.85); c.fillText(s,x+2,y+2); c.fillStyle=g(v===undefined?235:v); c.fillText(s,x,y); };
+  c.setTransform(1,0,0,1,0,0); c.globalAlpha=1; c.fillStyle=g(8); c.fillRect(0,0,W,H);
+  c.setTransform(1,0,0,1,(J()-0.5)*1.2,(J()<0.03?(J()-0.5)*14:(J()-0.5)*1.4));              // gate weave, the odd jump
+  let lum=0.4;
+  const stars=n=>{ for(let i=0;i<n;i++){ c.fillStyle=g(150+R(i)*100,0.5+0.5*R(i+50)); c.fillRect(R(i+9)*W,R(i+3)*H*0.6,1,1); } };
+  const hills=(y,v)=>{ c.fillStyle=g(v); c.beginPath(); c.moveTo(0,H); for(let x=0;x<=W;x+=8) c.lineTo(x,y+Math.sin(x*0.035+1.3)*7+Math.sin(x*0.09)*3); c.lineTo(W,H); c.fill(); };
+  if(f<30){                                                   // countdown leader
+    const n=3-((f/10)|0), a=(f%10)/10*6.283; lum=0.6;
+    c.fillStyle=g(150); c.fillRect(0,0,W,H); c.strokeStyle=g(30); c.lineWidth=2;
+    c.beginPath(); c.arc(128,72,54,0,6.283); c.stroke(); c.beginPath(); c.arc(128,72,44,0,6.283); c.stroke();
+    c.beginPath(); c.moveTo(0,72); c.lineTo(W,72); c.moveTo(128,0); c.lineTo(128,H); c.stroke();
+    c.fillStyle=g(60,0.45); c.beginPath(); c.moveTo(128,72); c.arc(128,72,54,-1.571,-1.571+a); c.fill();
+    txt(''+n,128,74,64,20);
+  } else if(f<118){                                           // title card
+    const k=f-30, z=1+Math.min(1,k/20)*0.0+Math.sin(k*0.25)*0.012; lum=0.5;
+    stars(40); hills(118,22);
+    c.save(); c.translate(128,70); c.scale(z,z); c.rotate(Math.sin(k*0.11)*0.012);
+    if(k>4) txt('I MARRIED A',0,-44,19,225);
+    if(k>14) txt('TEENAGE',0,-18,34,245);
+    if(k>24){ txt('ALIEN MONSTER!',0,18,37,255);
+      c.fillStyle=g(255); for(let i=0;i<9;i++){ const x=-104+i*26+R(i)*8, L=4+R(i+20)*12*Math.min(1,(k-24)/30); c.fillRect(x,34,2.4,L); c.beginPath(); c.arc(x+1.2,34+L,2,0,6.283); c.fill(); } }
+    c.restore();
+    if(k>50&&(k%14)<10) txt('IN TERRIFYING SCREAM-O-SCOPE',128,128,11,200);
+  } else if(f<208){                                           // the saucer comes
+    const k=f-118, sx=-30+k*3.3, sy=40+Math.sin(k*0.3)*5; lum=0.36;
+    stars(55); hills(104,30);
+    c.fillStyle=g(16); for(let i=0;i<14;i++){ const bw=8+R(i)*10, bh=8+R(i+7)*22; c.fillRect(20+i*16,112-bh,bw,bh+30);
+      c.fillStyle=g(200); if(R(i+31)>0.4) c.fillRect(23+i*16,115-bh,2,2); if(R(i+41)>0.5) c.fillRect(27+i*16,120-bh,2,2); c.fillStyle=g(16); }
+    if((k%5)<3){ const gr=c.createLinearGradient(0,sy,0,118); gr.addColorStop(0,g(255,0.55)); gr.addColorStop(1,g(255,0.05));
+      c.fillStyle=gr; c.beginPath(); c.moveTo(sx-5,sy+4); c.lineTo(sx+5,sy+4); c.lineTo(sx+26,118); c.lineTo(sx-26,118); c.fill(); }
+    c.fillStyle=g(210); c.beginPath(); c.ellipse(sx,sy,26,6.5,Math.sin(k*0.3)*0.08,0,6.283); c.fill();
+    c.fillStyle=g(245); c.beginPath(); c.ellipse(sx,sy-5,10,7,0,3.1416,6.283); c.fill();
+    c.fillStyle=g(40); for(let i=-2;i<=2;i++) c.fillRect(sx+i*9-1+((k>>1)%2),sy,2,2);
+    if(k>60) txt('IT CAME FOR A BRIDE...',128,132,12,225);
+  } else if(f<300){                                           // the wedding
+    const k=f-208, scream=k>52; lum=scream?0.62:0.44;
+    c.fillStyle=g(scream&&(k%4<2)?120:58); c.fillRect(0,0,W,H);
+    c.fillStyle=g(150,0.6); c.beginPath(); c.moveTo(108,112); c.lineTo(108,46); c.arc(128,46,20,3.1416,0); c.lineTo(148,112); c.fill();   // the chapel window
+    c.fillStyle=g(22); c.fillRect(0,112,W,32);
+    // the bride
+    const bx=84+(scream?-Math.min(10,(k-52)*0.9):0), by=112;
+    c.fillStyle=g(238); c.beginPath(); c.moveTo(bx,by-44); c.lineTo(bx+17,by); c.lineTo(bx-17,by); c.fill();
+    c.beginPath(); c.arc(bx,by-50,6.5,0,6.283); c.fill();
+    c.fillStyle=g(238,0.55); c.beginPath(); c.moveTo(bx-4,by-56); c.lineTo(bx-22,by-18); c.lineTo(bx-6,by-30); c.fill();
+    if(scream){ c.fillStyle=g(10); c.beginPath(); c.ellipse(bx+2,by-48,2,3,0,0,6.283); c.fill();
+      c.strokeStyle=g(238); c.lineWidth=3; c.beginPath(); c.moveTo(bx-6,by-36); c.lineTo(bx-16,by-58); c.moveTo(bx+6,by-36); c.lineTo(bx+12,by-60); c.stroke(); }
+    // the groom
+    const gx=172, gy=112, w=Math.sin(k*0.5);
+    c.fillStyle=g(12); c.fillRect(gx-11,gy-46,22,46); c.fillStyle=g(235); c.beginPath(); c.moveTo(gx,gy-46); c.lineTo(gx+4,gy-30); c.lineTo(gx-4,gy-30); c.fill();
+    c.fillStyle=g(175); c.beginPath(); c.ellipse(gx,gy-60,13,15,0,0,6.283); c.fill();
+    c.strokeStyle=g(175); c.lineWidth=2.5;
+    for(const s of [-1,1]){ c.beginPath(); c.moveTo(gx+s*6,gy-72); c.lineTo(gx+s*(11+w*2),gy-86); c.stroke();
+      c.fillStyle=g(250); c.beginPath(); c.arc(gx+s*(11+w*2),gy-88,4.5,0,6.283); c.fill(); c.fillStyle=g(5); c.beginPath(); c.arc(gx+s*(11+w*2)-1,gy-88,1.8,0,6.283); c.fill(); }
+    c.strokeStyle=g(12); c.lineWidth=4; c.lineCap='round';
+    for(const s of [-1,1]){ c.beginPath(); c.moveTo(gx+s*10,gy-38);
+      c.quadraticCurveTo(gx+s*(26+w*6),gy-34-s*w*10,gx+s*(scream&&s<0?44:30),gy-(scream&&s<0?52:20)+Math.cos(k*0.5+s)*6); c.stroke(); }
+    c.fillStyle=g(5); c.beginPath(); c.ellipse(gx,gy-54,5,2+Math.abs(w)*2,0,0,6.283); c.fill();
+    if(scream&&(k%6)<4){ c.save(); c.translate(64,34); c.rotate(-0.16); txt('EEEEEK!',0,0,22+((k-52)%6)*1.5,255); c.restore(); }
+    else if(!scream&&k>14) txt('"DO YOU TAKE THIS... THING?"',128,132,11,225);
+  } else if(f<384){                                           // the rampage
+    const k=f-300, rise=Math.min(1,k/26); lum=0.42;
+    stars(30); hills(108,26);
+    c.strokeStyle=g(60); c.lineCap='round';
+    for(let i=0;i<4;i++){ const tx=60+i*46, sw=Math.sin(k*0.33+i*1.7); c.lineWidth=13-i*1.5;
+      c.beginPath(); c.moveTo(tx,150); c.bezierCurveTo(tx+sw*22,120,tx-sw*30,112-rise*40,tx+sw*26,104-rise*(62+i*6)); c.stroke(); }
+    c.fillStyle=g(12); c.fillRect(0,122,W,22);
+    for(let i=0;i<7;i++){ const x=((i*41+k*(4.2+R(i)*1.5))%296)-20, y=124+R(i+3)*8, st=((k+i)%4<2)?2:-2;
+      c.fillStyle=g(215); c.beginPath(); c.arc(x,y-9,2,0,6.283); c.fill(); c.fillRect(x-1.2,y-7,2.4,6);
+      c.fillRect(x-1.2+st,y-1,1.4,4); c.fillRect(x-st,y-1,1.4,4); c.fillRect(x-4,y-9-((k+i)%2),3,1.3); c.fillRect(x+1,y-10+((k+i)%2),3,1.3); }
+    if((k%16)<11){ c.save(); c.translate(128,34); c.rotate(Math.sin(k)*0.03); txt('RUN FOR YOUR LIVES!',0,0,21,255); c.restore(); }
+  } else if(f<452){                                           // the taglines
+    const k=f-384, L=[['SHE SAID "I DO"...','TO A THING FROM SPACE!'],['HALF BOY!','HALF BEAST!','ALL HUSBAND!'],['COMING SOON','TO THIS DRIVE-IN']][Math.min(2,(k/23)|0)]; lum=0.5;
+    c.fillStyle=g(30); c.fillRect(0,0,W,H); stars(24);
+    const n=Math.min(L.length,1+(((k%23)/7)|0)); for(let i=0;i<n;i++) txt(L[i],128,72+(i-(L.length-1)/2)*30,L.length>2?24:21,245);
+  } else {                                                    // the end?
+    const k=f-452; lum=0.4; stars(50); hills(112,20);
+    txt('THE END',128,64,44,245); if(k>34&&(k%10)<7) txt('?',212,60,50,255);
+    if(k>66){ c.fillStyle=g(0,(k-66)/10); c.fillRect(-8,-8,W+16,H+16); lum*=1-Math.min(1,(k-66)/10); }
+  }
+  // the print: grain, scratches, dust, lamp flicker, soft edges
+  c.setTransform(1,0,0,1,0,0);
+  for(let i=0;i<70;i++){ c.fillStyle=J()<0.5?g(255,0.10):g(0,0.14); c.fillRect(J()*W,J()*H,1+J()*1.5,1+J()*1.5); }
+  if(J()<0.5){ c.fillStyle=g(240,0.22); c.fillRect((R(1)*W)|0,0,1,H); } if(J()<0.18){ c.fillStyle=g(0,0.3); c.fillRect(J()*W,0,1,H); }
+  if(J()<0.1){ c.fillStyle=g(0,0.55); c.beginPath(); c.arc(J()*W,J()*H,1.5+J()*3,0,6.283); c.fill(); }
+  const fl=0.86+J()*0.14; c.fillStyle=g(0,1-fl); c.fillRect(0,0,W,H);
+  const vg=c.createRadialGradient(128,72,60,128,72,150); vg.addColorStop(0,g(0,0)); vg.addColorStop(1,g(0,0.55)); c.fillStyle=vg; c.fillRect(0,0,W,H);
+  D.lum=lum*fl; D.tex.needsUpdate=true;
+}
+function driveInTick(dt){
+  const D=DRIVEIN;
+  if(D.wrecks.length) driveInWreckTick(dt);
+  if(!D.live) return;
+  const sx=onFoot?foot.x:player.x, sz=onFoot?foot.z:player.z, near=Math.abs(sx-222)<340&&Math.abs(sz-D.SZ)<340;
+  if(!near&&D.fr>=0) return;
+  D.t+=dt; const fr=(D.t*12)|0; if(fr!==D.fr){ D.fr=fr; driveInFrame(fr); }
+  const night=0.25+0.75*duskK;                                 // a picture thrown on a board: thin by day, strong after dark
+  D.film.material.color.setScalar(0.42+0.58*duskK);
+  D.beam.material.opacity=(0.02+0.11*duskK)*(0.55+0.9*D.lum);
+  D.lamp.intensity=night*(0.35+2.1*D.lum);
+}
 const zombies=[];
 let wave=0,waveLeft=0,waveSpawnT=0,waveTimer=0,kills=0;
 let craterLight=null,gunG=null,muzzle=null,tracer=null,tracerT=0,fireCool=0;
@@ -11443,7 +11603,7 @@ function spawnZombie(o){
   let x,zp;
   if(o.x!=null){ x=o.x; zp=o.z; }
   else if(wave<=2&&Math.hypot(player.x-CRASH.x,player.z-CRASH.z)<150){
-    const a=rand(0,7),r=rand(25,44); x=CRASH.x+Math.sin(a)*r; zp=CRASH.z+Math.cos(a)*r;      // out of the smoking crater
+    const a=rand(0,7),r=rand(7,15); x=CRASH.x+Math.sin(a)*r; zp=CRASH.z+Math.cos(a)*r;       // they climb out of the smoking bowl
   } else if(typeof INF!=='undefined'&&INF.on){                                               // INF: only inside the spreading radius
     const q=infSpawnPoint(onFoot?foot.x:player.x,onFoot?foot.z:player.z); x=q[0]; zp=q[1];
   } else {
@@ -19369,6 +19529,76 @@ function zRemNearest(cx,cz,maxD2){ let best=null, bd=maxD2;
   for(const s of ZREM.s){ if(s.amt<=0.04) continue; const d2=(s.x-cx)*(s.x-cx)+(s.z-cz)*(s.z-cz); if(d2<bd){ bd=d2; best=s; } }
   return best; }
 
+// ---- drive-in wrecks: blown out of the lot by the strike, exploding one after another, burning on ----
+function driveInWreckTick(dt){
+  const D=DRIVEIN, t=MET.t; if(t<0) return;
+  for(const w of D.wrecks){
+    if(!w.boom&&t>=w.t0){ w.boom=true; try{ cfxExplode(w.x,w.y+0.8,w.z,rand(1.3,2)); sfxExplosion(w.x,w.z,1); }catch(e){} }
+    if(w.boom&&t<w.burn){ w.acc+=dt*(t<w.t0+12?7:2.4)*(LOWQ?0.6:1); while(w.acc>=1){ w.acc-=1;
+        fxFire(w.x+rand(-1,1),w.y+rand(0.4,1.2),w.z+rand(-1,1),rand(1.4,2.6));
+        if(Math.random()<0.6) fxSpawn(FXS,0,w.x+rand(-0.8,0.8),w.y+1.4,w.z+rand(-0.8,0.8),rand(-0.6,0.6),rand(2.5,4.5),rand(-0.6,0.6),rand(1.6,2.6),rand(3,5),0x1a1614,rand(1.4,2.2),0.7); } }
+  }
+}
+function driveInDestroy(){
+  const D=DRIVEIN; if(!D.live) return; D.live=false;
+  for(const b of D.boxes){ const i=world.boxes.indexOf(b); if(i>=0) world.boxes.splice(i,1); }
+  for(const c of D.circ){ const i=world.circles.indexOf(c); if(i>=0) world.circles.splice(i,1); }
+  D.rest.visible=false; D.scr.visible=false; D.lamp.intensity=0;
+  const X=MCR.x, Z=MCR.z, dark=lambert(0x2b2622);
+  // the screen: torn off its piers and thrown down on its back, away from the blast
+  { const F=D.fallen=new THREE.Group(), inner=new THREE.Group(); inner.position.set(-D.XS,0,-D.SZ); F.add(inner);
+    for(const o of D.scr.children){ const m=new THREE.Mesh(o.geometry,o.geometry.parameters&&o.geometry.parameters.depth>19?lambert(0x8f8a7e):dark);
+      m.position.copy(o.position); m.rotation.copy(o.rotation); m.castShadow=m.receiveShadow=true; inner.add(m); }
+    F.rotation.order='YZX'; F.rotation.set(0,-0.9,-1.47); F.position.set(D.XS-1.5,0.5,D.SZ+2); scene.add(F); }
+  // the marquee, flat on the ground
+  { const S=new THREE.Group(); for(const o of D.signG.children){ const m=new THREE.Mesh(o.geometry,Array.isArray(o.material)?o.material:dark); m.position.copy(o.position); m.rotation.copy(o.rotation); m.castShadow=true; S.add(m); }
+    const ux=D.signG.position.x-X, uz=D.signG.position.z-Z, a=Math.atan2(ux,uz);
+    S.rotation.order='YXZ'; S.rotation.set(1.5,a,0); S.position.set(D.signG.position.x,0.3,D.signG.position.z); scene.add(S); }
+  // the cars: gone inside the bowl, otherwise hurled out, charred and burning
+  const col=new THREE.Color();
+  for(const m of D.cars){ const dx=m.position.x-X, dz=m.position.z-Z, d=Math.hypot(dx,dz)||1; if(d<MCR.RL-2) continue;
+    const g=m.geometry.clone(), ca=g.attributes.color; for(let i=0;i<ca.count;i++){ const l=(ca.getX(i)+ca.getY(i)+ca.getZ(i))/3, k=0.05+l*0.13+Math.random()*0.03; ca.setXYZ(i,k*1.15,k*0.98,k*0.9); }
+    const pa=g.attributes.position; for(let i=0;i<pa.count;i++){ const y=pa.getY(i); if(y>0.75) pa.setY(i,0.75+(y-0.75)*0.55); }   // roof crushed
+    g.computeVertexNormals();
+    const w=new THREE.Mesh(g,MAT.vc), out=Math.max(d+rand(6,13),MCR.RO+rand(1,5));
+    let wx=X+dx/d*out, wz=Z+dz/d*out; wx=clamp(wx,196,251.5);
+    const pose=Math.random(), gy=groundHeight(wx,wz,0);
+    w.rotation.order='YXZ'; w.rotation.y=rand(0,6.283);
+    if(pose<0.4){ w.rotation.z=Math.PI+rand(-0.12,0.12); w.position.set(wx,gy+1.25,wz); }          // on its roof
+    else if(pose<0.7){ w.rotation.z=(Math.random()<0.5?1:-1)*(Math.PI/2+rand(-0.15,0.15)); w.position.set(wx,gy+0.95,wz); }   // on its side
+    else { w.rotation.x=rand(-0.12,0.12); w.rotation.z=rand(-0.18,0.18); w.position.set(wx,gy+0.02,wz); }
+    w.castShadow=w.receiveShadow=true; scene.add(w);
+    world.circles.push({x:wx,z:wz,r:1.7});
+    D.wrecks.push({x:wx,y:gy,z:wz,t0:rand(0.15,1.6),boom:false,burn:rand(45,110),acc:0}); }
+}
+// ---- the blast lays every standing prop down, pointing away from the strike ----
+// One rigid transform W = T(P)R(Q)T(-P) on the prop's rest matrices (the breakables' own pose records), with no
+// animation and no pool: hundreds can go down in the half second the front takes to cross them. Lamps go dark,
+// signals lose their lights, power lines drop. Inside the crater itself the prop is simply gone.
+const _blQ=new THREE.Quaternion(), _blA=new THREE.Vector3(), _blP=new THREE.Vector3(), _blW=new THREE.Matrix4(), _blT=new THREE.Matrix4(), _blQ2=new THREE.Quaternion();
+function blastFlatten(c,ux,uz,d){
+  const R=c.br; if(!R||R.flat) return false;
+  if(R.st) brkRestore(R);
+  if(R.k==='tree'||R.k==='palm') brkTreeInfo(R); else brkPose(R);
+  if(!R.parts||!R.parts.length) return false;
+  R.flat=true; R.st=2; c.dead=true;
+  const gone=d<MCR.RO+1.5, yaw=rand(-0.3,0.3), ang=1.38+rand(0,0.14);
+  _blA.set(uz,0,-ux); _blQ.setFromAxisAngle(_blA,ang); _blQ2.setFromAxisAngle(_bUp,yaw); _blQ.premultiply(_blQ2);
+  _blP.set(c.x,groundHeight(c.x,c.z,0)+0.12,c.z);
+  _blW.makeRotationFromQuaternion(_blQ); _bV.copy(_blP).applyQuaternion(_blQ);
+  _blW.elements[12]=_blP.x-_bV.x; _blW.elements[13]=_blP.y-_bV.y; _blW.elements[14]=_blP.z-_bV.z;
+  for(const p of R.parts){
+    if(p.mesh){ if(gone){ p.mesh.visible=false; continue; }
+      _blT.multiplyMatrices(_blW,p.m0); p.mesh.matrix.copy(_blT); p.mesh.matrixAutoUpdate=false; p.mesh.matrixWorldNeedsUpdate=true; bakeRefresh(p.mesh,_blT); }
+    else { if(gone||p.head) p.im.setMatrixAt(p.i,BRK.Z); else { _blT.multiplyMatrices(_blW,p.m0); p.im.setMatrixAt(p.i,_blT); } p.im.instanceMatrix.needsUpdate=true; } }
+  if(R.lights) for(const L of R.lights){ L.im.setMatrixAt(L.i,BRK.Z); L.im.instanceMatrix.needsUpdate=true; }
+  if(R.k==='lamp'){ const ex=R.ex;
+    if(ex.pool){ if(!R.poolM0){ R.poolM0=new THREE.Matrix4(); ex.pool.getMatrixAt(R.i,R.poolM0); } ex.pool.setMatrixAt(R.i,BRK.Z); ex.pool.instanceMatrix.needsUpdate=true; }
+    const L=world.lamps[ex.hi]; if(L&&!R.lamp){ R.lamp=[L[0],L[1]]; L[0]=L[1]=1e6; }
+    if(BRK.halo){ const pa=BRK.halo.geometry.attributes.position; if(ex.hi<pa.count){ pa.setY(ex.hi,-80); pa.needsUpdate=true; } } }
+  if(R.k==='tele'&&BRK.wires){ try{ if(!R.wire) brkWireGrab(R); brkWireApply(R,false); }catch(e){} }
+  return true;
+}
 // ================= INF + MET: the strike, and the infection spreading out from it =================
 // The meteor now comes late (story + 75 s, or 9 minutes in; N still calls it down). It arrives as a bolide with a
 // burning trail; the strike is a white flash, a fireball and a rising column, a ground shock ring and dust wall
@@ -19397,25 +19627,44 @@ function metTrail(s,dt){                                  // the bolide's burnin
     if(i%2===0) fxSpawn(FXS,0,x+rand(-3,3),y+rand(-3,3),z+rand(-3,3),rand(-2,2),rand(0,2),rand(-2,2),rand(6,10),rand(3.5,6),0x4a4640,rand(3,5),0.5); }
 }
 function metCrater(){
-  const X=CRASH.x, Z=CRASH.z, gy=0;
+  const X=MCR.x, Z=MCR.z; MCR.on=true;
   const flat=(geo,hex,op,y)=>{ const m=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color:hex,transparent:true,opacity:op,depthWrite:false,
       polygonOffset:true,polygonOffsetFactor:-3,polygonOffsetUnits:-8})); m.rotation.x=-Math.PI/2; m.position.set(X,y,Z); m.renderOrder=-0.4; scene.add(m); return m; };
-  flat(new THREE.CircleGeometry(92,48),0x1c1512,0.42,gy+0.07);                 // scorched field
-  flat(new THREE.CircleGeometry(46,40),0x14100e,0.72,gy+0.075);
-  { const pos=[]; const N=26;                                                 // ejecta rays
-    for(let i=0;i<N;i++){ const a=i/N*6.283+rand(-0.1,0.1), L=rand(70,175), w=rand(0.035,0.09), r0=30;
+  flat(new THREE.CircleGeometry(96,48),0x1c1512,0.4,0.07);                    // scorched ground
+  flat(new THREE.CircleGeometry(52,40),0x14100e,0.74,0.075);
+  { const pos=[], N=28;                                                       // ejecta rays
+    for(let i=0;i<N;i++){ const a=i/N*6.283+rand(-0.1,0.1), L=rand(70,190), w=rand(0.03,0.085), r0=MCR.RO-2;
       pos.push(Math.cos(a-w)*r0,Math.sin(a-w)*r0,0, Math.cos(a+w)*r0,Math.sin(a+w)*r0,0, Math.cos(a)*L,Math.sin(a)*L,0); }
-    const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3)); flat(g,0x1a1410,0.38,gy+0.072).material.side=THREE.DoubleSide; }
-  const bowl=new THREE.Mesh(new THREE.CircleGeometry(21,30),lambert(0x1b1513)); bowl.rotation.x=-Math.PI/2; bowl.position.set(X,0.09,Z); bowl.receiveShadow=true; scene.add(bowl);
-  const rim=new THREE.Mesh(new THREE.TorusGeometry(21.5,3.0,7,30),lambert(0x3a2b25)); rim.rotation.x=-Math.PI/2; rim.scale.z=0.62; rim.position.set(X,0.5,Z); rim.castShadow=true; scene.add(rim);
-  const core=new THREE.Mesh(new THREE.DodecahedronGeometry(4.6,0),lambert(0x2e4a3a,{emissive:0x52e88a,emissiveIntensity:1.3}));
-  core.position.set(X,2.2,Z); core.rotation.set(0.4,0.7,0.2); scene.add(core);
-  const rocks=[]; for(let k=0;k<(LOWQ?14:26);k++){ const a=rand(0,6.283), r=rand(24,95), s=rand(0.6,2.4)*(1-r/160);
-    rocks.push({g:new THREE.DodecahedronGeometry(s,0),c:k%3?'#4a3a32':'#3a2e28',x:X+Math.sin(a)*r,y:s*0.35,z:Z+Math.cos(a)*r,ry:rand(0,6),rx:rand(0,6)}); }
-  const rk=new THREE.Mesh(mergeParts(rocks),MAT.vc); rk.castShadow=true; scene.add(rk);
-  craterLight=new THREE.PointLight(0x52e88a,3.0,150,2); craterLight.position.set(X,7,Z); scene.add(craterLight);
-  const beam=new THREE.Mesh(new THREE.CylinderGeometry(2.6,5.2,130,12,1,true),new THREE.MeshBasicMaterial({color:0x6af0a0,transparent:true,opacity:0.14,
-    blending:THREE.AdditiveBlending,depthWrite:false,fog:false,side:THREE.DoubleSide})); beam.position.set(X,65,Z); scene.add(beam);
+    const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3)); flat(g,0x1a1410,0.4,0.072).material.side=THREE.DoubleSide; }
+  // the crater itself: rings of the analytic profile, faceted, coloured from the baked floor out to the thrown earth
+  { const NR=20, NS=44, P=[], C=[], V=[], K=[], c0=new THREE.Color(), c1=new THREE.Color();
+    const stops=[[0,0x0e0c0b],[MCR.RF,0x17120f],[MCR.RL*0.72,0x2c221c],[MCR.RL,0x6a5747],[MCR.RL+3.5,0x54453a],[MCR.RO*0.86,0x3c3029],[MCR.RO,0x2a221d]];
+    const colAt=r=>{ for(let i=1;i<stops.length;i++) if(r<=stops[i][0]){ const a=stops[i-1], b=stops[i], t=(r-a[0])/(b[0]-a[0]||1); return c0.set(a[1]).lerp(c1.set(b[1]),t).clone(); } return c0.set(stops[stops.length-1][1]).clone(); };
+    for(let i=0;i<=NR;i++){ const u=i/NR, r0=MCR.RO*Math.pow(u,0.9); V.push([]); K.push([]);
+      for(let j=0;j<NS;j++){ const a=j/NS*6.283+(i%2)*3.1416/NS, r=i===0?0:i===NR?MCR.RO:r0+rand(-0.45,0.45), x=X+Math.cos(a)*r, z=Z+Math.sin(a)*r;
+        V[i].push([x,craterH(x,z)+0.1+(i>0&&i<NR?rand(-0.07,0.07):0),z]); K[i].push(colAt(r).multiplyScalar(rand(0.86,1.12))); } }
+    const tri=(a,b,c,ka)=>{ for(const v of [a,b,c]) P.push(v[0],v[1],v[2]); for(let k=0;k<3;k++) C.push(ka.r,ka.g,ka.b); };
+    for(let i=0;i<NR;i++) for(let j=0;j<NS;j++){ const j1=(j+1)%NS, a=V[i][j], b=V[i][j1], c=V[i+1][j], d=V[i+1][j1];
+      if(i>0) tri(a,c,b,K[i][j]); tri(b,c,d,K[i+1][j]); }
+    const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(P,3)); g.setAttribute('color',new THREE.Float32BufferAttribute(C,3)); g.computeVertexNormals();
+    { const na=g.attributes.normal; let up=0; for(let i=0;i<na.count;i+=30) up+=na.getY(i); if(up<0){ const p=g.attributes.position.array; for(let i=0;i<p.length;i+=9){ for(let k=0;k<3;k++){ const t=p[i+3+k]; p[i+3+k]=p[i+6+k]; p[i+6+k]=t; } } g.computeVertexNormals(); } }
+    const m=new THREE.Mesh(g,MAT.vc); m.castShadow=m.receiveShadow=true; m.frustumCulled=false; scene.add(m); MCR.mesh=m; }
+  // the stone: half buried in the floor, glowing through its cracks
+  { const g=new THREE.IcosahedronGeometry(3.3,1).toNonIndexed(), pa=g.attributes.position, seen=new Map();
+    for(let i=0;i<pa.count;i++){ const k=pa.getX(i).toFixed(2)+','+pa.getY(i).toFixed(2)+','+pa.getZ(i).toFixed(2); let f=seen.get(k); if(f===undefined){ f=rand(0.78,1.2); seen.set(k,f); } pa.setXYZ(i,pa.getX(i)*f,pa.getY(i)*f*0.86,pa.getZ(i)*f); }
+    g.computeVertexNormals();
+    const core=new THREE.Mesh(g,lambert(0x1c2a22,{emissive:0x35d67c,emissiveIntensity:0.95})); core.position.set(X,MCR.F+1.0,Z); core.rotation.set(0.3,0.7,0.15); core.castShadow=true; scene.add(core); MCR.core=core;
+    world.circles.push({x:X,z:Z,r:3.6});
+    const glow=flat(new THREE.CircleGeometry(MCR.RF+5,28),0x4ff09a,0.3,MCR.F+0.16); glow.material.blending=THREE.AdditiveBlending; glow.material.fog=false; MCR.glow=glow;
+    const halo=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex,color:0x6af0a0,transparent:true,opacity:0.5,blending:THREE.AdditiveBlending,depthWrite:false,fog:false}));
+    halo.position.set(X,MCR.F+2.6,Z); halo.scale.set(19,19,1); scene.add(halo); MCR.halo=halo; }
+  const rocks=[]; for(let k=0;k<(LOWQ?16:30);k++){ const a=rand(0,6.283), r=rand(MCR.RL+2,110), s=rand(0.5,2.0)*(1-r/190), x=X+Math.sin(a)*r, z=Z+Math.cos(a)*r;
+    if(x>253&&x<272) continue;                                                // keep the ring road clear
+    rocks.push({g:new THREE.DodecahedronGeometry(s,0),c:k%3?'#4a3a32':'#3a2e28',x,y:craterH(x,z)+s*0.35,z,ry:rand(0,6),rx:rand(0,6)}); }
+  if(rocks.length){ const rk=new THREE.Mesh(mergeParts(rocks),MAT.vc); rk.castShadow=true; scene.add(rk); }
+  craterLight=new THREE.PointLight(0x52e88a,3.0,120,2); craterLight.position.set(X,MCR.F+5,Z); scene.add(craterLight);
+  const beam=new THREE.Mesh(new THREE.CylinderGeometry(1.6,3.6,90,12,1,true),new THREE.MeshBasicMaterial({color:0x6af0a0,transparent:true,opacity:0.09,
+    blending:THREE.AdditiveBlending,depthWrite:false,fog:false,side:THREE.DoubleSide})); beam.position.set(X,45+MCR.F,Z); scene.add(beam);
   const ring=MET.ring=new THREE.Mesh(new THREE.RingGeometry(0.93,1,96),MET.ringM=new THREE.MeshBasicMaterial({color:0xfff4e0,transparent:true,opacity:0.9,
     blending:THREE.AdditiveBlending,depthWrite:false,fog:false,side:THREE.DoubleSide})); ring.rotation.x=-Math.PI/2; ring.position.set(X,0.6,Z); ring.scale.setScalar(1); ring.renderOrder=5; scene.add(ring);
 }
@@ -19426,6 +19675,7 @@ function metStrike(){
   MET.t=0; MET.r=0; MET.pr=0; MET.hitP=false; MET.brk=0; MET.col=0; MET.fire=0; MET.amb=0;
   INF.on=true; INF.r=INF.R0;
   metFlash(clamp(1.25-dP/1500,0.5,1));
+  try{ driveInDestroy(); }catch(e){ console.warn('drive-in',e); }
   metCrater();
   // the fireball
   try{ cfxExplode(X,3,Z,7); cfxExplode(X+rand(-9,9),2,Z+rand(-9,9),4.5); cfxExplode(X+rand(-12,12),2,Z+rand(-12,12),4); }catch(e){ console.warn('met fireball',e); }
@@ -19454,8 +19704,8 @@ function metTick(dt){
   if(MET.t<0) return;
   const X=CRASH.x, Z=CRASH.z, t=(MET.t+=dt), lo=LOWQ?0.5:1;
   // ---- the column: a boiling stem for ~10 s, then a long plume and fires that keep burning ----
-  if(t<240){
-    const kS=t<10?46:t<40?12:5, kF=t<7?40:t<60?9:3;
+  {
+    const kS=t<10?46:t<40?12:t<240?5:2.2, kF=t<7?40:t<60?9:t<240?3:0.5;   // the bowl never stops smoking
     MET.col+=dt*kS*lo; while(MET.col>=1){ MET.col-=1; const up=t<10;
       if(up&&t>2.5&&Math.random()<0.45){ const a=rand(0,6.283), v=rand(7,16);            // the cap rolling outward at the top of the stem
         fxSpawn(FXS,0,X+Math.sin(a)*12,rand(95,150),Z+Math.cos(a)*12,Math.sin(a)*v,rand(1,5),Math.cos(a)*v,rand(30,46),rand(6,9),Math.random()<0.5?0x2a2420:0x4a403a,rand(5,9),0.8); }
@@ -19479,11 +19729,10 @@ function metTick(dt){
     // traffic
     for(const v of traffic.slice()){ const dx=v.x-X, dz=v.z-Z, d=Math.hypot(dx,dz); if(d<a0||d>=r||d>260) continue;
       if(d<115&&v.car){ try{ explodeCar(v.car,v,elapsed); }catch(e){} } else v.stun=Math.max(v.stun||0,2.5); }
-    // trees, posts, street furniture
-    if(r<210&&MET.brk<26){ const C=world.circles, E={x:0,z:0,vx:0,vz:0};
-      for(let i=0;i<C.length&&MET.brk<26;i++){ const c=C[i]; if(!c.br||c.dead) continue; const dx=c.x-X, dz=c.z-Z, d=Math.hypot(dx,dz); if(d<a0||d>=r||d>200||d<1) continue;
-        const ux=dx/d, uz=dz/d, V=14+44*(1-d/200); E.x=c.x-ux*2.5; E.z=c.z-uz*2.5; E.vx=ux*V; E.vz=uz*V;
-        try{ brkHit(c,E,2.4,-ux,-uz,0); MET.brk++; }catch(e){} } }
+    // trees, palms, lamps, signals, poles, signs, street furniture: all of it goes down out to 200 m
+    if(a0<205){ const C=world.circles;
+      for(let i=0;i<C.length;i++){ const c=C[i]; if(!c.br||c.br.flat) continue; const dx=c.x-X, dz=c.z-Z, d=Math.hypot(dx,dz); if(d>=r||d>200) continue;
+        try{ if(blastFlatten(c,dx/(d||1),dz/(d||1),d)) MET.brk++; }catch(e){ c.br.flat=true; } } }
     // the player
     { const dx=sx-X, dz=sz-Z, d=Math.hypot(dx,dz); if(!MET.hitP&&r>=d){ MET.hitP=true; metWaveHit(d,dx/(d||1),dz/(d||1)); } }
   } else if(MET.ring&&MET.ring.visible) MET.ring.visible=false;
@@ -19523,7 +19772,8 @@ function metCineTick(dt){
   MET.cineK+=(want-MET.cineK)*Math.min(1,dt*(want?1.6:0.9)); if(!want&&MET.cineK<0.002) MET.cineK=0;
 }
 function fx2Tick(dt){
-  metCineTick(dt);
+  metCineTick(dt); driveInTick(dt);
+  if(MCR.on&&MCR.core){ const p=0.5+0.5*Math.sin(elapsed*2.1); MCR.core.material.emissiveIntensity=0.75+0.5*p; MCR.halo.material.opacity=0.36+0.26*p; MCR.glow.material.opacity=0.2+0.16*p; }
   FXD.mat.uniforms.uH.value=renderer.domElement.height; fxUpdate(FXD,dt);
   afenceTick(dt); zRemTick(dt); metTick(dt); infTick(dt);
 }
@@ -19742,6 +19992,10 @@ function bakeCull(){
   }
 }
 const _bkWhite=new THREE.Color(1,1,1);
+// a static caster that has since been re-posed (a felled sign): move its flat shadow with it
+function bakeRefresh(src,world){ if(BAKE.st!==2) return;
+  for(const e of BAKE.list) if(e.src===src&&!e.im){ e.sh.matrix.multiplyMatrices(BAKE.S,world); e.sh.matrixWorld.copy(e.sh.matrix);
+    if(e.sph){ src.geometry.computeBoundingBox(); _bkB.copy(src.geometry.boundingBox).applyMatrix4(e.sh.matrix); _bkB.getBoundingSphere(e.sph); e.sph.radius+=1; } return; } }
 
 // ================= GRAIN: one static paper-grain layer over the frame (CSS, no GPU pass) =================
 (function grainLayer(){
@@ -19862,6 +20116,6 @@ addEventListener('resize',()=>{
   if(meOn){ mecv.width=innerWidth; mecv.height=innerHeight; }
 });
 </script>
-<div id="buildver" style="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(2px + env(safe-area-inset-bottom));font:600 10px/1.2 ui-monospace,Menlo,monospace;color:#fff;opacity:.6;letter-spacing:.06em;pointer-events:none;z-index:2147483000;text-shadow:0 1px 2px #000">v0.37 · 25 Nov · dust, airport, meteor</div>
+<div id="buildver" style="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(2px + env(safe-area-inset-bottom));font:600 10px/1.2 ui-monospace,Menlo,monospace;color:#fff;opacity:.6;letter-spacing:.06em;pointer-events:none;z-index:2147483000;text-shadow:0 1px 2px #000">v0.38 · 25 Nov · drive-in, crater</div>
 </body>
 </html>
