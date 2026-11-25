@@ -14,7 +14,7 @@
 <meta name="twitter:card" content="summary_large_image"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <link rel="apple-touch-icon" href="/sunset-city/square.png"/>
-<meta name="build-version" content="v0.34"/>
+<meta name="build-version" content="v0.37"/>
 <style>
   html,body{margin:0;padding:0;overflow:hidden;background:#1a1420;height:100%;touch-action:none;}
   canvas{display:block;}
@@ -61,7 +61,7 @@
     12%{opacity:1;transform:translate(-50%,-50%) skewX(-8deg) scale(1.08)}
     80%{opacity:1}100%{opacity:0;transform:translate(-50%,-50%) skewX(-8deg) scale(1)}}
   #vignette{position:fixed;inset:0;pointer-events:none;
-    background:radial-gradient(ellipse at center,rgba(0,0,0,0) 52%,rgba(12,16,44,.55) 100%);}
+    background:radial-gradient(ellipse at center,rgba(0,0,0,0) 60%,rgba(24,22,26,.22) 100%);}   /* FLAT: faint, neutral (was navy .55) */
   #start{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
     background:linear-gradient(180deg,rgba(38,22,52,.86),rgba(70,30,58,.9));cursor:pointer;z-index:10;}
   #title{font-size:min(10vw,72px);font-weight:900;transform:skewX(-8deg);line-height:.95;text-align:center;
@@ -442,11 +442,26 @@ setTouchUI(touchUI);
 // a real touch on a hybrid device switches the on-screen controls on (unless forced off)
 if(URLQ.get('touch')!=='0') addEventListener('touchstart',()=>{ if(!touchUI) setTouchUI(true); },{passive:true,capture:true});
 
+// ---------------- r128 guard: per-instance colour needs its own program ----------------
+// r128 never switches program between an InstancedMesh with instanceColor and one without, so one material shared
+// by both crashes the uncoloured ones (attribute 'instanceColor' bound to null) whenever the coloured one compiled
+// first, which depends on draw order, i.e. on the camera. The first setColorAt moves a mesh onto a 'coloured' twin of
+// its material (one twin per material, shared by every coloured mesh). Materials with their own shader hooks are
+// already exclusive to their population and are left alone.
+(function(){
+  const P=THREE.InstancedMesh.prototype, set0=P.setColorAt, twin=new WeakMap(), plainHook=THREE.Material.prototype.onBeforeCompile;
+  P.setColorAt=function(i,c){
+    if(this.instanceColor===null&&this.material&&!Array.isArray(this.material)&&!this.material.userData.icTwin
+       &&this.material.onBeforeCompile===plainHook){
+      const m=this.material; let t=twin.get(m); if(!t){ t=m.clone(); t.userData.icTwin=true; twin.set(m,t); } this.material=t; }
+    return set0.call(this,i,c);
+  };
+})();
 // ---------------- renderer / scene / dusk light ----------------
 // HIGH is the original look. LOW: no MSAA, pixel ratio <= 1.25, 1024 PCF shadows,
 // fewer pedestrians (see CFG.PEDS).
-const renderer=new THREE.WebGLRenderer({antialias:!LOWQ});
-renderer.setPixelRatio(Math.min(devicePixelRatio,LOWQ?1.25:2));
+const renderer=new THREE.WebGLRenderer({antialias:URLQ.get('aa')!=='0',stencil:true});   // FLAT: MSAA everywhere: the god's-eye view is all thin edges
+renderer.setPixelRatio(Math.min(devicePixelRatio,LOWQ?1.5:2));
 renderer.setSize(innerWidth,innerHeight);
 renderer.shadowMap.enabled=true;
 renderer.shadowMap.type=LOWQ?THREE.PCFShadowMap:THREE.PCFSoftShadowMap;
@@ -461,6 +476,9 @@ camera.position.set(0,12,-18);
 
 const SUN_OFF=new THREE.Vector3(-95,13,40);
 const SUN_DIRN=SUN_OFF.clone().normalize();
+// FLAT: the LIGHT comes from the sun's bearing but higher (24 deg): long illustration shadows, not 8x-height smears.
+// The painted disc keeps SUN_DIRN. Baked ground shadows and the live map both use LIGHT_OFF.
+const LIGHT_OFF=new THREE.Vector3(SUN_OFF.x,Math.hypot(SUN_OFF.x,SUN_OFF.z)*Math.tan(24*Math.PI/180),SUN_OFF.z);
 const hemi=new THREE.HemisphereLight(0x6a7ab8,0x262640,0.62);
 scene.add(hemi);
 const sun=new THREE.DirectionalLight(0xff7038,1.35);
@@ -471,7 +489,7 @@ sun.shadow.camera.top=105;   sun.shadow.camera.bottom=-105;
 sun.shadow.camera.near=5;    sun.shadow.camera.far=340;
 sun.shadow.bias=-0.0006; sun.shadow.normalBias=0.06;
 scene.add(sun); scene.add(sun.target);
-sun.position.copy(SUN_OFF);
+sun.position.copy(LIGHT_OFF);
 
 let sky;
 (function makeSky(){
@@ -550,16 +568,18 @@ let starsMat,moonSpr;
 })();
 const streaks=[];
 function spawnStreak(big,start,target){
-  const len=big?40:18;
-  const m=new THREE.Mesh(new THREE.BoxGeometry(big?1.4:0.5,big?1.4:0.5,len),
+  const len=big?130:18;
+  const m=new THREE.Mesh(new THREE.BoxGeometry(big?4.2:0.5,big?4.2:0.5,len),
     new THREE.MeshBasicMaterial({color:big?0xc8ffd8:0xfff6e0,transparent:true,opacity:0.95,
       blending:THREE.AdditiveBlending,depthWrite:false,fog:false}));
   let pos,vel,life;
   const fxp=freeCam?fc.x:player.x, fzp=freeCam?fc.z:player.z;
   if(big){
     pos=new THREE.Vector3(start.x,start.y,start.z);
-    vel=new THREE.Vector3(target.x-start.x,2-start.y,target.z-start.z).divideScalar(2.4);
-    life=4.0;
+    vel=new THREE.Vector3(target.x-start.x,2-start.y,target.z-start.z).divideScalar(5.2);
+    life=9.0;
+    const head=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex,color:0xe6ffe0,transparent:true,opacity:1,blending:THREE.AdditiveBlending,depthWrite:false,fog:false}));
+    head.scale.set(110,110,1); head.position.z=len/2; m.add(head);                    // the bolide's head
   } else {
     const a=rand(0,Math.PI*2), r=rand(260,400);
     pos=new THREE.Vector3(fxp+Math.sin(a)*r, rand(190,290), fzp+Math.cos(a)*r);
@@ -579,16 +599,19 @@ function updateStreaks(dt){
     s.m.lookAt(s.m.position.x+s.vel.x,s.m.position.y+s.vel.y,s.m.position.z+s.vel.z);
     s.life-=dt;
     if(!s.big) s.m.material.opacity=Math.min(0.95,s.life);
+    if(s.big) metTrail(s,dt);
     if(s.big&&s.m.position.y<=4){ impact(); scene.remove(s.m); streaks.splice(i,1); continue; }
     if(s.life<=0||s.m.position.y<2){ scene.remove(s.m); streaks.splice(i,1); }
   }
 }
 // dusk palette pairs (day → night)
-const FOG_DAY=new THREE.Color(0xc4756a),  FOG_NIGHT=new THREE.Color(0x2e2a4e),
+// FLAT (v0.35): the quiet illustration palette. Amber-cream sun, cool grey sky fill, warm grey bounce, dusty beige
+// haze: low contrast and no magenta cast by day; night keeps its blues. (v0.34: fog c4756a, sun ff7038, sky 6a7ab8, ground 262640)
+const FOG_DAY=new THREE.Color(0xb7a596),  FOG_NIGHT=new THREE.Color(0x2e2a4e),
       BG_DAY =new THREE.Color(0x33335c),  BG_NIGHT =new THREE.Color(0x10102a),
-      SUN_DAY=new THREE.Color(0xff7038),  SUN_NIGHT=new THREE.Color(0x9090d8),
-      HS_DAY =new THREE.Color(0x6a7ab8),  HS_NIGHT =new THREE.Color(0x2a2a55),
-      HG_DAY =new THREE.Color(0x262640),  HG_NIGHT =new THREE.Color(0x14142a);
+      SUN_DAY=new THREE.Color(0xffc48e),  SUN_NIGHT=new THREE.Color(0x9090d8),
+      HS_DAY =new THREE.Color(0x9ea4b6),  HS_NIGHT =new THREE.Color(0x2a2a55),
+      HG_DAY =new THREE.Color(0x4c4642),  HG_NIGHT =new THREE.Color(0x14142a);
 const SKY_DAY=[0x7a4a72,0xe8849a,0xffc4a4], SKY_NIGHT=[0x12122e,0x3a3a6a,0xd98a66];
 let lastSkyK=-1;
 const skc1=new THREE.Color(),skc2=new THREE.Color(),skc3=new THREE.Color(),skcc=new THREE.Color();
@@ -612,7 +635,7 @@ function setSky(k){
 // ---------------- materials / textures ----------------
 function lambert(c,o){ return new THREE.MeshLambertMaterial(Object.assign({color:c},o||{})); }
 const MAT={
-  asphalt:lambert(0x303048), sand:lambert(0xd08a6a), pave:lambert(0x6a7290),
+  asphalt:lambert(0x3c3b44), sand:lambert(0xbfa486), pave:lambert(0x84838c),   // FLAT: dusty ochre ground, neutral greys (was 303048 / d08a6a / 6a7290)
   dash:lambert(0xf7eeda), trunk:lambert(0x7a5236), pole:lambert(0x3a3644),
   lampOn:lambert(0xffc680,{emissive:0xffa050,emissiveIntensity:2.2}),
   tyre:lambert(0x23262d), hub:lambert(0xe2ddd2), rim:lambert(0x3f434c),
@@ -5591,14 +5614,19 @@ function mwBuildSurfaces(){
     t.position.set(cx+rwW/2+8,0.6,cz+dz); scene.add(t);
   }
   // terminal – long low horizontal with glass band (image 9)
+  // v0.37: the terminal block stood with its east end 11 m into the runway (x cx-83..cx-1 against the strip's cx-12).
+  // Terminal, sign, canopy light and hangar all move 30 m west onto their own forecourt; the strip is clear end to end.
+  const TXC=cx-72;
+  const fore=new THREE.Mesh(new THREE.PlaneGeometry(60,64),lambert(0x2e344c));
+  fore.rotation.x=-Math.PI/2; fore.position.set(cx-89,0.01,cz+87); fore.receiveShadow=true; scene.add(fore);
   const term=new THREE.Mesh(new THREE.BoxGeometry(82,5.4,18),lambert(0x4a5068));
-  term.position.set(cx-42,2.7,cz+78); term.castShadow=term.receiveShadow=true; scene.add(term);
-  world.boxes.push({x0:cx-84,x1:cx-1,z0:cz+69,z1:cz+88});
+  term.position.set(TXC,2.7,cz+78); term.castShadow=term.receiveShadow=true; scene.add(term);
+  world.boxes.push({x0:TXC-42,x1:TXC+41,z0:cz+69,z1:cz+88});
   const glassStrip=new THREE.Mesh(new THREE.BoxGeometry(78,1.9,0.2),
     lambert(0xffe2a8,{emissive:0xffc97e,emissiveIntensity:0.95}));
-  glassStrip.position.set(cx-42,2.7,cz+68.9); scene.add(glassStrip);
+  glassStrip.position.set(TXC,2.7,cz+68.9); scene.add(glassStrip);
   const tRoof=new THREE.Mesh(new THREE.BoxGeometry(84,0.6,20),lambert(0x363a52));
-  tRoof.position.set(cx-42,5.7,cz+78); tRoof.castShadow=true; scene.add(tRoof);
+  tRoof.position.set(TXC,5.7,cz+78); tRoof.castShadow=true; scene.add(tRoof);
   // control tower – thin and tall with glass cab (images 9-10)
   const tBase=new THREE.Mesh(new THREE.BoxGeometry(5.5,22,5.5),lambert(0x4a5068));
   tBase.position.set(cx+28,11,cz+72); tBase.castShadow=true; scene.add(tBase);
@@ -5613,15 +5641,15 @@ function mwBuildSurfaces(){
   beacon.scale.set(3.5,3.5,1); beacon.position.set(cx+28,27,cz+72); scene.add(beacon);
   // hangar behind terminal
   const hgr=new THREE.Mesh(new THREE.BoxGeometry(36,10,26),lambert(0x3a3f54));
-  hgr.position.set(cx-58,5,cz+100); hgr.castShadow=true; scene.add(hgr);
-  world.boxes.push({x0:cx-77,x1:cx-40,z0:cz+87,z1:cz+113});
+  hgr.position.set(cx-88,5,cz+101); hgr.castShadow=true; scene.add(hgr);
+  world.boxes.push({x0:cx-107,x1:cx-70,z0:cz+88,z1:cz+114});
   // SUNSET CITY AIRPORT sign on terminal
   const sasm=signMat(textTexture('SUNSET CITY INTL','#4a5068','#ffe2a8',1024,160,80),0.55);
   const sgb=lambert(0x4a5068);
   const sasgn=new THREE.Mesh(new THREE.BoxGeometry(26,2.2,0.3),[sgb,sgb,sgb,sgb,sasm,sasm]);
-  sasgn.position.set(cx-42,5.95,cz+68.8); scene.add(sasgn);
+  sasgn.position.set(TXC,5.95,cz+68.8); scene.add(sasgn);
   // terminal light underneath canopy
-  const tl=new THREE.PointLight(0xffd9a0,1.2,36,2); tl.position.set(cx-42,5.5,cz+72); scene.add(tl);
+  const tl=new THREE.PointLight(0xffd9a0,1.2,36,2); tl.position.set(TXC,5.5,cz+72); scene.add(tl);
   world.airport={cx,cz};
 })();
 
@@ -5832,8 +5860,9 @@ const ruralAnim=[];   // animated rural props (turning windmills, wheeling crows
         quad(cx+o*cs,cz+o*sn,gap*0.32,hz*0.96,rot,dkHex,0.034);
       }
     }
-    fields.push({cx,cz,hx,hz,rot});
+    fields.push({cx,cz,hx,hz,rot,pl:isPlough});
   }
+  world.fields=fields;                 // SURF: surfaceKind() reads these
 
   // -- farmsteads (merged, fixed orientation, with lit windows) --
   const farmParts=[], winParts=[];
@@ -6838,8 +6867,11 @@ const SUB_VIS=380;                                  // suburb groups past this c
     if(flatUp){ const n=new Float32Array(Q.p.length); for(let i=1;i<n.length;i+=3) n[i]=1; geo.setAttribute('normal',new THREE.BufferAttribute(n,3)); } else geo.computeVertexNormals();
     const m=new THREE.Mesh(geo,mat); m.name=name; m.receiveShadow=true; g.add(m); return m; };
   const _m=new THREE.Matrix4(), _q=new THREE.Quaternion(), _v=new THREE.Vector3(), _s=new THREE.Vector3(), _col=new THREE.Color();
-  const instM=(geo,mat,list,name,g,pose,cast)=>{ if(!list.length) return null; const im=new THREE.InstancedMesh(geo,mat,list.length); im.name=name; im.castShadow=!!cast; im.receiveShadow=true;
-    list.forEach((p,i)=>{ pose(p,i); im.setMatrixAt(i,_m); if(p.col!==undefined||mat.vertexColors&&mat!==MAT.vc&&p[3]!==undefined) im.setColorAt(i,_col.setHex(p[3])); });
+  const instM=(geo,mat,list,name,g,pose,cast)=>{ if(!list.length) return null;
+    // a colour given as p.col (hex or css string) wins; p[3] only for coloured materials
+    const colOf=p=>p.col!==undefined?p.col:(mat.vertexColors&&mat!==MAT.vc&&p[3]!==undefined?p[3]:undefined);
+    const im=new THREE.InstancedMesh(geo,mat,list.length); im.name=name; im.castShadow=!!cast; im.receiveShadow=true;
+    list.forEach((p,i)=>{ pose(p,i); im.setMatrixAt(i,_m); const c=colOf(p); if(c!==undefined) im.setColorAt(i,_col.set(c)); });
     if(im.instanceColor) im.instanceColor.needsUpdate=true; g.add(im); return im; };
   // shared instance geometries
   const tyre=(x,z)=>({g:new THREE.CylinderGeometry(0.36,0.36,0.26,8),c:'#121316',x,y:0.36,z,rz:Math.PI/2});
@@ -9163,8 +9195,15 @@ function updateSmoke(dt){
   }
 }
 // Hard-surface test: near a road centreline, on a city lot, or on the overpass
+// the airport's tarmac: apron + runway, the entry road, the terminal forecourt (v0.37: it all counted as dirt, so the
+// runway bogged the car down to ~27 mph)
+function airportHard(x,z){ const A=AIRPORT, dx=x-A.cx, dz=z-A.cz;
+  if(Math.abs(dz)<A.rwLen/2&&Math.abs(dx)<60) return true;
+  if(Math.abs(dx)<RW/2&&z>0&&dz<=-A.rwLen/2+1) return true;
+  return dx>-119&&dx<-59&&dz>55&&dz<119; }
 function onPavement(x,z){
   if(mtnIn(x,z)) return mtnOnRoad(x,z,0.4);   // MTN: only the road itself is hard
+  if(airportHard(x,z)) return true;
   if(overpassHeight(x,z)>=0) return true;   // flyover corridor: deck, ramps, apron beneath
   for(const b of world.blocks)
     if(Math.abs(x-b.cx)<b.hx && Math.abs(z-b.cz)<b.hz) return true;
@@ -11362,38 +11401,20 @@ function updateMedkits(dt,t){
 }
 function fireTheMeteor(){
   bigText('SOMETHING IS FALLING','#9be58a');
-  spawnStreak(true,{x:CRASH.x-260,y:300,z:CRASH.z+200},CRASH);
+  spawnStreak(true,{x:CRASH.x-780,y:640,z:CRASH.z+600},CRASH);
+  blip('sawtooth',38,90,5.2,0.12); blip('triangle',900,140,5.0,0.05);          // the roar building as it comes in
+  if(typeof MET!=='undefined') MET.inb=true;                                    // GOD pulls back to watch it land
 }
 function impact(){
   zombieMode=true;
   clearWanted();
-  player.shake=1.6;
-  blip('triangle',60,16,1.0,0.34); blip('sawtooth',220,28,0.6,0.1);
-  bigText('IMPACT IN THE DESERT','#9be58a');
-  const dirt=new THREE.Mesh(new THREE.CircleGeometry(9,22),lambert(0x241a18));
-  dirt.rotation.x=-Math.PI/2; dirt.position.set(CRASH.x,0.03,CRASH.z); scene.add(dirt);
-  const rim=new THREE.Mesh(new THREE.TorusGeometry(8.6,1.1,7,20),lambert(0x3a2a24));
-  rim.rotation.x=-Math.PI/2; rim.position.set(CRASH.x,0.5,CRASH.z); rim.castShadow=true; scene.add(rim);
-  const core=new THREE.Mesh(new THREE.DodecahedronGeometry(2.2,0),
-    lambert(0x2e4a3a,{emissive:0x52e88a,emissiveIntensity:1.3}));
-  core.position.set(CRASH.x,1.2,CRASH.z); scene.add(core);
-  for(let k=0;k<6;k++){
-    const r=new THREE.Mesh(new THREE.DodecahedronGeometry(rand(0.5,1.1),0),lambert(0x4a3a32));
-    const a=rand(0,7);
-    r.position.set(CRASH.x+Math.sin(a)*rand(9,14),0.4,CRASH.z+Math.cos(a)*rand(9,14));
-    r.castShadow=true; scene.add(r);
-  }
-  craterLight=new THREE.PointLight(0x52e88a,2.2,55,2);
-  craterLight.position.set(CRASH.x,4,CRASH.z); scene.add(craterLight);
-  const beam=new THREE.Mesh(new THREE.CylinderGeometry(1.4,2.6,40,10,1,true),
-    new THREE.MeshBasicMaterial({color:0x6af0a0,transparent:true,opacity:0.16,
-      blending:THREE.AdditiveBlending,depthWrite:false,fog:false,side:THREE.DoubleSide}));
-  beam.position.set(CRASH.x,20,CRASH.z); scene.add(beam);
+  bigText('IMPACT','#9be58a');
+  metStrike();                                     // MET: flash, fireball, crater, shock front, infection starts
   ensureGun();
   setTimeout(()=>{ if(zombieMode){
     bigText("THEY'RE COMING — THE CREW MANS THE GUN",'#9be58a');
     wave=1; waveLeft=10; waveSpawnT=0; waveTimer=9;
-  }},5200);
+  }},9000);
 }
 function ensureGun(){
   if(gunG) return;
@@ -11421,8 +11442,10 @@ function spawnZombie(o){
   const i=zSlots.pop();
   let x,zp;
   if(o.x!=null){ x=o.x; zp=o.z; }
-  else if(wave<=2&&Math.hypot(player.x-CRASH.x,player.z-CRASH.z)<120){
-    const a=rand(0,7),r=rand(6,16); x=CRASH.x+Math.sin(a)*r; zp=CRASH.z+Math.cos(a)*r;
+  else if(wave<=2&&Math.hypot(player.x-CRASH.x,player.z-CRASH.z)<150){
+    const a=rand(0,7),r=rand(25,44); x=CRASH.x+Math.sin(a)*r; zp=CRASH.z+Math.cos(a)*r;      // out of the smoking crater
+  } else if(typeof INF!=='undefined'&&INF.on){                                               // INF: only inside the spreading radius
+    const q=infSpawnPoint(onFoot?foot.x:player.x,onFoot?foot.z:player.z); x=q[0]; zp=q[1];
   } else {
     const a=rand(0,7),r=rand(50,85);
     x=player.x+Math.sin(a)*r; zp=player.z+Math.cos(a)*r;
@@ -11481,7 +11504,7 @@ function updateZombies(dt,t){
     if(waveLeft>0&&zombies.length<ZCAP){
       waveSpawnT-=dt;
       if(waveSpawnT<=0){ spawnZombie(); waveLeft--; waveSpawnT=Math.max(0.28,0.6-wave*0.03); }
-    } else if(waveLeft<=0&&zombies.length===0){
+    } else if(waveLeft<=0&&!zombies.some(z=>!z.inf)){     // the infected townsfolk do not hold a wave open
       waveTimer-=dt;
       if(waveTimer<=0){ wave++; waveLeft=8+wave*4; waveTimer=9; bigText('WAVE '+wave,'#9be58a'); }
     }
@@ -11515,7 +11538,7 @@ function updateZombies(dt,t){
           if(z.sinkT>1.7){ R.p=null; z.rag=-1; zHide(i); z.burst=true; }
           else { z.x=R.P[0]; z.z=R.P[2]; ragBones(R,z.s); A[0]=A[1]=0.4; A[2]=A[3]=0.5; A[4]=0.7; zPut(z,z.s,z.s); }
         }
-      } else if(z.burst){ if(!(z.ch&&z.ch.length)) z.gone=true; }
+      } else if(z.burst){ if(!(z.ch&&z.ch.length)){ if(!z.gone) zRemains(z.x,z.z); z.gone=true; } }   // ZREM: what is left, for the birds
       else { zPose(z,t,0); if(z.deadT>2.9){ zHide(i); z.burst=true; } }
       if(z.ch&&z.ch.length) zChunks(z,dt);
       continue;
@@ -11734,11 +11757,13 @@ function fxUpdate(S,dt){
     const kd=S.kind[i], j=i*3;
     if(kd===2){ V[j+1]-=DMG.G*0.8*dt; }
     else if(kd===4){ V[j+1]-=3*dt; V[j]*=1-1.5*dt; V[j+2]*=1-1.5*dt; }
+    else if(kd===5){ const dr=1-Math.min(0.9,1.7*dt); V[j]*=dr; V[j+2]*=dr; V[j+1]*=1-Math.min(0.9,1.3*dt); }   // dust plume: thrown up, then hangs
     else { V[j]*=1-0.9*dt; V[j+2]*=1-0.9*dt; V[j+1]*=1-(kd===0?0.35:0.8)*dt; }
     P[j]+=V[j]*dt; P[j+1]+=V[j+1]*dt; P[j+2]+=V[j+2]*dt;
     if(P[j+1]<0.05&&kd===2){ P[j+1]=0.05; V[j+1]*=-0.35; V[j]*=0.6; V[j+2]*=0.6; }
     Z[i]=Math.max(0.02,Z[i]+S.grow[i]*dt);
-    if(kd===0||kd===4) A[i]=S.a0[i]*(k<0.12?k/0.12:1-(k-0.12)/0.88);
+    if(kd===5) A[i]=S.a0[i]*(k<0.07?k/0.07:Math.pow(1-(k-0.07)/0.93,1.5));
+    else if(kd===0||kd===4) A[i]=S.a0[i]*(k<0.12?k/0.12:1-(k-0.12)/0.88);
     else if(kd===1){ A[i]=S.a0[i]*(k<0.1?k/0.1:Math.pow(1-k,1.3));
       C[j]=C0[j]; C[j+1]=C0[j+1]*(1-0.7*k); C[j+2]=C0[j+2]*(1-0.9*k); }
     else if(kd===2){ A[i]=1-k; C[j+1]=C0[j+1]*(1-0.5*k); C[j+2]=C0[j+2]*(1-k); }
@@ -13070,7 +13095,7 @@ addEventListener('keydown',e=>{
   if(e.target&&e.target.tagName==='TEXTAREA') return;
   if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
   keys[e.key.toLowerCase()]=true;
-  if(e.key.toLowerCase()==='c') camMode=1-camMode;
+  if(e.key.toLowerCase()==='c'){ if(typeof GOD!=='undefined') GOD.on=!GOD.on; else camMode=1-camMode; }
   if(e.key.toLowerCase()==='m') toggleMute();
   if(e.key.toLowerCase()==='r') respawn(false);
   if(e.key.toLowerCase()==='f') toggleFreeCam();
@@ -14705,6 +14730,9 @@ function drawMinimap(t){
   for(const v of traffic){ if(v.kind!=='cop') continue; const q=W2S(v.x,v.z); if(!inside(q,2)) continue;
     const hot=wanted&&Math.floor(t*6)%2; c.fillStyle='#15121f'; c.beginPath(); c.arc(q[0],q[1],3.6,0,7); c.fill();
     c.fillStyle=wanted?(hot?'#ff3347':'#ffd0d4'):'#6fa0ff'; c.beginPath(); c.arc(q[0],q[1],2.5,0,7); c.fill(); }
+  if(zombieMode&&typeof INF!=='undefined'&&INF.on){ const q=W2S(CRASH.x,CRASH.z), rr=INF.r*S;      // INF: the edge of the infection
+    if(rr<4000){ c.save(); c.beginPath(); c.arc(q[0],q[1],rr,0,6.2832); c.fillStyle='rgba(82,232,138,0.10)'; c.fill();
+      c.strokeStyle='rgba(120,255,160,0.75)'; c.lineWidth=1.6; c.setLineDash([5,4]); c.stroke(); c.restore(); } }
   if(zombieMode){ c.fillStyle='#ff4d5e';
     for(const z of zombies){ if(z.dead) continue; const q=W2S(z.x,z.z); if(inside(q,1)) c.fillRect(q[0]-1.3,q[1]-1.3,2.6,2.6); } }
   // your parked car while you walk
@@ -14935,15 +14963,8 @@ function updatePlayer(dt,t){
         puff(wx,0.25+(onMtn?player.y:0),wz, offRoad?0xcaa878:0xdadae0);
       }
     }
-  } else if(offRoad && spd>6){
-    const fxr=Math.sin(player.a),fzr=Math.cos(player.a);
-    const st=pCar.rear[(Math.random()*pCar.rear.length)|0];
-    if(st){
-      const wx=player.x+st.position.x*Math.cos(player.a)+st.position.z*fxr;
-      const wz=player.z-st.position.x*Math.sin(player.a)+st.position.z*fzr;
-      puff(wx,0.22+(onMtn?player.y:0),wz,0xcaa878);
-    }
   }
+  if(offRoad&&!inWater) dustEmit(dt,Math.hypot(player.vx,player.vz),drift,onMtn?player.y:0);   // DUST: the plume, by surface
 
   // ---- screech: hard cornering OR wheelspin launch ----
   let skidVol=0;
@@ -16943,9 +16964,9 @@ function updateDusk(dt){
   setSky(k);
   scene.fog.color.copy(FOG_DAY).lerp(FOG_NIGHT,k).lerp(skc3,0.5);   // melt the far ground into the horizon sky
   scene.background.copy(BG_DAY).lerp(BG_NIGHT,k);
-  sun.intensity=1.35*(1-k)+0.22;
+  sun.intensity=1.12*(1-k)+0.22;
   sun.color.copy(SUN_DAY).lerp(SUN_NIGHT,k);
-  hemi.intensity=0.62-0.25*k;
+  hemi.intensity=0.8-0.43*k;
   hemi.color.copy(HS_DAY).lerp(HS_NIGHT,k);
   hemi.groundColor.copy(HG_DAY).lerp(HG_NIGHT,k);
   for(const m of clouds.children) m.material.color.setRGB(1-0.55*k,1-0.58*k,1-0.42*k);
@@ -16986,7 +17007,7 @@ function updateDusk(dt){
     }
     glintIM.instanceMatrix.needsUpdate=true;
   }
-  sun.position.set(fx+SUN_OFF.x,SUN_OFF.y,fz+SUN_OFF.z);
+  sun.position.set(fx+LIGHT_OFF.x,LIGHT_OFF.y,fz+LIGHT_OFF.z);
   sun.target.position.set(fx,0,fz);
   sun.target.updateMatrixWorld();
   if(k>0.5&&Math.random()<dt*0.12) spawnStreak(false);
@@ -17037,7 +17058,7 @@ function icBounds(e){
 }
 function icAdopt(im){
   IC.seen.add(im);
-  if(LOWQ) im.castShadow=false;   // LOW: instanced populations stay out of the shadow pass
+  if(LOWQ){ if(im.castShadow) im.userData.cs0=true; im.castShadow=false; }   // LOW: out of the shadow pass (BAKE still flattens them)
   if(im.frustumCulled||im.instanceMatrix.usage===THREE.DynamicDrawUsage) return;
   if(typeof glintIM!=='undefined'&&im===glintIM) return;
   const src=im.geometry, w=new THREE.BufferGeometry();
@@ -17515,9 +17536,12 @@ function birdCarrionScan(t){
   if(typeof bloodDecals!=='undefined'){ const a=bloodDecals.im.instanceMatrix.array;
     for(let k=1;k<=140;k++){ const i=((bloodDecals.ptr-k)%BLOOD_MAX+BLOOD_MAX)%BLOOD_MAX, o=i*16; if(a[o]===0&&a[o+10]===0) continue;
       const x=a[o+12], z=a[o+14], d2=(x-cam.x)**2+(z-cam.z)**2; if(d2<bd){ bd=d2; best={x,z,land:3,rr:1.9,wreck:false}; } } }
-  const G=C.tgt;
-  if(G&&best&&Math.hypot(G.x-best.x,G.z-best.z)<7) return;
-  if(G&&t<C.keepT&&Math.hypot(G.x-cam.x,G.z-cam.z)<170) return;
+  // ZREM: zombie remains come before wrecks and blood; a heap that has been eaten is given up at once
+  const zr=typeof zRemNearest==='function'?zRemNearest(cam.x,cam.z,150*150):null;
+  if(zr) best={x:zr.x,z:zr.z,land:5,rr:0.8,wreck:false,rem:zr};
+  const G=C.tgt, spent=!!(G&&G.rem&&(G.rem.amt<=0.04||G.rem.x!==G.x||G.rem.z!==G.z)), better=!!(best&&best.rem&&G&&!G.rem);
+  if(G&&!spent&&!better&&best&&Math.hypot(G.x-best.x,G.z-best.z)<(G.rem?0.5:7)) return;
+  if(G&&!spent&&!better&&t<C.keepT&&Math.hypot(G.x-cam.x,G.z-cam.z)<170) return;
   if(best){ best.gy=groundHeight(best.x,best.z,0); C.keepT=t+14; }
   if(G) for(const b of C.b) if(b.on&&(b.st===2||b.st===3)){ b.st=1; b.gt=rand(12,22); b.vy=4; }
   C.tgt=best;
@@ -17540,7 +17564,13 @@ function birdCarrion(dt,t){
       if(i<G.land){ b.gt-=dt; if(b.gt<=0&&!birdNearThreat(G.x,G.z,12)){ b.st=2; b.tm=15; const q=rand(0,6.283), rr=G.rr*rand(0.75,1.25); b.hx=G.x+Math.cos(q)*rr; b.hz=G.z+Math.sin(q)*rr; b.hy=G.gy+b.s*0.3; } }
       break; }
     case 2: b.tm-=dt; if(birdLand(b,dt,b.hx,b.hy,b.hz)||b.tm<=0){ b.x=b.hx; b.y=b.hy; b.z=b.hz; b.vx=b.vy=b.vz=0; b.st=3; b.gt=0; b.gx=b.x; b.gz=b.z; } break;
-    case 3: if(G.wreck) { b.fold+=(1-b.fold)*Math.min(1,dt*8); b.pit+=(0.3-b.pit)*Math.min(1,dt*5); b.hd=lerpAngle(b.hd,Math.atan2(G.x-b.x,G.z-b.z),Math.min(1,dt*2)); }
+    case 3: if(G.rem){                    // feeding: round the heap, facing in, tearing at it; a hop to a new place now and then
+        b.fold+=(1-b.fold)*Math.min(1,dt*8); b.hd=lerpAngle(b.hd,Math.atan2(G.x-b.x,G.z-b.z),Math.min(1,dt*5));
+        const tug=Math.sin(t*7.5+b.ph*30); b.pit+=((tug>0?0.34-0.62*tug:0.3+0.18*Math.sin(t*23+b.ph*9))-b.pit)*Math.min(1,dt*14);
+        b.y=G.gy+b.s*0.3+(tug<-0.8?0.03:0); b.bank=0;
+        G.rem.amt-=dt*0.0125;
+      }
+      else if(G.wreck) { b.fold+=(1-b.fold)*Math.min(1,dt*8); b.pit+=(0.3-b.pit)*Math.min(1,dt*5); b.hd=lerpAngle(b.hd,Math.atan2(G.x-b.x,G.z-b.z),Math.min(1,dt*2)); }
       else { birdWalk(b,G.x,G.z,G.rr,G.gy,dt,t,false); b.fold+=(1-b.fold)*Math.min(1,dt*8); }
       if(birdNearThreat(b.x,b.z,7.5)||birdNearTraffic(b.x,b.z)){ b.st=1; b.gt=rand(9,16); b.vy=4.5; b.vx=rand(-2,2); b.vz=rand(-2,2); b.wp=0; birdCaw(b.x,b.z); birdClap(b.x,b.z,3,0.07); }
       break;
@@ -18531,8 +18561,8 @@ function pineTick(dt,t){
 // One scene render into a target (+24-bit depth texture), one quarter-res glow/trail pass, one full-screen pass.
 // Any failure (no target, bad shader) sets TRIP.dead and the game renders directly, as before.
 const TRIP_NAMES=['LOOK: OFF','LOOK: NOIR','LOOK: DREAM','LOOK: SHROOMS'];
-const TRIP=(()=>{ let lv=2;
-  try{ const s=localStorage.getItem('sunsetTrip'); if(s!==null&&/^[0-3]$/.test(s)) lv=+s; }catch(_){}
+const TRIP=(()=>{ let lv=0;   // FLAT: quiet by default; LOOK button / P still cycles NOIR, DREAM, SHROOMS
+  try{ const s=localStorage.getItem('sunsetTrip2'); if(s!==null&&/^[0-3]$/.test(s)) lv=+s; }catch(_){}
   try{ const u=URLQ.get('trip'); if(u!==null&&/^[0-3]$/.test(u)) lv=+u; }catch(_){}
   let scale=LOWQ?0.7:1;
   try{ const r=parseFloat(URLQ.get('tripres')); if(r>=0.25&&r<=1) scale=r; }catch(_){}
@@ -18739,7 +18769,7 @@ function tripTargets(){
 }
 function tripSet(n){
   const T=TRIP; T.lv=((n|0)%4+4)%4;
-  try{ localStorage.setItem('sunsetTrip',''+T.lv); }catch(_){}
+  try{ localStorage.setItem('sunsetTrip2',''+T.lv); }catch(_){}
   const b=document.getElementById('tripbtn');
   if(b){ b.textContent=TRIP_NAMES[T.lv]; b.classList.toggle('on',T.lv>0); }
   if(T.lv===0) tripDisposeTargets();
@@ -19187,6 +19217,545 @@ function tripWorldOff(){
     for(const g of W.geos){ const L=BRK.cl.get(g); if(L) for(const o of L) if(o.m.material===W.mat) o.m.material=MAT.vc; } }
   if(T.pud) T.pud.mesh.visible=false;
 }
+// ================= SURF + DUST: what the wheels are on, and the plume it throws (v0.37) =================
+// surfaceKind() names the loose ground under a point: 'mtn' rock, 'sand' beach, 'plough' / 'crop' field (from the
+// rural mosaic's own records), 'grass' in the suburbs, else the open 'dirt'. dustEmit() feeds one Points cloud
+// (FXD, particle kind 5: thrown up, carried a little, then left hanging) from the rear wheels. Dirt and ploughed
+// earth throw a plume that grows with speed; sand is heavy and short; crops and grass only flick up chaff.
+const FXD=dmgFX(LOWQ?280:560,false);
+const SURF={grid:null};
+function surfFieldAt(x,z){
+  if(!SURF.grid){ SURF.grid=new Map();
+    for(const f of (world.fields||[])){ const k=Math.floor(f.cx/64)+','+Math.floor(f.cz/64); let a=SURF.grid.get(k); if(!a) SURF.grid.set(k,a=[]); a.push(f); } }
+  const gx=Math.floor(x/64), gz=Math.floor(z/64);
+  for(let i=-1;i<=1;i++) for(let j=-1;j<=1;j++){ const a=SURF.grid.get((gx+i)+','+(gz+j)); if(!a) continue;
+    for(const f of a){ const ex=f.rot?f.hz:f.hx, ez=f.rot?f.hx:f.hz; if(Math.abs(x-f.cx)<ex&&Math.abs(z-f.cz)<ez) return f; } }
+  return null;
+}
+function surfaceKind(x,z){
+  if(mtnIn(x,z)) return 'mtn';
+  if(x<COAST.PROM) return 'sand';
+  const f=surfFieldAt(x,z); if(f) return f.pl?'plough':'crop';
+  if(inSuburb(x,z,0)) return 'grass';
+  return 'dirt';
+}
+// rate: particles/s flat out · s0..s1: start size slow..fast · grow: m/s · life: s · a: opacity · big: how much speed swells it
+const DUST={acc:0,REF:13,
+  dirt:  {c:[0xcbb596,0xbda688,0xd8c6aa],rate:105,s0:0.9,s1:2.7,grow:3.4,life:3.0,a:0.52,big:1},
+  plough:{c:[0x9c8862,0x8c7954,0xab986f],rate:115,s0:0.9,s1:2.9,grow:3.6,life:3.2,a:0.56,big:1},
+  mtn:   {c:[0xa99d8e,0x978c7e,0xb8ada0],rate:60, s0:0.8,s1:1.9,grow:2.4,life:2.0,a:0.45,big:0.6},
+  sand:  {c:[0xe2d2b2,0xd8c5a0,0xead9bc],rate:55, s0:0.7,s1:1.5,grow:1.6,life:1.15,a:0.45,big:0.3},
+  crop:  {c:[0xaaa97a,0x909b64,0xbdb588],rate:34, s0:0.6,s1:1.1,grow:1.3,life:1.1,a:0.38,big:0.2},
+  grass: {c:[0x8c9c6c,0xa9a488],          rate:14, s0:0.45,s1:0.7,grow:0.9,life:0.75,a:0.3,big:0}};
+function dustEmit(dt,spd,drift,y0){
+  const P=DUST[surfaceKind(player.x,player.z)]; if(!P||spd<2.5||!pCar||!pCar.rear||!pCar.rear.length) return;
+  const k=clamp((spd-2.5)/DUST.REF,0,1.6), k1=Math.min(1,k), slide=clamp(drift/7,0,1);
+  DUST.acc=Math.min(12,DUST.acc+dt*P.rate*(0.12+0.88*k1)*(1+0.8*slide)*(LOWQ?0.55:1));
+  const n=DUST.acc|0; DUST.acc-=n;
+  const ca=Math.cos(player.a), sa=Math.sin(player.a), big=1+P.big*k*1.3;
+  for(let i=0;i<n;i++){ const st=pCar.rear[i%pCar.rear.length];
+    const wx=player.x+st.position.x*ca+st.position.z*sa+rand(-0.4,0.4), wz=player.z-st.position.x*sa+st.position.z*ca+rand(-0.4,0.4);
+    const drag=rand(0.1,0.32), sw=1+k1*2;       // carried along a little, then left hanging behind the car
+    fxSpawn(FXD,5,wx,y0+rand(0.15,0.5),wz, player.vx*drag+rand(-1,1)*sw, rand(0.6,1.6)+k*P.big*rand(1.2,3.0), player.vz*drag+rand(-1,1)*sw,
+      (P.s0+(P.s1-P.s0)*k1)*rand(0.75,1.25), P.life*(0.55+0.6*k1)*rand(0.8,1.2), P.c[(Math.random()*P.c.length)|0], P.grow*big*rand(0.8,1.2), P.a*(0.55+0.45*k1)); }
+}
+
+// ================= AFENCE: the airport's chain-link perimeter (drive straight through it) =================
+// 4 m panels round the whole field with an open gate on the entry road. Nothing here is a collider: a car that
+// reaches a panel flattens it (it hinges at the base and falls the way the car is going, with a rattle and a
+// little lost speed). Two InstancedMeshes (frames, mesh sheets); the flat shadows share their matrices, so a
+// felled panel's shadow falls with it. Panels stand back up once you are well away.
+const AFENCE={p:[],act:[],frame:null,sheet:null,L:4,H:2.4,box:null,anyDown:false,M:new THREE.Matrix4(),Q:new THREE.Quaternion(),
+  E:new THREE.Euler(0,0,0,'YXZ'),V:new THREE.Vector3(),S:new THREE.Vector3(1,1,1)};
+(function buildAirportFence(){
+  const A=AIRPORT, X0=A.cx-126, X1=A.cx+74, Z0=A.cz-A.rwLen/2-12, Z1=A.cz+A.rwLen/2+12, L=AFENCE.L, P=AFENCE.p;
+  AFENCE.box={x0:X0-8,x1:X1+8,z0:Z0-8,z1:Z1+8};
+  const run=(ax,az,bx,bz)=>{ const len=Math.hypot(bx-ax,bz-az), n=Math.max(1,Math.round(len/L)), tx=(bx-ax)/len, tz=(bz-az)/len;
+    for(let i=0;i<n;i++){ const m=(i+0.5)/n*len; P.push({x:ax+tx*m,z:az+tz*m,tx,tz,yaw:Math.atan2(tx,tz)-Math.PI/2,sc:len/n/L,a:0,w:0,dir:1,down:false}); } };
+  run(X0,Z0,A.cx-11,Z0); run(A.cx+11,Z0,X1,Z0);            // south side, open at the entry road
+  run(X1,Z0,X1,Z1); run(X1,Z1,X0,Z1); run(X0,Z1,X0,Z0);
+  const H=AFENCE.H, frameG=mergeParts([
+    {g:new THREE.BoxGeometry(0.1,H+0.15,0.1),c:'#8e9198',x:-L/2,y:(H+0.15)/2},
+    {g:new THREE.BoxGeometry(0.1,H+0.15,0.1),c:'#8e9198',x:L/2,y:(H+0.15)/2},
+    {g:new THREE.BoxGeometry(L,0.07,0.07),c:'#a2a5ac',y:H},
+    {g:new THREE.BoxGeometry(L,0.05,0.05),c:'#7c7f86',y:0.18}]);
+  const cv=document.createElement('canvas'); cv.width=cv.height=64; const c=cv.getContext('2d');
+  c.fillStyle='rgba(150,154,162,0.16)'; c.fillRect(0,0,64,64); c.strokeStyle='rgba(176,180,188,0.85)'; c.lineWidth=2.2;
+  for(let k=-64;k<=128;k+=16){ c.beginPath(); c.moveTo(k,0); c.lineTo(k+64,64); c.stroke(); c.beginPath(); c.moveTo(k+64,0); c.lineTo(k,64); c.stroke(); }
+  const tex=new THREE.CanvasTexture(cv); tex.wrapS=tex.wrapT=THREE.RepeatWrapping; tex.repeat.set(5,3); tex.anisotropy=4;
+  const sheetG=new THREE.PlaneGeometry(L,H-0.2); sheetG.translate(0,(H-0.2)/2+0.18,0);
+  const sheetM=new THREE.MeshLambertMaterial({map:tex,transparent:true,depthWrite:false,side:THREE.DoubleSide});
+  const fr=AFENCE.frame=new THREE.InstancedMesh(frameG,MAT.vc,P.length), sh=AFENCE.sheet=new THREE.InstancedMesh(sheetG,sheetM,P.length);
+  fr.name='airport_fence'; sh.name='airport_fence_mesh';
+  for(const im of [fr,sh]){ im.instanceMatrix.setUsage(THREE.DynamicDrawUsage); im.frustumCulled=false; scene.add(im); }
+  fr.castShadow=true; fr.receiveShadow=true;
+  for(let i=0;i<P.length;i++) afencePut(i);
+  fr.instanceMatrix.needsUpdate=sh.instanceMatrix.needsUpdate=true;
+})();
+function afencePut(i){ const F=AFENCE, p=F.p[i];
+  F.E.set(p.a*p.dir,p.yaw,0); F.Q.setFromEuler(F.E); F.V.set(p.x,0,p.z); F.S.set(p.sc,1,1);
+  F.M.compose(F.V,F.Q,F.S); F.frame.setMatrixAt(i,F.M); F.sheet.setMatrixAt(i,F.M); }
+function afenceHit(i,side,sp,x,z,isPlayer){
+  const F=AFENCE, p=F.p[i]; if(p.down) return;
+  p.down=true; p.dir=side; p.w=clamp(sp*0.35,2.5,9); F.act.push(i); F.anyDown=true;
+  if(typeof sfxProp==='function') sfxProp('fence',p.x,p.z,Math.max(6,sp));
+  for(let k=0;k<3;k++) fxSpawn(FXD,5,p.x+rand(-1.5,1.5),0.3,p.z+rand(-1.5,1.5),rand(-1,1),rand(0.8,1.8),rand(-1,1),0.8,1.3,0xbda688,1.8,0.35);
+  if(isPlayer){ player.vx*=0.955; player.vz*=0.955; player.shake=Math.max(player.shake,0.22); }
+}
+function afenceTest(x,z,vx,vz,isPlayer){
+  const F=AFENCE, b=F.box; if(x<b.x0||x>b.x1||z<b.z0||z>b.z1) return;
+  const sp=Math.hypot(vx,vz); if(sp<1) return;
+  for(let i=0;i<F.p.length;i++){ const p=F.p[i]; if(p.down) continue;
+    const dx=x-p.x, dz=z-p.z; if(Math.abs(dx)>5||Math.abs(dz)>5) continue;
+    const al=dx*p.tx+dz*p.tz, ac=dx*p.tz-dz*p.tx;                 // along the panel, across it
+    if(Math.abs(al)<F.L*p.sc/2+1.0&&Math.abs(ac)<2.3){
+      const vn=vx*p.tz-vz*p.tx; if(vn*ac>0&&Math.abs(ac)>0.8) continue;   // already through and leaving
+      afenceHit(i,(Math.abs(vn)>0.5?-vn:ac)>0?1:-1,sp,x,z,isPlayer); } }   // falls the way the car is going (local +Z is (-tz,tx))
+}
+function afenceTick(dt){
+  const F=AFENCE; if(!F.frame) return;
+  if(!onFoot) afenceTest(player.x,player.z,player.vx,player.vz,true);
+  const b=F.box;
+  for(const v of traffic){ if(v.x<b.x0||v.x>b.x1||v.z<b.z0||v.z>b.z1) continue;
+    const s=v.sp||0, a=v.a||0; afenceTest(v.x,v.z,Math.sin(a)*s,Math.cos(a)*s,false); }
+  if(F.act.length){
+    for(let k=F.act.length-1;k>=0;k--){ const i=F.act[k], p=F.p[i];
+      p.w+=16*dt; p.a+=p.w*dt;
+      if(p.a>=1.5){ p.a=1.5; if(p.w>2.2) p.w*=-0.28; else { p.w=0; F.act.splice(k,1); } }
+      afencePut(i); }
+    F.frame.instanceMatrix.needsUpdate=F.sheet.instanceMatrix.needsUpdate=true;
+  }
+  if(F.anyDown&&!F.act.length){ const cx=onFoot?foot.x:player.x, cz=onFoot?foot.z:player.z;
+    if(cx<b.x0-330||cx>b.x1+330||cz<b.z0-330||cz>b.z1+330){            // far away: put the fence back
+      for(let i=0;i<F.p.length;i++){ const p=F.p[i]; if(p.down){ p.down=false; p.a=0; p.w=0; afencePut(i); } }
+      F.anyDown=false; F.frame.instanceMatrix.needsUpdate=F.sheet.instanceMatrix.needsUpdate=true; } }
+}
+
+// ================= ZREM: what a zombie leaves behind, and the birds that eat it =================
+// Every zombie that is finished with (sunk, burst, or dropped where it stood) leaves a small heap of remains.
+// The carrion birds (crows and vultures, birdCarrion) put the nearest heap ahead of wrecks and blood: they circle
+// it, come down round it and tear at it, and the heap shrinks as they feed until it is gone and they move on.
+const ZREM={s:[],N:LOWQ?14:26,ptr:0,im:null,M:new THREE.Matrix4(),Q:new THREE.Quaternion(),V:new THREE.Vector3(),S:new THREE.Vector3(),UP:new THREE.Vector3(0,1,0),LIFE:170};
+(function(){
+  const g=mergeParts([
+    {g:new THREE.DodecahedronGeometry(0.3,0),c:'#5e1712',x:0.04,y:0.13,z:0,sy:0.5,sx:1.25},
+    {g:new THREE.DodecahedronGeometry(0.22,0),c:'#7a211a',x:-0.3,y:0.1,z:0.16,sy:0.5},
+    {g:new THREE.DodecahedronGeometry(0.18,0),c:'#40100d',x:0.32,y:0.08,z:-0.2,sy:0.45},
+    {g:new THREE.BoxGeometry(0.5,0.05,0.05),c:'#d9d2bd',x:0.02,y:0.26,z:0.04,ry:0.4,rz:0.25},
+    {g:new THREE.BoxGeometry(0.4,0.05,0.05),c:'#cfc7b0',x:-0.08,y:0.24,z:-0.1,ry:-0.7,rz:-0.2},
+    {g:new THREE.BoxGeometry(0.34,0.045,0.045),c:'#d9d2bd',x:0.12,y:0.22,z:0.18,ry:1.3,rz:0.15},
+    {g:new THREE.BoxGeometry(0.3,0.1,0.14),c:'#3a4a36',x:-0.22,y:0.07,z:-0.26,ry:0.6}]);
+  const im=ZREM.im=new THREE.InstancedMesh(g,MAT.vc,ZREM.N); im.name='zombie_remains';
+  im.instanceMatrix.setUsage(THREE.DynamicDrawUsage); im.frustumCulled=false; im.castShadow=false; im.receiveShadow=true;
+  ZREM.M.makeScale(0,0,0); for(let i=0;i<ZREM.N;i++){ im.setMatrixAt(i,ZREM.M); ZREM.s.push({i,x:0,z:0,y:0,rot:0,amt:0,t0:0,drawn:-1}); }
+  scene.add(im);
+})();
+function zRemPut(s){ const Z=ZREM, k=s.amt>0?0.45+0.75*Math.min(1,s.amt):0;
+  if(Math.abs(k-s.drawn)<0.012) return; s.drawn=k;
+  Z.Q.setFromAxisAngle(Z.UP,s.rot); Z.V.set(s.x,s.y,s.z); Z.S.set(k,k>0?0.55+0.45*k:0,k); Z.M.compose(Z.V,Z.Q,Z.S);
+  Z.im.setMatrixAt(s.i,Z.M); Z.im.instanceMatrix.needsUpdate=true; }
+function zRemains(x,z){
+  if(!isFinite(x)||!isFinite(z)) return;
+  for(const o of ZREM.s) if(o.amt>0&&Math.abs(o.x-x)<1.4&&Math.abs(o.z-z)<1.4){ o.amt=Math.min(1.6,o.amt+0.6); o.t0=elapsed; zRemPut(o); return; }   // a pile-up: one bigger heap
+  const s=ZREM.s[ZREM.ptr]; ZREM.ptr=(ZREM.ptr+1)%ZREM.N;
+  s.x=x; s.z=z; s.y=groundHeight(x,z,0)+0.02; s.rot=rand(0,6.283); s.amt=1; s.t0=elapsed; s.drawn=-1; zRemPut(s);
+}
+function zRemTick(dt){
+  for(const s of ZREM.s){ if(s.amt<=0){ if(s.drawn!==0) zRemPut(s); continue; }
+    if(elapsed-s.t0>ZREM.LIFE) s.amt-=dt*0.25;                       // nothing came for it: it rots away
+    zRemPut(s); }
+}
+function zRemNearest(cx,cz,maxD2){ let best=null, bd=maxD2;
+  for(const s of ZREM.s){ if(s.amt<=0.04) continue; const d2=(s.x-cx)*(s.x-cx)+(s.z-cz)*(s.z-cz); if(d2<bd){ bd=d2; best=s; } }
+  return best; }
+
+// ================= INF + MET: the strike, and the infection spreading out from it =================
+// The meteor now comes late (story + 75 s, or 9 minutes in; N still calls it down). It arrives as a bolide with a
+// burning trail; the strike is a white flash, a fireball and a rising column, a ground shock ring and dust wall
+// running out at 150 m/s that flattens trees, posts and people, blows up cars near the crater, and reaches the
+// player late with a shove, damage by distance and the bang. It leaves a 22 m crater in a scorched, rayed field
+// of ejecta and fires that burn on. From the crater the infection spreads: INF.r grows without end, the dead only
+// rise inside it, and living pedestrians caught inside it turn where they stand.
+const INF={on:false,r:0,R0:60,rate:1.15,scanT:0,told:0,maxInf:Math.round(ZCAP*0.5)};
+const MET={blast:null,inb:false,cineK:0,cineSpan:300,glow:null,t:-1,r:0,pr:0,V:150,ring:null,ringM:null,hitP:false,flash:null,brk:0,col:0,fire:0,amb:0,trail:0};
+function metFlash(k){
+  let d=MET.flash; if(!d){ d=MET.flash=document.createElement('div'); d.id='metflash';
+    d.style.cssText='position:fixed;left:0;top:0;right:0;bottom:0;pointer-events:none;z-index:3;opacity:0;'
+      +'background:radial-gradient(ellipse at center,#ffffff 0%,#f4fff0 45%,#d8ffcf 100%);';
+    renderer.domElement.insertAdjacentElement('afterend',d); }
+  d.style.transition='none'; d.style.opacity=String(k);
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{ d.style.transition='opacity '+(1.4+k*2.2).toFixed(1)+'s cubic-bezier(.2,.6,.3,1)'; d.style.opacity='0'; }));
+}
+function metTrail(s,dt){                                  // the bolide's burning wake, and its light racing over the ground
+  let g=MET.glow; if(!g){ g=MET.glow=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMaterial({map:glowTex,color:0xd8ffd0,transparent:true,opacity:0,
+      blending:THREE.AdditiveBlending,depthWrite:false,fog:false})); g.rotation.x=-Math.PI/2; g.renderOrder=4; scene.add(g); }
+  { const h=Math.max(0,s.m.position.y), k=clamp(1-h/640,0,1); g.visible=true; g.position.set(s.m.position.x,0.8,s.m.position.z);
+    g.scale.setScalar(140+h*0.9); g.material.opacity=0.12+0.55*k*k; }
+  MET.trail+=dt*(LOWQ?26:50); const n=MET.trail|0; MET.trail-=n; const p=s.m.position;
+  for(let i=0;i<n;i++){ const f=Math.random(), x=p.x-s.vel.x*dt*f, y=p.y-s.vel.y*dt*f, z=p.z-s.vel.z*dt*f;
+    fxSpawn(FXA,1,x+rand(-2,2),y+rand(-2,2),z+rand(-2,2),rand(-3,3),rand(-2,3),rand(-3,3),rand(7,12),rand(0.5,1.0),i%2?0xbfffd0:0xfff2c0,-3,0.95);
+    if(i%2===0) fxSpawn(FXS,0,x+rand(-3,3),y+rand(-3,3),z+rand(-3,3),rand(-2,2),rand(0,2),rand(-2,2),rand(6,10),rand(3.5,6),0x4a4640,rand(3,5),0.5); }
+}
+function metCrater(){
+  const X=CRASH.x, Z=CRASH.z, gy=0;
+  const flat=(geo,hex,op,y)=>{ const m=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color:hex,transparent:true,opacity:op,depthWrite:false,
+      polygonOffset:true,polygonOffsetFactor:-3,polygonOffsetUnits:-8})); m.rotation.x=-Math.PI/2; m.position.set(X,y,Z); m.renderOrder=-0.4; scene.add(m); return m; };
+  flat(new THREE.CircleGeometry(92,48),0x1c1512,0.42,gy+0.07);                 // scorched field
+  flat(new THREE.CircleGeometry(46,40),0x14100e,0.72,gy+0.075);
+  { const pos=[]; const N=26;                                                 // ejecta rays
+    for(let i=0;i<N;i++){ const a=i/N*6.283+rand(-0.1,0.1), L=rand(70,175), w=rand(0.035,0.09), r0=30;
+      pos.push(Math.cos(a-w)*r0,Math.sin(a-w)*r0,0, Math.cos(a+w)*r0,Math.sin(a+w)*r0,0, Math.cos(a)*L,Math.sin(a)*L,0); }
+    const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3)); flat(g,0x1a1410,0.38,gy+0.072).material.side=THREE.DoubleSide; }
+  const bowl=new THREE.Mesh(new THREE.CircleGeometry(21,30),lambert(0x1b1513)); bowl.rotation.x=-Math.PI/2; bowl.position.set(X,0.09,Z); bowl.receiveShadow=true; scene.add(bowl);
+  const rim=new THREE.Mesh(new THREE.TorusGeometry(21.5,3.0,7,30),lambert(0x3a2b25)); rim.rotation.x=-Math.PI/2; rim.scale.z=0.62; rim.position.set(X,0.5,Z); rim.castShadow=true; scene.add(rim);
+  const core=new THREE.Mesh(new THREE.DodecahedronGeometry(4.6,0),lambert(0x2e4a3a,{emissive:0x52e88a,emissiveIntensity:1.3}));
+  core.position.set(X,2.2,Z); core.rotation.set(0.4,0.7,0.2); scene.add(core);
+  const rocks=[]; for(let k=0;k<(LOWQ?14:26);k++){ const a=rand(0,6.283), r=rand(24,95), s=rand(0.6,2.4)*(1-r/160);
+    rocks.push({g:new THREE.DodecahedronGeometry(s,0),c:k%3?'#4a3a32':'#3a2e28',x:X+Math.sin(a)*r,y:s*0.35,z:Z+Math.cos(a)*r,ry:rand(0,6),rx:rand(0,6)}); }
+  const rk=new THREE.Mesh(mergeParts(rocks),MAT.vc); rk.castShadow=true; scene.add(rk);
+  craterLight=new THREE.PointLight(0x52e88a,3.0,150,2); craterLight.position.set(X,7,Z); scene.add(craterLight);
+  const beam=new THREE.Mesh(new THREE.CylinderGeometry(2.6,5.2,130,12,1,true),new THREE.MeshBasicMaterial({color:0x6af0a0,transparent:true,opacity:0.14,
+    blending:THREE.AdditiveBlending,depthWrite:false,fog:false,side:THREE.DoubleSide})); beam.position.set(X,65,Z); scene.add(beam);
+  const ring=MET.ring=new THREE.Mesh(new THREE.RingGeometry(0.93,1,96),MET.ringM=new THREE.MeshBasicMaterial({color:0xfff4e0,transparent:true,opacity:0.9,
+    blending:THREE.AdditiveBlending,depthWrite:false,fog:false,side:THREE.DoubleSide})); ring.rotation.x=-Math.PI/2; ring.position.set(X,0.6,Z); ring.scale.setScalar(1); ring.renderOrder=5; scene.add(ring);
+}
+function metStrike(){
+  const X=CRASH.x, Z=CRASH.z, sx=onFoot?foot.x:player.x, sz=onFoot?foot.z:player.z, dP=Math.hypot(sx-X,sz-Z);
+  if(MET.glow) MET.glow.visible=false;
+  MET.inb=false;
+  MET.t=0; MET.r=0; MET.pr=0; MET.hitP=false; MET.brk=0; MET.col=0; MET.fire=0; MET.amb=0;
+  INF.on=true; INF.r=INF.R0;
+  metFlash(clamp(1.25-dP/1500,0.5,1));
+  metCrater();
+  // the fireball
+  try{ cfxExplode(X,3,Z,7); cfxExplode(X+rand(-9,9),2,Z+rand(-9,9),4.5); cfxExplode(X+rand(-12,12),2,Z+rand(-12,12),4); }catch(e){ console.warn('met fireball',e); }
+  const lo=LOWQ?0.5:1;
+  for(let i=0;i<70*lo;i++) fxSpawn(FXA,1,X+rand(-22,22),rand(2,30),Z+rand(-22,22),rand(-30,30),rand(10,46),rand(-30,30),rand(28,56),rand(1.4,2.9),i%2?0xffa040:0xfff0c0,rand(8,16),0.95);
+  { const b=MET.blast||(MET.blast=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex,color:0xfff6e4,transparent:true,opacity:1,blending:THREE.AdditiveBlending,depthWrite:false,fog:false})));
+    b.position.set(X,26,Z); b.scale.set(160,160,1); b.material.opacity=1; b.visible=true; b.renderOrder=6; if(!b.parent) scene.add(b); }      // the fireball's glare
+  for(let i=0;i<90*lo;i++){ const a=rand(0,6.283), v=rand(10,46);                       // burning ejecta, thrown high and wide
+    fxSpawn(FXA,2,X,2,Z,Math.sin(a)*v*1.5,rand(22,62),Math.cos(a)*v*1.5,rand(1.6,3.8),rand(3,5.5),0xffc070,0,1); }
+  for(let i=0;i<150*lo;i++){ const a=i/(150*lo)*6.283+rand(-0.05,0.05), v=rand(22,62);     // the base surge
+    fxSpawn(FXD,5,X+Math.sin(a)*8,rand(0.5,3),Z+Math.cos(a)*8,Math.sin(a)*v*1.3,rand(1,9),Math.cos(a)*v*1.3,rand(12,20),rand(3.5,6),i%3?0x8a7a66:0x5a4e44,rand(9,14),0.6); }
+  blip('sawtooth',70,18,4.5,0.34); blip('triangle',46,12,5.5,0.4); blip('square',180,24,0.9,0.12);
+  if(dP<30) { if(onFoot) footHurt(400,'VAPOURISED'); else damage(400,true); }
+}
+function metWaveHit(dP,ux,uz){                            // the shock front reaches the player
+  const k=clamp(1-dP/320,0,1);
+  player.shake=Math.max(player.shake,clamp(300/Math.max(dP,40),0.4,3)); if(typeof FT!=='undefined') FT.shake=Math.max(FT.shake,clamp(240/Math.max(dP,40),0.3,1));
+  try{ sfxExplosion(onFoot?foot.x:player.x,onFoot?foot.z:player.z,2); }catch(e){}
+  blip('triangle',55,14,2.6,clamp(0.15+k*0.3,0.15,0.45));
+  if(k<=0) return;
+  const hurt=dP<150?70*Math.pow(1-dP/150,1.3):0;
+  if(onFoot){ if(dP<260) footKnock(ux*(4+10*k),uz*(4+10*k),dP<130); if(hurt>0) footHurt(hurt,'CAUGHT IN THE BLAST'); }
+  else { const f=30*Math.pow(k,1.5); player.vx+=ux*f; player.vz+=uz*f; if(hurt>0) damage(hurt,false); }
+}
+function metTick(dt){
+  if(MET.t<0) return;
+  const X=CRASH.x, Z=CRASH.z, t=(MET.t+=dt), lo=LOWQ?0.5:1;
+  // ---- the column: a boiling stem for ~10 s, then a long plume and fires that keep burning ----
+  if(t<240){
+    const kS=t<10?46:t<40?12:5, kF=t<7?40:t<60?9:3;
+    MET.col+=dt*kS*lo; while(MET.col>=1){ MET.col-=1; const up=t<10;
+      if(up&&t>2.5&&Math.random()<0.45){ const a=rand(0,6.283), v=rand(7,16);            // the cap rolling outward at the top of the stem
+        fxSpawn(FXS,0,X+Math.sin(a)*12,rand(95,150),Z+Math.cos(a)*12,Math.sin(a)*v,rand(1,5),Math.cos(a)*v,rand(30,46),rand(6,9),Math.random()<0.5?0x2a2420:0x4a403a,rand(5,9),0.8); }
+      else fxSpawn(FXS,0,X+rand(-16,16),rand(2,up?40:10),Z+rand(-16,16),rand(-4,4),up?rand(18,36):rand(5,10),rand(-4,4),up?rand(22,38):rand(12,18),up?rand(5.5,8.5):rand(7,10),Math.random()<0.5?0x1f1a17:0x3a322c,up?rand(5,9):rand(3,5),up?0.82:0.6); }
+    MET.fire+=dt*kF*lo; while(MET.fire>=1){ MET.fire-=1; const a=rand(0,6.283), r=t<7?rand(0,16):rand(14,44);
+      fxFire(X+Math.sin(a)*r*(t<7?2.2:1.4),rand(0.4,1.6),Z+Math.cos(a)*r*(t<7?2.2:1.4),t<7?rand(5,10):rand(2.4,4.5)); }
+  }
+  if(MET.blast&&MET.blast.visible){ const k=t/3.2; if(k>=1) MET.blast.visible=false;
+    else { const sc=160+520*(1-Math.pow(1-Math.min(1,t/0.9),3)); MET.blast.scale.set(sc,sc,1); MET.blast.material.opacity=Math.pow(1-k,1.8); MET.blast.position.y=26+t*14; } }
+  // ---- the shock front ----
+  if(MET.r<1500){
+    MET.pr=MET.r; const r=MET.r=t*MET.V, a0=MET.pr, sx=onFoot?foot.x:player.x, sz=onFoot?foot.z:player.z;
+    if(MET.ring){ MET.ring.scale.setScalar(Math.max(1,r)); MET.ringM.opacity=0.9*Math.pow(clamp(1-r/1100,0,1),1.6); MET.ring.visible=r<1100; }
+    // dust wall, only where it can be seen
+    { const dP=Math.hypot(sx-X,sz-Z), aP=Math.atan2(sx-X,sz-Z), span=r<260?3.1416:Math.min(3.1416,260/r), n=Math.round((r<700?7:3)*lo*(dt*60));
+      if(Math.abs(dP-r)<420) for(let i=0;i<n;i++){ const a=aP+rand(-span,span), rr=r+rand(-6,4);
+        fxSpawn(FXD,5,X+Math.sin(a)*rr,rand(0.4,3),Z+Math.cos(a)*rr,Math.sin(a)*MET.V*0.25,rand(1.5,6),Math.cos(a)*MET.V*0.25,rand(3,6),rand(1.6,3),0x9a8a74,rand(4,7),0.42*clamp(1-r/900,0.15,1)); } }
+    // people
+    for(const p of peds){ if(p.gibbed) continue; const dx=p.x-X, dz=p.z-Z, d=Math.hypot(dx,dz); if(d<a0||d>=r||d>230) continue;
+      const v=8+34*(1-d/230); try{ pedImpact(p,dx/(d||1)*v,dz/(d||1)*v,v,false); }catch(e){} }
+    // traffic
+    for(const v of traffic.slice()){ const dx=v.x-X, dz=v.z-Z, d=Math.hypot(dx,dz); if(d<a0||d>=r||d>260) continue;
+      if(d<115&&v.car){ try{ explodeCar(v.car,v,elapsed); }catch(e){} } else v.stun=Math.max(v.stun||0,2.5); }
+    // trees, posts, street furniture
+    if(r<210&&MET.brk<26){ const C=world.circles, E={x:0,z:0,vx:0,vz:0};
+      for(let i=0;i<C.length&&MET.brk<26;i++){ const c=C[i]; if(!c.br||c.dead) continue; const dx=c.x-X, dz=c.z-Z, d=Math.hypot(dx,dz); if(d<a0||d>=r||d>200||d<1) continue;
+        const ux=dx/d, uz=dz/d, V=14+44*(1-d/200); E.x=c.x-ux*2.5; E.z=c.z-uz*2.5; E.vx=ux*V; E.vz=uz*V;
+        try{ brkHit(c,E,2.4,-ux,-uz,0); MET.brk++; }catch(e){} } }
+    // the player
+    { const dx=sx-X, dz=sz-Z, d=Math.hypot(dx,dz); if(!MET.hitP&&r>=d){ MET.hitP=true; metWaveHit(d,dx/(d||1),dz/(d||1)); } }
+  } else if(MET.ring&&MET.ring.visible) MET.ring.visible=false;
+}
+// where the dead may rise: round the player if that is inside the infected ground, else on the advancing edge
+function infSpawnPoint(cx,cz){
+  for(let k=0;k<8;k++){ const a=rand(0,6.283), r=rand(50,85), x=cx+Math.sin(a)*r, z=cz+Math.cos(a)*r;
+    if(Math.hypot(x-CRASH.x,z-CRASH.z)<INF.r-4) return [Math.max(x,shoreX(z)+6),z]; }
+  const a=Math.atan2(cx-CRASH.x,cz-CRASH.z)+rand(-0.75,0.75), r=INF.r*rand(0.8,0.98), z=CRASH.z+Math.cos(a)*r;
+  return [Math.max(CRASH.x+Math.sin(a)*r,shoreX(z)+6),z];
+}
+function infTick(dt){
+  if(!INF.on) return;
+  INF.r+=INF.rate*dt;
+  if(INF.told===0&&INF.r>150){ INF.told=1; floatText('THE INFECTION IS SPREADING'); }
+  else if(INF.told===1&&Math.hypot(CRASH.x,CRASH.z)-INF.r<182){ INF.told=2; bigText('IT HAS REACHED THE CITY','#9be58a'); }
+  INF.scanT-=dt; if(INF.scanT>0) return; INF.scanT=0.4;
+  if(!zSlots.length||zombies.length>=ZCAP) return;
+  let nInf=0; for(const z of zombies) if(z.inf&&!z.dead) nInf++; if(nInf>=INF.maxInf) return;
+  const cx=onFoot?foot.x:player.x, cz=onFoot?foot.z:player.z, r2=INF.r*INF.r; let best=null, bd=190*190;
+  for(const p of peds){ if(!p||p.gibbed||p.down>0||p.rag>=0||p.getup>0||p.seat>=0) continue;
+    if((p.x-CRASH.x)*(p.x-CRASH.x)+(p.z-CRASH.z)*(p.z-CRASH.z)>r2) continue;
+    const d2=(p.x-cx)*(p.x-cx)+(p.z-cz)*(p.z-cz); if(d2<bd){ bd=d2; best=p; } }
+  if(!best) return;
+  const p=best, z=spawnZombie({x:p.x,z:p.z,a:p.a,rise:0}); if(!z) return;
+  z.inf=true; z.stag=z.stag0=0.9;
+  if(p.fol){ p.fol.lead=null; p.fol.mode=0; p.fol.cur=-1; p.fol.fol=null; pedNewTrip(p.fol); p.fol=null; }
+  if(p.lead){ p.lead.fol=null; p.lead=null; }
+  if(p.partner){ p.partner.partner=null; p.partner=null; }
+  for(let k=0;k<4;k++) fxSpawn(FXS,0,p.x+rand(-0.3,0.3),rand(0.6,1.6),p.z+rand(-0.3,0.3),rand(-0.6,0.6),rand(0.6,1.4),rand(-0.6,0.6),0.7,1.2,0x6fd48a,1.2,0.45);
+  pedHide(p.i); pedSpawn(p);
+}
+function metCineTick(dt){
+  const sx=onFoot?foot.x:player.x, sz=onFoot?foot.z:player.z, d=Math.hypot(sx-CRASH.x,sz-CRASH.z);
+  const want=((MET.inb||(MET.t>=0&&MET.t<7.5))&&d<1100)?1:0;
+  if(want) MET.cineSpan=clamp(d*1.2+190,220,820);
+  MET.cineK+=(want-MET.cineK)*Math.min(1,dt*(want?1.6:0.9)); if(!want&&MET.cineK<0.002) MET.cineK=0;
+}
+function fx2Tick(dt){
+  metCineTick(dt);
+  FXD.mat.uniforms.uH.value=renderer.domElement.height; fxUpdate(FXD,dt);
+  afenceTick(dt); zRemTick(dt); metTick(dt); infTick(dt);
+}
+
+// ================= GOD: the long-lens god's-eye camera (a render-time overlay) =================
+// The chase and walking cameras above still run every frame, and between renders they still own the camera's
+// POSITION: every LOD, streaming, spawn, audio and bird gate in the game was tuned against that pose, so it stays
+// their anchor. GOD works out a second pose from the same subject (far away, a 22 degree lens, 42 degrees down at rest
+// and steepening to 62 at top speed, the view widening with speed and leading along the velocity) and gives the
+// anchor its ORIENTATION, so billboards and glows face the real view. godApply() swaps the far position, lens and
+// clip planes in for the render only; godRestore() puts the anchor back. C toggles it (off = the classic chase cam).
+// URL: ?god=0 off, ?span=<m> ground width at rest (short screen side), ?pitch=<deg> rest angle.
+const GOD={on:URLQ.get('god')!=='0', live:false, fovV:22, p0:42, p1:62, s0:48, s1:110, sf0:26, sf1:34,
+  yaw:0, yawInit:false, fx:0, fy:0, fz:0, lx:0, lz:0, pitch:42, span:48, dist:200,
+  pos:new THREE.Vector3(), quat:new THREE.Quaternion(), focus:new THREE.Vector3(), aPos:new THREE.Vector3(),
+  aFov:58, aNear:0.1, aFar:800, fogN:0, fogF:0, swapped:false, M:new THREE.Matrix4(), up:new THREE.Vector3(0,1,0)};
+(()=>{ const n=parseFloat(URLQ.get('span')); if(n>=10&&n<=400){ GOD.s1*=n/GOD.s0; GOD.s0=n; }
+  const p=parseFloat(URLQ.get('pitch')); if(p>=20&&p<=85){ GOD.p1=Math.min(85,GOD.p1+p-GOD.p0); GOD.p0=p; } })();
+function godCam(dt,x,y,z,yawT,spd,spdMax,vx,vz,foot,shake){
+  if(!GOD.on){ GOD.live=false; return; }
+  const k=clamp(spd/Math.max(1,spdMax),0,1), ke=k*k*(3-2*k);
+  if(!GOD.yawInit||!GOD.live){ GOD.yaw=yawT; GOD.fx=x; GOD.fy=y; GOD.fz=z; GOD.lx=GOD.lz=0; GOD.yawInit=true;
+    GOD.span=foot?GOD.sf0:GOD.s0; GOD.pitch=GOD.p0; }
+  GOD.yaw=lerpAngle(GOD.yaw,yawT,Math.min(1,dt*(foot?2.2:1.4)));
+  const s0=foot?GOD.sf0:GOD.s0, s1=foot?GOD.sf1:GOD.s1, ease=Math.min(1,dt*1.1);
+  // MET: while the meteor comes in and strikes, pull right back and swing the view to hold the car AND the crater
+  const cine=(typeof MET!=='undefined'&&MET.cineK>0.001)?MET.cineK:0;
+  GOD.span+=((s0+(s1-s0)*ke)*(1-cine)+(cine?MET.cineSpan:0)*cine-GOD.span)*ease*(cine?1.8:1);
+  GOD.pitch+=(GOD.p0+(GOD.p1-GOD.p0)*ke-GOD.pitch)*ease;
+  // look-ahead: lead along the velocity, capped to a fraction of the view so the subject never leaves the frame
+  const cap=GOD.span*0.34; let lx=vx*0.9, lz=vz*0.9; const ll=Math.hypot(lx,lz); if(ll>cap){ lx*=cap/ll; lz*=cap/ll; }
+  const le=Math.min(1,dt*2.0); GOD.lx+=(lx-GOD.lx)*le; GOD.lz+=(lz-GOD.lz)*le;
+  const sy=Math.sin(GOD.yaw), cy=Math.cos(GOD.yaw), push=GOD.span*0.14*(1-cine);      // subject sits below centre: more road ahead
+  let tx=x+GOD.lx+sy*push, tz=z+GOD.lz+cy*push; const fe=Math.min(1,dt*7);
+  if(cine){ tx+=(CRASH.x-tx)*0.5*cine; tz+=(CRASH.z-tz)*0.5*cine; }
+  GOD.fx+=(tx-GOD.fx)*fe; GOD.fz+=(tz-GOD.fz)*fe; GOD.fy+=(y-GOD.fy)*Math.min(1,dt*3);
+  // distance from the lens: the span fills the SHORT side of the screen (portrait phones: the width)
+  const tanV=Math.tan(GOD.fovV*Math.PI/360), tanMin=tanV*Math.min(1,Math.max(0.2,camera.aspect));
+  const D=GOD.span/(2*tanMin), pr=GOD.pitch*Math.PI/180, h=Math.cos(pr)*D; GOD.dist=D;
+  GOD.focus.set(GOD.fx,GOD.fy,GOD.fz);
+  const sh=(shake||0)*GOD.span*0.006;
+  GOD.pos.set(GOD.fx-sy*h+rand(-sh,sh), GOD.fy+Math.sin(pr)*D+rand(-sh,sh), GOD.fz-cy*h+rand(-sh,sh));
+  GOD.M.lookAt(GOD.pos,GOD.focus,GOD.up); GOD.quat.setFromRotationMatrix(GOD.M);
+  camera.quaternion.copy(GOD.quat); camera.updateMatrixWorld();             // the anchor keeps its place, takes the view's heading
+  GOD.live=true;
+}
+function godApply(){
+  if(!GOD.live||!GOD.on||GOD.swapped) return;
+  GOD.aPos.copy(camera.position); GOD.aFov=camera.fov; GOD.aNear=camera.near; GOD.aFar=camera.far;
+  camera.position.copy(GOD.pos); camera.quaternion.copy(GOD.quat);
+  camera.fov=GOD.fovV; camera.near=Math.max(1,GOD.dist*0.4); camera.far=GOD.dist*2.4+300;
+  camera.updateProjectionMatrix(); camera.updateMatrixWorld();
+  if(scene.fog){ GOD.fogN=scene.fog.near; GOD.fogF=scene.fog.far; const off=GOD.dist-16; scene.fog.near+=off; scene.fog.far+=off; }
+  // the live shadow map now only carries what moves: centre it on what is actually in view
+  sun.position.set(GOD.fx+LIGHT_OFF.x,LIGHT_OFF.y,GOD.fz+LIGHT_OFF.z); sun.target.position.set(GOD.fx,0,GOD.fz); sun.target.updateMatrixWorld();
+  GOD.swapped=true;
+}
+function godRestore(){
+  if(!GOD.swapped) return; GOD.swapped=false;
+  camera.position.copy(GOD.aPos); camera.fov=GOD.aFov; camera.near=GOD.aNear; camera.far=GOD.aFar;
+  camera.updateProjectionMatrix(); camera.updateMatrixWorld();
+  if(scene.fog){ scene.fog.near=GOD.fogN; scene.fog.far=GOD.fogF; }
+}
+
+// ================= BAKE: flat sun shadows for everything that stands still =================
+// The sun's light direction never changes, so the shadow of anything static is a fixed shape on the ground: the
+// object itself, squashed flat along the light onto y=BAKE.y by one affine matrix (S). Each static shadow caster
+// gets a twin that SHARES its geometry (and, for instanced populations, its instanceMatrix buffer, so a knocked-down
+// lamp's shadow falls with it) drawn with S*matrixWorld in one multiply-blended tint. A stencil test lets every
+// pixel be darkened once only, so overlapping shadows merge into one flat shape, as in the illustrations. Upward
+// facing surfaces near the ground (slabs, kerbs, decks merged into a caster) are dropped so nothing shades itself.
+// Casters are found once play starts and watched for ~2.5 s: anything that moved (cars, people, animated sets)
+// keeps the live shadow map instead, which now only has to cover the moving few. ?bake=0 turns it off.
+const LIGHT_DIRN=LIGHT_OFF.clone().normalize();
+const BAKE={on:URLQ.get('bake')!=='0', st:0, t:0, cand:null, list:[], y:0.37, e:0.001, S:new THREE.Matrix4(),
+  mats:new Map(), col:new THREE.Color(), base:new THREE.Color(0.70,0.70,0.83), fr:new THREE.Frustum(), pm:new THREE.Matrix4(),
+  n:0, ni:0, skip:0, ms:0, err:'', grp:null, Linv:new THREE.Matrix3()};
+const BAKE_VS=`
+uniform float uY0, uE; uniform mat3 uLinv;
+varying float vSrcY, vNy;
+#ifdef BAKE_ALPHA
+uniform mat3 uvT; varying vec2 vUv;
+#endif
+#include <common>
+#include <fog_pars_vertex>
+void main(){
+#ifdef BAKE_ALPHA
+  vUv=(uvT*vec3(uv,1.0)).xy;
+#endif
+  #include <begin_vertex>
+  #include <project_vertex>
+  #include <fog_vertex>
+  vec4 w=vec4(transformed,1.0);
+#ifdef USE_INSTANCING
+  w=instanceMatrix*w;
+  vec3 n=mat3(instanceMatrix)*normal;
+#else
+  vec3 n=normal;
+#endif
+  w=modelMatrix*w;
+  vSrcY=uY0+(w.y-uY0)/uE;                               // the source height, recovered from the squashed y
+  vec3 sn=uLinv*(mat3(modelMatrix)*n); float l=length(sn); vNy=l>1e-6?abs(sn.y)/l:0.0;
+}`;
+const BAKE_FS=`
+uniform vec3 uCol; uniform float uY0;
+varying float vSrcY, vNy;
+#ifdef BAKE_ALPHA
+uniform sampler2D tMap; uniform float uAT; varying vec2 vUv;
+#endif
+#include <fog_pars_fragment>
+void main(){
+  if(vNy>0.8&&vSrcY<uY0+0.45) discard;                  // low flat faces: they would only shade themselves
+#ifdef BAKE_ALPHA
+  if(texture2D(tMap,vUv).a<uAT) discard;
+#endif
+  vec3 c=uCol;
+#ifdef USE_FOG
+  c=mix(c,vec3(1.0),smoothstep(fogNear,fogFar,fogDepth));
+#endif
+  gl_FragColor=vec4(c,1.0);
+}`;
+function bakeMat(map,at){
+  const key=map?map.uuid+'|'+at:'-';
+  let m=BAKE.mats.get(key); if(m) return m;
+  m=new THREE.ShaderMaterial({vertexShader:BAKE_VS,fragmentShader:BAKE_FS,fog:true,transparent:true,depthWrite:false,
+    blending:THREE.MultiplyBlending,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-6,side:THREE.DoubleSide,
+    stencilWrite:true,stencilRef:1,stencilFunc:THREE.NotEqualStencilFunc,stencilZPass:THREE.ReplaceStencilOp,
+    uniforms:THREE.UniformsUtils.merge([THREE.UniformsLib.fog,{uCol:{value:null},uY0:{value:BAKE.y},uE:{value:BAKE.e},
+      uLinv:{value:null},tMap:{value:null},uAT:{value:0.5},uvT:{value:new THREE.Matrix3()}}])});
+  m.uniforms.uCol.value=BAKE.col; m.uniforms.uLinv.value=BAKE.Linv;
+  if(map){ m.defines={BAKE_ALPHA:1}; m.uniforms.tMap.value=map; m.uniforms.uAT.value=at||0.5;
+    map.updateMatrix(); m.uniforms.uvT.value.copy(map.matrix); }
+  BAKE.mats.set(key,m); return m;
+}
+function bakeSetup(){
+  const L=LIGHT_DIRN, a=L.x/L.y, c=L.z/L.y, y0=BAKE.y, e=BAKE.e;
+  // q = p - L*(p.y-y0)/L.y, with y kept as y0+e*(y-y0) so the matrix stays invertible and the shader can read y back
+  BAKE.S.set(1,-a,0,a*y0, 0,e,0,y0*(1-e), 0,-c,1,c*y0, 0,0,0,1);
+  BAKE.Linv.set(1,a/e,0, 0,1/e,0, 0,c/e,1);
+}
+function bakeIsCandidate(o){
+  if(!o.isMesh||o.isSkinnedMesh||(o.userData&&o.userData.bakeShadow)) return false;
+  if(!(o.castShadow||(o.userData&&o.userData.cs0))) return false;
+  const mats=Array.isArray(o.material)?o.material:[o.material];
+  for(const m of mats){ if(!m) return false; if(m.transparent&&m.opacity<0.5&&!(m.alphaTest>0)) return false; }
+  return !!(o.geometry&&o.geometry.attributes&&o.geometry.attributes.position);
+}
+function bakeInScene(o){ let p=o; while(p.parent) p=p.parent; return p===scene; }
+const _bkB=new THREE.Box3(), _bkV=new THREE.Vector3(), _bkM=new THREE.Matrix4(), _bkS=new THREE.Sphere();
+function bakeBadZone(x,z){ return (x>MTN.x0&&x<MTN.x1&&z>MTN.z0&&z<MTN.z1)||x<COAST.PROM+4; }
+function bakeBuild(){
+  const t0=performance.now(), grp=new THREE.Group(); grp.matrixAutoUpdate=false; BAKE.grp=grp;
+  for(const c of BAKE.cand){
+    const o=c.o;
+    if(!bakeInScene(o)) continue;
+    const me=o.matrixWorld.elements; let moved=false; for(let i=0;i<16;i++) if(Math.abs(me[i]-c.m[i])>1e-4){ moved=true; break; }
+    const im=o.isInstancedMesh;
+    if(moved||(im&&(o.instanceMatrix.version!==c.v||o.count!==c.n))){ BAKE.skip++; (BAKE.why||(BAKE.why={})).moved=(BAKE.why.moved||0)+1; continue; }   // it moves: live shadow
+    const g=o.geometry; if(!g.boundingBox) g.computeBoundingBox(); if(!g.boundingSphere) g.computeBoundingSphere();
+    let sph=null;
+    if(im){
+      const n=o.count, arr=o.instanceMatrix.array, gs=g.boundingSphere; if(!n){ BAKE.skip++; continue; }
+      let bad=0, hy=0, used=0;
+      for(let i=0;i<n;i++){ _bkM.fromArray(arr,i*16); const sc=_bkM.getMaxScaleOnAxis(); if(!(sc>1e-6)) continue;
+        _bkM.premultiply(o.matrixWorld); _bkV.copy(gs.center).applyMatrix4(_bkM); used++;
+        if(bakeBadZone(_bkV.x,_bkV.z)) bad++;
+        if(!hy){ _bkB.copy(g.boundingBox).applyMatrix4(_bkM); hy=_bkB.max.y; } }
+      if(!used||bad>used*0.4||hy<BAKE.y+0.6){ BAKE.skip++; const w=(BAKE.why||(BAKE.why={})), r=!used?'imEmpty':bad>used*0.4?'imZone':'imFlat'; w[r]=(w[r]||0)+1; continue; }
+    } else {
+      _bkB.copy(g.boundingBox).applyMatrix4(o.matrixWorld);
+      if(_bkB.max.y<BAKE.y+0.6){ BAKE.skip++; const w=(BAKE.why||(BAKE.why={})); w.flat=(w.flat||0)+1; continue; }
+      const cx=(_bkB.min.x+_bkB.max.x)/2, cz=(_bkB.min.z+_bkB.max.z)/2;
+      if(bakeBadZone(cx,cz)){ BAKE.skip++; const w=(BAKE.why||(BAKE.why={})); w.zone=(w.zone||0)+1; continue; }
+      _bkM.multiplyMatrices(BAKE.S,o.matrixWorld); _bkB.copy(g.boundingBox).applyMatrix4(_bkM);
+      sph=_bkB.getBoundingSphere(new THREE.Sphere()); sph.radius+=1;
+    }
+    // the material: plain tint, or cut out by the caster's own alpha (fronds, foliage cards)
+    let map=null, at=0; for(const m of (Array.isArray(o.material)?o.material:[o.material])) if(m.map&&m.alphaTest>0){ map=m.map; at=m.alphaTest; break; }
+    const mat=bakeMat(map,at);
+    let sh;
+    if(im){ sh=new THREE.InstancedMesh(g,mat,o.instanceMatrix.count); sh.instanceMatrix=o.instanceMatrix; sh.count=o.count;
+      if(typeof IC!=='undefined') IC.seen.add(sh); BAKE.ni++; }
+    else { sh=new THREE.Mesh(g,mat); BAKE.n++; }
+    sh.matrixAutoUpdate=false; sh.matrix.multiplyMatrices(BAKE.S,o.matrixWorld); sh.matrixWorld.copy(sh.matrix);
+    sh.frustumCulled=false; sh.renderOrder=-0.5; sh.castShadow=sh.receiveShadow=false; sh.userData.bakeShadow=true;
+    const anc=[]; for(let p=o;p&&p!==scene;p=p.parent) anc.push(p);
+    BAKE.list.push({sh,src:o,anc,im,sph});
+    o.castShadow=false; if(o.userData) o.userData.cs0=false;
+    grp.add(sh);
+  }
+  scene.add(grp); grp.updateMatrixWorld(true);
+  BAKE.cand=null; BAKE.ms=Math.round(performance.now()-t0);
+}
+function bakeTick(dt){
+  if(!BAKE.on||BAKE.st===2) return;
+  try{
+    if(BAKE.st===0){ bakeSetup(); scene.updateMatrixWorld(true); BAKE.cand=[];
+      scene.traverse(o=>{ if(bakeIsCandidate(o)) BAKE.cand.push({o,m:o.matrixWorld.elements.slice(),
+        v:o.isInstancedMesh?o.instanceMatrix.version:0,n:o.isInstancedMesh?o.count:0}); });
+      BAKE.st=1; BAKE.t=2.5; return; }
+    BAKE.t-=dt; if(BAKE.t>0) return;
+    bakeBuild(); BAKE.st=2;
+  }catch(err){ BAKE.err=String(err&&err.stack||err); BAKE.on=false; console.warn('bake: off',err);
+    for(const e of BAKE.list){ e.src.castShadow=true; } BAKE.list=[]; if(BAKE.grp&&BAKE.grp.parent) scene.remove(BAKE.grp); }
+}
+function bakeCull(){
+  if(BAKE.st!==2||!BAKE.grp) return;
+  BAKE.col.copy(BAKE.base).lerp(_bkWhite,0.82*hlSm(0.35,0.95,duskK));        // no sun at night: the shapes fade out
+  camera.updateMatrixWorld(); BAKE.pm.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse); BAKE.fr.setFromProjectionMatrix(BAKE.pm);
+  for(const e of BAKE.list){
+    let vis=true; for(const a of e.anc) if(!a.visible){ vis=false; break; }
+    if(vis&&!e.anc[e.anc.length-1].parent) vis=false;                       // taken out of the world
+    if(vis&&e.im){ e.sh.count=e.src.count; if(!e.src.count) vis=false; }
+    else if(vis&&e.sph) vis=BAKE.fr.intersectsSphere(e.sph);
+    e.sh.visible=vis;
+  }
+}
+const _bkWhite=new THREE.Color(1,1,1);
+
+// ================= GRAIN: one static paper-grain layer over the frame (CSS, no GPU pass) =================
+(function grainLayer(){
+  const amt=(()=>{ const g=parseFloat(URLQ.get('grain')); return g>=0&&g<=1?g:0; })(); if(amt<=0) return;   // v0.36: off by default (screen-fixed grain swims over a moving world); ?grain=0.5 to compare
+  const N=160, cv=document.createElement('canvas'); cv.width=cv.height=N; const cx=cv.getContext('2d'), id=cx.createImageData(N,N);
+  for(let i=0;i<N*N;i++){ const v=Math.random()<0.5?0:255, a=Math.random()*Math.random()*58*amt;
+    id.data[i*4]=id.data[i*4+1]=id.data[i*4+2]=v; id.data[i*4+3]=a; }
+  cx.putImageData(id,0,0);
+  const d=document.createElement('div'); d.id='grain';
+  d.style.cssText='position:fixed;left:0;top:0;right:0;bottom:0;pointer-events:none;z-index:1;background-repeat:repeat;'
+    +'background-size:'+Math.round(N/Math.max(1,Math.min(2,devicePixelRatio)))+'px;image-rendering:pixelated;background-image:url('+cv.toDataURL()+')';
+  renderer.domElement.insertAdjacentElement('afterend',d);
+})();
+
 function loop(){
   requestAnimationFrame(loop);
   const dt=Math.min(clock.getDelta(),0.05);
@@ -19194,13 +19763,13 @@ function loop(){
   cullInstanced();
   if(studioOn){ studioUpdate(dt); renderer.render(scene,camera); return; }
   if(meOn){ meDraw(); return; }
-  if(garageOpen){ renderer.render(scene,camera); return; }
+  if(garageOpen){ godApply(); bakeCull(); renderer.render(scene,camera); godRestore(); return; }
   elapsed+=dt;
   if(started){
     playT+=dt;
     saveT-=dt; if(saveT<=0){ saveT=8; saveGame(); }
     duskK=zombieMode?1:clamp(Math.max(playT/420, mission.heists/5, st.done?1:0),0,1);
-    if(!meteorFired&&((st.done&&playT>st.doneT+25)||playT>150)){
+    if(!meteorFired&&((st.done&&playT>st.doneT+75)||playT>540)){   // v0.37: late in the night (was +25 s / 150 s)
       meteorFired=true; fireTheMeteor();
     }
     let vf=0;
@@ -19232,6 +19801,11 @@ function loop(){
     updateMission(dt,elapsed);
     updateJet(dt);
     if(freeCam){} else if(onFoot) updateFootCamera(dt); else updateCamera(dt,vf);
+    if(freeCam) GOD.live=false;                                    // GOD: the long-lens pose from the same subject
+    else if(onFoot) godCam(dt,foot.x,foot.y||0,foot.z,FT.camYaw,Math.hypot(foot.vx,foot.vz),7.5,foot.vx,foot.vz,true,FT.shake);
+    else godCam(dt,player.x,player.y||0,player.z,player.a,Math.hypot(player.vx,player.vz),CFG.maxSpeed,player.vx,player.vz,false,player.shake);
+    bakeTick(dt);                                                  // BAKE: find the static casters, then flatten them
+    fx2Tick(dt);                                                   // DUST plume, airport fence, zombie remains, meteor blast, infection
     cashEl.textContent='$'+Math.floor(cash);
     speedEl.textContent=Math.round(Math.abs(vf)*2.2)+' mph';
     hpEl.style.width=health+'%';
@@ -19254,7 +19828,9 @@ function loop(){
   pineTick(dt,elapsed);                  // PINE: forest streaming, deer, mountain ambience
   solBeaconTick(dt,elapsed);             // r9: Sol's pink sky beacon over the pickup venue / her destination
   if(debugOn) updateDebugReadout(dt);
+  godApply(); bakeCull();                // GOD: the far long-lens pose for the render only
   tripRender(dt);                        // TRIP: post-process look (plain renderer.render at level 0)
+  godRestore();                          // GOD: hand the anchor pose back to the game's systems
 }
 solInit();                              // SOL: pick her venues from the finished world
 birdInit();                             // BIRDS: sites from the finished world (pavements, wires, fences, coast)
@@ -19286,6 +19862,6 @@ addEventListener('resize',()=>{
   if(meOn){ mecv.width=innerWidth; mecv.height=innerHeight; }
 });
 </script>
-<div id="buildver" style="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(2px + env(safe-area-inset-bottom));font:600 10px/1.2 ui-monospace,Menlo,monospace;color:#fff;opacity:.6;letter-spacing:.06em;pointer-events:none;z-index:2147483000;text-shadow:0 1px 2px #000">v0.34 · 11 Nov 00:26</div>
+<div id="buildver" style="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(2px + env(safe-area-inset-bottom));font:600 10px/1.2 ui-monospace,Menlo,monospace;color:#fff;opacity:.6;letter-spacing:.06em;pointer-events:none;z-index:2147483000;text-shadow:0 1px 2px #000">v0.37 · 25 Nov · dust, airport, meteor</div>
 </body>
 </html>
