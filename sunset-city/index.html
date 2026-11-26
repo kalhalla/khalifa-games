@@ -14,7 +14,7 @@
 <meta name="twitter:card" content="summary_large_image"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <link rel="apple-touch-icon" href="/sunset-city/square.png"/>
-<meta name="build-version" content="v0.40"/>
+<meta name="build-version" content="v0.41"/>
 <style>
   html,body{margin:0;padding:0;overflow:hidden;background:#1a1420;height:100%;touch-action:none;}
   canvas{display:block;}
@@ -990,9 +990,9 @@ function roadChain(pts,rural){        // pts: node ids or [x,z] bend points; ret
   for(let i=0;i<ids.length-1;i++){ const e=addEdge(ids[i],ids[i+1]); if(rural) e.rural=true; out.push(e); }
   return out;
 }
-roadChain([cnode(0,1),[0,316],[L[4],290],RN],false);          // north: the motorway link (non-rural)
+roadChain([cnode(0,1),[0,316],[L[4],290],RN],true);           // north (v0.40: no motorway to feed, so a country lane like the east one)
 roadChain([cnode(1,0),[318,0],[318-26,L[3]],RE],true);         // east
-roadChain([cnode(0,-1),RS0],false);                            // south: the motorway link (non-rural)
+roadChain([cnode(0,-1),RS0],true);                             // south (likewise: was the motorway link)
 // ---------------- motorway: elevated spine + two diamond interchanges (ROADS r3) ----------------
 // The M-way runs north-south on x=OVERPASS.cx. It is up on a deck across downtown, the ring boulevard
 // and the z=±340 country roads, comes down to grade beyond them and ends at a T on the z=±680 roads.
@@ -1086,6 +1086,16 @@ function edgeThrough(x,z){ return edges.find(e=>e.len>1&&distToEdge(x,z,e).d<0.5
     }
     if(!changed) break;
   }
+})();
+
+// The airport's access road is a real graph edge (it was a bare strip of tarmac: no junction, no give-way, no
+// sat-nav route, and the roadside scatter could not see it). It leaves the z=0 country road at a give-way T
+// and runs north through the perimeter gate onto the apron. Added AFTER cullStubs: this dead end has a reason.
+// Town traffic never turns in (wa=0: the route-hint weight for entering from the junction).
+(function buildAirportRoad(){
+  const A=AIRPORT, host=edgeThrough(A.cx,0); if(!host) return;
+  const t=splitEdge(host,A.cx,0), end=addNode(A.cx,A.cz-A.rwLen/2+RW/2+1);
+  const e=addEdge(t,end); e.rural=true; e.wa=0;
 })();
 
 function distToEdge(x,z,e){
@@ -1642,7 +1652,7 @@ function mtnCityLights(){
     for(let k=0;k<n;k++){ const t=R(), y=down?2+R()*(10+50*core*R()):2+R()*3, e=R()<0.5; const x=e?(R()<0.5?b.x0:b.x1):b.x0+R()*w, z=e?b.z0+R()*d:(R()<0.5?b.z0:b.z1);
       if(t<0.72) add(x,y,z,1,0.78+R()*0.12,0.45+R()*0.2); else if(t<0.86) add(x,y,z,1,0.35,0.7); else if(t<0.95) add(x,y,z,0.35,0.9,1); else add(x,y+6,z,1,0.2,0.15); } }
   for(const l of world.lamps){ const x=Array.isArray(l)?l[0]:l.x, z=Array.isArray(l)?l[1]:l.z; if(x===undefined||z===undefined||R()<0.5) continue; add(x,5,z,1,0.62,0.3); }
-  for(let z=-520;z<=520;z+=40) add(MW.X+(R()<0.5?-11:11),z>-350&&z<350?MW.Y+7:7,z,1,0.7,0.4);
+  if(MW_ON) for(let z=-520;z<=520;z+=40) add(MW.X+(R()<0.5?-11:11),z>-350&&z<350?MW.Y+7:7,z,1,0.7,0.4);
   for(const s of SUBURBS) for(let k=0;k<26;k++){ const a=R()*6.283, r=R()*100; add(s.x+Math.cos(a)*r,3,s.z+Math.sin(a)*r,1,0.74,0.42); }
   for(let k=0;k<14;k++) add(AIRPORT.cx-AIRPORT.rwLen/2+k*AIRPORT.rwLen/13,0.6,AIRPORT.cz,0.5,0.7,1);
   const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3)); g.setAttribute('aCol',new THREE.Float32BufferAttribute(col,3));
@@ -2386,9 +2396,12 @@ const glintSpots=[];   // water-surface sun glints (surf + pools)
   const sqNodes=used.filter(cardinal), discNodes=used.filter(n=>!cardinal(n)&&!isBend(n));
   const sqIM=new THREE.InstancedMesh(rGeo,MAT.asphalt,Math.max(1,sqNodes.length));
   sqIM.receiveShadow=true;
+  // city junction squares are exactly one carriageway wide: the old 0.8 m overhang poked out past the road
+  // edge wherever no pavement block covers it (the outer side of the boundary streets)
+  const sqPad=n=>nodes.indexOf(n)<(CFG.N+1)*(CFG.N+1)?0.04:1.6;
   sqNodes.forEach((n,i)=>{
     m4.compose(new THREE.Vector3(n.x,0.005,n.z),new THREE.Quaternion(),
-      new THREE.Vector3(RW+1.6,1,RW+1.6));
+      new THREE.Vector3(RW+sqPad(n),1,RW+sqPad(n)));
     sqIM.setMatrixAt(i,m4);
   });
   scene.add(sqIM);
@@ -4486,7 +4499,17 @@ const palmIMref={};
   }
 })();
 
-// zebra crossings at every city junction arm + stop signs
+// A zebra is painted across a junction arm only where there is a footway at BOTH ends (the same rule the
+// walking graph uses): never from the pavement out into the desert across a boundary street or a spoke.
+// (nx,nz): the junction node, (dx,dz): the arm's direction away from it. Markings, tactile pads and the
+// pedestrian signal heads all ask this, so they cannot disagree.
+function armHasZebra(nx,nz,dx,dz){
+  const cx=nx+dx*(RW/2+2.5), cz=nz+dz*(RW/2+2.5);
+  for(const s of [1,-1]){ const x=cx+dz*s*(RW/2+1), z=cz-dx*s*(RW/2+1);
+    if(!world.blocks.some(b=>Math.abs(x-b.cx)<b.hx&&Math.abs(z-b.cz)<b.hz)) return false; }
+  return true;
+}
+// zebra crossings at every city junction arm with a footway either side
 (function buildCrossings(){
   const cityCount=(CFG.N+1)*(CFG.N+1);
   const arms=[];
@@ -4494,12 +4517,12 @@ const palmIMref={};
     const n=nodes[ni];
     for(const e of n.adj){
       const fwd=e.a===ni;
-      arms.push([n.x,n.z,fwd?e.dx:-e.dx,fwd?e.dz:-e.dz]);
+      if(armHasZebra(n.x,n.z,fwd?e.dx:-e.dx,fwd?e.dz:-e.dz)) arms.push([n.x,n.z,fwd?e.dx:-e.dx,fwd?e.dz:-e.dz]);
     }
   }
   const sGeo=new THREE.PlaneGeometry(1.25,2.3); sGeo.rotateX(-Math.PI/2);
   const offs=[-6.5,-3.9,-1.3,1.3,3.9,6.5];
-  const im=new THREE.InstancedMesh(sGeo,lambert(0xe8e2d2),arms.length*offs.length);
+  const im=new THREE.InstancedMesh(sGeo,lambert(0xe8e2d2),Math.max(1,arms.length*offs.length)); im.count=arms.length*offs.length;
   let idx=0;
   for(const [nx,nz,dx,dz] of arms){
     const cx=nx+dx*(RW/2+2.5), cz=nz+dz*(RW/2+2.5);
@@ -4519,7 +4542,7 @@ const palmIMref={};
   const poleG=new THREE.CylinderGeometry(0.06,0.08,2.6,6);
   const edgeM=lambert(0xc1352e);
   const spots=[];
-  spots.push([L[4]+RW/2+1.1,HALF+RW/2+1.1],[-HALF-RW/2-1.1,L[5]-RW/2-1.1]);
+  // (the two STOP signs that stood outside the north and west spoke junctions are gone: both junctions are signal-controlled)
   for(const [sx,sz] of spots){
     const p=new THREE.Mesh(poleG,MAT.pole);
     p.position.set(sx,1.34,sz); p.castShadow=true; scene.add(p);
@@ -4610,6 +4633,8 @@ const palmIMref={};
       const al=s*((nx?b.hz:b.hx)-2.5);
       const px=b.cx+(nx?nx*(b.hx-0.65):al), pz=b.cz+(nz?nz*(b.hz-0.65):al);
       if(!onRoad(b.cx+(nx?nx*(b.hx+2):al),b.cz+(nz?nz*(b.hz+2):al))) continue;
+      { const fx=b.cx+(nx?nx*(b.hx+RW+1):al), fz=b.cz+(nz?nz*(b.hz+RW+1):al);                 // ...and the zebra has a far kerb to reach
+        if(!world.blocks.some(o=>Math.abs(fx-o.cx)<o.hx&&Math.abs(fz-o.cz)<o.hz)) continue; }
       kbox('#c8b25a',px,0.34,pz,nx?0.6:2.2,0.012,nx?2.2:0.6);
     }
   }
@@ -4642,6 +4667,8 @@ const STOP_OFF=RW/2+4.4;               // stop line distance back from a junctio
   const unit=new THREE.PlaneGeometry(1,1); unit.rotateX(-Math.PI/2);
   const white=[], yellow=[], arrS=[], arrB=[], arrR=[];
   const sigNode=ni=>ni<CITYN&&nodes[ni].adj.length>=3;      // matches buildSignals
+  const thruNode=ni=>ni<CITYN&&nodes[ni].adj.length===2;
+  const straightNode=ni=>{ const [p,q]=nodes[ni].adj; return Math.abs(p.dx*q.dx+p.dz*q.dz)>0.9; };
   // movement types available from the approach arriving at node ni along e
   const moves=(e,ni)=>{ const inF=e.b===ni, d1x=inF?e.dx:-e.dx, d1z=inF?e.dz:-e.dz, m={S:0,L:0,R:0};
     for(const o of nodes[ni].adj){ if(o===e) continue; const of=o.a===ni, d2x=of?o.dx:-o.dx, d2z=of?o.dz:-o.dz;
@@ -4651,11 +4678,19 @@ const STOP_OFF=RW/2+4.4;               // stop line distance back from a junctio
   for(const e of edges){ if(!isCityEdge(e)) continue;
     const ang=Math.atan2(e.dx,e.dz), nx=e.dz, nz=-e.dx;          // +lateral = a->b lane side
     const P=(t,lat)=>[e.ax+e.dx*t+nx*lat, e.az+e.dz*t+nz*lat];
-    const L0=STOP_OFF, L1=e.len-STOP_OFF, mid=(L0+L1)/2, len=L1-L0;
-    if(len>2){
-      for(const o of [0.17,-0.17]) yellow.push([...P(mid,o),ang,0.12,len]);
-      for(const o of [5.45,-5.45]) white.push([...P(mid,o),ang,0.14,len]);
-    }
+    // Lines break at a real junction (3+ arms). A 2-arm node is no junction (a closed side street, or a plain
+    // bend): there the centre line carries on to the node, broken only by a zebra, and on a straight run the
+    // edge lines carry on too (round a bend the outer one would cut across the other arm).
+    let c0=STOP_OFF, c1=e.len-STOP_OFF, w0=c0, w1=c1; const ZB=RW/2+0.9, cx=[], wx=[];
+    const seg=(list,a,b,offs,w)=>{ if(b-a>0.5) for(const o of offs) list.push([...P((a+b)/2,o),ang,w,b-a]); };
+    for(const [ni,z,a,b] of [[e.a,armHasZebra(e.ax,e.az,e.dx,e.dz),0,ZB],[e.b,armHasZebra(e.bx,e.bz,-e.dx,-e.dz),e.len-ZB,e.len]]){
+      if(!thruNode(ni)) continue; const st=straightNode(ni);
+      if(z){ cx.push([a,b]); if(st) wx.push([a,b]); }
+      else if(ni===e.a){ c0=0; if(st) w0=0; } else { c1=e.len; if(st) w1=e.len; } }
+    if(c1-c0>2) seg(yellow,c0,c1,[0.17,-0.17],0.12);
+    if(w1-w0>2) seg(white,w0,w1,[5.45,-5.45],0.14);
+    for(const [a,b] of cx) seg(yellow,a,b,[0.17,-0.17],0.12);
+    for(const [a,b] of wx) seg(white,a,b,[5.45,-5.45],0.14);
     if(sigNode(e.b)) white.push([...P(e.len-STOP_OFF,2.81),ang,5.1,0.5]);   // stop line, b-bound lane
     if(sigNode(e.a)) white.push([...P(STOP_OFF,-2.81),ang,5.1,0.5]);        // stop line, a-bound lane
     if(e.len>STOP_OFF*2+14){
@@ -4882,7 +4917,7 @@ function sigVis(sig,axis,t){ const zp=sigPhase(sig,axis,t); return zp<9?'G':(zp<
       // and if that is still on a road, leave that end of the crossing without a
       // head (the other end still has one).
       const ca=RW/2+2.5+2.1;
-      for(const sd of [1,-1]){
+      if(armHasZebra(n.x,n.z,-ix,-iz)) for(const sd of [1,-1]){   // no zebra across this arm (no far footway): no pedestrian heads
         for(const db of [0,0.6,1.2,1.8]){
           const qx=n.x-ix*(ca+db)+sx*sd*(RW/2+0.75), qz=n.z-iz*(ca+db)+sz*sd*(RW/2+0.75);
           if(!clearOfCarriageways(qx,qz,0.25)) continue;
@@ -5369,6 +5404,23 @@ function markGiveWay(){
       if(e.b===ni) e.yieldB=true; else e.yieldA=true; }
   }
 }
+// THE give-way paint (double broken line + triangle) for edge e's approach to its b (atB) or a end, as bare
+// triangles pushed to L at height y. Shared by mwBuildSurfaces and the suburb connectors (which join the graph
+// later, on their own raised slab), so both read the same junction model. Returns false when there is no room.
+// hw: the approach's carriageway half-width when it is not the standard RW/2 (the 10 m mountain roads).
+function gwPaint(L,e,atB,y,hw){
+  const H=hw||RW/2, lane=hw?hw*0.45:CFG.LANE;
+  const ni=atB?e.b:e.a, n=nodes[ni];
+  const dx=atB?e.dx:-e.dx, dz=atB?e.dz:-e.dz, nx=dz, nz=-dx;      // travel into the node; nearside normal
+  const card=n.adj.every(o=>Math.abs(o.dx)<0.03||Math.abs(o.dz)<0.03), s0=card?(RW+1.6)/2+0.6:RW*0.74+0.6;
+  if(e.len<s0+8) return false;
+  const W=(a,l)=>[n.x-dx*a+nx*l,y,n.z-dz*a+nz*l], lo=e.oneway?-H+0.4:0.3;
+  const tri=(a,b,c)=>{ const ux=b[0]-a[0],uz=b[2]-a[2],vx=c[0]-a[0],vz=c[2]-a[2]; if(uz*vx-ux*vz<0){ const q=b; b=c; c=q; }
+    L.push(a[0],a[1],a[2],b[0],b[1],b[2],c[0],c[1],c[2]); };
+  for(const a of [s0,s0+0.45]) for(let l=lo;l<H-0.4;l+=1.0){ tri(W(a,l),W(a,l+0.6),W(a+0.22,l+0.6)); tri(W(a,l),W(a+0.22,l+0.6),W(a+0.22,l)); }
+  tri(W(s0+3.0,lane-0.8),W(s0+3.0,lane+0.8),W(s0+6.0,lane));
+  return true;
+}
 function mwBuildSurfaces(){
   markGiveWay();
   const CITYN=(CFG.N+1)*(CFG.N+1);
@@ -5455,20 +5507,27 @@ function mwBuildSurfaces(){
   for(const e of edges){ if(!e.blvd) continue;
     const nx=e.dz, nz=-e.dx, P=(t,o,y)=>[e.ax+e.dx*t+nx*o,y,e.az+e.dz*t+nz*o];
     const t0=RW*0.75, t1=e.len-RW*0.75; if(t1-t0<4) continue;
-    for(const o of [1.05,-1.05]) quad(YE,P(t0,o-0.07,0.05),P(t0,o+0.07,0.05),P(t1,o+0.07,0.05),P(t1,o-0.07,0.05),true);
-    for(const o of [7.2,-7.2]) quad(WH,P(t0,o-0.08,0.05),P(t0,o+0.08,0.05),P(t1,o+0.08,0.05),P(t1,o-0.08,0.05),true);
-    for(let t=t0+2;t<t1-2;t+=4) quad(WH,P(t-0.9,-0.95,0.048),P(t-0.6,-0.95,0.048),P(t+0.9,0.95,0.048),P(t+0.6,0.95,0.048),true);
+    // a plain corner of the ring (two arms, nothing joining) is not a junction: the lines carry on round it and
+    // mitre with the other arm's (they used to stop 12 m short on both sides, leaving the bend unmarked).
+    // k = how far a line at lateral offset o runs past the node, per metre of offset (read from the graph).
+    const mit=ni=>{ const n=nodes[ni]; if(n.adj.length!==2) return null; const f=n.adj[0]===e?n.adj[1]:n.adj[0]; if(!f.blvd) return null;
+      const s=f.a===ni?1:-1; return (f.dz*s)*e.dx-(f.dx*s)*e.dz; };              // n(out) . e's direction
+    const ka=mit(e.a), kb=mit(e.b);
+    const A=(o,w)=>ka===null?t0:-o*ka-Math.abs(ka)*w, B=(o,w)=>kb===null?t1:e.len+o*kb+Math.abs(kb)*w;   // w: line half-width (the square ends overlap in the mitre)
+    const ln=(L,o,w)=>quad(L,P(A(o,w),o-w,0.05),P(A(o,w),o+w,0.05),P(B(o,w),o+w,0.05),P(B(o,w),o-w,0.05),true);
+    for(const o of [1.05,-1.05]) ln(YE,o,0.07);
+    for(const o of [7.2,-7.2]) ln(WH,o,0.08);
+    for(let t=(ka===null?t0:2)+2;t<(kb===null?t1:e.len-2)-2;t+=4) quad(WH,P(t-0.9,-0.95,0.048),P(t-0.6,-0.95,0.048),P(t+0.9,0.95,0.048),P(t+0.6,0.95,0.048),true);
   }
   // give-way markings (double broken line + triangle) on every yield approach outside downtown
   for(const e of edges){ for(const atB of [true,false]){ if(!(atB?e.yieldB:e.yieldA)) continue;
     const ni=atB?e.b:e.a, n=nodes[ni]; if(ni<CITYN||n.mw||Math.hypot(n.x,n.z)>RURAL_BELT) continue;
-    const dx=atB?e.dx:-e.dx, dz=atB?e.dz:-e.dz, nx=dz, nz=-dx;      // travel into the node; nearside normal
-    const card=n.adj.every(o=>Math.abs(o.dx)<0.03||Math.abs(o.dz)<0.03), s0=card?(RW+1.6)/2+0.6:RW*0.74+0.6;
-    if(e.len<s0+8) continue;
-    const W=(a,l)=>[n.x-dx*a+nx*l,0.05,n.z-dz*a+nz*l], lo=e.oneway?-RW/2+0.4:0.3;
-    for(const a of [s0,s0+0.45]) for(let l=lo;l<RW/2-0.4;l+=1.0) quad(WH,W(a,l),W(a,l+0.6),W(a+0.22,l+0.6),W(a+0.22,l),true);
-    tri(WH,W(s0+3.0,CFG.LANE-0.8),W(s0+3.0,CFG.LANE+0.8),W(s0+6.0,CFG.LANE),true);
+    gwPaint(WH,e,atB,0.05);
   } }
+  // the mountain roads carry their own lines out to the country grid, so their give-way there is painted too (at
+  // their own width; these edges live in MTN.edges, not `edges`). The junctions are down on the flat.
+  for(const e of (MTN.edges||[])) for(const atB of [true,false]){ if(!(atB?e.yieldB:e.yieldA)||nodes[atB?e.b:e.a].mtn) continue;
+    gwPaint(WH,e,atB,0.09,MTN.R[e.ri].hw); }
   const mk=(L,mat,shadow)=>{ if(!L.length) return; const g=new THREE.BufferGeometry();
     g.setAttribute('position',new THREE.Float32BufferAttribute(L,3)); g.computeVertexNormals();
     const m=new THREE.Mesh(g,mat); m.receiveShadow=true; if(shadow) m.castShadow=true; m.userData.roads=1; scene.add(m); return m; };
@@ -5480,6 +5539,7 @@ function mwBuildSurfaces(){
 // structure + furniture: piers (twin columns + cap, clear of every street beneath), parapets,
 // lamp columns along the mainline, and two overhead sign gantries over the downtown deck
 (function buildOverpass(){
+  if(!MW_ON) return;                                      // v0.40: no motorway, so no sign gantries (and their invisible leg colliders) over column 6
   const X=MW.X, Y=MW.Y;
   const C=[], D=[], LP=[];                                // concrete, dark steel, lamp heads (merged)
   const box=(L,cx,cy,cz,w,h,d,ry)=>{ const g=new THREE.BoxGeometry(w,h,d); if(ry) g.rotateY(ry); g.translate(cx,cy,cz);
@@ -5531,7 +5591,7 @@ function mwBuildSurfaces(){
       if(base===0) world.circles.push({x,z,r:0.35});
     } }
   // ---- overhead sign gantries over the downtown deck (legs down to the pavement of column 6)
-  const signs=[[-58,1,'EXIT 1  RING  ↗','#1f3f8a'],[-58,-1,'SOUTH   AIRPORT','#1f3f8a'],[58,-1,'EXIT 2  RING  ↙','#1f3f8a'],[58,1,'NORTH   COAST RD','#1f3f8a']];
+  const signs=!MW_ON?[]:[[-58,1,'EXIT 1  RING  ↗','#1f3f8a'],[-58,-1,'SOUTH   AIRPORT','#1f3f8a'],[58,-1,'EXIT 2  RING  ↙','#1f3f8a'],[58,1,'NORTH   COAST RD','#1f3f8a']];   // no motorway, no gantries (they stood in column 6's blocks)
   const done=new Set();
   for(const [gz,lane] of signs){
     if(!done.has(gz)){ done.add(gz);
@@ -5582,9 +5642,7 @@ function mwBuildSurfaces(){
 (function buildAirport(){
   const {cx,cz,rwLen,rwW}=AIRPORT;
   // north-south entry road from the z=0 country road (kerb at z=RW/2) up to the apron's south edge
-  const ez0=RW/2-0.5, ez1=cz-rwLen/2+0.5;
-  const entry=new THREE.Mesh(new THREE.PlaneGeometry(RW,ez1-ez0),MAT.asphalt);
-  entry.rotation.x=-Math.PI/2; entry.position.set(cx,0.015,(ez0+ez1)/2); entry.receiveShadow=true; scene.add(entry);
+  // (ROADS: now a graph edge, see buildAirportRoad; buildWorld lays its surface, junction and give-way like any road)
   // apron: the whole field sits inside one country-grid cell, clear of every road
   const apron=new THREE.Mesh(new THREE.PlaneGeometry(120,rwLen),lambert(0x2e344c));
   apron.rotation.x=-Math.PI/2; apron.position.set(cx,0.01,cz); apron.receiveShadow=true; scene.add(apron);
@@ -6396,8 +6454,18 @@ const SUB={lots:[],areas:[]};
   // asphalt squares at the loop corners (the two street slabs alone left the outer quadrant bare)
   for(const SR of SUBURB_ROADS) for(const [u] of SR.loop)
     roadParts.push({g:new THREE.BoxGeometry(RW,0.08,RW),c:'#5e5c66',x:nodes[u].x,y:0.04,z:nodes[u].z});
+  // ROADS: a suburb street that meets a road of another class (the connector's T on the country road) stops at that
+  // road's kerb line: its paler slab used to run on to the centreline, across the near lane of the country road.
+  // The connectors joined the graph after buildWorld painted the give-way markings, so theirs are painted here
+  // (same gwPaint, on top of the slab).
+  const gwL=[];
   for(const e of edges){ if(!e.sub) continue;
-    roadParts.push({g:new THREE.BoxGeometry(RW,0.08,e.len),c:'#5e5c66',x:(e.ax+e.bx)/2,y:0.04,z:(e.az+e.bz)/2,ry:Math.atan2(e.dx,e.dz)}); }
+    const ca=nodes[e.a].adj.some(o=>!o.sub)?RW/2:0, cb=nodes[e.b].adj.some(o=>!o.sub)?RW/2:0, l=e.len-ca-cb, m=ca+l/2;
+    roadParts.push({g:new THREE.BoxGeometry(RW,0.08,l),c:'#5e5c66',x:e.ax+e.dx*m,y:0.04,z:e.az+e.dz*m,ry:Math.atan2(e.dx,e.dz)});
+    if(e.yieldA&&ca) gwPaint(gwL,e,false,0.09);
+    if(e.yieldB&&cb) gwPaint(gwL,e,true,0.09); }
+  if(gwL.length){ const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(gwL,3)); g.computeVertexNormals();
+    const m=new THREE.Mesh(g,new THREE.MeshLambertMaterial({color:0xece8d8})); m.receiveShadow=true; m.userData.roads=1; scene.add(m); }
 
   commitQuads(flatQ);
   if(roadParts.length){ const m=new THREE.Mesh(mergeParts(roadParts),MAT.vc); m.receiveShadow=true; scene.add(m); }
@@ -15202,14 +15270,31 @@ function trafficPickNext(v,node){
 // one junction movement: from edge ein (arriving at ni) to edge eout (leaving ni)
 const _bz={x:0,z:0,dx:0,dz:1,dl:1};
 function makePlan(ni,ein,eout){
-  const inF=ein.b===ni, outF=eout.a===ni, t2=trafficR(eout);
-  const asd=armStopDist(ni,ein), R1=asd>STOP_OFF+0.5?Math.min(ein.len/2-0.5,asd-1.0):trafficR(ein);   // oblique arms start their path at their stop point
-  const p0=laneAt(ein,inF,ein.len-R1), p2=laneAt(eout,outF,t2);
+  const inF=ein.b===ni, outF=eout.a===ni; let t2=trafficR(eout);
+  const asd=armStopDist(ni,ein), obl=asd>STOP_OFF+0.5; let R1=obl?Math.min(ein.len/2-0.5,asd-1.0):trafficR(ein);   // oblique arms start their path at their stop point
+  let p0=laneAt(ein,inF,ein.len-R1), p2=laneAt(eout,outF,t2);
   const d1x=inF?ein.dx:-ein.dx, d1z=inF?ein.dz:-ein.dz, d2x=outF?eout.dx:-eout.dx, d2z=outF?eout.dz:-eout.dz;
   const dot=clamp(d1x*d2x+d1z*d2z,-1,1), cr=d1x*d2z-d1z*d2x, th=Math.acos(dot);
-  const chord=Math.hypot(p2[0]-p0[0],p2[1]-p0[1]);
-  const h=chord*(th<0.05?1/3:(4/3)*Math.tan(th/4)/(2*Math.sin(th/2)));   // circular-arc handle length
-  const P=new Float64Array([p0[0],p0[1],p0[0]+d1x*h,p0[1]+d1z*h,p2[0]-d2x*h,p2[1]-d2z*h,p2[0],p2[1]]);
+  // Tangent lengths: how far the entry point lies before, and the exit point beyond, the
+  // corner where the two lane centre-lines cross. Equal lengths give a circular arc.
+  // Unequal ones (a short edge on one side of a bend) used to give a lopsided, sometimes
+  // S-shaped curve, so the longer side is pulled in to match (the car simply stays on its
+  // straight lane a little longer) and the handles are always laid along the tangents
+  // inside the corner: the control polygon is convex, so the path cannot wiggle.
+  let h1, h2;
+  { const wx=p2[0]-p0[0], wz=p2[1]-p0[1];
+    let s1=Math.abs(cr)>0.087?(wx*d2z-wz*d2x)/cr:-1, s2=Math.abs(cr)>0.087?(d1x*wz-d1z*wx)/cr:-1;
+    if(s1>0.3&&s2>0.3&&th<3.0){
+      if(!obl){ const d=Math.min(s1,s2);
+        if(s1>d+0.01){ R1-=s1-d; s1=d; p0=laneAt(ein,inF,ein.len-R1); }
+        if(s2>d+0.01){ t2-=s2-d; s2=d; p2=laneAt(eout,outF,t2); } }
+      const kf=(4/3)*Math.tan(th/4)/Math.tan(th/2);                          // circular-arc handle : tangent length
+      h1=s1*kf; h2=s2*kf;
+    } else {                                                                 // (near-)parallel lanes, U-turns
+      const chord=Math.hypot(wx,wz);
+      h1=h2=chord*(th<0.05?1/3:(4/3)*Math.tan(th/4)/(2*Math.sin(th/2)));
+    } }
+  const P=new Float64Array([p0[0],p0[1],p0[0]+d1x*h1,p0[1]+d1z*h1,p2[0]-d2x*h2,p2[1]-d2z*h2,p2[0],p2[1]]);
   const S=new Float64Array(26); let len=0, px=p0[0], pz=p0[1];
   for(let i=0;i<=12;i++){ bezAt(P,i/12,_bz); if(i) len+=Math.hypot(_bz.x-px,_bz.z-pz); px=_bz.x; pz=_bz.z; S[i*2]=px; S[i*2+1]=pz; }
   const type=dot>0.85?'S':(dot<-0.85?'U':(cr<0?'L':'R'));
@@ -15225,10 +15310,14 @@ function makePlan(ni,ein,eout){
     zs:len-(t2-(RW/2+2.5-1.15-0.4))};             // path length at which the FRONT reaches the exit zebra (minus hl)
 }
 // anyone on (or stepping onto) the zebra across this movement's exit arm?
-function pedOnExitZebra(pl){
+// Someone standing still at the very edge (toes over the kerb, waiting for a gap) is not
+// crossing: a car that gave way to them while they waited for the car never moved again.
+// skipStill: the car has waited long enough; ignore everyone who is standing still.
+function pedOnExitZebra(pl,skipStill){
   if(pl.zx!==pl.zx) return false;
   for(let k=0;k<roadPeds.length;k++){ const p=roadPeds[k], dx=p.x-pl.zx, dz=p.z-pl.zz;
-    if(Math.abs(dx*pl.zdx+dz*pl.zdz)<1.15+0.9&&Math.abs(dx*pl.zdz-dz*pl.zdx)<RW/2+0.6) return true; }
+    if(Math.abs(dx*pl.zdx+dz*pl.zdz)<1.15+0.9){ const ac=Math.abs(dx*pl.zdz-dz*pl.zdx);
+      if(ac<RW/2+0.6&&!((skipStill||ac>RW/2-1.0)&&p.vx*p.vx+p.vz*p.vz<0.04)) return true; } }
   return false;
 }
 const MOVES=[];
@@ -15246,6 +15335,26 @@ function nodeMoves(ni){
   }
   MOVES[ni]=M; return M;
 }
+// Highest speed at the START of movement pl from which its own curve, and every forced
+// bend after it (2-arm nodes: a winding road built from short edges), can still be
+// reached at a comfortable deceleration. Without this a car only ever saw one bend
+// ahead and arrived at the second far too fast. Cached on the plan.
+function trCap(pl){
+  if(pl.vc!==undefined) return pl.vc;
+  const b2=2*TR.B*0.75; let vc=pl.vt, p=pl, dist=0;
+  for(let i=0;i<16;i++){
+    const far=p.fwd?p.e.b:p.e.a, n=nodes[far];
+    if(n.adj.length!==2) break;
+    const eo=n.adj[0]===p.e?n.adj[1]:n.adj[0];
+    if(eo===p.e||(eo.oneway&&eo.a!==far)) break;
+    const q=nodeMoves(far).mv[n.adj.indexOf(p.e)*2+n.adj.indexOf(eo)];
+    dist+=p.len+Math.max(0,p.e.len-p.t2-q.R1);
+    if(dist>240) break;
+    vc=Math.min(vc,Math.sqrt(q.vt*q.vt+b2*dist));
+    p=q;
+  }
+  return (pl.vc=vc);
+}
 function planNext(v,node){
   const nx=trafficPickNext(v,node), n=nodes[node], M=nodeMoves(node);
   const ai=n.adj.indexOf(v.e), bi=n.adj.indexOf(nx.e);
@@ -15256,8 +15365,9 @@ function planNext(v,node){
 // distance from node at which a car's FRONT stops on approach arm e (stop line downtown)
 const stopDist=(node,e)=>armStopDist(node,e);
 const gated=node=>node<CITYN||nodes[node].adj.length>=3;
-function pedOnPath(pl,margin){
+function pedOnPath(pl,margin,skipStill){
   for(let k=0;k<roadPeds.length;k++){ const p=roadPeds[k];
+    if(skipStill&&p.vx*p.vx+p.vz*p.vz<0.04) continue;
     for(let i=0;i<26;i+=2){ const dx=p.x-pl.S[i], dz=p.z-pl.S[i+1]; if(dx*dx+dz*dz<margin*margin) return true; }
     const dx=p.x-pl.ex, dz=p.z-pl.ez; if(dx*dx+dz*dz<margin*margin) return true;
   }
@@ -15304,7 +15414,11 @@ function trPermit(v,t){
     if(eta<3.2&&(o.nx.ok||o.sp>3)) return false;
   }
   // 5. pedestrians on the crossing / path
-  if(roadPeds.length&&(pedOnPath(pl,2.6+v.hw)||pedOnExitZebra(pl))) return false;
+  //    (after 12 s held only by people who are standing still, stop waiting for those:
+  //    the in-lane pedestrian logic below then takes the car past at walking pace)
+  if(roadPeds.length){ const still=nx.pT!==undefined&&t-nx.pT>12;
+    if(pedOnPath(pl,2.6+v.hw,still)||pedOnExitZebra(pl,still)){ if(nx.pT===undefined) nx.pT=t; return false; } }
+  nx.pT=undefined;
   // 6. anything else sitting on my swept path (a stopped car on an oblique arm,
   //    a shoved or stunned car, the player's car parked in the junction)
   const nd=nodes[N];
@@ -15351,7 +15465,7 @@ function driveVeh(v,dt,t){
   let dTurn=1e9;
   if(!T){
     const node=v.fwd?v.e.b:v.e.a;
-    if(!v.nx&&v.e.len-v.t<TR.LOOK) v.nx=planNext(v,node);
+    if(!v.nx&&v.e.len-v.t<Math.max(TR.LOOK,v.sp*v.sp*0.3+20)) v.nx=planNext(v,node);   // far enough ahead to brake gently from this speed
     if(v.nx) dTurn=v.e.len-v.nx.pl.R1-v.t;
   }
   // desired speed for this road class, this driver, and the curve ahead
@@ -15359,10 +15473,13 @@ function driveVeh(v,dt,t){
   let v0=edgeVmax(ce)*v.cruise/TR.DOWN;
   if(v.kind==='bus') v0=Math.min(v0,TR.DOWN*0.85);
   let curveA=1e9;                       // slow for the curve: reach its speed by the turn start, hold it through
-  if(T){ v0=Math.min(v0,T.vt); if(v.sp>T.vt) curveA=-(v.sp-T.vt)*2.5; }
-  else if(v.nx&&v.nx.pl.vt<v0){ const vt=v.nx.pl.vt;
-    v0=Math.min(v0,Math.sqrt(vt*vt+2*TR.B*0.75*Math.max(0,dTurn)));
-    if(v.sp>vt){ curveA=dTurn>0.5?-(v.sp*v.sp-vt*vt)/(2*dTurn)*1.15:-(v.sp-vt)*2.5; if(curveA>-0.3) curveA=1e9; } }
+  let cvt=1e9, cd=0;                    // the next speed target ahead (m/s) and the distance to it
+  if(T){ v0=Math.min(v0,T.vt); if(v.sp>T.vt) curveA=-(v.sp-T.vt)*2.5;
+    const n2=v.nx2; if(n2){ cvt=trCap(n2.pl); cd=(T.len-T.s)+Math.max(0,T.e.len-T.t2-n2.pl.R1); } }   // ...and the movement after this one
+  else if(v.nx){ cvt=trCap(v.nx.pl); cd=dTurn; }
+  if(cvt<v0){
+    v0=Math.min(v0,Math.sqrt(cvt*cvt+2*TR.B*0.75*Math.max(0,cd)));
+    if(v.sp>cvt){ const ca=cd>0.5?-(v.sp*v.sp-cvt*cvt)/(2*cd)*1.15:-(v.sp-cvt)*2.5; if(ca<=-0.3&&ca<curveA) curveA=ca; } }
   const pd=Math.hypot(player.x-v.x,player.z-v.z);
   const pullOver=wanted&&v.kind==='civ'&&!v.special&&!T&&!(v.nx&&v.nx.commit)&&(pd<26||(v.pulled&&pd<40));
   v.pulled=pullOver;
@@ -15378,13 +15495,13 @@ function driveVeh(v,dt,t){
       if(!T){
         if(!o.turn&&o.e===v.e&&o.fwd===v.fwd){ if(o.t>v.t) gap=o.t-v.t-hl; else continue; }
         else if(o.turn&&o.e===v.e&&o.fwd===v.fwd&&nx&&o.turn.node===nx.node){
-          if((o.turn.e===exE&&o.turn.fwd===exF)||o.turn.s<hl+1) gap=dTurn+o.turn.s-hl; else continue; }
+          if((o.turn.e===exE&&o.turn.fwd===exF)||o.turn.s<hl+1) gap=v.e.len-o.turn.pl.R1-v.t+o.turn.s-hl; else continue; }
       } else if(o.turn&&o.turn.node===T.node&&o.turn.mvI===T.mvI){ if(o.turn.s>T.s) gap=o.turn.s-T.s-hl; else continue; }
       if(gap===null&&exE&&(T||(nx&&nx.commit)||dTurn<25)){
         if(!o.turn&&o.e===exE&&o.fwd===exF&&o.t>=t2-o.hl-1) gap=toExit+(o.t-t2)-hl;
         else if(o.turn&&o.turn.e===exE&&o.turn.fwd===exF&&(T||nx.commit)){   // merging ahead of me (projected gap: IDM only)
           const orem=o.turn.len-o.turn.s; if(orem<toExit){ _trSrc=1000+o.uid; const ms=_trMinS; trObs(Math.max(0.5,toExit-orem-hl),o.sp); _trMinS=ms; } continue; }
-        else if(o.turn&&o.e===exE&&o.fwd===exF) gap=toExit+(exE.len-trafficR(exE)-t2)+o.turn.s-hl;
+        else if(o.turn&&o.e===exE&&o.fwd===exF) gap=toExit+(exE.len-o.turn.pl.R1-t2)+o.turn.s-hl;
       }
     }
     if(gap!==null){ _trSrc=1000+o.uid; if(gap<60) trObs(gap,o.sp); continue; }
@@ -15439,20 +15556,28 @@ function driveVeh(v,dt,t){
   _trSrc=6000;
   // ---- pedestrians on the carriageway ----
   // failsafe: after 10 s held by people who aren't moving, creep through at walking pace
-  const pedCreep=(v.pedHold||0)>10;
+  // (the failsafe used to reset itself the moment the car moved, so a car held in the
+  //  box by someone who never crossed blocked the junction for good: it now lasts
+  //  until no pedestrian is involved any more)
+  const pedCreep=(v.pedHold||0)>10; let pedSeen=false;
   for(let k=0;k<roadPeds.length;k++){ const p=roadPeds[k];
-    if(pedCreep&&p.vx*p.vx+p.vz*p.vz<0.04){ if(v.sp>1.0) trStop(0.5); continue; }
     const dx=p.x-px, dz=p.z-pz, f=dx*fx+dz*fz, lat=Math.abs(dx*fz-dz*fx);
-    if(f>-v.hl&&f<v.hl&&lat<v.hw+0.25){                               // contact despite braking
+    if(pedCreep&&p.vx*p.vx+p.vz*p.vz<0.04){
+      if(f>-v.hl&&f<30&&lat<v.hw+1.1){ pedSeen=true; if(v.sp>1.0) trStop(0.5); }
+      continue; }
+    if(f>-v.hl&&f<v.hl&&lat<v.hw+0.25){ pedSeen=true;                 // contact despite braking
       if(v.sp>1.2&&t-v.pedT>1){ v.pedT=t; if(typeof pedImpact==='function') pedImpact(p,fx*v.sp,fz*v.sp,v.sp); }
-      trObs(0,0); continue; }
-    if(f>0&&f<30&&lat<v.hw+1.1) trStop(f-v.hl-1.4);
-    if(T&&k===0&&T.pl&&pedOnExitZebra(T.pl)){ const d=T.pl.zs-v.hl-T.s;
-      if(d>-0.3&&v.sp*v.sp<2*6*Math.max(0.1,d)) trStop(d); }       // only if it can still stop before the stripes   // give way on the crossing I'm turning into
+      if(v.sp<0.6) trObs(0,0); else if(_trStopA>-9){ _trStopA=-9; _trOb=_trSrc; }   // emergency stop, not an instant one
+      continue; }
+    if(f>0&&f<30&&lat<v.hw+1.1){ pedSeen=true; trStop(f-v.hl-1.4); }
     if(T){ for(let i=Math.ceil(T.u*12);i<=12;i++){                 // remaining curve
         const ddx=p.x-T.S[i*2], ddz=p.z-T.S[i*2+1];
-        if(ddx*ddx+ddz*ddz<(v.hw+1.1)*(v.hw+1.1)){ const dd=i/12*T.len-T.s-v.hl-1.0; trStop(dd); if(dd<v.sp*v.sp/12) _trStopA=Math.min(_trStopA,-9); break; } } }
+        if(ddx*ddx+ddz*ddz<(v.hw+1.1)*(v.hw+1.1)){ const dd=i/12*T.len-T.s-v.hl-1.0; pedSeen=true; trStop(dd); if(dd<v.sp*v.sp/12) _trStopA=Math.min(_trStopA,-9); break; } } }
   }
+  // give way on the crossing I'm turning into, only if it can still stop before the stripes
+  if(T&&T.pl&&roadPeds.length&&pedOnExitZebra(T.pl)){ const d=T.pl.zs-v.hl-T.s;
+    if(pedCreep&&!pedOnExitZebra(T.pl,true)){ pedSeen=true; if(v.sp>1.0) trStop(0.5); }   // only people standing still: ease past
+    else if(d>-0.3&&v.sp*v.sp<2*6*Math.max(0.1,d)){ pedSeen=true; trStop(d); } }
   // ---- IDM acceleration, jerk-limited ----
   let free=v0>0.3?v.A*(1-Math.pow(v.sp/v0,4)):-TR.B;
   if(free<-TR.B) free=-TR.B;
@@ -15467,14 +15592,14 @@ function driveVeh(v,dt,t){
   v.sp+=v.ac*dt;
   if(v.sp<=0){ v.sp=0; if(v.ac<0) v.ac=0; }
   v.ob=_trOb;
-  v.pedHold=(_trOb===6000&&v.sp<0.5)?(v.pedHold||0)+dt:0;   // time held by pedestrians (creep failsafe)
+  v.pedHold=pedSeen?(v.pedHold||0)+((_trOb===6000&&v.sp<0.5)||pedCreep?dt:0):0;   // time held by pedestrians (creep failsafe)
   if(_trMinS<0.15&&v.sp>_trMinVl){ v.sp=Math.max(0,_trMinVl); if(v.ac>0) v.ac=0; }   // never drive into anything
   // ---- advance along the path ----
   if(T){
     bezAt(T.P,clamp(T.u,0,1),_bz);
     T.u+=v.sp*dt/Math.max(0.5,_bz.dl); T.s+=v.sp*dt;
     if(T.u>=1){
-      v.e=T.e; v.fwd=T.fwd; v.t=T.t2; v.turn=null; v.nx=null;
+      v.e=T.e; v.fwd=T.fwd; v.t=T.t2; v.turn=null; v.nx=v.nx2||null; v.nx2=null;
       if(v.kind==='bus'&&busStopNodes.has(T.node)) v.stopAt=BUS_STOP_T;
     }
   } else {
@@ -15488,6 +15613,9 @@ function driveVeh(v,dt,t){
         if(v.kind==='bus'&&n2.ri!==undefined) v.routeIdx=n2.ri;
         const pl=n2.pl;
         v.turn={P:pl.P,S:pl.S,pl,u:0,s:0,len:pl.len,e:pl.e,fwd:pl.fwd,t2:pl.t2,node,mvI:n2.mvI,type:pl.type,vt:pl.vt};
+        // choose the movement after this one now, so the car can already slow for it
+        // while turning (short exit edges leave no room to brake once the turn is over)
+        { const e0=v.e, f0=v.fwd; v.e=pl.e; v.fwd=pl.fwd; v.nx2=planNext(v,pl.fwd?pl.e.b:pl.e.a); v.e=e0; v.fwd=f0; }
       }
     }
   }
@@ -15563,8 +15691,14 @@ function updateTraffic(dt,t){
     if(!chase){
       if(v.nx&&!v.e) v.nx=null;
       const lp=vehPose(v,_vp), k=1-Math.exp(-12*dt);
+      // Heading comes from the car's own geometry rather than the path tangent: the rear
+      // axle (wb behind the centre) is dragged along behind the centre point, so the body
+      // pivots about its back wheels and the nose swings out, as a real car's does (most
+      // visible on the bus). It turns only as fast as it moves, never on the spot.
+      const wb=v.wb||(v.wb=v.hl*0.58), rx=v.x-Math.sin(v.a)*wb, rz=v.z-Math.cos(v.a)*wb;
       v.x+=(lp.x-v.x)*k; v.z+=(lp.z-v.z)*k;
-      v.a=lerpAngle(v.a,Math.atan2(lp.dx,lp.dz),1-Math.exp(-14*dt));
+      const hx=v.x-rx, hz=v.z-rz;
+      if(hx*hx+hz*hz>0.04) v.a=lerpAngle(v.a,Math.atan2(hx,hz),1);
     }
 
     // contact with the player
@@ -20156,6 +20290,6 @@ addEventListener('resize',()=>{
   if(meOn){ mecv.width=innerWidth; mecv.height=innerHeight; }
 });
 </script>
-<div id="buildver" style="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(2px + env(safe-area-inset-bottom));font:600 10px/1.2 ui-monospace,Menlo,monospace;color:#fff;opacity:.6;letter-spacing:.06em;pointer-events:none;z-index:2147483000;text-shadow:0 1px 2px #000">v0.40 · 26 Nov · no flyover, pickup close-up</div>
+<div id="buildver" style="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(2px + env(safe-area-inset-bottom));font:600 10px/1.2 ui-monospace,Menlo,monospace;color:#fff;opacity:.6;letter-spacing:.06em;pointer-events:none;z-index:2147483000;text-shadow:0 1px 2px #000">v0.41 · 26 Nov · roads + traffic pass</div>
 </body>
 </html>
