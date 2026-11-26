@@ -14,7 +14,7 @@
 <meta name="twitter:card" content="summary_large_image"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <link rel="apple-touch-icon" href="/sunset-city/square.png"/>
-<meta name="build-version" content="v0.41"/>
+<meta name="build-version" content="v0.42"/>
 <style>
   html,body{margin:0;padding:0;overflow:hidden;background:#1a1420;height:100%;touch-action:none;}
   canvas{display:block;}
@@ -189,7 +189,8 @@
   #hudbtns{position:fixed;top:calc(var(--st) + var(--tb) + var(--mmh) + var(--pad) + 14px);right:calc(var(--sr) + var(--pad));
     display:flex;flex-direction:column;align-items:flex-end;gap:8px;transition:top .28s ease;}
   #hudbtns>div{position:static;}
-  #helpbtn{padding:6px 11px;border-radius:14px;font-size:10px;font-weight:700;color:#ffe6c8;background:rgba(24,28,52,.7);
+  #astbtn.on{border-color:#8fd6a0;color:#d8f5df;}
+  #helpbtn,#astbtn{padding:6px 11px;border-radius:14px;font-size:10px;font-weight:700;color:#ffe6c8;background:rgba(24,28,52,.7);
     border:1px solid rgba(255,240,220,.5);cursor:pointer;user-select:none;}
   /* the objective: ONE slim line pinned to the very top edge; transient messages tick directly under it */
   #topc{position:fixed;top:calc(var(--st) + 16px);left:calc(var(--sl) + var(--lw));right:calc(var(--sr) + var(--mmc) + var(--pad) * 2 + 8px);
@@ -288,6 +289,7 @@
     <div id="mapbtn">MAP</div>
     <div id="stubtn">CAR</div>
     <div id="tripbtn">LOOK</div>
+    <div id="astbtn">ASSIST</div>
     <div id="helpbtn">?</div>
   </div>
   <div id="dlg"><div id="dlgname"></div><div id="dlgtext"></div><div id="dlgopts"></div></div>
@@ -15023,6 +15025,37 @@ function drawMinimap(t){
 }
 
 // ---------------- player ----------------
+// ================= ASSIST: steering help (v0.42) =================
+// With the stick near centre the car steers itself along the road it is on: it turns to the road's direction and
+// drifts toward its own (left-hand) lane, and it follows bends. The more you steer, the less it does, and at full
+// lock it does nothing. It lets go where the choice is yours: within a junction with three or more arms, when the
+// car points more than ~45 degrees off the road (you mean to turn), under the handbrake, reversing, off the road
+// and below walking pace. ASSIST button / K toggles it; the choice is remembered.
+const ASSIST={on:(()=>{ try{ return localStorage.getItem('sunsetAssist')!=='0'; }catch(_){ return true; } })(),ne:null,t:0,k:0};
+function steerAssist(dt,steer,vf,hb,fx,fz){
+  const A=ASSIST; let want=0;
+  if(!hb&&vf>2.5&&!player.dyn){
+    A.t-=dt; if(A.t<=0||!A.ne){ A.ne=nearestEdge(player.x,player.z).e; A.t=0.12; }
+    const e=A.ne;
+    if(e){ const r=distToEdge(player.x,player.z,e);
+      if(r.d<RW/2+1.2){
+        const endA=r.t, endB=e.len-r.t, nA=nodes[e.a], nB=nodes[e.b];
+        let w=1;                                                                  // let go inside real junctions
+        if(nA&&nA.adj.length>=3) w=Math.min(w,clamp((endA-RW*0.7)/7,0,1));
+        if(nB&&nB.adj.length>=3) w=Math.min(w,clamp((endB-RW*0.7)/7,0,1));
+        let dx=e.dx, dz=e.dz; if(dx*fx+dz*fz<0){ dx=-dx; dz=-dz; }                // the road, the way the car is going
+        let err=Math.atan2(dx,dz)-player.a; err=Math.atan2(Math.sin(err),Math.cos(err));
+        if(Math.abs(err)<0.8&&w>0){
+          const cx=e.ax+e.dx*r.t, cz=e.az+e.dz*r.t, lat=(player.x-cx)*dz-(player.z-cz)*dx;   // metres left of the centre line
+          const bias=clamp((CFG.LANE*0.85-lat)*0.07,-0.3,0.3);
+          want=clamp((err+bias)*2.6,-1,1)*w*clamp((vf-2.5)/6,0,1)*clamp((0.8-Math.abs(err))/0.25,0,1);
+        } } } }
+  else A.t=0;
+  want*=(1-Math.min(1,Math.abs(steer)*1.5))*0.9;                                   // your hand always wins
+  A.k+=(want-A.k)*Math.min(1,dt*9); return A.k;
+}
+function assistSet(on){ ASSIST.on=!!on; try{ localStorage.setItem('sunsetAssist',on?'1':'0'); }catch(_){}
+  const b=document.getElementById('astbtn'); if(b){ b.textContent=on?'ASSIST ON':'ASSIST OFF'; b.classList.toggle('on',!!on); } }
 function updatePlayer(dt,t){
   ctlDrive(dt);                                 // CTRL: on-screen stick -> touchAccel / touchBrake / touchSteer
   if(player.dyn) return dmgPlayerDyn(dt,t);     // DAMAGE: airborne / rolling / wrecked
@@ -15034,12 +15067,13 @@ function updatePlayer(dt,t){
   const rt=keys['d']||keys['arrowright'];
   const hb=keys[' ']||touchHand;
   let steer=(lf?1:0)-(rt?1:0);
-  if(steer===0) steer=touchSteer;             // keyboard overrides the stick
+  if(steer===0) steer=Math.sign(touchSteer)*Math.pow(Math.abs(touchSteer),1.5);   // keyboard overrides the stick; the stick is finer near its centre (v0.42)
 
   const fx=Math.sin(player.a),fz=Math.cos(player.a);
   const rx=-fz,rz=fx;
   let vf=player.vx*fx+player.vz*fz;
   let vl=player.vx*rx+player.vz*rz;
+  if(ASSIST.on) steer=clamp(steer+steerAssist(dt,steer,vf,hb,fx,fz),-1,1);     // ASSIST: holds the road when you are not steering
 
   const onMtn = mtnIn(player.x,player.z);                        // MTN: height alone does not mean tarmac there
   const onHard = onPavement(player.x,player.z) || (player.y>0.4&&!onMtn);   // tarmac / concrete / overpass
@@ -19074,6 +19108,9 @@ function tripSet(n){
   if(b){ b.textContent=TRIP_NAMES[T.lv]; b.classList.toggle('on',T.lv>0); }
   if(T.lv===0) tripDisposeTargets();
 }
+(function assistUI(){ const b=document.getElementById('astbtn'); if(!b) return; assistSet(ASSIST.on);
+  b.addEventListener('pointerdown',e=>{ e.stopPropagation(); e.preventDefault(); assistSet(!ASSIST.on); });
+  addEventListener('keydown',e=>{ if(e.target&&e.target.tagName==='TEXTAREA') return; if(e.key&&e.key.toLowerCase()==='k'&&!e.repeat&&!e.ctrlKey&&!e.metaKey) assistSet(!ASSIST.on); }); })();
 (function tripUI(){
   const b=document.getElementById('tripbtn'); if(!b) return;
   b.textContent=TRIP_NAMES[TRIP.lv]; b.classList.toggle('on',TRIP.lv>0);
@@ -19926,7 +19963,7 @@ function fx2Tick(dt){
 // anchor its ORIENTATION, so billboards and glows face the real view. godApply() swaps the far position, lens and
 // clip planes in for the render only; godRestore() puts the anchor back. C toggles it (off = the classic chase cam).
 // URL: ?god=0 off, ?span=<m> ground width at rest (short screen side), ?pitch=<deg> rest angle.
-const GOD={on:URLQ.get('god')!=='0', live:false, fovV:22, p0:42, p1:62, s0:48, s1:110, sf0:26, sf1:34,
+const GOD={on:URLQ.get('god')!=='0', live:false, fovV:22, p0:42, p1:62, s0:38, s1:88, sf0:21, sf1:27,   // v0.42: 20% closer (was 48/110, on foot 26/34)
   yaw:0, yawInit:false, fx:0, fy:0, fz:0, lx:0, lz:0, pitch:42, span:48, dist:200,
   pos:new THREE.Vector3(), quat:new THREE.Quaternion(), focus:new THREE.Vector3(), aPos:new THREE.Vector3(),
   aFov:58, aNear:0.1, aFar:800, fogN:0, fogF:0, swapped:false, M:new THREE.Matrix4(), up:new THREE.Vector3(0,1,0)};
@@ -20290,6 +20327,6 @@ addEventListener('resize',()=>{
   if(meOn){ mecv.width=innerWidth; mecv.height=innerHeight; }
 });
 </script>
-<div id="buildver" style="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(2px + env(safe-area-inset-bottom));font:600 10px/1.2 ui-monospace,Menlo,monospace;color:#fff;opacity:.6;letter-spacing:.06em;pointer-events:none;z-index:2147483000;text-shadow:0 1px 2px #000">v0.41 · 26 Nov · roads + traffic pass</div>
+<div id="buildver" style="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(2px + env(safe-area-inset-bottom));font:600 10px/1.2 ui-monospace,Menlo,monospace;color:#fff;opacity:.6;letter-spacing:.06em;pointer-events:none;z-index:2147483000;text-shadow:0 1px 2px #000">v0.42 · 26 Nov · closer camera, steer assist</div>
 </body>
 </html>
