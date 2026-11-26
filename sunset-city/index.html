@@ -14,7 +14,7 @@
 <meta name="twitter:card" content="summary_large_image"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <link rel="apple-touch-icon" href="/sunset-city/square.png"/>
-<meta name="build-version" content="v0.39"/>
+<meta name="build-version" content="v0.40"/>
 <style>
   html,body{margin:0;padding:0;overflow:hidden;background:#1a1420;height:100%;touch-action:none;}
   canvas{display:block;}
@@ -1004,6 +1004,9 @@ roadChain([cnode(0,-1),RS0],false);                            // south: the mot
 // traffic but NOT pushed to `edges`, so ground consumers (clearOfRoads, building lots, the audit's
 // ground-road model) never see them; MW.all lists every motorway edge, MW.sky the elevated ones.
 // Slips are one-way (e.oneway: a->b only) and two lanes wide (RW); traffic uses the nearside lane.
+// v0.40: the flyover is gone. MW_ON=false builds no motorway at all (no deck, ramps, slips or interchanges): the
+// graph keeps only ground streets, column 6 of the city gets its blocks back, and every MW consumer sees an empty set.
+const MW_ON=false;
 const MW={X:OVERPASS.cx,Y:OVERPASS.y+0.84,HW:OVERPASS.W/2,SHW:RW/2,OX:20,all:[],sky:[],bb:null};
 function edgeY(e,t){ const ya=nodes[e.a].y||0, yb=nodes[e.b].y||0; if(ya===yb) return ya;
   const s=clamp(t/e.len,0,1); return ya+(yb-ya)*s*s*(3-2*s); }
@@ -1018,6 +1021,7 @@ function splitEdge(e,x,z){ unlinkEdge(e); const n=addNode(x,z);
 function edgeThrough(x,z){ return edges.find(e=>e.len>1&&distToEdge(x,z,e).d<0.5&&
   Math.hypot(e.ax-x,e.az-z)>1&&Math.hypot(e.bx-x,e.bz-z)>1); }
 (function buildMotorwayGraph(){
+  if(!MW_ON){ MW.elev=[]; MW.elevN=[]; return; }
   const X=MW.X, Y=MW.Y, OX=MW.OX;
   const mn=(x,z,y)=>{ const n=addNode(x,z); nodes[n].y=y; nodes[n].mw=true; return n; };
   function me(a,b,o){ const e=addEdge(a,b); Object.assign(e,{mw:true,hw:MW.SHW},o||{});
@@ -3634,7 +3638,7 @@ const streetTrees=[];  // [x,z] of every pavement tree/palm (pits, keep-clear fo
   const FR=BS/2-3.2;                 // frontage line: 3.2 m pavement (kerb zone | walking line | shop zone)
   for(let i=0;i<CFG.N;i++)for(let j=0;j<CFG.N;j++){
     const cx=(L[i]+L[i+1])/2, cz=(L[j]+L[j+1])/2;
-    if(i===6) continue;  // column reserved for the north-south overpass highway
+    if(i===6&&MW_ON) continue;  // column reserved for the north-south overpass highway (v0.40: built on again)
     const SP={'0,3':'tower','4,0':'garage'}[i+','+j];
     const rr=Math.hypot(cx,cz)/HALF, core=rr<0.5, beach=cx<-100;
     const infillKind=()=>{ const q=Math.random();
@@ -5974,7 +5978,7 @@ const ruralAnim=[];   // animated rural props (turning windmills, wheeling crows
   let poleCol=0;
   const OVZ0=OVERPASS.z0-OVERPASS.RAMP, OVZ1=OVERPASS.z1+OVERPASS.RAMP;
   const spanHitsOverpass=(ax,az,bx,bz)=>{ for(let k=0;k<=10;k++){ const x=ax+(bx-ax)*k/10, z=az+(bz-az)*k/10;
-    if(Math.abs(x-OVERPASS.cx)<OVERPASS.W/2+2&&z>OVZ0&&z<OVZ1) return true; } return false; };
+    if(MW_ON&&Math.abs(x-OVERPASS.cx)<OVERPASS.W/2+2&&z>OVZ0&&z<OVZ1) return true; } return false; };
   for(const e of edges){
     if(polePos.length>=POLE_MAX) break;
     if(e.sub||e.mw) continue;                                   // suburb streets have their own lamps; the motorway its lamp columns
@@ -14355,7 +14359,8 @@ function sfxBullet(x,z,kind){                       // 0 wall, 1 car metal, 2 fl
   else { sfxPlay(B.thwack,v*0.3,rand(1.3,1.8),pan,dl); if(Math.random()<0.35) sfxPlay(B.rico,v*0.2,rand(0.9,1.4),pan,dl); }
 }
 function sfxHornPlay(buf,vol,rate,pan,dur,delay){ sfxPlay(buf,vol,rate,pan,delay||0,0.06,'lowpass',5200,dur); }
-function sfxHornPlayer(){ if(!SFX.ok||muted||!SFX.buf.horn2) return false; const t=AC.currentTime; if(t-SFX.hornT<0.3) return true; SFX.hornT=t;
+const HORN={n:0};                                   // v0.40: counts horn presses (the birds listen for it), sound or no sound
+function sfxHornPlayer(){ HORN.n++; if(!SFX.ok||muted||!SFX.buf.horn2) return false; const t=AC.currentTime; if(t-SFX.hornT<0.3) return true; SFX.hornT=t;
   sfxHornPlay(SFX.buf.horn2,0.3,carTorque?0.94:1,0,0.48); return true; }
 function sfxHornV(v){                               // a traffic car's own horn: pitch / type / length from its id
   if(!SFX.ok||muted||!SFX.buf.horn2) return; if(!v){ if(sfxRL('hornx',0.4)) sfxHornPlay(SFX.buf.horn1,0.1,rand(0.9,1.2),0,0.3); return; }
@@ -17610,6 +17615,7 @@ function birdBangs(t){
   if(fireCool>B.lastFC+0.05){ bx=player.x; bz=player.z; br=55; } B.lastFC=fireCool;
   if(footFireCool>B.lastFFC+0.05){ bx=foot.x; bz=foot.z; br=55; } B.lastFFC=footFireCool;
   if(typeof CFX!=='undefined'){ if(CFX.flash>0.85&&CFX.flash>B.lastFlash+0.2){ bx=CFX.flashP.x; bz=CFX.flashP.z; br=85; } B.lastFlash=CFX.flash; }
+  if(typeof HORN!=='undefined'&&HORN.n!==B.lastHorn){ if(B.lastHorn!==undefined&&!onFoot){ if(br>0) birdBang(bx,bz,br,t); bx=player.x; bz=player.z; br=75; } B.lastHorn=HORN.n; }   // the horn puts everything nearby up
   if(br>0) birdBang(bx,bz,br,t);
 }
 function birdBang(bx,bz,br,t){
@@ -19792,8 +19798,39 @@ const GOD={on:URLQ.get('god')!=='0', live:false, fovV:22, p0:42, p1:62, s0:48, s
   aFov:58, aNear:0.1, aFar:800, fogN:0, fogF:0, swapped:false, M:new THREE.Matrix4(), up:new THREE.Vector3(0,1,0)};
 (()=>{ const n=parseFloat(URLQ.get('span')); if(n>=10&&n<=400){ GOD.s1*=n/GOD.s0; GOD.s0=n; }
   const p=parseFloat(URLQ.get('pitch')); if(p>=20&&p<=85){ GOD.p1=Math.min(85,GOD.p1+p-GOD.p0); GOD.p0=p; } })();
+// PICK: the pickup close-up. While she greets the car, walks to it and climbs in, the god's-eye view cranes down to
+// a framed shot: on her while she is still far off, then her and the passenger door together, held ~2 s after the
+// door shuts. The camera stands off the line she walks, on the car's nose side, and picks the other side if that
+// spot is inside a building. It is a blend on top of GOD's pose, so everything else (render-only swap) is unchanged.
+const PICK={k:0,hold:0,seq:false,init:false,side:1,pos:new THREE.Vector3(),tgt:new THREE.Vector3(),wp:new THREE.Vector3(),wt:new THREE.Vector3()};
+function pickCamTick(dt){
+  let want=0; const S=typeof SOL!=='undefined'?SOL:null, st=S?S.state:'off', R=S?S.rig:null;
+  if(S&&R&&GOD.on&&!onFoot&&!freeCam&&pCar){
+    if(st==='greet'||st==='walk'){ want=1; PICK.seq=true; PICK.hold=2.1; }
+    else if(st==='ride'&&PICK.seq&&PICK.hold>0){ PICK.hold-=dt; want=1; }
+    else PICK.seq=false;
+  } else PICK.seq=false;
+  if(want){
+    // the camera stands on the kerb line ahead of the car's nose (behind its tail if a building is there), looking
+    // back down the passenger side: she walks into the shot from the venue and the door is always in it
+    const D=solDoor(), walking=R.g.parent===scene&&R.g.visible, hx=walking?R.g.position.x:D.x, hz=walking?R.g.position.z:D.z;
+    const gy=groundHeight(D.x,D.z,player.y||0), sep=Math.hypot(D.x-hx,D.z-hz);
+    const fx=Math.sin(player.a), fz=Math.cos(player.a);                                              // forward
+    let lx=D.x-player.x, lz=D.z-player.z; { const al=lx*fx+lz*fz; lx-=fx*al; lz-=fz*al; const l=Math.hypot(lx,lz)||1; lx/=l; lz/=l; }   // the door's side of the car, read from the door itself
+    const w=walking?0.72-0.4*clamp((sep-4)/14,0,1):1, tx=hx+(D.x-hx)*w, tz=hz+(D.z-hz)*w;          // far off: on her; close: on the door
+    if(!PICK.init){ PICK.side=1; const d=7.4;
+      if(solInBox(player.x+fx*d+lx*3.1,player.z+fz*d+lz*3.1,1.0)&&!solInBox(player.x-fx*d+lx*3.1,player.z-fz*d+lz*3.1,1.0)) PICK.side=-1; }
+    const ahead=(walking?7.4:6.0)*PICK.side, out=walking?3.1+Math.min(1.6,sep*0.12):2.5;
+    PICK.wp.set(player.x+fx*ahead+lx*out, gy+1.75+Math.min(0.9,sep*0.05), player.z+fz*ahead+lz*out);
+    { const inK=walking?0.6*clamp(1-sep/4,0,1):1.1; PICK.wt.set(tx-lx*inK,gy+1.15,tz-lz*inK); }      // as she reaches the door the shot settles on the cabin
+    if(!PICK.init){ PICK.pos.copy(PICK.wp); PICK.tgt.copy(PICK.wt); PICK.init=true; }
+    else { PICK.pos.lerp(PICK.wp,Math.min(1,dt*2.2)); PICK.tgt.lerp(PICK.wt,Math.min(1,dt*3.5)); }
+  }
+  PICK.k+=(want-PICK.k)*Math.min(1,dt*(want?2.4:1.7)); if(!want&&PICK.k<0.003){ PICK.k=0; PICK.init=false; }
+}
 function godCam(dt,x,y,z,yawT,spd,spdMax,vx,vz,foot,shake){
-  if(!GOD.on){ GOD.live=false; return; }
+  if(!GOD.on){ GOD.live=false; PICK.k=0; PICK.init=false; return; }
+  pickCamTick(dt);
   const k=clamp(spd/Math.max(1,spdMax),0,1), ke=k*k*(3-2*k);
   if(!GOD.yawInit||!GOD.live){ GOD.yaw=yawT; GOD.fx=x; GOD.fy=y; GOD.fz=z; GOD.lx=GOD.lz=0; GOD.yawInit=true;
     GOD.span=foot?GOD.sf0:GOD.s0; GOD.pitch=GOD.p0; }
@@ -19816,6 +19853,9 @@ function godCam(dt,x,y,z,yawT,spd,spdMax,vx,vz,foot,shake){
   GOD.focus.set(GOD.fx,GOD.fy,GOD.fz);
   const sh=(shake||0)*GOD.span*0.006;
   GOD.pos.set(GOD.fx-sy*h+rand(-sh,sh), GOD.fy+Math.sin(pr)*D+rand(-sh,sh), GOD.fz-cy*h+rand(-sh,sh));
+  GOD.fovNow=GOD.fovV;
+  if(PICK.k>0.001){ const k=PICK.k*PICK.k*(3-2*PICK.k); GOD.pos.lerp(PICK.pos,k); GOD.focus.lerp(PICK.tgt,k);
+    GOD.fovNow=GOD.fovV+((camera.aspect<1?50:34)-GOD.fovV)*k; GOD.dist=GOD.pos.distanceTo(GOD.focus); }
   GOD.M.lookAt(GOD.pos,GOD.focus,GOD.up); GOD.quat.setFromRotationMatrix(GOD.M);
   camera.quaternion.copy(GOD.quat); camera.updateMatrixWorld();             // the anchor keeps its place, takes the view's heading
   GOD.live=true;
@@ -19824,9 +19864,9 @@ function godApply(){
   if(!GOD.live||!GOD.on||GOD.swapped) return;
   GOD.aPos.copy(camera.position); GOD.aFov=camera.fov; GOD.aNear=camera.near; GOD.aFar=camera.far;
   camera.position.copy(GOD.pos); camera.quaternion.copy(GOD.quat);
-  camera.fov=GOD.fovV; camera.near=Math.max(1,GOD.dist*0.4); camera.far=GOD.dist*2.4+300;
+  camera.fov=GOD.fovNow||GOD.fovV; camera.near=PICK.k>0.25?0.5:Math.max(1,GOD.dist*0.4); camera.far=GOD.dist*2.4+300;
   camera.updateProjectionMatrix(); camera.updateMatrixWorld();
-  if(scene.fog){ GOD.fogN=scene.fog.near; GOD.fogF=scene.fog.far; const off=GOD.dist-16; scene.fog.near+=off; scene.fog.far+=off; }
+  if(scene.fog){ GOD.fogN=scene.fog.near; GOD.fogF=scene.fog.far; const off=Math.max(0,GOD.dist-16); scene.fog.near+=off; scene.fog.far+=off; }
   // the live shadow map now only carries what moves: centre it on what is actually in view
   sun.position.set(GOD.fx+LIGHT_OFF.x,LIGHT_OFF.y,GOD.fz+LIGHT_OFF.z); sun.target.position.set(GOD.fx,0,GOD.fz); sun.target.updateMatrixWorld();
   GOD.swapped=true;
@@ -20116,6 +20156,6 @@ addEventListener('resize',()=>{
   if(meOn){ mecv.width=innerWidth; mecv.height=innerHeight; }
 });
 </script>
-<div id="buildver" style="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(2px + env(safe-area-inset-bottom));font:600 10px/1.2 ui-monospace,Menlo,monospace;color:#fff;opacity:.6;letter-spacing:.06em;pointer-events:none;z-index:2147483000;text-shadow:0 1px 2px #000">v0.39 · 25 Nov · clear screen</div>
+<div id="buildver" style="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(2px + env(safe-area-inset-bottom));font:600 10px/1.2 ui-monospace,Menlo,monospace;color:#fff;opacity:.6;letter-spacing:.06em;pointer-events:none;z-index:2147483000;text-shadow:0 1px 2px #000">v0.40 · 26 Nov · no flyover, pickup close-up</div>
 </body>
 </html>
