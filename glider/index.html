@@ -75,6 +75,10 @@
   .mapTag { font-size: 11.5px; opacity: .75; margin: 6px 0 10px; }
   .mapStripe { height: 56px; border-radius: 9px; margin-bottom: 10px; }
   .alpineStripe { background: linear-gradient(105deg, #cfe8ff 0%, #9aa6b4 22%, #f4f7fb 38%, #5b8f3c 60%, #2a7a90 100%); }
+  .highStripe { background: linear-gradient(105deg, #dcecf7 0%, #8a8f9c 16%, #a8794f 30%, #7fb24a 50%, #e6d9a6 62%, #2f9bb5 78%, #1c4f7c 100%); }
+  #mapHighland { border-color: rgba(120,200,235,.45); }
+  #mapHighland:hover { border-color: #78c8eb; }
+  #mapHighland .mapGo { color: #9fdcf5; border-color: #78c8eb; }
   .coastStripe  { background: linear-gradient(105deg, #ddf2ff 0%, #e9e6df 26%, #86c34c 48%, #49cdd8 72%, #0e5e96 100%); }
   .mapBest { font-size: 12px; color: #ffd76a; margin-bottom: 10px; }
   .mapGo {
@@ -82,6 +86,21 @@
     color: #8de08a; border: 2px solid #8de08a; font-size: 13px;
   }
   #menuHint { margin-top: 24px; font-size: 12px; opacity: .65; letter-spacing: .06em; }
+  #menu { overflow-y: auto; -webkit-overflow-scrolling: touch; justify-content: safe center; padding: 12px 0; box-sizing: border-box; }
+  @media (max-height: 560px), (max-width: 640px) {
+    #menuTitle { font-size: 32px; }
+    #menuSub { margin: 0 0 10px; font-size: 11px; }
+    #menuCards { gap: 8px; padding: 0 8px; }
+    .mapCard { width: 130px; padding: 10px 8px 9px; border-radius: 12px; }
+    .mapName { font-size: 12px; letter-spacing: .06em; }
+    .mapTag { font-size: 9.5px; margin: 4px 0 6px; }
+    .mapStripe { height: 20px; margin-bottom: 6px; border-radius: 6px; }
+    .mapBest { font-size: 10.5px; margin-bottom: 7px; }
+    .mapGo { padding: 5px 14px; font-size: 11px; }
+    #menuHint { display: none; }
+    #menuMute { margin-top: 10px; }
+  }
+  body.winch #objective { top: 84px; padding: 0 12px; }
   #mapDaily { border-color: rgba(255,215,106,.45); }
   #mapDaily:hover { border-color: #ffd76a; }
   #mapDaily .mapGo { color: #ffd76a; border-color: #ffd76a; }
@@ -95,8 +114,20 @@
     font-size: 13px; color: #8de08a; letter-spacing: .14em; font-weight: 700;
     text-shadow: 0 2px 8px rgba(0,0,0,.6);
   }
-  body.school #objective { display: block; }
-  body.school.dead #objective, body.school.menu #objective { display: none !important; }
+  body.school #objective, body.winch #objective { display: block; }
+  body.school.dead #objective, body.school.menu #objective,
+  body.winch.dead #objective, body.winch.menu #objective { display: none !important; }
+  body.winch #objective { color: #9fdcf5; }
+  #btnLaunch {
+    position: absolute; left: 50%; bottom: 22%; transform: translateX(-50%); z-index: 12; display: none;
+    padding: 14px 34px; border-radius: 14px; border: 2px solid #9fdcf5; color: #fff; cursor: pointer;
+    background: rgba(12,22,36,.72); font: 700 17px "Trebuchet MS", sans-serif; letter-spacing: .2em;
+    user-select: none; -webkit-user-select: none; touch-action: none;
+  }
+  body.launchReady #btnLaunch, body.launchWire #btnLaunch { display: block; }
+  body.launchReady #btnLaunch { animation: launchPulse 1.5s ease-in-out infinite; }
+  @keyframes launchPulse { 50% { box-shadow: 0 0 26px rgba(159,220,245,.75); } }
+  body.menu #btnLaunch, body.dead #btnLaunch, body.paused #btnLaunch { display: none !important; }
   #mapSchool { border-color: rgba(141,224,138,.45); }
   #mapSchool:hover { border-color: #8de08a; }
   .schoolStripe { background: linear-gradient(105deg, #2a6de0 0%, #cfe8ff 30%, #9cc45a 62%, #f4f7f2 78%, #4f8f33 100%); }
@@ -246,6 +277,7 @@
 <div class="hud" id="liftbox"><span id="tarrow">&#10148;</span> <span id="tlabel">lift</span> <span id="tdist"></span></div>
 <div class="hud" id="coach"></div>
 <div class="hud" id="objective"></div>
+<div id="btnLaunch">LAUNCH</div>
 <div id="vvm"></div>
 <div class="hud" id="dailyTag">DAILY FLIGHT · <span id="dailyTagDate"></span></div>
 <div id="death">
@@ -287,6 +319,13 @@
       <div class="mapBest" id="bestCoastal">not yet flown</div>
       <div class="mapGo">FLY &#9656;</div>
     </div>
+    <div class="mapCard" id="mapHighland">
+      <div class="mapName">HIGHLAND LOCHS</div>
+      <div class="mapTag">winch launch · rivers, lochs &amp; sea · airfield to airfield</div>
+      <div class="mapStripe highStripe"></div>
+      <div class="mapBest" id="bestHighland">not yet flown</div>
+      <div class="mapGo">LAUNCH &#9656;</div>
+    </div>
     <div class="mapCard" id="mapDaily">
       <div class="mapName">DAILY FLIGHT</div>
       <div class="mapTag" id="dailyMeta">one seed per day · resets midnight UTC</div>
@@ -295,7 +334,7 @@
       <div class="mapGo">FLY &#9656;</div>
     </div>
   </div>
-  <div id="menuHint">1 / 2 / 3 / 4 or tap a card &nbsp;·&nbsp; M in flight returns here</div>
+  <div id="menuHint">1 – 5 or tap a card &nbsp;·&nbsp; M in flight returns here</div>
   <div id="menuMute">SOUND ON</div>
 </div>
 <script type="module">
@@ -622,6 +661,1763 @@ function buildWreck(THREE, glider) {
 //          // every frame: world.update(player.position, dt);
 //          // collision:   world.height(x, z)
 
+// highland.js — terrain generator for the GLIDER "highland" world.
+// West-Highland / fjord-coast landscape with explicit hydrology: one main
+// river down the corridor, a chain of lochs, tributary burns in side glens,
+// a ragged sea coast on the -X flank with firths that reach the river,
+// ridged mountains on the +X flank. ALL water is where height < 0.
+//
+// Plain script (no imports/exports): paste inline above createWorld().
+//   const gen = createHighlandGen(noise, seed);
+//   gen.height(x, z)        terrain height (m), generation space, pure
+//   gen.natural(x, z)       same, without the airfield flattening
+//   gen.riverCenter(z)      x of the flyable corridor centre
+//   gen.info(x, z, out)     per-point classification for colour / props
+//   gen.SPACING, gen.airfield(k)   grass airfields, one per SPACING of z
+//
+// Design: every water body is an explicit signed-distance shape ("sd" < 0
+// inside the water). Land = hLand * PRODUCT(bankFactor_i) + beachRamp, where
+// hLand > 0 everywhere, so there is never accidental noise-puddle water.
+function createHighlandGen(noise, seed) {
+  seed = (seed | 0);
+  const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+  const sstep = (e0, e1, v) => { let t = (v - e0) / (e1 - e0); t = t < 0 ? 0 : t > 1 ? 1 : t; return t * t * (3 - 2 * t); };
+  const SMIX = Math.imul(seed ^ 0x5bd1e995, 0x27d4eb2d) | 0;
+  function hash(i, salt) {                       // deterministic [0,1)
+    let h = Math.imul(i | 0, 0x9e3779b1) ^ Math.imul((salt | 0) + SMIX, 0x85ebca6b);
+    h ^= h >>> 15; h = Math.imul(h, 0x2c1b3c6d); h ^= h >>> 12; h = Math.imul(h, 0x297a2d39); h ^= h >>> 15;
+    return (h >>> 0) / 4294967296;
+  }
+
+  const SPACING = 2600;        // airfield spacing along z
+  const LEN = 380, WID = 46;   // runway
+  const PAD_A = LEN / 2 + 30, PAD_B = WID / 2 + 24, BLEND = 70;
+  const LP = 3700;             // loch interval
+  const TL = 1100;             // tributary interval
+  const NODE = 8;              // lattice spacing of the per-z (1D) functions
+
+  // ---------------------------------------------------------------- lochs
+  const lochCache = new Map();
+  function loch(i) {
+    let L = lochCache.get(i);
+    if (L) return L;
+    const half = 450 + 800 * Math.pow(hash(i, 13), 1.3);
+    L = {
+      i, exists: hash(i, 11) < 0.86,
+      zc: (i + 0.4 + 0.2 * hash(i, 12)) * LP,
+      half,
+      W: Math.min(70 + 170 * hash(i, 14), half * 0.4),
+      a: 0.8 + 0.9 * hash(i, 15),
+      asym: (hash(i, 16) - 0.5) * 1.1,
+      nd: hash(i, 17) < 0.62 ? 0.5 + 0.42 * hash(i, 18) : 0,     // a narrows
+      t0: (hash(i, 19) - 0.5) * 0.9,
+      nd2: hash(i, 20) < 0.3 ? 0.4 + 0.4 * hash(i, 21) : 0,      // sometimes a second
+      t1: (hash(i, 22) - 0.5) * 1.3,
+    };
+    if (lochCache.size > 400) lochCache.clear();
+    lochCache.set(i, L);
+    return L;
+  }
+  function lochHalfWidth(z) {
+    const L = loch(Math.floor(z / LP));
+    if (!L.exists) return 0;
+    const t = (z - L.zc) / L.half;
+    if (t <= -1 || t >= 1) return 0;
+    const b = 1 - t * t;
+    let w = L.W * Math.pow(b, L.a) * (1 + L.asym * t);
+    if (L.nd) { const q = (t - L.t0) / 0.14; w *= 1 - L.nd * Math.exp(-q * q); }
+    if (L.nd2) { const q = (t - L.t1) / 0.10; w *= 1 - L.nd2 * Math.exp(-q * q); }
+    return w * (1 + 0.28 * noise(91.3, z * 0.0045));
+  }
+
+  // ------------------------------------------- strath hints for airfields
+  // a wide flat valley floor ("strath") opens on one side near every
+  // airfield slot so the site search always has somewhere good to land on
+  function strathAt(z) {                         // signed: + = +X side, - = -X side
+    const k = Math.round(z / SPACING);
+    const zk = k * SPACING + (hash(k, 31) - 0.5) * 500;
+    const q = (z - zk) / 1150;
+    if (q <= -1 || q >= 1) return 0;
+    const b = 1 - q * q * q * q;                  // broad flat top: the strath is ~1.5 km long
+    return (hash(k, 32) < 0.5 ? -1 : 1) * b * b;
+  }
+
+  // ----------------------------------------------- 1D functions of z only
+  const NV = 16;
+  const I_CX = 0, I_RX = 1, I_SL = 2, I_CURV = 3, I_HW = 4, I_LW = 5, I_DEP = 6, I_BRAID = 7,
+        I_GORGE = 8, I_SLOW = 9, I_VR = 10, I_VL = 11, I_COAST = 12, I_SR = 13, I_SL2 = 14, I_STRATH = 15;
+  const corridor = (z) => 70 * noise(31.7, z * 0.0005) + 200 * noise(77.1, z * 0.00018);
+  const T1 = new Float64Array(NV);
+  function calc1D(z, o) {
+    const cx = corridor(z);
+    const lw = lochHalfWidth(z);
+    const lochness = sstep(4, 40, lw);
+    const st = strathAt(z), sta = Math.abs(st);
+    const gorge = sstep(0.38, 0.62, noise(55.5, z * 0.00075)) * (1 - lochness) * (1 - sstep(0.05, 0.5, sta));
+    const nbz = noise(13.3, z * 0.00095);
+    const braid = sstep(0.30, 0.55, nbz) * (1 - gorge) * (1 - lochness);
+    const slow = sstep(0.25, 0.60, -nbz) * (1 - lochness) * (1 - gorge);
+    const mAmp = (0.7 + 0.6 * slow + 0.1 * braid) * (1 - 0.6 * gorge) * (1 - 0.85 * lochness);
+    const m = 85 * noise(7.7, z * 0.0022) + 20 * noise(19.4, z * 0.007);
+    o[I_CX] = cx;
+    o[I_RX] = cx + mAmp * m;
+    o[I_LW] = lw;
+    o[I_HW] = (8 + 7 * (0.5 + 0.5 * noise(3.9, z * 0.0031))) * (1 - 0.35 * gorge) + 9 * slow + 30 * braid + lw;
+    o[I_DEP] = 2.4 + 1.2 * slow - 1.0 * braid + 1.0 * gorge + Math.min(12, lw * 0.085);
+    o[I_BRAID] = braid; o[I_GORGE] = gorge; o[I_SLOW] = slow;
+    o[I_VR] = (120 + 120 * (0.5 + 0.5 * noise(23.1, z * 0.0012))) * (1 - 0.3 * gorge) + (240 + 0.5 * lw) * Math.max(0, st);
+    o[I_VL] = (120 + 110 * (0.5 + 0.5 * noise(67.4, z * 0.0011))) * (1 - 0.3 * gorge) + (240 + 0.5 * lw) * Math.max(0, -st);
+    o[I_COAST] = cx - (760 + 170 * noise(41.9, z * 0.00085) + 22 * noise(83.2, z * 0.0031) + Math.max(0, -st) * (240 + lw));
+    o[I_SR] = 262 + 40 * noise(101.3, z * 0.0006);
+    o[I_SL2] = 95 + 50 * noise(113.9, z * 0.0007);
+    o[I_STRATH] = st;
+  }
+  const NCACHE = 4096;
+  const nodeIdx = new Int32Array(NCACHE).fill(0x7fffffff);
+  const nodeVal = new Float64Array(NCACHE * NV);
+  const TA = new Float64Array(NV), TB = new Float64Array(NV);
+  function node(idx) {                            // -> offset into nodeVal
+    const slot = idx & (NCACHE - 1), off = slot * NV;
+    if (nodeIdx[slot] === idx) return off;
+    const z = idx * NODE;
+    calc1D(z - NODE, TA); calc1D(z + NODE, TB); calc1D(z, T1);
+    for (let i = 0; i < NV; i++) nodeVal[off + i] = T1[i];
+    const d1 = (TB[I_RX] - TA[I_RX]) / (2 * NODE);
+    const d2 = (TB[I_RX] - 2 * T1[I_RX] + TA[I_RX]) / (NODE * NODE);
+    nodeVal[off + I_SL] = 1 / Math.sqrt(1 + d1 * d1);
+    nodeVal[off + I_CURV] = clamp(d2 * 110, -1, 1);
+    nodeIdx[slot] = idx;
+    return off;
+  }
+  // interpolated rows (Catmull-Rom between lattice nodes), memoised by exact z
+  const RSLOTS = 8;
+  const rowZ = new Float64Array(RSLOTS).fill(NaN);
+  const rows = []; for (let i = 0; i < RSLOTS; i++) rows.push(new Float64Array(NV));
+  function row(z) {
+    const s = Math.floor(z * 0.37) & (RSLOTS - 1);
+    const r = rows[s];
+    if (rowZ[s] === z) return r;
+    const f = z / NODE, i1 = Math.floor(f), t = f - i1;
+    const o0 = node(i1 - 1), o1 = node(i1), o2 = node(i1 + 1), o3 = node(i1 + 2);
+    const t2 = t * t, t3 = t2 * t;
+    const w0 = -0.5 * t3 + t2 - 0.5 * t, w1 = 1.5 * t3 - 2.5 * t2 + 1, w2 = -1.5 * t3 + 2 * t2 + 0.5 * t, w3 = 0.5 * t3 - 0.5 * t2;
+    for (let i = 0; i < NV; i++)
+      r[i] = w0 * nodeVal[o0 + i] + w1 * nodeVal[o1 + i] + w2 * nodeVal[o2 + i] + w3 * nodeVal[o3 + i];
+    if (r[I_HW] < 4) r[I_HW] = 4;                 // cubic overshoot guards
+    if (r[I_LW] < 0) r[I_LW] = 0;
+    rowZ[s] = z;
+    return r;
+  }
+  function riverCenter(z) { return row(z)[I_CX]; }
+
+  // ------------------------------------------------------- tributaries
+  // one per TL interval, alternating sides. +X side: a burn in a side glen
+  // cut into the mountains. -X side: a short burn, or (≈30%) a firth — an
+  // estuary that runs right through the coastal strip to the sea.
+  const tribCache = new Map();
+  function trib(i) {
+    let T = tribCache.get(i);
+    if (T) return T;
+    const side = ((i & 1) ? 1 : -1) * (hash(i, 41) < 0.18 ? -1 : 1);
+    const firth = side < 0 && hash(i, 42) < 0.46;
+    const s = (hash(i, 43) - 0.5) * (firth ? 0.6 : 0.7);
+    T = {
+      i, side, firth, s,
+      z0: (i + 0.2 + 0.6 * hash(i, 44)) * TL,
+      U0: firth ? 1e9 : (side > 0 ? 230 + 520 * hash(i, 45) : 130 + 220 * hash(i, 45)),   // length that holds water
+      w: 4.6 + 3.4 * hash(i, 46),                 // half-width (9–16 m channel)
+      gw: 60 + 60 * hash(i, 47),                  // glen half-width
+      a1: 11 + 11 * hash(i, 48), f1: 6.2832 / (150 + 100 * hash(i, 49)), p1: 6.2832 * hash(i, 50),
+      a2: 40 + 70 * hash(i, 51), f2: 6.2832 / (600 + 500 * hash(i, 52)), p2: 6.2832 * hash(i, 53),
+      Wf: 50 + 80 * hash(i, 54),                  // firth mouth half-width
+      pw: 6.2832 * hash(i, 55), gl: 350 + 500 * hash(i, 56),   // width wobble phase, glen length past the water
+      reach: 0,
+    };
+    T.reach = firth ? 1e9 : (side > 0 ? T.U0 + T.gl + 50 : 700);
+    T.zoff = -(T.a1 * Math.sin(T.p1) * 0.3 + T.a2 * Math.sin(T.p2));   // so zc(0) = z0
+    // keep the strath beside each airfield slot clear: no burn or firth crosses it
+    const k = Math.round(T.z0 / SPACING), zk = k * SPACING + (hash(k, 31) - 0.5) * 500;
+    T.dead = (hash(k, 32) < 0.5 ? -1 : 1) === side && Math.abs(T.z0 - zk) < 620;
+    if (tribCache.size > 600) tribCache.clear();
+    tribCache.set(i, T);
+    return T;
+  }
+
+  // ---------------------------------------------------- the core evaluator
+  // scratch outputs of ev()
+  let E_sdr = 0, E_sdt = 0, E_sds = 0, E_M = 0, E_r1 = 0, E_wall = 0, E_cliff = 0, E_bar = 0, E_isle = 0,
+      E_tfirth = 0, E_lochness = 0, E_side = 1, E_nb = 0, E_wn = 0, E_bump = 0, E_glen = 0, E_slow = 0, E_gorge = 0, E_pb = 0;
+
+  function ev(x, z) {
+    const r = row(z);
+    const nb = noise(x * 0.0011 + 3.1, z * 0.0011);
+    const wn = noise(x * 0.0043 - 8.2, z * 0.0043 + 1.7);
+    const n3 = noise(x * 0.03, z * 0.03);
+    const n8 = noise(x * 0.085, z * 0.085);
+    const bump = noise(x * 0.014 + 20.3, z * 0.0065 - 5.5);
+    const xw = x + 30 * wn + 4 * n3;
+
+    // ---- main river / loch
+    const rx = r[I_RX], lw = r[I_LW], gorge = r[I_GORGE], braid = r[I_BRAID], slow = r[I_SLOW];
+    const dxr = xw - rx, side = dxr >= 0 ? 1 : -1;
+    const lochness = sstep(4, 40, lw);
+    let hwE = r[I_HW];
+    let ad = (dxr >= 0 ? dxr : -dxr) * r[I_SL];
+    if (lw > 0 && ad < hwE + 140) {                // bays and points (a shoreline effect only)
+      hwE += lw * (0.30 * bump + 0.12 * n3) * (1 - sstep(20, 140, ad - hwE));
+      if (hwE < 3.5) hwE = 3.5;
+    }
+    // distance to the channel: exact-ish (slope-corrected) near the water; far away it hands
+    // over to the distance from the smooth corridor centre, so valley sides and glens do not
+    // copy every meander
+    if (ad > hwE + 40) {
+      let df = xw - r[I_CX]; if (df < 0) df = -df; if (df < hwE + 40) df = hwE + 40;
+      ad += (df - ad) * sstep(hwE + 40, hwE + 240, ad);
+    }
+    const sdr = ad - hwE;
+    const pb = clamp(r[I_CURV] * side, 0, 1) * (1 - lochness) * (1 - gorge);   // inside of a bend
+
+    // ---- sea
+    let sds = 999, cliff = 0;
+    const ds0 = xw - r[I_COAST];
+    if (ds0 < 520) {
+      // big bays and headlands + a finer octave of coves and points; headlands carry the cliffs
+      const nc = noise(x * 0.00095 + 60.1, z * 0.00095 - 13.3);
+      const nc2 = noise(x * 0.0032 - 71.7, z * 0.0032 + 44.4);
+      sds = ds0 + 200 * nc + 46 * nc2 + 8 * bump;
+      cliff = sstep(-0.15, 0.4, 0.6 * nc + 0.55 * nc2);
+    }
+
+    // ---- tributaries
+    let sdt = 999, glen = 0, gully = 0, tfirth = 0, tU = 0, tD = 1, tW = 0, tF = 0;
+    const it = Math.floor(z / TL);
+    for (let q = -1; q <= 1; q++) {
+      const T = trib(it + q);
+      if (T.dead) continue;
+      const u = side === T.side ? sdr : -(ad + hwE);
+      if (u < -70 || u > T.reach) continue;
+      const lin = z - T.z0 - T.zoff - T.s * u;
+      if (lin > 470 || lin < -470) continue;
+      const env = 0.3 + 0.7 * sstep(0, 120, u);
+      const ph1 = u * T.f1 + T.p1, ph2 = u * T.f2 + T.p2;
+      const dzr = lin - T.a1 * env * Math.sin(ph1) - T.a2 * Math.sin(ph2);
+      const dd = T.s + T.a1 * env * T.f1 * Math.cos(ph1) + T.a2 * T.f2 * Math.cos(ph2);
+      const dz = (dzr >= 0 ? dzr : -dzr) / Math.sqrt(1 + dd * dd);
+      let w, sd;
+      if (T.firth) {
+        const D = Math.max(200, r[I_CX] - r[I_COAST] - r[I_HW]);          // shore-to-coast distance (smooth in z)
+        w = T.w + 6 + 5 * sstep(0, 200, u) + T.Wf * sstep(0.08 * D, 0.75 * D, u) * (1 + 0.35 * Math.sin(u * 0.011 + T.pw));
+        if (u < 0) w += u * 0.6;
+        else if (u > D + 80) w -= (u - D - 80) * 0.7;               // the firth ends in the open sea
+        sd = dz - w;
+        if (sd < sdt) { sdt = sd; tfirth = sstep(0.15 * D, 0.45 * D, u); tU = u; tD = D; tW = w; tF = 1; }
+      } else {
+        w = T.w * (1 + 0.9 * Math.exp(-Math.max(0, u) / 45));
+        let head = (T.U0 - u) * 0.12; if (head < 0) head *= 5; if (head < w) w = head;
+        if (u < 0) w += u * 0.6;
+        sd = dz - w;
+        if (sd < sdt) { sdt = sd; tfirth = 0; tW = w; tF = 0; }
+        if (T.side > 0) {                        // the glen keeps climbing after the water stops
+          const gq = dz / T.gw;
+          if (gq < 2.6) {
+            const g = Math.exp(-gq * gq) * sstep(-40, 60, u) * (1 - 0.45 * sstep(T.U0 * 0.5, T.U0 + 60, u)) * (1 - sstep(T.U0 + 60, T.U0 + T.gl, u));
+            if (g > glen) glen = g;
+            const gy = Math.exp(-(dz * dz) / 60) * sstep(T.U0 - 40, T.U0 + 40, u) * (1 - sstep(T.U0 + 200, T.U0 + T.gl, u));
+            if (gy > gully) gully = gy;
+          }
+        }
+      }
+    }
+
+    // ---- land surface (always > 0)
+    const acx = xw - r[I_CX];
+    const V = side > 0 ? r[I_VR] : r[I_VL];
+    let M = sstep(V, V + 280, sdr) * sstep(120, 320, acx >= 0 ? acx : -acx);
+    const pbump = bump > 0 ? bump * bump : 0;
+    let wall = 0;
+    let hl = 3.2 + 3.0 * (0.5 + 0.5 * nb) + 11 * pbump * (1 - 0.6 * M);
+    if (gorge > 0) { wall = gorge * sstep(5, 40, sdr); hl += 24 * wall * (0.8 + 0.2 * wn) * (1 - 0.45 * sstep(90, 300, sdr)); wall *= 1 - sstep(45, 110, sdr); }
+    let r1 = 0;
+    if (M > 0) {
+      M *= 1 - 0.93 * glen;
+      const mx = x + 26 * wn, mz = z + 70 * nb;
+      let a = noise(mx * 0.0012 + 5.1, mz * 0.0012 - 3.7); r1 = 1 - (a >= 0 ? a : -a);
+      const a2 = noise(mx * 0.0037 - 11.4, mz * 0.0037 + 9.9); const r2 = 1 - (a2 >= 0 ? a2 : -a2);
+      const S = side > 0 ? r[I_SR] : r[I_SL2];
+      // r1: massif ridge network (aretes on the crest, bowl-shaped corrie floors between);
+      // a2 undulates the crest into tops and cols, r2 adds spurs and buttresses
+      // profile across a ridge: flat bowl floor -> steep headwall -> shoulder -> sharp crest
+      const prof = 0.58 * sstep(0.10, 0.90, r1) + 0.42 * r1 * r1 * r1;
+      let mh = 20 + S * (0.71 + 0.29 * nb) * prof * (0.62 + 0.26 * a2 + 0.17 * r2 * r2);
+      if (mh > 190) mh = 190 + 48 * (1 - Math.exp((190 - mh) / 48));      // soft summit ceiling ~238 m
+      hl += M * mh;
+    }
+    hl += (1.6 + 1.5 * M) * n3 + (0.8 + 0.4 * M) * n8 - 3.2 * gully;
+    if (sds < 250) {                              // raised-beach bench near the coast
+      const tb = (1 - sstep(60, 250, sds)) * (0.55 + 0.45 * wn);
+      if (tb > 0) { const d = hl - 9; hl -= tb * 4.8 * d / Math.sqrt(d * d + 23); }
+    }
+    if (hl < 3) hl = 1.5 + 1.5 * Math.exp((hl - 3) / 1.5);
+
+    // ---- combine: water where any sd < 0, else banked land
+    let h, bar = 0, isle = 0;
+    if (sdr < 0 || sdt < 0 || sds < 0) {
+      h = 1e9;
+      if (sdr < 0) {
+        const dpt = -sdr;
+        let bed = -r[I_DEP] * sstep(0, (4 + 0.22 * lw + 0.25 * hwE) * (1 + 1.6 * pb), dpt);
+        if (braid > 0.02 && dpt > 3) {            // gravel bars; both bank channels stay open
+          const nbar = noise(x * 0.034 + 7.7, z * 0.0085 + 3.3);
+          bar = braid * sstep(0.02, 0.4, nbar + 0.25 * n3) * sstep(3.5, 7.5, dpt);
+          bed += bar * (0.75 + 0.3 * n8 - bed);
+        }
+        if (lw > 40 && dpt > 20) {                // wooded loch islands
+          const iv = 0.6 * bump + 0.6 * wn, ik = sstep(22, 55, dpt) * sstep(40, 65, lw);
+          bed += sstep(0.22, 0.48, iv) * ik * (-1.4 - bed);              // shoal the island stands on
+          isle = sstep(0.44, 0.70, iv) * ik;
+          if (isle > 0) bed += isle * (3.5 + 5 * isle + 2 * n3 + n8 - bed);
+        }
+        h = bed;
+      }
+      if (sdt < 0) {
+        const dpt = -sdt;
+        let bed;
+        if (tF) {                                 // firth: deepening seaward, tidal flats
+          bed = -(1.6 + 5 * sstep(0.3 * tD, tD, tU)) * sstep(0, 5 + 0.3 * tW, dpt);
+          if (dpt > 4) {
+            const nbar = noise(x * 0.021 - 17.7, z * 0.021 + 31.3);
+            const fl = sstep(0.12, 0.5, nbar + 0.2 * n3) * sstep(4, 14, dpt) * sstep(20, 34, tW);
+            if (fl > bar) bar = fl;
+            bed += fl * (0.55 + 0.25 * n8 - bed);
+          }
+        } else bed = -1.7 * sstep(0, 3.5, dpt);
+        if (bed < h) h = bed;
+      }
+      if (sds < 0) {
+        const dpt = -sds;
+        let bed = -(3.2 * sstep(0, 105 - 60 * cliff, dpt) + (19 + 3 * nb) * sstep(80, 380, dpt));
+        if (dpt > 8) {
+          const sk = sstep(0.70, 1.02, n3 + 0.45 * bump) * sstep(8, 40, dpt) * (1 - sstep(75, 125, dpt));   // skerries on the shelf
+          if (sk > 0) { bed += sk * (2.0 + n8 - bed); isle = Math.max(isle, sk); }
+          if (dpt > 30) {
+            const ni = noise(x * 0.0031 - 44.7, z * 0.0031 + 27.2);
+            const p = 0.8 * ni + 0.2 * bump + 0.55 * nb - 0.22 - 0.8 * (1 - sstep(30, 170, dpt));
+            if (p > 0.14) {
+              bed *= 1 - sstep(0.14, 0.34, p);
+              if (p > 0.34) {
+                const e = p - 0.34, li = sstep(0, 0.12, e);
+                bed += 40 * (1 - Math.exp(-e * 3)) * (0.8 + 0.2 * wn) + li * (1.4 * n3 + 0.7 * n8);
+                isle = 1;
+              }
+            }
+          }
+        }
+        if (bed < h) h = bed;
+      }
+      // bars and islands (h > 0 inside a water body) sink away toward any other body's edge
+      if (h > 0) {
+        if (sdr >= 0 && sdr < 30) h *= sstep(0, 30, sdr);
+        if (sdt >= 0 && sdt < 30) h *= sstep(0, 30, sdt);
+        if (sds >= 0 && sds < 30) h *= sstep(0, 30, sds);
+      }
+    } else {
+      // main-river bank: flood plain, point bars on the inside of bends, tight in gorges
+      let Br = (32 + 38 * slow + 34 * lochness) * (1 - 0.74 * gorge);
+      const Bmin = 0.7 * hl;                       // bank width scales with the height it climbs: keeps 1 m steps < 6 m
+      if (Br < Bmin) Br = Bmin;
+      const Lr = sstep(pb * 22, Br + pb * 22, sdr);
+      let ramp = sdr * (0.30 - 0.25 * pb - 0.16 * lochness * (0.5 - 0.5 * bump));
+      let L = Lr;
+      const tWide = tF * sstep(16, 30, tW);         // a wide firth has broad, gently shelving shores
+      let Bt = 26 + tWide * (8 + 0.4 * tW); if (Bt < Bmin) Bt = Bmin < 150 ? Bmin : 150;
+      if (sdt < Bt) {
+        L *= sstep(0, Bt, sdt);
+        const rt = sdt * (0.30 - 0.23 * tWide); if (rt < ramp) ramp = rt;
+      }
+      let Bs = 135 - 122 * cliff; if (Bs < 2.6 * Bmin) Bs = 2.6 * Bmin;
+      if (sds < Bs) {
+        L *= sstep(0, Bs, sds);
+        const rs = sds * (0.035 + 0.5 * cliff * cliff); if (rs < ramp) ramp = rs;
+      }
+      if (ramp > 2.2) ramp = 2.2;
+      h = hl * L + ramp;
+    }
+
+    E_sdr = sdr; E_sdt = sdt; E_sds = sds; E_M = M; E_r1 = r1; E_wall = wall; E_cliff = cliff; E_bar = bar;
+    E_isle = isle; E_tfirth = tfirth; E_lochness = lochness; E_side = side; E_nb = nb; E_wn = wn; E_bump = bump;
+    E_glen = glen; E_slow = slow; E_gorge = gorge; E_pb = pb;
+    return h;
+  }
+
+  // ------------------------------------------------------------ airfields
+  // Site search. The natural terrain around the slot is sampled ONCE onto a coarse grid
+  // (sheared to follow the corridor), every candidate is then judged by table look-ups,
+  // and the winner is verified against the exact function before it is accepted.
+  const afCache = new Map();
+  const GS = 30, GROWS = 75, GCOLS = 63, GZH = (GROWS - 1) / 2 * GS, GUH = (GCOLS - 1) / 2 * GS;
+  const gH = new Float32Array(GROWS * GCOLS), gS = new Float32Array(GROWS * GCOLS), gC = new Float64Array(GROWS);
+  let gZ0 = 0;
+  function gIdx(x, z) {                            // nearest grid node, -1 outside
+    const j = Math.round((z - gZ0) / GS);
+    if (j < 0 || j >= GROWS) return -1;
+    const i = Math.round((x - gC[j] + GUH) / GS);
+    return (i < 0 || i >= GCOLS) ? -1 : j * GCOLS + i;
+  }
+  let scenicW = 0.06;
+  function trySite(cx, cz, hd, mode) {             // mode 0 strict, 1 relaxed, 2 dry footprint only
+    const strict = mode === 0;
+    const sh = Math.sin(hd), ch = Math.cos(hd);
+    const A = PAD_A + BLEND + 14, B = PAD_B + BLEND + 14;
+    let q;
+    for (let a = -2; a <= 2; a++)                  // coarse reject
+      for (let b = -1; b <= 1; b++) {
+        q = gIdx(cx + sh * a * A * 0.5 + ch * b * B, cz + ch * a * A * 0.5 - sh * b * B);
+        if (q < 0 || gH[q] < 1.2 || (b === 0 && gH[q] > 40) || gS[q] < 23) return null;
+      }
+    let sum = 0, n = 0, lo = 1e9, hi = -1e9, minShore = 1e9;
+    for (let a = -A; a <= A + 0.01; a += 26)       // grid nodes under the footprint: dry, > 23 m from water
+      for (let b = -B; b <= B + 0.01; b += 26) {
+        q = gIdx(cx + sh * a + ch * b, cz + ch * a - sh * b);
+        if (q < 0) return null;
+        const hh = gH[q], shore = gS[q];
+        if (hh < 0.8 || shore < 23) return null;
+        if (shore < minShore) minShore = shore;
+        if (Math.abs(a) <= PAD_A && Math.abs(b) <= PAD_B) { sum += hh; n++; if (hh < lo) lo = hh; if (hh > hi) hi = hh; }
+      }
+    const h = clamp(sum / n + 1.0, 5.5, 29);
+    if (mode < 2 && (hi - h > (strict ? 13 : 22) || h - lo > (strict ? 9 : 14))) return null;
+    const slope = strict ? 1 / 8 : 1 / 7.15;       // margin over the required 1:7 (the exact check follows)
+    if (mode < 2) for (let e = -1; e <= 1; e += 2)
+      for (let s = 20; s <= 500; s += 20) {
+        const a = e * (LEN / 2 + s), lim = h + s * slope - (strict ? 1.5 : 0.8);
+        for (let b = -28; b <= 28; b += 28) {
+          q = gIdx(cx + sh * a + ch * b, cz + ch * a - sh * b);
+          if (q < 0 || gH[q] > lim) return null;
+        }
+      }
+    return { x: cx, z: cz, heading: hd, h, relaxed: mode,
+             cost: (hi - lo) + Math.abs(minShore - 60) * scenicW + Math.abs(hd) * 6 };
+  }
+  function verifySite(c) {                         // exact check of everything the brief demands
+    const sh = Math.sin(c.heading), ch = Math.cos(c.heading);
+    const A = PAD_A + BLEND + 4, B = PAD_B + BLEND + 4;
+    for (let a = -A; a <= A + 0.01; a += 15)
+      for (let b = -B; b <= B + 0.01; b += 15)
+        if (ev(c.x + sh * a + ch * b, c.z + ch * a - sh * b) < 0.5 || E_sdr < 7 || E_sdt < 7 || E_sds < 7) return false;
+    // climb-out / approach surfaces (1:7 from each runway end, 500 m) against the terrain as it
+    // will be once the pad is flattened in: h + (natural - h) * (1 - padWeight)
+    if (c.relaxed < 2) for (let e = -1; e <= 1; e += 2)
+      for (let s = 10; s <= 500; s += 10) {
+        const a = e * (LEN / 2 + s), lim = c.h + s / 7 - 0.5;
+        for (let b = -24; b <= 24; b += 12) {
+          let hh = ev(c.x + sh * a + ch * b, c.z + ch * a - sh * b);
+          const d = s - 30;                        // distance beyond the level pad (|b| < PAD_B here)
+          if (d < BLEND) { if (d <= 0) continue; const t = d / BLEND; hh = c.h + (hh - c.h) * (t * t * (3 - 2 * t)); }
+          if (hh > lim) return false;
+        }
+      }
+    if (c.k0 && c.relaxed < 2) {                                    // launch site: nothing over ~110 m straight ahead for 1500 m
+      for (let s = 0; s <= 1500; s += 25)
+        for (let b = -75; b <= 75; b += 25)
+          if (ev(c.x + sh * s + ch * b, c.z + ch * s - sh * b) > 108) return false;
+    }
+    return true;
+  }
+  function airfield(k) {
+    k = Math.round(k);
+    let af = afCache.get(k);
+    if (af) return af;
+    const zk = k * SPACING + (hash(k, 31) - 0.5) * 500;
+    const pref = hash(k, 32) < 0.5 ? -1 : 1;
+    gZ0 = zk - GZH;
+    for (let j = 0, o = 0; j < GROWS; j++) {
+      const z = gZ0 + j * GS, c = gC[j] = corridor(z);
+      for (let i = 0; i < GCOLS; i++, o++) { gH[o] = ev(c - GUH + i * GS, z); gS[o] = Math.min(E_sdr, E_sdt, E_sds); }
+    }
+    scenicW = k === 0 ? 0.25 : 0.06;                // the launch site should sit close to the water
+    const cands = [];
+    // pass 0: strict limits, 3 headings; pass 1: strict, the 2 extra headings; pass 2: relaxed
+    // limits; pass 3 (never needed in testing): any dry footprint, approach surfaces not assured
+    for (let pass = 0; pass < 4 && !cands.length; pass++)
+      for (let dz = -420; dz <= 420; dz += 70) {
+        const cz = zk + dz;
+        const base = clamp(Math.atan((corridor(cz + 150) - corridor(cz - 150)) / 300), -0.3, 0.3);
+        for (let sd = 0; sd < 2; sd++) {
+          const side = sd ? -pref : pref;
+          for (let lat = 150; lat <= 670; lat += 40)
+            for (let hv = pass ? -2 : -1; hv <= (pass ? 2 : 1); hv++) {
+              if (pass === 1 && hv >= -1 && hv <= 1) continue;
+              const s = trySite(corridor(cz) + side * lat, cz, clamp(base + hv * 0.14, -0.35, 0.35), pass < 2 ? 0 : pass - 1);
+              if (s) { s.cost += Math.abs(dz) * 0.004 + sd * 2.5; cands.push(s); }
+            }
+        }
+      }
+    cands.sort((a, b) => a.cost - b.cost);
+    let best = null;
+    for (let i = 0; i < cands.length && i < 40 && !best; i++) { cands[i].k0 = k === 0; if (verifySite(cands[i])) best = cands[i]; }
+    if (!best && cands.length) { best = cands[0]; best.relaxed = 3; }
+    if (!best) {
+      // last resort (never hit in testing): driest low spot on the preferred side
+      let bc = 1e9;
+      for (let dz = -420; dz <= 420; dz += 60)
+        for (let lat = 150; lat <= 400; lat += 25) {
+          const cz = zk + dz, cx = corridor(cz) + pref * lat;
+          const hh = ev(cx, cz), c = (hh < 3 ? 100 : 0) + Math.abs(hh - 10);
+          if (c < bc) { bc = c; best = { x: cx, z: cz, heading: 0, h: clamp(hh, 5.5, 29), relaxed: 4 }; }
+        }
+    }
+    af = { k, x: best.x, z: best.z, heading: best.heading, h: best.h, len: LEN, wid: WID,
+           relaxed: best.relaxed, sh: Math.sin(best.heading), ch: Math.cos(best.heading) };
+    if (afCache.size > 256) afCache.clear();
+    afCache.set(k, af);
+    return af;
+  }
+  // airfield flattening weight at (x,z): 1 on the pad, 0 beyond the blend; sets AF_cur
+  let AF_cur = null;
+  const AF_REACH = Math.hypot(PAD_A, PAD_B) + BLEND + 2;
+  function afWeight(x, z) {
+    const k = Math.round(z / SPACING);
+    const dzk = z - k * SPACING;
+    if (dzk > 250 + 420 + AF_REACH || dzk < -(250 + 420 + AF_REACH)) return 0;
+    const af = airfield(k);
+    const dx = x - af.x, dz = z - af.z;
+    if (dx > AF_REACH || dx < -AF_REACH || dz > AF_REACH || dz < -AF_REACH) return 0;
+    let a = dx * af.sh + dz * af.ch, b = dx * af.ch - dz * af.sh;
+    if (a < 0) a = -a; if (b < 0) b = -b;
+    const da = a - PAD_A, db = b - PAD_B;
+    AF_cur = af;
+    if (da <= 0 && db <= 0) return 1;
+    const d = da <= 0 ? db : db <= 0 ? da : Math.sqrt(da * da + db * db);
+    if (d >= BLEND) return 0;
+    const t = d / BLEND;
+    return 1 - t * t * (3 - 2 * t);
+  }
+
+  function height(x, z) {
+    const w = afWeight(x, z);
+    if (w === 1) return AF_cur.h;
+    const h = ev(x, z);
+    return w > 0 ? h + (AF_cur.h - h) * w : h;
+  }
+
+  // ------------------------------------------------------------------ info
+  // out.h        final terrain height (same as gen.height)
+  // out.water    1 if under water (h < 0) else 0
+  // out.kind     nearest water body: 0 none within 200 m, 1 river/burn, 2 loch, 3 sea/firth
+  // out.shore    approx horizontal distance (m) to the nearest designed shoreline,
+  //              +ve on land, -ve in water, clamped to ±200 (islands/bars: see isle/bar)
+  // out.wet      0..1 marsh / flood-plain
+  // out.moor     0..1 heather / bracken moorland
+  // out.rock     0..1 crag / exposed rock (independent of triangle slope)
+  // out.field    0..1 cultivated valley floor (crofts, meadows, near airfields)
+  // out.airfield 0..1, 1 on the flattened pad
+  // out.bar      0..1 gravel bar / tidal flat (shingle rather than sand)
+  // out.isle     0..1 loch island, sea island or skerry
+  // out.cliff    0..1 sea-cliff coast (0 = beach coast); meaningful near the sea
+  // out.mtn      0..1 mountain mask
+  // out.sea      0..1 how marine the nearest water is (firths blend river→sea)
+  // out.side     +1 mountain flank / -1 sea flank of the main river
+  function info(x, z, out) {
+    const w = afWeight(x, z);
+    let h = ev(x, z);
+    const natural = h;
+    if (w > 0) h = w === 1 ? AF_cur.h : h + (AF_cur.h - h) * w;
+    let kind = 0, shore = E_sdr, sea = 0;
+    kind = E_lochness > 0.5 ? 2 : 1;
+    if (E_sdt < shore) { shore = E_sdt; kind = E_tfirth > 0.5 ? 3 : 1; sea = E_tfirth; }
+    if (E_sds < shore) { shore = E_sds; kind = 3; sea = 1; }
+    else if (E_sds < shore + 120) sea = Math.max(sea, 1 - (E_sds - shore) / 120);
+    if (shore > 200) { shore = 200; kind = 0; } else if (shore < -200) shore = -200;
+    const land = h >= 0;
+    const M = E_M;
+    let wet = 0, moor = 0, rock = 0, field = 0;
+    if (land) {
+      const low = 1 - sstep(1.0, 3.6, natural);
+      wet = low * (1 - sstep(8, 70, shore)) * (0.55 + 0.45 * E_slow + 0.3 * E_lochness) * sstep(-0.5, 0.2, E_bump + 0.3 * E_wn + 0.2) * (1 - 0.8 * sea) * (1 - E_pb);
+      if (wet > 1) wet = 1;
+      rock = Math.max(E_wall * sstep(4, 12, h), M * sstep(0.82, 0.97, E_r1) * sstep(70, 125, h),
+                      E_cliff * (1 - sstep(8, 46, E_sds)) * sstep(2.5, 6, h), E_isle * E_isle * (h < 4 ? 1 : 0.25));
+      moor = sstep(14, 38, h + 9 * E_wn) * (1 - 0.6 * rock);
+      const croft = Math.max(sstep(0.3, 0.5, E_nb * E_side + 0.3 * E_wn), w, sstep(0.55, 0.95, Math.abs(row(z)[I_STRATH])) * sstep(-0.5, 0.1, E_wn));
+      field = Math.pow(1 - M, 6) * sstep(2.4, 4.2, h) * (1 - sstep(11, 17, h)) * (1 - wet) * croft * (1 - E_wall) * (1 - E_isle) * (1 - moor) * (1 - moor);
+    }
+    out.h = h; out.water = land ? 0 : 1; out.kind = kind; out.shore = shore; out.wet = wet; out.moor = moor;
+    out.rock = rock; out.field = field; out.airfield = w; out.bar = E_bar; out.isle = E_isle; out.cliff = E_cliff;
+    out.mtn = M; out.sea = sea; out.side = E_side;
+    return out;
+  }
+
+  // a correctly shaped, reusable info object (same hidden class for every instance: keeps
+  // info() fast when a caller keeps thousands of them, e.g. one per chunk vertex)
+  function newInfo() {
+    return { h: 0, water: 0, kind: 0, shore: 0, wet: 0, moor: 0, rock: 0, field: 0, airfield: 0, bar: 0, isle: 0,
+             cliff: 0, mtn: 0, sea: 0, side: 1 };
+  }
+
+  return {
+    height, natural: ev, riverCenter, info, newInfo, airfield, SPACING,
+    // debug / map helpers
+    loch, trib, row, LOCH_INTERVAL: LP, TRIB_INTERVAL: TL,
+  };
+}
+
+// highland-look.js — palette + per-face colouring for the GLIDER "highland" world.
+// Plain script: paste inline next to highland.js.
+//   const look = createHighlandLook(THREE, gen, noise, wind);
+//   look.cellInfo(gcx, gcz, cell)   once per 3 m grid cell (cell = reused plain object)
+//   look.faceColor(out, h, ny, nx, nz, cell, sparkle)   once per triangle
+//   look.palette, look.water { color, opacity }, look.treeOK(info) helper
+function createHighlandLook(THREE, gen, noise, wind) {
+  const K = (hex) => new THREE.Color(hex);
+  const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+  const sstep = (e0, e1, v) => { let t = (v - e0) / (e1 - e0); t = t < 0 ? 0 : t > 1 ? 1 : t; return t * t * (3 - 2 * t); };
+  const P = {
+    // water beds (seen through the translucent water plane)
+    riverShallow: K(0xb39350), riverDeep: K(0x2e4a44),      // peaty amber -> dark brown
+    lochShallow: K(0x4f9a8c), lochDeep: K(0x0b3344),        // blue-green -> deep
+    seaShallow: K(0xf2e8bc), seaMid: K(0x56c7c2), seaDeep: K(0x0b3f80),   // pale sand shelf -> turquoise -> blue
+    // shore
+    sand: K(0xdccf9e), seaSand: K(0xeee2b6), wetSand: K(0xb7a674), shingle: K(0xb4ada0), shingleB: K(0x9c978d),
+    reedA: K(0x9aa548), reedB: K(0x70893a),
+    // valley
+    grassA: K(0x86c046), grassB: K(0x58993a),
+    fields: [K(0xa3cc52), K(0xcfc468), K(0x74b043), K(0xbdbb5e), K(0x9bcc66), K(0x9a8355), K(0xb0d460), K(0x66a53e)],
+    hedge: K(0x3f7a30), mown: K(0x9bcd57), mownB: K(0x90c650),
+    // hill
+    moorA: K(0xa4a455), moorB: K(0x7f8f45),                 // tawny moor grass
+    bracken: K(0xa8743a), heather: K(0x86608a),
+    rockA: K(0x9a9aa4), rockB: K(0x7b7b88), rockWarm: K(0xa59d93), rockDark: K(0x62626e),
+    scree: K(0xaaa59c), seaRock: K(0x6f6c6a),
+    snow: K(0xf4f7fb),
+    warm: K(0xd2b276),
+  };
+  const WATER = { color: 0x45a6da, opacity: 0.58 };
+  const tmp = new THREE.Color(), tmp2 = new THREE.Color();
+  const SP = gen.SPACING;
+  const ih = (a, b) => { let h = Math.imul(a | 0, 0x9e3779b1) ^ Math.imul(b | 0, 0x85ebca6b); h ^= h >>> 15; h = Math.imul(h, 0x2c1b3c6d); h ^= h >>> 13; return (h >>> 0) / 4294967296; };
+
+  // extra per-cell fields written on top of gen.info():
+  //   v      0..1 colour variation (same role as the alpine cellV)
+  //   v2     0..1 broad patch noise (heather patches, strata offset)
+  //   v3     0..1 second patch noise (bracken), independent of v2
+  //   snowLine  m
+  //   fieldIdx  patchwork colour index, hedge 0/1
+  //   stripe    0/1 mowing stripe on an airfield
+  // have = true: `cell` already holds gen.info() for this spot (fast path used by the
+  // chunk builder, which gets info and height in one call per grid vertex)
+  function cellInfo(gcx, gcz, cell, have) {
+    if (!have) gen.info(gcx, gcz, cell);
+    cell.v = 0.5 + 0.5 * noise(gcx * 0.02 + 50.5, gcz * 0.02);
+    cell.v2 = 0.5 + 0.5 * noise(gcx * 0.0075 - 21, gcz * 0.0075 + 33);
+    cell.v3 = cell.moor > 0.02 ? 0.5 + 0.5 * noise(gcx * 0.0061 + 70.3, gcz * 0.0061 - 15.2) : 0.5;
+    cell.snowLine = 184 + 22 * (cell.v2 - 0.5) + 8 * (cell.v - 0.5);
+    cell.hedge = 0; cell.fieldIdx = 0; cell.stripe = 0;
+    if (cell.airfield > 0.02) {
+      const af = gen.airfield(Math.round(gcz / SP));
+      const b = (gcx - af.x) * Math.cos(af.heading) - (gcz - af.z) * Math.sin(af.heading);
+      cell.stripe = (Math.floor(b / 12 + 100.5) & 1);       // 12 m mowing stripes along the runway
+    }
+    if (cell.field > 0.25) {
+      // patchwork aligned with the valley: strips ~52 m wide, 70-130 m long
+      const u = gcx - gen.riverCenter(gcz);
+      const iu = Math.floor(u / 52);
+      const len = 70 + 60 * ih(iu, 77);
+      const fv = (gcz + 200 * ih(iu, 5)) / len, iv = Math.floor(fv);
+      const eu = u / 52 - iu, evv = fv - iv;
+      cell.fieldIdx = (ih(iu * 7919 + iv, 3) * P.fields.length) | 0;
+      cell.hedge = (eu < 0.06 || evv * len < 3.1) ? 1 : 0;
+    }
+    return cell;
+  }
+
+  function rockColor(out, h, cell, sparkle) {
+    // strata: alternating bands a few metres thick, gently tilted by v2
+    // (banded by the CELL height, not the face height: both triangles of a cell share a band,
+    // otherwise the alternating mesh diagonals turn steep faces into a herringbone)
+    const band = Math.floor((cell.h + 30 * cell.v2 + 6 * cell.v) / 13);
+    const k = band & 3;
+    if (k === 0) out.copy(P.rockA); else if (k === 1) out.lerpColors(P.rockA, P.rockB, 0.7); else if (k === 2) out.copy(P.rockWarm); else out.lerpColors(P.rockB, P.rockDark, 0.15);
+    out.lerp(P.rockA, 0.3 * sparkle);
+  }
+
+  function faceColor(out, h, ny, nx, nz, cell, sparkle) {
+    const sea = cell.sea, kind = cell.kind;
+    if (h < 0.06) {
+      // ---- water bed, by kind
+      const d = -h;
+      if (kind === 2 && sea < 0.5) out.lerpColors(P.lochShallow, P.lochDeep, sstep(0.3, 9, d));
+      else {
+        // river (peaty) blending to sea (sand shelf -> turquoise -> deep blue) through firths
+        out.lerpColors(P.riverShallow, P.riverDeep, sstep(0.1, 2.6, d));
+        if (sea > 0) {
+          if (d < 3.3) tmp.lerpColors(P.seaShallow, P.seaMid, sstep(0.4, 3.3, d));
+          else tmp.lerpColors(P.seaMid, P.seaDeep, sstep(3.3, 17, d));
+          out.lerp(tmp, sea);
+        }
+      }
+      const f = 0.96 + 0.08 * sparkle; out.r *= f; out.g *= f; out.b *= f;
+      return;
+    }
+    const pad = cell.airfield;
+    const shoreLand = cell.shore < 60 || cell.isle > 0;
+    const beachTop = (sea > 0.5 ? 2.3 - 1.2 * cell.cliff : kind === 2 ? 1.25 : 1.0) + 0.5 * (cell.v - 0.5);
+    let done = false;
+    if (shoreLand && h < beachTop && pad < 0.5) {
+      // ---- shoreline band
+      if (cell.bar > 0.3) out.lerpColors(P.shingle, P.shingleB, cell.v);
+      else if (sea > 0.5 && (cell.cliff > 0.75 || (cell.isle > 0 && cell.isle < 1))) out.lerpColors(P.seaRock, P.rockB, cell.v);
+      else if (cell.wet > 0.35) out.lerpColors(P.reedA, P.reedB, cell.v);
+      else {
+        out.copy(sea > 0.5 ? P.seaSand : P.sand);
+        if (h < 0.42) out.lerp(P.wetSand, 0.75);
+        else if (kind === 1 && cell.v > 0.62) out.lerp(P.shingle, 0.6);       // river gravel mixed in
+      }
+      done = true;
+    }
+    if (!done) {
+      // crags: always rock when very steep; between, broken crag with heather ledges
+      const steep = ny < 0.5 || (ny < 0.7 && (cell.mtn > 0.15 || cell.rock > 0.3) && cell.v + cell.v2 * 0.6 + (0.7 - ny) * 3.2 > 1.12);
+      if (h > cell.snowLine && ny > 0.5) out.copy(P.snow);
+      else if (steep || (cell.rock > 0.55 && ny < 0.9)) {
+        rockColor(out, h, cell, sparkle);
+        if (sea > 0.5 && h < 5) out.lerp(P.seaRock, 0.6);
+      } else {
+        // ---- vegetated ground: meadow -> fields / marsh -> moor
+        out.lerpColors(P.grassA, P.grassB, cell.v);
+        if (cell.field > 0.25) {
+          if (cell.hedge) out.lerp(P.hedge, 0.8 * sstep(0.45, 0.7, cell.field));
+          else { tmp.copy(P.fields[cell.fieldIdx]); tmp.lerp(P.grassA, 0.3 + 0.15 * cell.v); out.lerp(tmp, sstep(0.25, 0.5, cell.field)); }
+        }
+        if (cell.wet > 0.05) out.lerp(tmp.lerpColors(P.reedA, P.reedB, cell.v), clamp(cell.wet * 1.5, 0, 1));
+        if (cell.moor > 0.02) {
+          // mosaic: tawny moor grass, bracken on the lower slopes, heather in patches higher up
+          tmp.lerpColors(P.moorA, P.moorB, cell.v);
+          const br = sstep(0.55, 0.68, cell.v3 + 0.25 * (cell.v - 0.5)) * (1 - sstep(60, 105, h));
+          const he = sstep(0.40, 0.28, cell.v2 + 0.3 * (cell.v - 0.5)) * sstep(26, 55, h);
+          tmp.lerp(P.bracken, 0.85 * br); tmp.lerp(P.heather, 0.85 * he * (1 - 0.6 * br));
+          out.lerp(tmp, cell.moor);
+        }
+        // scree aprons and thinning turf toward the tops
+        if (ny < 0.72 && h > 45) out.lerp(P.scree, sstep(0.72, 0.6, ny) * 0.55);
+        if (cell.rock > 0.2 && ny < 0.97) out.lerp(tmp.lerpColors(P.rockA, P.rockB, cell.v), 0.6 * sstep(0.2, 0.55, cell.rock) * sstep(0.97, 0.86, ny));
+        const top = sstep(cell.snowLine - 40, cell.snowLine - 6, h);
+        if (top > 0) out.lerp(tmp.lerpColors(P.rockA, P.rockWarm, cell.v), 0.7 * top);
+        if (pad > 0) { tmp.copy(cell.stripe ? P.mown : P.mownB); out.lerp(tmp, sstep(0.35, 0.9, pad)); }
+      }
+    }
+    // windward hint (same rule as the other worlds): slopes facing the wind glow warmer
+    if (wind && h > 1.2) {
+      const upslope = Math.max(0, -(wind.x * nx + wind.z * nz));
+      out.lerp(P.warm, clamp((upslope - 2.2) * 0.085, 0, 0.4));
+    }
+    const f = 0.94 + 0.12 * sparkle;
+    out.r *= f; out.g *= f; out.b *= f;
+  }
+
+  // a reusable cell object with every field gen.info() and cellInfo() write, in a fixed order
+  function newCell() {
+    const c = gen.newInfo();
+    c.v = 0; c.v2 = 0; c.v3 = 0; c.snowLine = 0; c.hedge = 0; c.fieldIdx = 0; c.stripe = 0;
+    return c;
+  }
+
+  // prop helper: may a pine stand here?  (info = gen.info result at the spot)
+  function treeOK(info) {
+    return info.water === 0 && info.h > 2.2 && info.h < 95 && info.airfield < 0.02 && info.wet < 0.5 &&
+           info.rock < 0.5 && info.field < 0.35 && !(info.shore < 6 && info.isle === 0);
+  }
+  return { palette: P, water: WATER, cellInfo, faceColor, treeOK, newCell };
+}
+
+// highland-scatter — dresses each highland chunk with the prop library: broadleaf
+// and birch woods, gorse, erratic boulders, reed beds, skerries, sheep, crofts
+// with their walls, jetties and boats. Everything in a chunk is baked into ONE
+// merged, vertex-coloured mesh (one draw call per chunk, no per-prop objects),
+// rebuilt whenever the chunk is recycled. Deterministic per (seed, chunk).
+function createHighlandScatter(THREE, gen, props, noise, seed) {
+  const CAP = 2700 * 3;                           // vertices per chunk mesh
+  const G = {};
+  for (const name in props.geos) {
+    const g = props.geos[name];
+    G[name] = { p: g.attributes.position.array, c: g.attributes.color.array, n: g.attributes.position.count };
+  }
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = (a + 0x6d2b79f5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.9 });
+  function makeMesh() {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(CAP * 3), 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(CAP * 3), 3));
+    geo.setDrawRange(0, 0);
+    const m = new THREE.Mesh(geo, mat);
+    m.castShadow = m.receiveShadow = true;
+    return m;
+  }
+
+  const I = gen.newInfo ? gen.newInfo() : {}, J = gen.newInfo ? gen.newInfo() : {};
+  let P, C, n;                                    // write cursors for the chunk being built
+  // bake one prop: yaw about Y, uniform scale s (sy for height), tint, at chunk-local (x, y, z)
+  function put(name, x, y, z, yaw, s, sy, tr, tg, tb) {
+    const g = G[name];
+    if (!g || n + g.n > CAP) return false;
+    const cs = Math.cos(yaw) * s, sn = Math.sin(yaw) * s, p = g.p, c = g.c;
+    let k = n * 3;
+    for (let i = 0; i < g.n * 3; i += 3, k += 3) {
+      const px = p[i], pz = p[i + 2];
+      P[k] = x + px * cs + pz * sn;
+      P[k + 1] = y + p[i + 1] * sy;
+      P[k + 2] = z - px * sn + pz * cs;
+      C[k] = c[i] * tr; C[k + 1] = c[i + 1] * tg; C[k + 2] = c[i + 2] * tb;
+    }
+    n += g.n;
+    return true;
+  }
+  const slope = (x, z, h, e) => Math.abs(gen.height(x + e, z) - h) + Math.abs(gen.height(x, z + e) - h);
+
+  function build(mesh, ix, iz, CHUNK) {
+    const x0 = ix * CHUNK, z0 = iz * CHUNK;
+    const rng = mulberry32((Math.imul(ix, 40503) ^ Math.imul(iz, 2654435761) ^ Math.imul(seed, 97531) ^ 0x51ed) | 0);
+    P = mesh.geometry.attributes.position.array; C = mesh.geometry.attributes.color.array; n = 0;
+    const pick = () => gen.info(x0 + (I.lx = rng() * CHUNK), z0 + (I.lz = rng() * CHUNK), I);
+    const gx = () => x0 + I.lx, gz = () => z0 + I.lz;
+
+    // ---- the rare set pieces first, so they are never squeezed out by the cap
+    // castle ruin: one chunk in ~25, on an island or a sea cliff
+    if (rng() < 0.18) for (let t = 0; t < 14; t++) {
+      pick();
+      if (I.water || I.airfield > 0 || I.h < 5 || !(I.isle > 0.4 || I.cliff > 0.5)) continue;
+      if (slope(gx(), gz(), I.h, 8) > 5) continue;
+      put('castleRuin', I.lx, I.h - 0.8, I.lz, rng() * 6.28, 1, 1, 1, 1, 1);
+      break;
+    }
+    // a croft with its walls, a tree and the odd shed: only on real field ground
+    if (rng() < 0.55) for (let t = 0; t < 10; t++) {
+      pick();
+      if (I.water || I.field < 0.6 || I.airfield > 0 || I.shore < 22) continue;
+      if (slope(gx(), gz(), I.h, 7) > 1.6) continue;
+      const yaw = (rng() < 0.5 ? 0 : Math.PI / 2) + (rng() - 0.5) * 0.3, cx = I.lx, cz = I.lz, ch = I.h;
+      put('croft', cx, ch - 0.25, cz, yaw, 1, 1, 1, 1, 1);
+      const c = Math.cos(yaw), s = Math.sin(yaw);
+      const at = (ax, az, fn) => { const lx = cx + ax * c + az * s, lz = cz - ax * s + az * c; const h = gen.height(x0 + lx, z0 + lz); if (h > 1.5) fn(lx, h, lz); };
+      at(-13, 9, (x, h, z) => put('drystoneWall', x, h - 0.15, z, yaw, 1, 1, 1, 1, 1));
+      at(-13, -3, (x, h, z) => put('drystoneWall', x, h - 0.15, z, yaw, 1, 1, 1, 1, 1));
+      at(-7, 15, (x, h, z) => put('drystoneWall', x, h - 0.15, z, yaw + Math.PI / 2, 1, 1, 1, 1, 1));
+      at(11, 5, (x, h, z) => put('broadleaf', x, h - 0.2, z, rng() * 6.28, 1.25, 1.3, 1, 1, 1));
+      if (rng() < 0.5) at(9, -9, (x, h, z) => put('bothy', x, h - 0.25, z, yaw + Math.PI / 2, 0.8, 0.8, 1, 1, 1));
+      break;
+    }
+    // a lonely bothy up on the moor
+    if (rng() < 0.12) for (let t = 0; t < 8; t++) {
+      pick();
+      if (I.water || I.moor < 0.6 || I.rock > 0.3 || I.h > 110 || slope(gx(), gz(), I.h, 6) > 2.5) continue;
+      put('bothy', I.lx, I.h - 0.3, I.lz, rng() * 6.28, 1, 1, 1, 1, 1);
+      break;
+    }
+    // jetty + rowing boat (and sometimes a boathouse): find a bank, face the water
+    if (rng() < 0.4) for (let t = 0; t < 16; t++) {
+      pick();
+      if (I.water || I.shore > 7 || I.h > 2.2 || I.h < 0.5 || I.airfield > 0 || I.kind === 0) continue;
+      const x = gx(), z = gz();
+      const ddx = gen.height(x + 5, z) - gen.height(x - 5, z), ddz = gen.height(x, z + 5) - gen.height(x, z - 5);
+      const gl = Math.hypot(ddx, ddz);
+      if (gl < 0.4) continue;
+      const yaw = Math.atan2(-ddx, -ddz);          // local +Z runs out over the water
+      const ex = Math.sin(yaw), ez = Math.cos(yaw);
+      if (gen.height(x + ex * 9, z + ez * 9) > -0.5) continue;     // the far end must stand in water
+      put('jetty', I.lx, 0, I.lz, yaw, 1, 1, 1, 1, 1);
+      put('rowBoat', I.lx + ex * 6.5 + ez * 2.4, 0, I.lz + ez * 6.5 - ex * 2.4, yaw + 0.3, 1, 1, 1, 1, 1);
+      if (rng() < 0.45) {
+        const bx = I.lx + ez * 13 - ex * 3, bz = I.lz - ex * 13 - ez * 3, bh = gen.height(x0 + bx, z0 + bz);
+        if (bh > 0.4 && bh < 3) put('boathouse', bx, bh - 0.1, bz, yaw, 0.8, 0.8, 1, 1, 1);
+      }
+      break;
+    }
+    // boats out on open water: yachts on lochs and the sea, a rower inshore
+    for (let t = 0, got = 0; t < 7 && got < 2; t++) {
+      pick();
+      if (!I.water || I.kind < 2 || I.h > -3.2 || I.shore > -22) continue;
+      if (rng() < 0.45) continue;
+      put(rng() < 0.75 ? 'sailBoat' : 'rowBoat', I.lx, 0, I.lz, rng() * 6.28, 1, 1, 1, 1, 1);
+      got++;
+    }
+    // skerries: wave-washed rocks in the sea shallows
+    for (let t = 0, got = 0; t < 10 && got < 3; t++) {
+      pick();
+      if (!I.water || I.sea < 0.6 || I.h < -5 || I.h > -0.6) continue;
+      const s = 0.7 + rng() * 0.9;
+      put('skerry', I.lx, 0, I.lz, rng() * 6.28, s, s, 1, 1, 1);
+      got++;
+    }
+    // sheep: a flock or two on the fields and the low moor
+    for (let f = 0; f < 3; f++) {
+      pick();
+      if (I.water || I.airfield > 0 || !(I.field > 0.45 || (I.moor > 0.2 && I.moor < 0.75 && I.h < 60)) || I.rock > 0.3) continue;
+      const fx = I.lx, fz = I.lz, cnt = 4 + (rng() * 6 | 0);
+      for (let s = 0; s < cnt; s++) {
+        const lx = fx + (rng() - 0.5) * 34, lz = fz + (rng() - 0.5) * 34;
+        if (lx < 0 || lz < 0 || lx > CHUNK || lz > CHUNK) continue;
+        gen.info(x0 + lx, z0 + lz, J);
+        if (J.water || J.airfield > 0 || J.h < 1.5) continue;
+        const sc = 1.15 + rng() * 0.5;
+        put('sheep', lx, J.h - 0.05, lz, rng() * 6.28, sc, sc, 1, 1, 1);
+      }
+    }
+    // a stag on the high ground, now and then
+    if (rng() < 0.15) for (let t = 0; t < 6; t++) {
+      pick();
+      if (I.water || I.moor < 0.7 || I.h < 50 || I.rock > 0.4) continue;
+      put('stag', I.lx, I.h - 0.05, I.lz, rng() * 6.28, 1.2, 1.2, 1, 1, 1);
+      break;
+    }
+
+    // ---- then the bulk vegetation and rock, until the tries or the cap run out
+    for (let t = 0; t < 230; t++) {
+      pick();
+      const r = rng(), yaw = rng() * 6.28, v = 0.86 + rng() * 0.26;
+      if (I.airfield > 0.02) continue;
+      if (I.water) {
+        // reed beds in the still shallows of rivers and lochs
+        if (I.kind !== 3 && I.sea < 0.3 && I.h > -0.75 && r < 0.8 && noise(gx() * 0.02 + 7, gz() * 0.02) > -0.1)
+          for (let q = 0; q < 3; q++) put('reeds', I.lx + (rng() - 0.5) * 5, 0, I.lz + (rng() - 0.5) * 5, rng() * 6.28, 1 + rng() * 0.6, 0.9 + rng() * 0.5, v, v, v);
+        continue;
+      }
+      const h = I.h;
+      if (I.wet > 0.45) {                           // marsh: reeds, never trees
+        if (r < 0.6) put('reeds', I.lx, h + 0.1, I.lz, yaw, 1.1 + rng() * 0.7, 0.8 + rng() * 0.5, v, v, v);
+        continue;
+      }
+      if (I.rock > 0.35 || (I.moor > 0.55 && r < 0.3) || (I.bar > 0.5 && r < 0.4) || (I.shore < 9 && I.sea > 0.5 && r < 0.5)) {
+        const s = 0.8 + rng() * rng() * 2.6;        // mostly small, the odd house-sized erratic
+        put(r < 0.1 ? 'boulderC' : (t & 1) ? 'boulderA' : 'boulderB', I.lx, h - 0.25 * s, I.lz, yaw, s, s * (0.8 + rng() * 0.4), v, v, v * 1.02);
+        continue;
+      }
+      if (h < 2.2 || h > 105) continue;
+      const sl = slope(gx(), gz(), h, 6);
+      if (sl > 8) continue;
+      if (I.moor > 0.3) {                           // open hill: gorse and the odd wind-bent birch
+        if (r < 0.55) { const s = 1 + rng() * 1.2; put('bush', I.lx, h - 0.15, I.lz, yaw, s, s, v, v, v); }
+        else if (r < 0.7 && h < 80 && I.moor < 0.8) { const s = 0.8 + rng() * 0.5; put('birch', I.lx, h - 0.2, I.lz, yaw, s, s, v, v, v); }
+        else if (r < 0.76 && h < 95) { const s = 1.1 + rng() * 0.6; put('scotsPine', I.lx, h - 0.3, I.lz, yaw, s, s, v, v, v); }   // a lone granny pine
+        continue;
+      }
+      if (I.field > 0.35) {                         // farmland: hedgerow trees and gorse only along the field edges
+        if (r < 0.045) { const s = 1 + rng() * 0.6; put('broadleaf', I.lx, h - 0.2, I.lz, yaw, s, s * 1.1, v, v, v); }
+        else if (r < 0.075) put('bush', I.lx, h - 0.1, I.lz, yaw, 1.2, 1.2, v, v, v);
+        continue;
+      }
+      // valley sides and banks: mixed broadleaf wood, birch toward the water and the hill
+      const wood = noise(gx() * 0.008 + 99, gz() * 0.008) + (I.isle > 0 ? 0.6 : 0) + (I.shore < 40 ? 0.25 : 0);
+      if (wood < -0.15) { if (r < 0.2) put('bush', I.lx, h - 0.1, I.lz, yaw, 1 + rng(), 1 + rng() * 0.6, v, v, v); continue; }
+      if (I.shore < 5 && I.isle === 0) continue;
+      const s = 0.85 + rng() * 0.75;
+      put(r > 0.93 ? 'scotsPine' : (I.shore < 30 || I.mtn > 0.35 || r < 0.35) ? 'birch' : 'broadleaf', I.lx, h - 0.2, I.lz, yaw, s, s * (0.9 + rng() * 0.35), v, v, v);
+    }
+    mesh.geometry.setDrawRange(0, n);
+    mesh.geometry.attributes.position.addUpdateRange(0, n * 3);
+    mesh.geometry.attributes.color.addUpdateRange(0, n * 3);
+    mesh.geometry.attributes.position.needsUpdate = true;
+    mesh.geometry.attributes.color.needsUpdate = true;
+    mesh.geometry.boundingSphere = mesh.geometry.boundingSphere || new THREE.Sphere();
+    mesh.geometry.boundingSphere.center.set(CHUNK / 2, 60, CHUNK / 2);
+    mesh.geometry.boundingSphere.radius = CHUNK * 0.9;
+    mesh.visible = n > 0;
+    return n;
+  }
+  return { makeMesh, build, material: mat };
+}
+
+// ============================================================================
+// highland-props.js — prop library for the "highland" world of GLIDER.
+// Plain script (no import/export): paste inline, then
+//
+//   const props = createHighlandProps(THREE);
+//   const mat   = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.9 });
+//   const sheep = new THREE.InstancedMesh(props.geos.sheep, mat, 200);
+//
+// Every geometry: non-indexed, `position` + `color` (linear RGB, exactly like
+// the alpine pine/lighthouse), vertex normals computed, origin at the ground
+// centre, +Y up. All faces are single-sided with outward winding (thin parts
+// such as sails and wings carry explicit back faces), so the shared
+// FrontSide material works. `meta[name]` = { tris, height, minY, footprint:
+// [sizeX, sizeZ], note, ...anchors }.
+//
+// Conventions (also repeated per prop in meta.note):
+//   * "front"/door/bow/cab/nose face local +Z unless noted.
+//   * floating / standing-in-water props are authored with y = 0 at the
+//     WATER surface; their minY is negative (hull draught, posts, skirts).
+// ============================================================================
+function createHighlandProps(THREE) {
+  'use strict';
+
+  // ---- tiny toolkit --------------------------------------------------------
+  function rngOf(seed) {
+    let a = seed >>> 0;
+    return function () {
+      a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  const colCache = {};
+  function rgb(h) {
+    if (typeof h !== 'number') return h;
+    let c = colCache[h];
+    if (!c) { const k = new THREE.Color(h); c = colCache[h] = [k.r, k.g, k.b]; }
+    return c;
+  }
+  function mix(a, b, t) { a = rgb(a); b = rgb(b); return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; }
+  const clamp01 = v => v < 0 ? 0 : v > 1 ? 1 : v;
+  // Colour by facet tilt. The game's sun is ~8x its sky fill, so faces turned
+  // away from the sky already render very dark: `top` goes on faces looking
+  // up, `side` on the flanks and a lifted `under` on faces looking down
+  // (counter-shading keeps undersides readable instead of black).
+  function shade(side, top, under) {
+    const u = under === undefined ? mix(side, top, 0.7) : under;
+    return n => n[1] >= 0 ? mix(side, top, clamp01(n[1] * 1.2)) : mix(side, u, clamp01(-n[1] * 1.6));
+  }
+
+  function builder() {
+    const P = [], K = [];
+    const g = {};
+    function nrm(a, b, c) {
+      const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2];
+      const vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
+      const n = [uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx];
+      const l = Math.hypot(n[0], n[1], n[2]) || 1;
+      return [n[0] / l, n[1] / l, n[2] / l];
+    }
+    function emit(a, b, c, col) {
+      if (typeof col === 'function') col = col(nrm(a, b, c), [(a[0] + b[0] + c[0]) / 3, (a[1] + b[1] + c[1]) / 3, (a[2] + b[2] + c[2]) / 3]);
+      col = rgb(col);
+      P.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2]);
+      K.push(col[0], col[1], col[2], col[0], col[1], col[2], col[0], col[1], col[2]);
+    }
+    // hint: { from:[x,y,z] } faces away from that point | { dir:[x,y,z] } faces
+    // along that direction | { inv:true } flips the decision | { ds:true, back:col }
+    // also emits the back face. No hint = winding as given.
+    g.tri = function (a, b, c, col, hint) {
+      let flip = false;
+      if (hint) {
+        const n = nrm(a, b, c);
+        if (hint.from) {
+          const f = hint.from;
+          flip = n[0] * ((a[0] + b[0] + c[0]) / 3 - f[0]) + n[1] * ((a[1] + b[1] + c[1]) / 3 - f[1]) + n[2] * ((a[2] + b[2] + c[2]) / 3 - f[2]) < 0;
+        } else if (hint.dir) {
+          flip = n[0] * hint.dir[0] + n[1] * hint.dir[1] + n[2] * hint.dir[2] < 0;
+        }
+        if (hint.inv) flip = !flip;
+      }
+      if (flip) emit(a, c, b, col); else emit(a, b, c, col);
+      if (hint && hint.ds) { const bc = hint.back === undefined ? col : hint.back; if (flip) emit(a, b, c, bc); else emit(a, c, b, bc); }
+    };
+    g.quad = function (a, b, c, d, col, hint) { g.tri(a, b, c, col, hint); g.tri(a, c, d, col, hint); };
+    g.ringY = function (cx, cy, cz, rx, rz, n, rot) {
+      const o = []; rot = rot || 0;
+      for (let i = 0; i < n; i++) { const a = rot + i / n * Math.PI * 2; o.push([cx + Math.cos(a) * rx, cy, cz + Math.sin(a) * rz]); }
+      return o;
+    };
+    g.ringX = function (cx, cy, cz, ry, rz, n, rot) {
+      const o = []; rot = rot || 0;
+      for (let i = 0; i < n; i++) { const a = rot + i / n * Math.PI * 2; o.push([cx, cy + Math.cos(a) * ry, cz + Math.sin(a) * rz]); }
+      return o;
+    };
+    g.ringZ = function (cx, cy, cz, rx, ry, n, rot) {
+      const o = []; rot = rot || 0;
+      for (let i = 0; i < n; i++) { const a = rot + i / n * Math.PI * 2; o.push([cx + Math.cos(a) * rx, cy + Math.sin(a) * ry, cz]); }
+      return o;
+    };
+    function centroid(lists) {
+      const c = [0, 0, 0]; let k = 0;
+      for (const l of lists) for (const p of l) { c[0] += p[0]; c[1] += p[1]; c[2] += p[2]; k++; }
+      return [c[0] / k, c[1] / k, c[2] / k];
+    }
+    g.centroid = centroid;
+    // skin between two equal-length closed rings. o.from (default: centroid),
+    // o.skip = [segment indices to leave out], o.open = do not close the loop
+    g.loft = function (r1, r2, col, o) {
+      o = o || {};
+      const hint = { from: o.from || centroid([r1, r2]), inv: o.inv };
+      const n = r1.length, m = o.open ? n - 1 : n;
+      for (let i = 0; i < m; i++) {
+        if (o.skip && o.skip.indexOf(i) >= 0) continue;
+        const j = (i + 1) % n;
+        g.quad(r1[i], r1[j], r2[j], r2[i], typeof col === 'object' && col.length === n && typeof col[0] !== 'number' ? col[i] : col, hint);
+      }
+    };
+    g.cap = function (ring, col, hint) { for (let i = 1; i < ring.length - 1; i++) g.tri(ring[0], ring[i], ring[i + 1], col, hint); };
+    g.fan = function (apex, ring, col, hint) { for (let i = 0; i < ring.length; i++) g.tri(apex, ring[i], ring[(i + 1) % ring.length], col, hint); };
+    // axis-aligned box, y0 = bottom. o.skip: letters of faces to omit —
+    // B bottom, T top, L -x, R +x, F +z, K -z. o.tw/o.td: top scale (taper).
+    // o.cols: { T: col, F: col, ... } per-face colours. o.mod(p, isTop, ix, iz) edits corners.
+    g.box = function (cx, y0, cz, w, h, d, col, o) {
+      o = o || {};
+      const skip = o.skip === undefined ? 'B' : o.skip, tw = o.tw === undefined ? 1 : o.tw, td = o.td === undefined ? 1 : o.td;
+      const v = (sx, top, sz) => {
+        const p = [cx + sx * w / 2 * (top ? tw : 1), y0 + (top ? h : 0), cz + sz * d / 2 * (top ? td : 1)];
+        if (o.mod) o.mod(p, top, sx, sz);
+        return p;
+      };
+      const a = v(-1, 0, -1), b = v(1, 0, -1), c = v(1, 0, 1), e = v(-1, 0, 1);
+      const A = v(-1, 1, -1), Bq = v(1, 1, -1), Cq = v(1, 1, 1), E = v(-1, 1, 1);
+      const from = centroid([[a, b, c, e, A, Bq, Cq, E]]), hint = { from };
+      const cf = k => (o.cols && o.cols[k] !== undefined) ? o.cols[k] : col;
+      if (skip.indexOf('B') < 0) g.quad(a, b, c, e, cf('B'), hint);
+      if (skip.indexOf('T') < 0) g.quad(A, Bq, Cq, E, cf('T'), hint);
+      if (skip.indexOf('L') < 0) g.quad(a, e, E, A, cf('L'), hint);
+      if (skip.indexOf('R') < 0) g.quad(b, c, Cq, Bq, cf('R'), hint);
+      if (skip.indexOf('F') < 0) g.quad(e, c, Cq, E, cf('F'), hint);
+      if (skip.indexOf('K') < 0) g.quad(a, b, Bq, A, cf('K'), hint);
+      return { a, b, c, e, A, B: Bq, C: Cq, E };
+    };
+    // jittered blob: n-gon rings at `levels` [[yFrac -1..1, rFrac], ...] between
+    // a bottom and a top apex. o.noBottom (dome), o.bd (bottom apex depth, fraction of r.y), o.flatTop (cap the last ring),
+    // o.j jitter, o.flatBase (no y jitter on the first ring).
+    g.blob = function (c, r, n, rnd, col, o) {
+      o = o || {};
+      const j = o.j === undefined ? 0.18 : o.j, lv = o.levels || [[0, 1]];
+      const rings = lv.map((L, li) => {
+        const rot = (o.rot || 0) + li * Math.PI / n + (rnd() - 0.5) * 0.5, pts = [];
+        for (let i = 0; i < n; i++) {
+          const a = rot + i / n * Math.PI * 2, k = L[1] * (1 + (rnd() * 2 - 1) * j);
+          const yj = (o.flatBase && li === 0) ? 0 : (rnd() * 2 - 1) * j * 0.35 * r[1];
+          pts.push([c[0] + Math.cos(a) * r[0] * k, c[1] + L[0] * r[1] + yj, c[2] + Math.sin(a) * r[2] * k]);
+        }
+        return pts;
+      });
+      const from = o.from || [c[0], c[1] + (o.noBottom ? r[1] * 0.3 : 0), c[2]], hint = { from };
+      if (!o.noBottom) g.fan([c[0], c[1] - r[1] * (o.bd === undefined ? 1 : o.bd), c[2]], rings[0], col, hint);
+      for (let i = 0; i < rings.length - 1; i++) g.loft(rings[i], rings[i + 1], col, { from });
+      const last = rings[rings.length - 1];
+      if (o.flatTop) g.cap(last, col, { dir: [0, 1, 0] });
+      else g.fan([c[0] + (rnd() - 0.5) * r[0] * j * 1.5, c[1] + r[1], c[2] + (rnd() - 0.5) * r[2] * j * 1.5], last, col, hint);
+    };
+    // rotate everything emitted so far about the Z axis through (px, py)
+    g.rollZ = function (ang, px, py) {
+      const cs = Math.cos(ang), sn = Math.sin(ang);
+      for (let i = 0; i < P.length; i += 3) {
+        const x = P[i] - px, y = P[i + 1] - py;
+        P[i] = px + x * cs - y * sn; P[i + 1] = py + x * sn + y * cs;
+      }
+    };
+    g.shiftY = function (dy) { for (let i = 1; i < P.length; i += 3) P[i] += dy; };
+    g.minY = function () { let m = Infinity; for (let i = 1; i < P.length; i += 3) m = Math.min(m, P[i]); return m; };
+    g.build = function () {
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
+      geo.setAttribute('color', new THREE.Float32BufferAttribute(K, 3));
+      geo.computeVertexNormals();
+      geo.computeBoundingBox();
+      geo.computeBoundingSphere();
+      return geo;
+    };
+    return g;
+  }
+
+  const geos = {}, meta = {};
+  function def(name, note, fn, extra) {
+    const g = builder();
+    const more = fn(g) || {};
+    const geo = g.build(), bb = geo.boundingBox, r = v => Math.round(v * 100) / 100;
+    geos[name] = geo;
+    meta[name] = Object.assign({
+      tris: geo.getAttribute('position').count / 3,
+      height: r(bb.max.y), minY: r(bb.min.y),
+      footprint: [r(bb.max.x - bb.min.x), r(bb.max.z - bb.min.z)],
+      note,
+    }, extra || {}, more);
+  }
+
+  // ---- palette (sRGB hex; converted to linear like the alpine props) -------
+  const WHITE = 0xf3f1e8, SLATE = 0x4d5766, STONE = 0x9c978b, STONE_D = 0x6f6b63, STONE_L = 0xb4aea0;
+  const GLASS = 0x2b3f52, TIMBER = 0x8a7458, TIMBER_D = 0x4f4034, TIMBER_L = 0xb09570;
+  const RUST = 0x9a4a35, TYRE = 0x25272b;
+
+  // ======================= TREES ===========================================
+  def('scotsPine', 'Scots pine: bare orange-brown trunk, flat dark blue-green crown plates. Sink ~0.3 m on slopes.', g => {
+    const rnd = rngOf(11);
+    const lean = [0.35, -0.1];
+    g.loft(g.ringY(0, 0, 0, 0.34, 0.34, 5), g.ringY(lean[0], 5.9, lean[1], 0.2, 0.2, 5, 0.4), 0xa2603c);
+    const crown = shade(0x2f6e44, 0x4f9456, 0x5f9e5a);
+    g.blob([0.4, 6.6, 0], [2.7, 1.35, 2.3], 5, rnd, crown, { j: 0.22, bd: 0.4, levels: [[-0.1, 1]] });
+    g.blob([-1.5, 5.4, 0.7], [1.7, 1.0, 1.5], 5, rnd, crown, { j: 0.22, bd: 0.4, levels: [[-0.1, 1]] });
+    g.blob([1.7, 5.75, -1.0], [1.6, 0.95, 1.4], 5, rnd, crown, { j: 0.22, bd: 0.4, levels: [[-0.1, 1]] });
+    // two bare limbs reaching out to the side plates
+    g.fan([-1.4, 5.35, 0.65], g.ringY(0.22, 4.1, -0.05, 0.16, 0.16, 3), 0x8a5236, { from: [-0.5, 4.2, 0.3] });
+    g.fan([1.6, 5.7, -0.95], g.ringY(0.28, 4.6, -0.08, 0.15, 0.15, 3), 0x8a5236, { from: [0.9, 4.7, -0.5] });
+  });
+
+  def('birch', 'Silver birch: thin pale trunk, airy yellow-green crown. Sink ~0.2 m on slopes.', g => {
+    const rnd = rngOf(23);
+    const mid = g.ringY(0.05, 1.3, 0, 0.17, 0.17, 4, 0.3);
+    g.loft(g.ringY(0, 0, 0, 0.24, 0.24, 4), mid, 0x6d665c);                      // dark fissured foot
+    g.loft(mid, g.ringY(0.15, 4.7, 0.05, 0.08, 0.08, 4, 0.6), 0xeeebe0);         // white bark
+    const crown = shade(0x86bc4c, 0xb4dc68, 0xc4e078);
+    g.blob([0.15, 5.0, 0.05], [1.35, 1.75, 1.3], 4, rnd, crown, { j: 0.2, bd: 0.6, levels: [[-0.2, 1]] });
+    g.blob([-0.85, 3.8, 0.55], [0.95, 1.15, 0.9], 4, rnd, crown, { j: 0.2, bd: 0.6, levels: [[-0.2, 1]] });
+    g.blob([0.95, 4.0, -0.5], [0.9, 1.2, 0.95], 4, rnd, crown, { j: 0.2, bd: 0.6, levels: [[-0.2, 1]] });
+    g.blob([0.2, 3.3, -0.85], [0.75, 0.85, 0.75], 4, rnd, crown, { j: 0.2, bd: 0.6, levels: [[-0.2, 1]] });
+  });
+
+  def('broadleaf', 'Rounded oak/rowan: stout trunk, full mid-green crown. Sink ~0.3 m on slopes.', g => {
+    const rnd = rngOf(37);
+    g.loft(g.ringY(0, 0, 0, 0.42, 0.42, 5), g.ringY(0.1, 2.6, 0, 0.27, 0.27, 5, 0.5), 0x5e4630);
+    const crown = shade(0x44903c, 0x78ba4e, 0x86c058);
+    g.blob([0.1, 4.1, 0], [2.7, 2.1, 2.6], 5, rnd, crown, { j: 0.16, bd: 0.75, levels: [[-0.35, 0.95], [0.4, 0.78]] });
+    g.blob([-1.9, 3.2, 0.9], [1.4, 1.15, 1.4], 4, rnd, crown, { j: 0.2, bd: 0.6, levels: [[-0.2, 1]] });
+    g.blob([1.8, 3.4, -1.1], [1.5, 1.2, 1.4], 4, rnd, crown, { j: 0.2, bd: 0.6, levels: [[-0.2, 1]] });
+  });
+
+  def('bush', 'Gorse clump: dark green mound with yellow blossom facets.', g => {
+    const rnd = rngOf(41);
+    let k = 0;
+    const gorse = n => { k++; return n[1] > 0.3 && (k % 2 === 0) ? 0xf4c820 : mix(0x417c36, 0x5c9a42, clamp01(n[1] + 0.3)); };
+    g.blob([0, 0, 0], [1.25, 1.35, 1.1], 5, rnd, gorse, { noBottom: true, flatBase: true, j: 0.2, levels: [[0, 1], [0.55, 0.78]] });
+    g.blob([1.05, 0, 0.55], [0.75, 0.85, 0.7], 3, rnd, gorse, { noBottom: true, flatBase: true, j: 0.2, levels: [[0, 1], [0.55, 0.75]] });
+  });
+
+  // ======================= ROCKS ===========================================
+  function rockCol(lichenDir) {
+    const l = Math.hypot(lichenDir[0], lichenDir[1], lichenDir[2]);
+    return n => {
+      const base = n[1] >= 0 ? mix(0x8f9396, 0xa9aba8, clamp01(n[1] * 1.3)) : 0xb4b6b3;
+      const d = (n[0] * lichenDir[0] + n[1] * lichenDir[1] + n[2] * lichenDir[2]) / l;
+      return d > 0.62 ? mix(base, 0xb9b45c, 0.62) : base;
+    };
+  }
+  def('boulderA', 'Broad erratic. Base at y=0; sink 0.2-0.4 m on slopes.', g => {
+    g.blob([0, 0, 0], [1.55, 1.45, 1.25], 5, rngOf(51), rockCol([-0.5, 0.45, 0.7]), { noBottom: true, flatBase: true, j: 0.24, levels: [[0, 1], [0.55, 0.8]] });
+  });
+  def('boulderB', 'Split pair of rocks. Base at y=0; sink 0.2-0.4 m on slopes.', g => {
+    const rnd = rngOf(63), col = rockCol([0.6, 0.5, 0.5]);
+    g.blob([-0.35, 0, 0], [1.2, 1.25, 1.0], 4, rnd, col, { noBottom: true, flatBase: true, j: 0.24, levels: [[0, 1], [0.6, 0.78]] });
+    g.blob([1.05, 0, 0.35], [0.7, 0.7, 0.65], 3, rnd, col, { noBottom: true, flatBase: true, flatTop: true, j: 0.2, levels: [[0, 1], [0.9, 0.6]] });
+  });
+  def('boulderC', 'Tall standing erratic. Base at y=0; sink 0.2-0.4 m on slopes.', g => {
+    g.blob([0, 0, 0], [0.95, 2.5, 0.8], 4, rngOf(77), rockCol([-0.7, 0.3, -0.5]), { noBottom: true, flatBase: true, flatTop: true, j: 0.2, levels: [[0, 1], [0.5, 0.95], [0.98, 0.55]] });
+  });
+  def('skerry', 'Wave-washed rock, y=0 = WATER surface; pale barnacle band from -0.6 to ~+0.35, dark rock above. Place in water >= 0.6 m deep.', g => {
+    const rnd = rngOf(89);
+    const band = 0xd3ccb0, rock = n => mix(0x4a5054, 0x5c6266, clamp01(n[1]));
+    const ring = (cx, cz, rx, rz, y, n, rot, jy) => g.ringY(cx, y, cz, rx, rz, n, rot).map(p => [p[0] * (1 + (rnd() - 0.5) * 0.22), p[1] + (rnd() - 0.5) * jy, p[2] * (1 + (rnd() - 0.5) * 0.22)]);
+    const r0 = ring(-0.5, 0, 4.2, 2.9, -0.6, 5, 0.2, 0), r1 = ring(-0.5, 0, 3.75, 2.5, 0.35, 5, 0.25, 0.08), r2 = ring(-0.2, 0.1, 2.0, 1.2, 1.15, 5, 0.5, 0.2).map(p => [p[0], p[1] + p[0] * 0.28, p[2]]);
+    g.loft(r0, r1, band, { from: [-0.5, 0, 0] });
+    g.loft(r1, r2, rock, { from: [-0.5, 0, 0] });
+    g.cap(r2, rock, { dir: [0, 1, 0] });
+    const s0 = g.ringY(3.4, -0.6, 1.5, 1.35, 1.15, 3, 0.4), s1 = g.ringY(3.35, 0.4, 1.45, 0.95, 0.8, 3, 0.6);
+    g.loft(s0, s1, band, { from: [3.4, 0, 1.5] });
+    g.cap(s1, rock, { dir: [0, 1, 0] });
+  });
+
+  // ======================= WATER'S EDGE ====================================
+  def('reeds', 'Reed clump, y=0 = water surface or wet bank; instance densely along shallows.', g => {
+    const rnd = rngOf(97);
+    for (let i = 0; i < 7; i++) {
+      const a = i / 7 * Math.PI * 2 + rnd(), r = i === 0 ? 0 : 0.28 + rnd() * 0.3;
+      const x = Math.cos(a) * r, z = Math.sin(a) * r, h = 1.25 + rnd() * 0.75;
+      const col = mix(0x6f9440, 0xa8b45a, rnd());
+      g.fan([x * 1.9 + (rnd() - 0.5) * 0.2, h, z * 1.9 + (rnd() - 0.5) * 0.2], g.ringY(x, -0.25, z, 0.11, 0.11, 3, rnd() * 6), col, { from: [x * 1.3, h * 0.4, z * 1.3] });
+    }
+    g.fan([0.06, 2.3, 0.03], g.ringY(0.04, 1.75, 0.02, 0.085, 0.085, 3, 1), 0x6b4a30, { from: [0.05, 1.9, 0.02] });   // one cattail head
+  });
+
+  def('jetty', 'Timber pier, shore end at z=-1.5, runs out along +Z to z=9; deck top y=1.2, posts reach y=-1.6 (y=0 = water surface).', g => {
+    g.box(0, 1.0, 3.75, 2.1, 0.2, 10.5, TIMBER_L, { skip: 'B', cols: { L: TIMBER, R: TIMBER, F: TIMBER, K: TIMBER } });
+    for (const z of [1.2, 4.7, 8.5]) for (const sx of [-1, 1]) {
+      const x = sx * 0.92;
+      if (z < 2) g.loft(g.ringY(x, -1.6, z, 0.17, 0.17, 3, 0.5), g.ringY(x, 1.0, z, 0.17, 0.17, 3, 0.5), TIMBER_D);
+      else if (z > 8) g.box(x, -1.6, z, 0.3, 3.4, 0.3, TIMBER_D, { skip: 'B', cols: { T: TIMBER } });   // mooring posts stand proud
+      else g.box(x, -1.6, z, 0.28, 2.6, 0.28, TIMBER_D, { skip: 'BT' });
+    }
+  }, { deckY: 1.2, seawardEnd: [0, 1.2, 9] });
+
+  function hullStations(g, st, bowTop, bowFoot, outer, inner, transom) {
+    // st: [{z, hb (half beam), gy (gunwale y), ky (keel y), cy/cb (optional chine y / chine beam fraction)}], stern first
+    const sec = s => s.cy === undefined
+      ? [[-s.hb, s.gy, s.z], [0, s.ky, s.z], [s.hb, s.gy, s.z]]
+      : [[-s.hb, s.gy, s.z], [-s.hb * s.cb, s.cy, s.z], [0, s.ky, s.z], [s.hb * s.cb, s.cy, s.z], [s.hb, s.gy, s.z]];
+    const S = st.map(sec), m = S[0].length;
+    const axis = z => [0, 0.5 * (st[0].gy + st[0].ky) + 0.3, z];
+    const both = (a, b, c, d, band) => {
+      const from = axis((a[2] + b[2] + c[2] + (d ? d[2] : c[2])) / 4);
+      const oc = typeof outer === 'function' ? outer(band) : outer;
+      if (d) { g.quad(a, b, c, d, oc, { from }); if (inner !== null) g.quad(a, b, c, d, inner, { from, inv: true }); }
+      else { g.tri(a, b, c, oc, { from }); if (inner !== null) g.tri(a, b, c, inner, { from, inv: true }); }
+    };
+    for (let i = 0; i < S.length - 1; i++) for (let k = 0; k < m - 1; k++) both(S[i][k], S[i][k + 1], S[i + 1][k + 1], S[i + 1][k], m === 5 ? (k === 0 || k === 3 ? 0 : 1) : 0);
+    const L = S[S.length - 1];
+    if (m === 3) { both(L[0], L[1], bowTop, null, 0); both(L[1], L[2], bowTop, null, 0); }
+    else {
+      both(L[0], L[1], bowTop, null, 0); both(L[1], bowFoot, bowTop, null, 0); both(L[1], L[2], bowFoot, null, 1);
+      both(L[4], L[3], bowTop, null, 0); both(L[3], bowFoot, bowTop, null, 0); both(L[3], L[2], bowFoot, null, 1);
+    }
+    const T = S[0], zc = st[0].z;
+    for (let i = 1; i < m - 1; i++) {
+      g.tri(T[0], T[i], T[i + 1], transom, { dir: [0, 0, -1] });
+      if (inner !== null) g.tri(T[0], T[i], T[i + 1], inner, { dir: [0, 0, 1] });
+    }
+    return S;
+  }
+
+  def('rowBoat', 'Open clinker rowing boat, bow +Z, floats with y=0 at the WATER surface (draws 0.18 m).', g => {
+    hullStations(g, [
+      { z: -2.0, hb: 0.52, gy: 0.44, ky: -0.06 },
+      { z: -0.7, hb: 0.78, gy: 0.38, ky: -0.18 },
+      { z: 0.9, hb: 0.68, gy: 0.42, ky: -0.16 },
+    ], [0, 0.62, 2.25], null, 0x2d7fa6, 0xc8a064, 0x2d7fa6);
+    const seat = (z, hw) => g.quad([-hw, 0.3, z - 0.16], [hw, 0.3, z - 0.16], [hw, 0.3, z + 0.16], [-hw, 0.3, z + 0.16], 0xe6cf9c, { dir: [0, 1, 0] });
+    seat(-1.5, 0.5); seat(-0.3, 0.68); seat(1.0, 0.52);
+  });
+
+  def('sailBoat', 'Small yacht, bow +Z, y=0 = WATER surface (draws 0.55 m). White hull, one white mainsail swung slightly to +X. Mast head y=9.3.', g => {
+    const S = hullStations(g, [
+      { z: -3.4, hb: 0.92, gy: 0.72, ky: -0.35, cy: 0.1, cb: 0.88 },
+      { z: -1.0, hb: 1.28, gy: 0.74, ky: -0.55, cy: 0.1, cb: 0.86 },
+      { z: 1.3, hb: 1.12, gy: 0.8, ky: -0.5, cy: 0.1, cb: 0.84 },
+    ], [0, 0.98, 3.6], [0, -0.05, 3.3], band => band ? 0xb5372b : 0xf6f5f0, null, 0xf6f5f0);
+    const dk = 0xd8c49a, up = { dir: [0, 1, 0] };
+    g.quad(S[0][0], S[0][4], S[1][4], S[1][0], dk, up);
+    g.quad(S[1][0], S[1][4], S[2][4], S[2][0], dk, up);
+    g.tri(S[2][0], S[2][4], [0, 0.98, 3.6], dk, up);
+    g.box(0, 0.72, 0.35, 1.5, 0.55, 2.3, 0xf6f5f0, { skip: 'B', tw: 0.86, td: 0.88, cols: { L: 0x9fb4c4, R: 0x9fb4c4 } });   // coachroof, tinted sides = windows
+    g.quad([-0.5, 0.76, -3.0], [0.5, 0.76, -3.0], [0.55, 0.76, -1.4], [-0.55, 0.76, -1.4], 0x7a6a52, up);          // cockpit well
+    g.loft(g.ringY(0, 0.7, 1.35, 0.1, 0.1, 3, 0.5), g.ringY(0, 9.3, 1.25, 0.06, 0.06, 3, 0.5), 0xaeb4b8);         // mast
+    g.loft(g.ringZ(0.02, 1.75, 1.3, 0.07, 0.07, 3, 0.5), g.ringZ(0.5, 1.7, -2.9, 0.06, 0.06, 3, 0.5), 0xaeb4b8);  // boom
+    const tack = [0.02, 1.85, 1.22], head = [0, 9.1, 1.2], clew = [0.5, 1.78, -2.85], belly = [0.55, 4.6, -1.15];
+    g.tri(tack, head, belly, 0xffffff, { dir: [1, 0, 0], ds: true, back: 0xe9eef2 });
+    g.tri(tack, belly, clew, 0xffffff, { dir: [1, 0, 0], ds: true, back: 0xe9eef2 });
+  }, { mastHead: [0, 9.3, 1.25] });
+
+  // ======================= BUILDINGS =======================================
+  // gable-roofed shed: ridge along X. Returns nothing; emits 10 (walls) + 6 (roof + gables) tris.
+  function gabled(g, w, d, wallH, roofH, wallCol, roofCol, o) {
+    o = o || {};
+    const ov = o.over === undefined ? 0.25 : o.over, ox = o.overX === undefined ? 0.12 : o.overX, x0 = o.x || 0, z0 = o.z || 0;
+    g.box(x0, 0, z0, w, wallH, d, wallCol, { skip: 'BT' });
+    const e = wallH - ov * roofH / (d / 2), top = wallH + roofH;
+    g.quad([x0 - w / 2 - ox, e, z0 + d / 2 + ov], [x0 + w / 2 + ox, e, z0 + d / 2 + ov], [x0 + w / 2 + ox, top, z0], [x0 - w / 2 - ox, top, z0], roofCol, { dir: [0, 1, 1] });
+    g.quad([x0 - w / 2 - ox, e, z0 - d / 2 - ov], [x0 + w / 2 + ox, e, z0 - d / 2 - ov], [x0 + w / 2 + ox, top, z0], [x0 - w / 2 - ox, top, z0], roofCol, { dir: [0, 1, -1] });
+    for (const s of [-1, 1]) g.tri([x0 + s * w / 2, wallH, z0 - d / 2], [x0 + s * w / 2, wallH, z0 + d / 2], [x0 + s * w / 2, top, z0], o.gableCol === undefined ? wallCol : o.gableCol, { dir: [s, 0, 0] });
+  }
+  // flat decal on a wall, pushed `off` proud of it to stay clear of depth fighting at range
+  function decalZ(g, x, y, z, w, h, col, s) { g.quad([x - w / 2, y, z], [x + w / 2, y, z], [x + w / 2, y + h, z], [x - w / 2, y + h, z], col, { dir: [0, 0, s] }); }
+  function decalX(g, x, y, z, d, h, col, s) { g.quad([x, y, z - d / 2], [x, y, z + d / 2], [x, y + h, z + d / 2], [x, y + h, z - d / 2], col, { dir: [s, 0, 0] }); }
+  const OFF = 0.09;
+
+  def('croft', 'White-harled cottage, long axis X (10 m), door on +Z. Slate roof, chimney on each gable. Sink 0.3 m on slopes.', g => {
+    gabled(g, 10, 5.2, 2.5, 2.0, WHITE, SLATE, {});
+    for (const s of [-1, 1]) g.box(s * 4.55, 3.6, 0, 0.9, 1.7, 0.8, WHITE, { skip: 'B', cols: { T: 0x3a4148 } });
+    decalZ(g, 0.6, 0, 2.6 + OFF, 1.05, 1.95, 0xb3402f, 1);                // red door
+    decalZ(g, -2.5, 0.95, 2.6 + OFF, 1.1, 1.05, GLASS, 1);
+    decalZ(g, 3.2, 0.95, 2.6 + OFF, 1.1, 1.05, GLASS, 1);
+    decalZ(g, -2.2, 0.95, -2.6 - OFF, 1.1, 1.05, GLASS, -1);
+    decalZ(g, 2.2, 0.95, -2.6 - OFF, 1.1, 1.05, GLASS, -1);
+  });
+
+  def('bothy', 'Rough stone bothy, long axis X (6.5 m), door on +Z, rust-red tin roof, one gable chimney. Sink 0.3 m on slopes.', g => {
+    gabled(g, 6.5, 4.2, 2.1, 1.5, 0x8f887b, RUST, { gableCol: 0x7f786c });
+    g.box(-2.85, 2.7, 0, 0.8, 1.35, 0.7, 0x7f786c, { skip: 'B', cols: { T: 0x3a4148 } });
+    decalZ(g, 0.8, 0, 2.1 + OFF, 1.0, 1.75, 0x33302c, 1);
+  });
+
+  def('boathouse', 'Green timber boathouse, ridge along Z, open doorway + concrete slip on +Z (the water side): put z~+4 at the waterline; slip runs down to y=-0.9.', g => {
+    const w = 5.2, d = 8, wh = 2.6, rh = 1.7, wall = 0x3f7260, roof = 0xa3abb0;
+    g.box(0, 0, 0, w, wh, d, wall, { skip: 'BT' });
+    const e = wh - 0.25 * rh / (w / 2), top = wh + rh, zo = d / 2 + 0.15;
+    g.quad([w / 2 + 0.25, e, -zo], [w / 2 + 0.25, e, zo], [0, top, zo], [0, top, -zo], roof, { dir: [1, 1, 0] });
+    g.quad([-w / 2 - 0.25, e, -zo], [-w / 2 - 0.25, e, zo], [0, top, zo], [0, top, -zo], roof, { dir: [-1, 1, 0] });
+    for (const s of [-1, 1]) g.tri([-w / 2, wh, s * d / 2], [w / 2, wh, s * d / 2], [0, top, s * d / 2], 0xe9e4d2, { dir: [0, 0, s] });
+    decalZ(g, 0, 0, d / 2 + OFF, 3.7, 2.3, 0x1f2428, 1);                  // dark doorway
+    for (const s of [-1, 1]) {                                            // doors swung open
+      const a = [s * 1.85, 0, d / 2 + OFF], b = [s * 2.75, 0, d / 2 + 1.55];
+      g.quad(a, b, [b[0], 2.3, b[2]], [a[0], 2.3, a[2]], 0xe9e4d2, { dir: [-s, 0, 1], ds: true, back: 0xc9c4b2 });
+    }
+    const sl = 0xb9b5a6;                                                  // slipway wedge
+    g.quad([-1.8, 0.12, d / 2], [1.8, 0.12, d / 2], [1.8, -0.9, d / 2 + 7], [-1.8, -0.9, d / 2 + 7], sl, { dir: [0, 1, 0] });
+    for (const s of [-1, 1]) g.tri([s * 1.8, 0.12, d / 2], [s * 1.8, -0.9, d / 2 + 7], [s * 1.8, -0.9, d / 2], 0x8f8b7e, { dir: [s, 0, 0] });
+  }, { waterSide: '+Z' });
+
+  def('castleRuin', 'Broken tower-house stump on its own grassy knoll (knoll skirt r~10 m at y=0, top y~1.8). Tallest corner at -X,-Z; breach on the +Z side. Sink 0.5 m.', g => {
+    const rnd = rngOf(131);
+    const grass = n => mix(0x5f8a3e, 0x86ad55, clamp01(n[1] * 1.4 - 0.5));
+    g.blob([0, 0, 0], [10.5, 1.8, 9.5], 7, rnd, grass, { noBottom: true, flatBase: true, flatTop: true, j: 0.1, levels: [[0, 1], [1.0, 0.62]] });
+    const hx = 3.6, hz = 4.6, t = 1.15, yb = 1.2, yi = 1.75;
+    // eight half-walls round the perimeter (ccw seen from above), each broken
+    // off at its own height [start, end]; a vertical step face closes every jump
+    const nodes = [[-1, -1], [0, -1], [1, -1], [1, 0], [1, 1], [0.1, 1], [-1, 1], [-1, 0]];
+    const tops = [[12.6, 12.2], [10.9, 10.3], [10.3, 10.6], [7.4, 6.2], [4.6, 3.8], [2.6, 2.2], [5.2, 6.4], [9.4, 12.6]];
+    const pt = (n, inset, y) => [n[0] * (hx - inset), y, n[1] * (hz - inset)];
+    const outer = n => mix(0x9a9488, 0xb0aa9c, clamp01(0.5 + n[0] * 0.35 + n[2] * 0.2)), inner = 0x7d7970, topc = 0xc2bcad;
+    for (let i = 0; i < 8; i++) {
+      const a = nodes[i], b = nodes[(i + 1) % 8], ha = tops[i][0], hb = tops[i][1], hp = tops[(i + 7) % 8][1];
+      const mid = [(a[0] + b[0]) / 2 * (hx - t / 2), 3, (a[1] + b[1]) / 2 * (hz - t / 2)];
+      g.quad(pt(a, 0, yb), pt(b, 0, yb), pt(b, 0, hb), pt(a, 0, ha), outer, { from: [0, 3, 0] });
+      g.quad(pt(a, t, yi), pt(b, t, yi), pt(b, t, hb), pt(a, t, ha), inner, { from: mid });
+      g.quad(pt(a, 0, ha), pt(b, 0, hb), pt(b, t, hb), pt(a, t, ha), topc, { dir: [0, 1, 0] });
+      if (Math.abs(ha - hp) > 0.05) {                                      // step between the previous half-wall and this one
+        const s = ha > hp ? -1 : 1, p = nodes[(i + 7) % 8];
+        g.quad(pt(a, 0, hp), pt(a, t, hp), pt(a, t, ha), pt(a, 0, ha), 0xa59f92, { dir: [s * (b[0] - a[0] + a[0] - p[0]), 0, s * (b[1] - a[1] + a[1] - p[1])] });
+      }
+    }
+    decalZ(g, -1.6, 6.4, -hz - OFF, 0.75, 1.8, 0x23262a, -1);             // window slits on the tall faces
+    decalZ(g, 1.6, 4.0, -hz - OFF, 0.75, 1.6, 0x23262a, -1);
+    decalX(g, -hx - OFF, 5.4, -1.4, 0.75, 1.8, 0x23262a, -1);
+  });
+
+  def('stoneBridge', 'Humped single-arch bridge spanning 14 m along Z (road ends at z=+-7, y=0 = ROAD/BANK level). Roadway 3.5 m between parapets, crown y=1.45, parapet top y=2.35. Abutments reach y=-3; arch opening z in [-5,5], soffit crown y=0.45: water/bed must lie below y~-0.8.', g => {
+    const zs = [-7, -5, -3.5, 0, 3.5, 5, 7], dy = [0, 0.55, 1.05, 1.45, 1.05, 0.55, 0], uy = [-3, -3, -0.75, 0.45, -0.75, -3, -3];
+    const xo = 2.15, xi = 1.75, ph = 0.9;
+    const side = n => mix(0x8a8478, 0xa7a194, clamp01(0.55 + n[0] * 0.3)), road = 0xa39a86, par = 0xbab4a6, soff = 0x5a5751;
+    for (let i = 0; i < 6; i++) {
+      const j = i + 1;
+      for (const s of [-1, 1]) {
+        g.quad([s * xo, uy[i], zs[i]], [s * xo, uy[j], zs[j]], [s * xo, dy[j] + ph, zs[j]], [s * xo, dy[i] + ph, zs[i]], side, { dir: [s, 0, 0] });
+        g.quad([s * xi, dy[i], zs[i]], [s * xi, dy[j], zs[j]], [s * xo, dy[j] + ph, zs[j]], [s * xo, dy[i] + ph, zs[i]], par, { dir: [-s, 0.4, 0] });
+      }
+      g.quad([-xi, dy[i], zs[i]], [xi, dy[i], zs[i]], [xi, dy[j], zs[j]], [-xi, dy[j], zs[j]], road, { dir: [0, 1, 0] });
+      if (i >= 1 && i <= 4) g.quad([-xo, uy[i], zs[i]], [xo, uy[i], zs[i]], [xo, uy[j], zs[j]], [-xo, uy[j], zs[j]], soff, { dir: [0, -1, zs[i] + zs[j] < 0 ? 1 : -1] });
+    }
+    for (const e of [-1, 1]) for (const s of [-1, 1]) g.tri([s * xo, 0, e * 7], [s * xi, 0, e * 7], [s * xo, ph, e * 7], par, { dir: [0, 0, e] });
+  }, { roadEnds: [[0, 0, -7], [0, 0, 7]], roadWidth: 3.5, archHalfSpan: 5, abutmentDepth: 3 });
+
+  def('drystoneWall', 'Dry-stone dyke segment, 12 m along Z (z=-6..6), 1.1 m high, battered. Chain end to end; sink 0.2 m on slopes.', g => {
+    g.box(0, 0, 0, 0.8, 1.1, 12, 0x8b887d, { skip: 'B', tw: 0.6, cols: { T: 0xaaa79b, F: 0x7b786e, K: 0x7b786e } });
+  });
+
+  // ======================= AIRFIELD KIT ====================================
+  def('hangar', 'Arched glider hangar 14 (X) x 18 (Z) x 5.75 m, hollow, open doorway on the +Z gable (10.4 x 4.4 m) with sliding doors parked either side (they overhang to x=+-10.2).', g => {
+    const prof = [[-7, 0], [-7, 2.0], [-5.2, 4.4], [-2.2, 5.75], [2.2, 5.75], [5.2, 4.4], [7, 2.0], [7, 0]];
+    const zb = -9, zf = 9, skin = [0x6f8f86, 0x86a59b, 0x9db8ad, 0xa9c2b7, 0x9db8ad, 0x86a59b, 0x6f8f86];
+    const R = z => prof.map(p => [p[0], p[1], z]), rb = R(zb), rf = R(zf);
+    for (let i = 0; i < 7; i++) {
+      g.quad(rb[i], rb[i + 1], rf[i + 1], rf[i], skin[i], { from: [0, 1, 0] });
+      g.quad(rb[i], rb[i + 1], rf[i + 1], rf[i], i === 0 || i === 6 ? 0x3a4044 : 0x2c3134, { from: [0, 1, 0], inv: true });
+    }
+    const gab = 0xe6e0cc;
+    g.cap(rb, gab, { dir: [0, 0, -1] });                                   // back gable, outside
+    g.cap(rb, 0x33383b, { dir: [0, 0, 1] });                               // back gable, inside
+    g.quad([-7, 0.2, zb], [7, 0.2, zb], [7, 0.2, zf + 0.2], [-7, 0.2, zf + 0.2], 0x6a6d6b, { dir: [0, 1, 0] });   // floor slab, proud of rough ground
+    g.quad(rf[0], [-5.2, 0, zf], rf[2], rf[1], gab, { dir: [0, 0, 1] });   // front gable around the doorway
+    g.quad(rf[7], [5.2, 0, zf], rf[5], rf[6], gab, { dir: [0, 0, 1] });
+    g.quad(rf[2], rf[5], rf[4], rf[3], gab, { dir: [0, 0, 1] });
+    for (const s of [-1, 1]) g.quad([s * 5.2, 0, zf + 0.2], [s * 10.2, 0, zf + 0.2], [s * 10.2, 4.4, zf + 0.2], [s * 5.2, 4.4, zf + 0.2], 0xc5cbc4, { dir: [0, 0, 1], ds: true, back: 0x9aa39c });
+  }, { doorCentre: [0, 0, 9], doorSize: [10.4, 4.4] });
+
+  def('clubhouse', 'Timber clubhouse 10 (X) x 6 (Z), low grey roof, window band + door on +Z, small raised deck in front.', g => {
+    gabled(g, 10, 6, 2.8, 1.1, 0xb98350, 0x56616c, { over: 0.4 });
+    decalZ(g, -1.6, 1.0, 3 + OFF, 5.6, 1.15, 0x9fd3ec, 1);
+    decalZ(g, 3.4, 0, 3 + OFF, 1.1, 2.05, 0x3d4a57, 1);
+    decalX(g, 5 + OFF, 1.0, 0, 3.0, 1.15, 0x9fd3ec, 1);
+    g.box(0, 0, 4.3, 10, 0.35, 2.4, 0xa8926e, { skip: 'BK', cols: { T: 0xc4ad85 } });
+  });
+
+  def('winchTruck', 'Launch winch on a flatbed truck, 6 m: yellow cab at +Z, red winch frame with steel cable drum at the rear, amber beacon on the cab. Cable leaves through the rear fairlead toward local -Z.', g => {
+    for (const z of [1.95, -1.55]) {                                       // two axles, tyres as hex rollers
+      const a = g.ringX(-1.17, 0.433, z, 0.5, 0.5, 6, Math.PI / 6), b = g.ringX(1.17, 0.433, z, 0.5, 0.5, 6, Math.PI / 6);
+      g.loft(a, b, TYRE, { skip: [5] });                                   // the top flat hides under the bed
+      g.cap(a, 0x3d4147, { dir: [-1, 0, 0] }); g.cap(b, 0x3d4147, { dir: [1, 0, 0] });
+    }
+    g.box(0, 0.75, -0.9, 2.2, 0.3, 4.2, 0x4a5058, { skip: 'B' });          // flatbed
+    const cab = g.box(0, 0.75, 2.1, 2.1, 1.7, 1.8, 0xf2b61c, { skip: 'B', mod: (p, top, sx, sz) => { if (top && sz > 0) p[2] -= 0.4; } });
+    const L = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+    const ws = (u, v) => { const lo = L(cab.e, cab.c, u), hi = L(cab.E, cab.C, u), p = L(lo, hi, v); return [p[0], p[1] + 0.02, p[2] + OFF]; };
+    g.quad(ws(0.1, 0.5), ws(0.9, 0.5), ws(0.9, 0.93), ws(0.1, 0.93), GLASS, { dir: [0, 0.3, 1] });    // windscreen
+    for (const s of [-1, 1]) decalX(g, s * (1.05 + OFF), 1.65, 2.0, 1.0, 0.62, GLASS, s);
+    g.fan([0, 2.9, 1.9], g.ringY(0, 2.45, 1.9, 0.26, 0.26, 4, Math.PI / 4), 0xff9d14, { from: [0, 2.4, 1.9] });   // beacon
+    for (const s of [-1, 1]) g.box(s * 0.82, 1.05, -1.35, 0.2, 1.3, 2.0, 0xd24a2c, { skip: 'B', td: 0.6 });       // winch cheeks
+    g.loft(g.ringX(-0.72, 1.6, -1.35, 0.6, 0.6, 6), g.ringX(0.72, 1.6, -1.35, 0.6, 0.6, 6), [0xb4babe, 0x7d8388, 0xb4babe, 0x7d8388, 0xb4babe, 0x7d8388]);   // cable drum
+    g.box(0, 1.05, -2.82, 0.6, 0.8, 0.3, 0x30343a, { skip: 'B', cols: { K: 0xd24a2c } });                         // fairlead
+  }, { cableExit: [0, 1.6, -3.0], cableDir: [0, 0, -1], drumCentre: [0, 1.6, -1.35] });
+
+  def('gliderTrailer', 'White tube glider trailer, 9 m along Z, pointed tow end at +Z (hitch ~y=0.75), one axle.', g => {
+    const a = g.ringZ(0, 1.4, -4.6, 0.85, 0.95, 6, Math.PI / 6), b = g.ringZ(0, 1.4, 2.6, 0.85, 0.95, 6, Math.PI / 6);
+    g.loft(a, b, n => mix(0xd9dcdc, 0xf7f7f3, clamp01(n[1] * 0.6 + 0.6)));
+    g.cap(a, 0xc3c9cd, { dir: [0, 0, -1] });
+    g.fan([0, 0.8, 4.4], b, 0xeef0ee, { from: [0, 1.4, 2.6] });
+    const w1 = g.ringX(-1.05, 0.364, -1.3, 0.42, 0.42, 6, Math.PI / 6), w2 = g.ringX(1.05, 0.364, -1.3, 0.42, 0.42, 6, Math.PI / 6);
+    g.loft(w1, w2, TYRE, { skip: [5] });
+    g.cap(w1, 0x3d4147, { dir: [-1, 0, 0] }); g.cap(w2, 0x3d4147, { dir: [1, 0, 0] });
+  });
+
+  def('parkedGlider', 'White 15 m sailplane resting on its wheel with the -X wingtip on the ground, nose +Z. Blue canopy, T-tail.', g => {
+    const Wc = 0xf7f7f4, belly = 0xd4d9dc, can = 0x3d74b0;
+    const A = [[0, 1.02, 2.0], [0.3, 0.6, 2.0], [0, 0.2, 2.0], [-0.3, 0.6, 2.0]], B = [[0, 0.98, 0.5], [0.27, 0.56, 0.5], [0, 0.1, 0.5], [-0.27, 0.56, 0.5]];
+    const fus = n => n[1] > 0.2 ? Wc : belly;
+    g.fan([0, 0.55, 3.2], A, fus, { from: [0, 0.6, 2.4] });
+    g.loft(A, B, [can, belly, belly, can], { from: [0, 0.58, 1.2] });
+    g.fan([0, 0.72, -3.9], B, fus, { from: [0, 0.6, -1] });
+    for (const s of [-1, 1]) g.quad([0, 0.93, 0.95], [s * 7.5, 0.93, 0.6], [s * 7.5, 0.93, 0.22], [0, 0.93, 0.0], Wc, { dir: [0, 1, 0], ds: true, back: belly });
+    g.quad([0, 0.72, -3.2], [0, 0.72, -3.9], [0, 1.95, -4.05], [0, 1.95, -3.5], Wc, { dir: [1, 0, 0], ds: true });
+    g.quad([-1.35, 1.95, -4.0], [1.35, 1.95, -4.0], [1.35, 1.95, -3.6], [-1.35, 1.95, -3.6], Wc, { dir: [0, 1, 0], ds: true, back: belly });
+    g.rollZ(Math.asin(0.86 / 7.5), 0, 0.1);                                // drop the -X tip onto the grass
+    g.shiftY(0.03 - g.minY());
+  });
+
+  def('windsock', 'Windsock on a 6 m pole; the sock streams toward local -Z (rotate so -Z points downwind).', g => {
+    g.loft(g.ringY(0, 0, 0, 0.09, 0.09, 3), g.ringY(0, 6.2, 0, 0.06, 0.06, 3), 0xdfe2e4);
+    const r0 = g.ringZ(0, 5.8, -0.1, 0.42, 0.42, 4, Math.PI / 4), r1 = g.ringZ(0, 5.7, -1.3, 0.32, 0.32, 4, Math.PI / 4), r2 = g.ringZ(0, 5.5, -2.6, 0.2, 0.2, 4, Math.PI / 4);
+    g.loft(r0, r1, 0xff7a1a); g.loft(r1, r2, 0xf7f5ee);
+    g.cap(r0, 0xb3520f, { dir: [0, 0, 1] });
+  });
+
+  def('fuelDrum', 'Red oil drum marker, 0.9 m.', g => {
+    const a = g.ringY(0, 0, 0, 0.32, 0.32, 6), b = g.ringY(0, 0.92, 0, 0.32, 0.32, 6);
+    g.loft(a, b, 0xc23a2c); g.cap(b, 0x8f2a20, { dir: [0, 1, 0] });
+  });
+
+  def('cone', 'Orange airfield marker cone, 0.75 m (scale up 2x for visibility from the air).', g => {
+    g.box(0, 0, 0, 0.5, 0.06, 0.5, 0xe8641a, { skip: 'B' });
+    g.fan([0, 0.75, 0], g.ringY(0, 0.06, 0, 0.21, 0.21, 4, Math.PI / 4), 0xff7a1a, { from: [0, 0.2, 0] });
+  });
+
+  // ======================= LIFE ============================================
+  def('sheep', 'Blackface sheep, 1.2 m, head toward +Z. Instance in loose flocks with random yaw.', g => {
+    // woolly body: a 4-sided gem (narrow at the feet, widest at mid height, peaked back)
+    const wool = n => n[1] > 0.3 ? 0xfaf8ef : 0xe9e4d4;
+    const r0 = [[-0.2, 0, -0.5], [0.2, 0, -0.5], [0.2, 0, 0.3], [-0.2, 0, 0.3]], r1 = [[-0.34, 0.5, -0.62], [0.34, 0.5, -0.62], [0.34, 0.5, 0.42], [-0.34, 0.5, 0.42]];
+    g.loft(r0, r1, wool, { from: [0, 0.3, -0.1] });
+    g.fan([0, 0.84, -0.12], r1, wool, { from: [0, 0.3, -0.1] });
+    g.fan([0, 0.4, 0.82], [[-0.13, 0.72, 0.36], [0.13, 0.72, 0.36], [0.13, 0.36, 0.4], [-0.13, 0.36, 0.4]], 0x2c2826, { from: [0, 0.55, 0.4] });
+  });
+
+  def('stag', 'Red deer stag, 1.9 m long, head toward +Z, antlers to y~2.5. Optional set dressing for high ground.', g => {
+    const coat = 0xb97a45, dark = 0x8f5a32;
+    g.box(0, 0.85, -0.1, 0.52, 0.62, 1.5, coat, { skip: '', tw: 0.85 });
+    g.box(0, 0, 0.45, 0.4, 0.9, 0.2, dark, { skip: 'BT' });
+    g.box(0, 0, -0.65, 0.4, 0.9, 0.2, dark, { skip: 'BT' });
+    const n0 = [[-0.13, 1.42, 0.4], [0.13, 1.42, 0.4], [0.13, 1.05, 0.66], [-0.13, 1.05, 0.66]], n1 = [[-0.09, 2.0, 0.82], [0.09, 2.0, 0.82], [0.09, 1.78, 1.0], [-0.09, 1.78, 1.0]];
+    g.loft(n0, n1, coat);
+    g.fan([0, 1.66, 1.4], n1, dark, { from: [0, 1.85, 0.95] });
+    for (const s of [-1, 1]) g.tri([s * 0.05, 1.95, 0.85], [s * 0.55, 2.5, 0.6], [s * 0.3, 2.55, 0.95], 0xe6dcc0, { dir: [0, 0, 1], ds: true });
+  });
+
+  return { geos, meta };
+}
+
+// ============================================================================
+// highland-water.js — living surface for the big y = 0 water plane of GLIDER.
+// Plain script (no import/export): paste inline.
+//
+//   const hw = createHighlandWater(THREE, { skyHorizon: SKY_HORIZON, skyTop: SKY_TOP });
+//   const water = new THREE.Mesh(new THREE.PlaneGeometry(8000, 8000), hw.material);
+//   water.rotation.x = -Math.PI / 2;  water.receiveShadow = true;
+//   // every frame:        water.position.x = playerPos.x; water.position.z = playerPos.z;
+//   //                     hw.tick(timeSeconds, playerPos);
+//   // floating origin:    hw.rebase(dx, dz);      // same (dx, dz) as world.rebase
+//
+// It is a MeshStandardMaterial patched with onBeforeCompile, so fog, lights,
+// shadows, tone mapping and colour-space output are three's own. One pass, no
+// textures, no derivatives; per fragment: 9 trig calls and 6 hashes.
+//
+// What it adds:
+//   * low-poly facets: the surface is cut into triangles on two world-anchored
+//     lattices (3 m chop, 12 m swell, turned +-36.87 deg). Each triangle takes ONE normal, sampled
+//     from a sum of travelling sine waves at its centroid — flat facets that
+//     rock slowly, catching the sun as glints (three's own GGX specular).
+//   * distance fade: each lattice dissolves once a cell is smaller than ~2-6
+//     screen pixels along the view ray (grazing angle included), and the lost
+//     detail becomes roughness, so far water is a smooth sheen: no moire.
+//   * sky reflection by Schlick fresnel, using the sky dome's own gradient;
+//     opacity rises with it, so water is see-through from above (bed colour
+//     reads through) and a closed reflective sheet toward the horizon.
+//   * slow large-scale drift: 350-550 m patches shift the tint and calm the
+//     chop ("slicks"), wandering with the wind.
+//
+// World anchoring: pattern coordinate = (modelMatrix * position).xz + uHWOffset.
+// uHWOffset is the floating origin, kept modulo 1920 m in float64 here; every
+// pattern is exactly 1920 m periodic, so the wrap is invisible and the shader
+// never sees large numbers. Time reaches the shader only as wrapped phases.
+// ============================================================================
+function createHighlandWater(THREE, opts) {
+  'use strict';
+  opts = opts || {};
+  const PERIOD = 1920;                       // metres; multiple of both cell sizes
+  const TAU = Math.PI * 2, K = TAU / PERIOD;
+  const pick = (v, d) => v === undefined ? d : v;
+
+  const material = new THREE.MeshStandardMaterial({
+    color: pick(opts.color, 0x2f86c4),
+    transparent: true,
+    opacity: pick(opts.opacity, 0.74),
+    roughness: pick(opts.roughness, 0.16),
+    metalness: pick(opts.metalness, 0.3),
+  });
+
+  // travelling waves: integer wave numbers (m, n) on the 1920 m torus.
+  // [m, n, slope amplitude], first three drive the 3 m facets, last two the 12 m ones.
+  const WAVES = [
+    [85, 64, 0.042], [-47, 118, 0.036], [140, -31, 0.030],   // 18.0 / 15.1 / 13.4 m
+    [21, 9, 0.022], [-8, 27, 0.019],                         // 84 / 68 m
+  ];
+  const speed = pick(opts.speed, 1);
+  // deep-water dispersion (omega = sqrt(g k)), slowed to 70 % for a calm loch
+  const OMEGA = WAVES.map(w => 0.7 * Math.sqrt(9.81 * K * Math.hypot(w[0], w[1])));
+  const DRIFT_OMEGA = 0.045;                 // rad/s: the slick pattern crawls
+
+  const uniforms = {
+    uHWOffset: { value: new THREE.Vector2(0, 0) },
+    uHWPhase: { value: [0, 0, 0, 0, 0, 0] },                 // 5 waves + drift
+    uHWSkyHorizon: { value: new THREE.Color(pick(opts.skyHorizon, 0xcfe8ff)) },
+    uHWSkyTop: { value: new THREE.Color(pick(opts.skyTop, 0x2a6de0)) },
+    uHWTint: { value: new THREE.Color(pick(opts.tint, 0x2aa3a0)) },
+    // x: chop strength, y: swell strength, z: reflection strength, w: radians per screen pixel
+    uHWParams: { value: new THREE.Vector4(pick(opts.chop, 1), pick(opts.swell, 1), pick(opts.reflect, 0.85), pick(opts.pixelAngle, 0.0016)) },
+    // x: tint drift amount, y: far roughness, z: per-facet random tilt, w: glint opacity gain
+    uHWParams2: { value: new THREE.Vector4(pick(opts.drift, 0.3), pick(opts.farRoughness, 0.42), pick(opts.jitter, 0.035), pick(opts.glint, 1)) },
+  };
+
+  const wv = i => 'vec2(' + (WAVES[i][0] * K).toFixed(8) + ', ' + (WAVES[i][1] * K).toFixed(8) + ')';
+  const wd = i => { const l = Math.hypot(WAVES[i][0], WAVES[i][1]); return 'vec2(' + (WAVES[i][0] / l * WAVES[i][2]).toFixed(6) + ', ' + (WAVES[i][1] / l * WAVES[i][2]).toFixed(6) + ')'; };
+
+  const fragHead = [
+    'uniform vec2 uHWOffset;',
+    'uniform float uHWPhase[6];',
+    'uniform vec3 uHWSkyHorizon;',
+    'uniform vec3 uHWSkyTop;',
+    'uniform vec3 uHWTint;',
+    'uniform vec4 uHWParams;',
+    'uniform vec4 uHWParams2;',
+    'varying vec3 vHWPos;',
+    'float hwHash( vec2 p ) {',
+    '  vec3 p3 = fract( vec3( p.xyx ) * 0.1031 );',
+    '  p3 += dot( p3, p3.yzx + 33.33 );',
+    '  return fract( ( p3.x + p3.y ) * p3.z );',
+    '}',
+    // centroid (in cells) of the triangle holding p. Each square cell is split
+    // along one of its two diagonals, chosen by hash, so the mesh has no
+    // regular rows. id.xy = wrapped cell, id.z = which half.
+    // The lattice is turned by atan(3/4) = 36.87 deg (sign s) so its seams never
+    // line up with the world axes or with the other lattice; a 3-4-5 rotation
+    // keeps it exactly periodic (5 cells), and j = 5 * R^-1 * i is an integer
+    // pair that wraps cleanly, so the per-facet hash survives the origin wrap.
+    'vec2 hwFacet( vec2 p, float s, float wrapJ, out vec3 id ) {',
+    '  vec2 q = vec2( 0.8 * p.x + 0.6 * s * p.y, - 0.6 * s * p.x + 0.8 * p.y );',
+    '  vec2 i = floor( q );',
+    '  vec2 f = q - i;',
+    '  vec2 j = mod( vec2( 4.0 * i.x - 3.0 * s * i.y, 3.0 * s * i.x + 4.0 * i.y ), wrapJ );',
+    '  float par = step( 0.5, hwHash( j + 0.5 ) );',
+    '  float up = par < 0.5 ? step( 1.0, f.x + f.y ) : step( f.x, f.y );',
+    '  vec2 lo = par < 0.5 ? vec2( 0.3333 ) : vec2( 0.6667, 0.3333 );',
+    '  vec2 hi = par < 0.5 ? vec2( 0.6667 ) : vec2( 0.3333, 0.6667 );',
+    '  id = vec3( j, up );',
+    '  vec2 c = i + mix( lo, hi, up );',
+    '  return vec2( 0.8 * c.x - 0.6 * s * c.y, 0.6 * s * c.x + 0.8 * c.y );',
+    '}',
+  ].join('\n');
+
+  const fragSurface = [
+    '  vec2 hwP = vHWPos.xz + uHWOffset;',
+    '  vec3 hwToCam = cameraPosition - vHWPos;',
+    '  float hwDist = length( hwToCam );',
+    '  vec3 hwV = hwToCam / max( hwDist, 0.001 );',
+    // metres of water under one pixel, measured along the view ray
+    '  float hwFoot = hwDist * uHWParams.w / max( abs( hwV.y ), 0.04 );',
+    '  float hwFadeS = 1.0 - smoothstep( 0.5, 1.5, hwFoot );',
+    '  float hwFadeL = 1.0 - smoothstep( 3.0, 7.2, hwFoot );',
+    // slow drift field: tint patches + calm slicks (wavelengths ~530 m and ~355 m)
+    '  float hwDrift = sin( dot( hwP, vec2( ' + (3 * K).toFixed(8) + ', ' + (2 * K).toFixed(8) + ' ) ) + uHWPhase[5] )',
+    '                * sin( dot( hwP, vec2( ' + (-2 * K).toFixed(8) + ', ' + (5 * K).toFixed(8) + ' ) ) - 0.6 * uHWPhase[5] + 1.3 );',
+    '  float hwCalm = 0.72 + 0.28 * hwDrift;',
+    '  vec3 hwIdS; vec3 hwIdL;',
+    '  vec2 hwCS = hwFacet( hwP / 3.0, 1.0, 3200.0, hwIdS ) * 3.0;',
+    '  vec2 hwCL = hwFacet( hwP / 12.0, -1.0, 800.0, hwIdL ) * 12.0;',
+    '  vec2 hwGS = ' + wd(0) + ' * cos( dot( hwCS, ' + wv(0) + ' ) - uHWPhase[0] )',
+    '            + ' + wd(1) + ' * cos( dot( hwCS, ' + wv(1) + ' ) - uHWPhase[1] )',
+    '            + ' + wd(2) + ' * cos( dot( hwCS, ' + wv(2) + ' ) - uHWPhase[2] );',
+    '  hwGS += ( vec2( hwHash( hwIdS.xy + hwIdS.z * 19.7 ), hwHash( hwIdS.yx + 7.3 + hwIdS.z * 31.1 ) ) - 0.5 ) * 2.0 * uHWParams2.z;',
+    '  vec2 hwGL = ' + wd(3) + ' * cos( dot( hwCL, ' + wv(3) + ' ) - uHWPhase[3] )',
+    '            + ' + wd(4) + ' * cos( dot( hwCL, ' + wv(4) + ' ) - uHWPhase[4] );',
+    '  hwGL += ( vec2( hwHash( hwIdL.xy + 3.1 + hwIdL.z * 11.3 ), hwHash( hwIdL.yx + 13.7 + hwIdL.z * 5.9 ) ) - 0.5 ) * uHWParams2.z;',
+    '  vec2 hwG = hwGS * ( uHWParams.x * hwFadeS * hwCalm ) + hwGL * ( uHWParams.y * hwFadeL );',
+    '  vec3 hwN = normalize( vec3( - hwG.x, 1.0, - hwG.y ) );',
+    '  diffuseColor.rgb = mix( diffuseColor.rgb, uHWTint, uHWParams2.x * ( 0.5 + 0.5 * hwDrift ) );',
+    // facets stay faintly readable from every angle, also looking down-sun
+    '  diffuseColor.rgb *= 1.0 + 2.2 * ( hwG.x + hwG.y );',
+  ].join('\n');
+
+  const fragRough = '  roughnessFactor = mix( uHWParams2.y, roughnessFactor, 0.6 * hwFadeS + 0.4 * hwFadeL );';
+  const fragNormal = '  normal = normalize( ( viewMatrix * vec4( hwN, 0.0 ) ).xyz );';
+  const fragOut = [
+    '  {',
+    '    float hwNV = clamp( dot( hwN, hwV ), 0.0, 1.0 );',
+    '    float hwF = 0.02 + 0.98 * pow( 1.0 - hwNV, 5.0 );',
+    '    vec3 hwR = reflect( - hwV, hwN );',
+    '    vec3 hwSky = mix( uHWSkyHorizon, uHWSkyTop, smoothstep( -0.05, 0.5, hwR.y ) );',
+    '    float hwK = clamp( hwF * uHWParams.z, 0.0, 1.0 );',
+    '    float hwSpec = max( reflectedLight.directSpecular.r, max( reflectedLight.directSpecular.g, reflectedLight.directSpecular.b ) );',
+    '    outgoingLight = mix( outgoingLight, hwSky + reflectedLight.directSpecular, hwK );',
+    '    diffuseColor.a = clamp( mix( diffuseColor.a, 1.0, hwK ) + hwSpec * uHWParams2.w, 0.0, 1.0 );',
+    '  }',
+  ].join('\n');
+
+  // [shader, anchor, replacement] — every anchor exists verbatim in r160's
+  // ShaderLib/meshphysical.glsl.js (the MeshStandardMaterial program).
+  const PATCHES = [
+    ['vertexShader', '#include <common>', '#include <common>\nvarying vec3 vHWPos;'],
+    ['vertexShader', '#include <begin_vertex>', '#include <begin_vertex>\n  vHWPos = ( modelMatrix * vec4( transformed, 1.0 ) ).xyz;'],
+    ['fragmentShader', '#include <common>', '#include <common>\n' + fragHead],
+    ['fragmentShader', '#include <color_fragment>', '#include <color_fragment>\n' + fragSurface],
+    ['fragmentShader', '#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n' + fragRough],
+    ['fragmentShader', '#include <normal_fragment_maps>', '#include <normal_fragment_maps>\n' + fragNormal],
+    ['fragmentShader', '#include <opaque_fragment>', fragOut + '\n#include <opaque_fragment>'],
+  ];
+
+  let patched = false;
+  material.onBeforeCompile = function (shader) {
+    // all or nothing: a missing anchor (a different three revision) leaves the
+    // plain MeshStandardMaterial untouched instead of a half-patched shader
+    for (const p of PATCHES) {
+      if (shader[p[0]].indexOf(p[1]) < 0) {
+        if (typeof console !== 'undefined') console.warn('highland-water: anchor ' + p[1] + ' not found in ' + p[0] + '; using the plain material');
+        return;
+      }
+    }
+    for (const p of PATCHES) shader[p[0]] = shader[p[0]].replace(p[1], p[2]);
+    for (const k in uniforms) shader.uniforms[k] = uniforms[k];
+    patched = true;
+  };
+  material.customProgramCacheKey = function () { return 'highland-water-1'; };
+
+  // floating origin in float64, wrapped to the pattern period
+  let ox = 0, oz = 0;
+  const wrap = v => ((v % PERIOD) + PERIOD) % PERIOD;
+  function setOrigin(x, z) { ox = wrap(x); oz = wrap(z); uniforms.uHWOffset.value.set(ox, oz); }
+  // call with the SAME (dx, dz) the game hands to world.rebase(): render
+  // coordinates just dropped by (dx, dz), so the pattern offset grows by it.
+  function rebase(dx, dz) { setOrigin(ox + dx, oz + dz); }
+  // call once per rendered frame. timeSeconds: any monotonically increasing
+  // clock (pause it to freeze the water). playerPos is accepted for symmetry
+  // with the other systems; if opts.mesh was given the plane is re-centred on it.
+  function tick(timeSeconds, playerPos) {
+    const t = timeSeconds * speed, ph = uniforms.uHWPhase.value;
+    for (let i = 0; i < 5; i++) ph[i] = (OMEGA[i] * t) % TAU;
+    ph[5] = (DRIFT_OMEGA * t) % TAU;
+    if (opts.mesh && playerPos) { opts.mesh.position.x = playerPos.x; opts.mesh.position.z = playerPos.z; }
+  }
+  function setSky(horizon, top) {
+    if (horizon !== undefined) uniforms.uHWSkyHorizon.value.set(horizon);
+    if (top !== undefined) uniforms.uHWSkyTop.value.set(top);
+  }
+  // optional: keep the anti-moire fade exact for the real camera / canvas
+  function setView(fovDegrees, heightPixels) {
+    uniforms.uHWParams.value.w = (fovDegrees * Math.PI / 180) / Math.max(1, heightPixels);
+  }
+  if (opts.originX !== undefined || opts.originZ !== undefined) setOrigin(opts.originX || 0, opts.originZ || 0);
+  tick(0, null);
+
+  return {
+    material, uniforms, tick, rebase, setOrigin, setSky, setView,
+    period: PERIOD, patches: PATCHES,
+    get patched() { return patched; },
+  };
+}
+
 function createWorld(THREE, opts = {}) {
   const seed = opts.seed ?? 7;
   const wind = opts.wind || null;   // if provided, windward slopes get a warm tint
@@ -681,11 +2477,17 @@ function createWorld(THREE, opts = {}) {
   let originX = 0, originZ = 0;   // generation-space position of the render origin
 
   const isCoast = opts.map === 'coastal';
+  // third world: generator, palette, props and water live in createHighland*()
+  const isHigh = opts.map === 'highland';
+  const hgen = isHigh ? createHighlandGen(noise, seed) : null;
+  const hlook = isHigh ? createHighlandLook(THREE, hgen, noise, wind) : null;
+  const hscatter = isHigh && opts.props ? createHighlandScatter(THREE, hgen, opts.props, noise, seed) : null;
+  let hCell = null, hInfo = null; const hTree = isHigh ? hgen.newInfo() : null;   // reused info objects: no allocation per cell
 
   function genRiverCenter(z) {
     return 90 * Math.sin(z * 0.004) + 60 * noise(31.7, z * 0.0019);
   }
-  function riverCenter(z) { return genRiverCenter(z + originZ) - originX; }
+  function riverCenter(z) { return (isHigh ? hgen.riverCenter(z + originZ) : genRiverCenter(z + originZ)) - originX; }
 
   // ---- coastal archipelago: white-cliff island plateaus in open sea -------
   function genHeightCoast(x, z) {
@@ -737,8 +2539,14 @@ function createWorld(THREE, opts = {}) {
 
     return h;
   }
-  const genH = (x, z) => (isCoast ? genHeightCoast(x, z) : genHeight(x, z));
-  function height(x, z) { return genH(x + originX, z + originZ); }
+  const genH = isHigh ? hgen.height : (x, z) => (isCoast ? genHeightCoast(x, z) : genHeight(x, z));
+  // levelling pads (legacy worlds): the strips module flattens the ground
+  // under each landing strip. surfH is what everything visible and solid uses;
+  // genH stays the untouched natural terrain the strip search reads.
+  let padFn = null;
+  const surfH = (gx, gz) => { const h = genH(gx, gz); return padFn ? padFn(gx, gz, h) : h; };
+  function height(x, z) { return surfH(x + originX, z + originZ); }
+  function naturalHeight(x, z) { return genH(x + originX, z + originZ); }
 
   function surfaceNormal(x, z, e = 4) {
     const hx = height(x + e, z) - height(x - e, z);
@@ -842,6 +2650,7 @@ function createWorld(THREE, opts = {}) {
   })();
   const MAX_LH = 2;
 
+  let treeMask = null;        // (genX, genZ) -> true where nothing may be planted
   const chunks = new Map();   // "ix,iz" -> chunk
   const pool = [];
   const buildQueue = [];
@@ -860,7 +2669,9 @@ function createWorld(THREE, opts = {}) {
     lights.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     lights.castShadow = true;
     group.add(mesh, trees, lights);
-    return { mesh, trees, lights, key: null };
+    const props = hscatter ? hscatter.makeMesh() : null;
+    if (props) group.add(props);
+    return { mesh, trees, lights, props, key: null };
   }
 
   const m4 = new THREE.Matrix4(), q0 = new THREE.Quaternion(), s3 = new THREE.Vector3(), p3 = new THREE.Vector3();
@@ -874,7 +2685,11 @@ function createWorld(THREE, opts = {}) {
     const H = new Float32Array((SEGS + 1) * (SEGS + 1));
     for (let j = 0; j <= SEGS; j++)
       for (let i = 0; i <= SEGS; i++)
-        H[j * (SEGS + 1) + i] = genH(x0 + i * STEP, z0 + j * STEP);
+        if (isHigh) {                              // height + classification in one evaluation per vertex
+          if (!hInfo) { hInfo = []; for (let q = 0; q < (SEGS + 1) * (SEGS + 1); q++) hInfo.push(hlook.newCell()); }
+          H[j * (SEGS + 1) + i] = hgen.info(x0 + i * STEP, z0 + j * STEP, hInfo[j * (SEGS + 1) + i]).h;
+        } else
+        H[j * (SEGS + 1) + i] = surfH(x0 + i * STEP, z0 + j * STEP);
 
     let k = 0;
     const cTmp = new THREE.Color();
@@ -890,8 +2705,9 @@ function createWorld(THREE, opts = {}) {
       let nzc = ux * vy - uy * vx;
       if (ny < 0) { nxc = -nxc; ny = -ny; nzc = -nzc; }    // normal points up
       const nl = Math.hypot(nxc, ny, nzc) || 1;
-      faceColor(cTmp, my, ny / nl, nxc / nl, nzc / nl, cellV, cellSnow,
-                (Math.sin(mx * 12.9898 + mz * 78.233) * 43758.5453) % 1 * 0.5 + 0.5);
+      const sparkle = (Math.sin(mx * 12.9898 + mz * 78.233) * 43758.5453) % 1 * 0.5 + 0.5;
+      if (isHigh) hlook.faceColor(cTmp, my, ny / nl, nxc / nl, nzc / nl, hCell, sparkle);
+      else faceColor(cTmp, my, ny / nl, nxc / nl, nzc / nl, cellV, cellSnow, sparkle);
       for (let t = 0; t < 3; t++) { col[k + t * 3] = cTmp.r; col[k + t * 3 + 1] = cTmp.g; col[k + t * 3 + 2] = cTmp.b; }
       k += 9;
     };
@@ -901,8 +2717,11 @@ function createWorld(THREE, opts = {}) {
       for (let i = 0; i < SEGS; i++) {
         const x = i * STEP, z = j * STEP;                        // LOCAL coords — small forever
         const gcx = x0 + x + STEP * 0.5, gcz = z0 + z + STEP * 0.5;
-        cellV = 0.5 + 0.5 * noise(gcx * 0.02 + 50.5, gcz * 0.02);
-        cellSnow = 60 + 12 * noise(gcx * 0.013 - 21, gcz * 0.013);
+        if (isHigh) { hCell = hInfo[j * (SEGS + 1) + i]; hlook.cellInfo(gcx, gcz, hCell, true); }
+        else {
+          cellV = 0.5 + 0.5 * noise(gcx * 0.02 + 50.5, gcz * 0.02);
+          cellSnow = 60 + 12 * noise(gcx * 0.013 - 21, gcz * 0.013);
+        }
         const h00 = H[j * (SEGS + 1) + i],     h10 = H[j * (SEGS + 1) + i + 1];
         const h01 = H[(j + 1) * (SEGS + 1) + i], h11 = H[(j + 1) * (SEGS + 1) + i + 1];
         if ((i + j) & 1) {
@@ -921,16 +2740,26 @@ function createWorld(THREE, opts = {}) {
     c.mesh.position.set(x0 - originX, 0, z0 - originZ);
     c.trees.position.copy(c.mesh.position);
     c.lights.position.copy(c.mesh.position);
+    if (c.props) { c.props.position.copy(c.mesh.position); hscatter.build(c.props, ix, iz, CHUNK); }
 
     // trees: deterministic per chunk, on gentle green ground below the rock line
     const rng = mulberry32((ix * 73856093) ^ (iz * 19349663) ^ (seed * 83492791));
     let n = 0;
     for (let t = 0; t < MAX_TREES * 2 && n < MAX_TREES; t++) {
       const x = x0 + rng() * CHUNK, z = z0 + rng() * CHUNK;   // gen space
-      const h = genH(x, z);
+      const h = isHigh ? hgen.info(x, z, hTree).h : surfH(x, z);
+      if (isHigh) {
+        if (!hlook.treeOK(hTree)) continue;
+        if (Math.abs(genH(x + 6, z) - h) + Math.abs(genH(x, z + 6) - h) > 8) continue;
+        // pinewoods: thick on isles and glen sides, thinning to scattered pines on the open moor
+        const wood = noise(x * 0.008 + 99, z * 0.008) + (hTree.isle > 0 ? 0.9 : 0) + 0.35 * hTree.mtn * (h < 60 ? 1 : 0) - 0.012 * Math.max(0, h - 45);
+        if (wood < 0.12) continue;
+      } else {
       if (isCoast ? (h < 4 || h > 70) : (h < 3 || h > 46)) continue;
-      if (Math.abs(genH(x + 6, z) - h) + Math.abs(genH(x, z + 6) - h) > 7) continue;
+      if (Math.abs(surfH(x + 6, z) - h) + Math.abs(surfH(x, z + 6) - h) > 7) continue;
       if (noise(x * 0.008 + 99, z * 0.008) < -0.05) continue;       // clearings
+      }
+      if (treeMask && treeMask(x, z)) { rng(); rng(); rng(); rng(); rng(); continue; }   // runway: same draws, no tree
       const s = 0.8 + rng() * 1.1;
       // position is local to the chunk corner
       m4.compose(p3.set(x - x0, h - 0.2, z - z0), q0.setFromAxisAngle(s3.set(0, 1, 0).normalize(), rng() * 6.28), s3.set(s, s * (0.9 + rng() * 0.4), s));
@@ -962,9 +2791,12 @@ function createWorld(THREE, opts = {}) {
   }
 
   // ---------- water, sky, clouds ------------------------------------------
+  let waterClock = 0, warmK = NaN;
+  const hwater = isHigh && typeof createHighlandWater === 'function'
+    ? createHighlandWater(THREE, { color: hlook.water.color, opacity: hlook.water.opacity, skyHorizon: 0xd6ecfb, skyTop: 0x2f6fd8 }) : null;
   const water = new THREE.Mesh(
     new THREE.PlaneGeometry(8000, 8000),   // far past the fog wall from any altitude: no visible edge
-    new THREE.MeshStandardMaterial({
+    hwater ? hwater.material : new THREE.MeshStandardMaterial({
       color: isCoast ? 0x1f8fd4 : 0x4db5e6,
       transparent: true, opacity: isCoast ? 0.8 : 0.75, roughness: 0.15, metalness: 0.3,
     })
@@ -974,7 +2806,7 @@ function createWorld(THREE, opts = {}) {
   water.receiveShadow = true;
   group.add(water);
 
-  const SKY_TOP = new THREE.Color(isCoast ? 0x2b7bf0 : 0x2a6de0), SKY_HORIZON = new THREE.Color(isCoast ? 0xddf2ff : 0xcfe8ff);
+  const SKY_TOP = new THREE.Color(isHigh ? 0x2f6fd8 : isCoast ? 0x2b7bf0 : 0x2a6de0), SKY_HORIZON = new THREE.Color(isHigh ? 0xd6ecfb : isCoast ? 0xddf2ff : 0xcfe8ff);
   const SUN_DIR = new THREE.Vector3(300, 420, 180).normalize();
   const sky = new THREE.Mesh(
     new THREE.SphereGeometry(1500, 16, 10),
@@ -1148,7 +2980,9 @@ function createWorld(THREE, opts = {}) {
       buildChunk(c, ix, iz);
     }
 
+    if (isHigh) { const kc = Math.round((playerPos.z + originZ) / hgen.SPACING); if (kc !== warmK) { warmK = kc; hgen.airfield(kc - 1); hgen.airfield(kc); hgen.airfield(kc + 1); hgen.airfield(kc + 2); } }
     water.position.x = playerPos.x; water.position.z = playerPos.z;
+    if (hwater) hwater.tick(waterClock += dt, playerPos);
     sky.position.x = playerPos.x; sky.position.y = playerPos.y * 0.6; sky.position.z = playerPos.z;
 
     for (const m of clouds) {
@@ -1166,11 +3000,21 @@ function createWorld(THREE, opts = {}) {
       c.mesh.position.x -= dx; c.mesh.position.z -= dz;
       c.trees.position.x -= dx; c.trees.position.z -= dz;
       c.lights.position.x -= dx; c.lights.position.z -= dz;
+      if (c.props) { c.props.position.x -= dx; c.props.position.z -= dz; }
     }
     for (const m of clouds) { m.position.x -= dx; m.position.z -= dz; }
+    if (hwater) hwater.rebase(dx, dz);
   }
 
-  return { group, height, surfaceNormal, riverCenter, update, rebase, chunkSize: CHUNK, sunDir: SUN_DIR, colors: { skyHorizon: SKY_HORIZON }, cloudGeos, cloudMat };
+  // planned airfields (highland): generation-space plan → render space
+  function airfield(k) {
+    const a = hgen.airfield(k);
+    return a ? { k: a.k, x: a.x - originX, z: a.z - originZ, heading: a.heading, h: a.h, len: a.len, wid: a.wid } : null;
+  }
+  return { group, height, surfaceNormal, riverCenter, update, rebase, chunkSize: CHUNK, sunDir: SUN_DIR, colors: { skyHorizon: SKY_HORIZON }, cloudGeos, cloudMat,
+    setTreeMask(fn) { treeMask = fn; }, setPads(fn) { padFn = fn; }, naturalHeight,
+    airfield: isHigh ? airfield : null, airfieldSpacing: isHigh ? hgen.SPACING : 0,
+    airfieldIndex: z => (isHigh ? Math.round((z + originZ) / hgen.SPACING) : 0) };
 }
 
 
@@ -1687,6 +3531,7 @@ function createRings(THREE, world, opts = {}) {
 function createStrips(THREE, world, opts = {}) {
   const seed = opts.seed ?? 7;
   const wind = opts.wind || new THREE.Vector3(8, 0, 0);
+  const props = opts.props || null;               // highland airfield kit (hangar, winch…)
   function mulberry32(a) {
     return function () {
       a |= 0; a = (a + 0x6d2b79f5) | 0;
@@ -1698,9 +3543,22 @@ function createStrips(THREE, world, opts = {}) {
   const group = new THREE.Group();
   let originX = 0, originZ = 0;
 
+  // Two placement modes. Legacy worlds: a deterministic search per 1.4 km
+  // cell (below). Worlds whose generator plans its own airfields
+  // (world.airfield) hand them over ready-made: one flattened field per
+  // world.airfieldSpacing along the corridor.
+  const AIR = typeof world.airfield === 'function';
   const CELL = 1400, RADIUS = 1;                  // 3×3 cells live around the player
-  const LEN = 130, WID = 18;                      // strip footprint, metres
-  const strips = new Map();                       // "ix,iz" -> strip | null
+  const LEN = 130, WID = 18;                      // the SEARCH footprint, metres — frozen:
+                                                  // it decides WHERE legacy strips are
+  // …then every strip found grows to the largest footprint its site can
+  // carry, and the ground under it is LEVELLED to the strip's own mean plane
+  // (world.setPads below): same sites and headings as ever, but a real field
+  // instead of a ribbon draped over lumps.
+  const SIZES = [[240, 36], [210, 32], [180, 27], [150, 22]];
+  const PAD_L = 8, PAD_W = 5, PAD_BLEND = 36, GROW_TOL = 13;
+  const nat = world.naturalHeight || world.height;            // the ground before any levelling
+  const strips = new Map();                       // "ix,iz" (or "k") -> strip | null
 
   // deterministic search: 28 candidate centres × 5 headings per cell. Grass
   // strips slope all the time — what kills a landing is roughness. So fit the
@@ -1735,9 +3593,9 @@ function createStrips(THREE, world, opts = {}) {
         let wet = false, lsum = 0, rsum = 0;
         for (let i = 0; i < 9 && !wet; i++) {
           const a = (i / 8 - 0.5) * LEN;
-          const hc = world.height(cx + dx * a, cz + dz * a);
-          const hl = world.height(cx + dx * a - px * WID * 0.5, cz + dz * a - pz * WID * 0.5);
-          const hr = world.height(cx + dx * a + px * WID * 0.5, cz + dz * a + pz * WID * 0.5);
+          const hc = nat(cx + dx * a, cz + dz * a);
+          const hl = nat(cx + dx * a - px * WID * 0.5, cz + dz * a - pz * WID * 0.5);
+          const hr = nat(cx + dx * a + px * WID * 0.5, cz + dz * a + pz * WID * 0.5);
           if (hc < 2.5 || hl < 2.5 || hr < 2.5) { wet = true; break; }
           hs[i] = hc; lsum += hl; rsum += hr;
         }
@@ -1755,18 +3613,92 @@ function createStrips(THREE, world, opts = {}) {
         }
         if (resid > 4.2) continue;                              // lumpy: no strip here
         if (!best || resid < best.flat)
-          best = { x: cx, z: cz, heading: hd, flat: resid, h: mid };
+          best = { x: cx, z: cz, heading: hd, flat: resid, h: mid, slope };
       }
     }
-    return best ? { ...best, visual: null } : null;
+    return best ? grow({ ...best, len: LEN, wid: WID, k: null, visual: null }) : null;
+  }
+
+  // take the biggest footprint whose natural ground is dry and within
+  // GROW_TOL of the strip's mean plane — beyond that, levelling would mean
+  // quarrying a hillside or damming the river
+  function grow(s) {
+    const dx = Math.sin(s.heading), dz = Math.cos(s.heading), px = dz, pz = -dx;
+    for (const [L, W] of SIZES) {
+      let ok = true;
+      for (let i = 0; i <= 12 && ok; i++) {
+        const a = (i / 12 - 0.5) * L;
+        for (let j = -1; j <= 1 && ok; j++) {
+          const h = nat(s.x + dx * a + px * j * W * 0.5, s.z + dz * a + pz * j * W * 0.5);
+          if (h < 1.2 || Math.abs(h - (s.h + s.slope * a)) > GROW_TOL) ok = false;
+        }
+      }
+      if (ok) { s.len = L; s.wid = W; break; }
+    }
+    return s;
+  }
+
+  // generation-space record of each cell's strip, shared by the live set, the
+  // tree mask and the levelling pad — one answer per cell, whoever asks
+  const genCache = new Map();
+  function genStrip(ix, iz) {
+    const key = ix + ',' + iz;
+    let g = genCache.get(key);
+    if (g === undefined) {
+      const s = makeStripData(ix, iz);
+      g = s ? { gx: s.x + originX, gz: s.z + originZ, sin: Math.sin(s.heading), cos: Math.cos(s.heading), s } : null;
+      if (genCache.size > 400) genCache.clear();
+      genCache.set(key, g);
+    }
+    return g;
+  }
+  // this runs inside world.height (thousands of calls per chunk build), so
+  // remember the last cell asked for instead of building a key string each time
+  const mIx = [NaN, NaN], mIz = [NaN, NaN], mG = [null, null];
+  function memo(slot, ix, iz) {
+    if (mIx[slot] !== ix || mIz[slot] !== iz) { mG[slot] = genStrip(ix, iz); mIx[slot] = ix; mIz[slot] = iz; }
+    return mG[slot];
+  }
+  const sstep = (e0, e1, v) => { const t = Math.max(0, Math.min(1, (v - e0) / (e1 - e0))); return t * t * (3 - 2 * t); };
+  // strips sit ≥ 168 m inside their cell along z but only ≥ 80 m along x, so a
+  // pad can lap ~90 m into the x-neighbour: look there too when near an edge
+  function eachNear(gx, gz, fn) {
+    const fx = gx / CELL, ix = Math.floor(fx), iz = Math.floor(gz / CELL);
+    let r = fn(memo(0, ix, iz));
+    if (r !== undefined) return r;
+    const e = (fx - ix) * CELL;
+    if (e < 100) r = fn(memo(1, ix - 1, iz)); else if (e > CELL - 100) r = fn(memo(1, ix + 1, iz));
+    return r;
+  }
+  // levelling: natural height in, pad-blended height out (generation space)
+  function pad(gx, gz, h) {
+    const r = eachNear(gx, gz, (g) => {
+      if (!g) return undefined;
+      const rx = gx - g.gx, rz = gz - g.gz, s = g.s;
+      const u = rx * g.sin + rz * g.cos, w = rx * g.cos - rz * g.sin;
+      const eu = s.len / 2 + PAD_L, d = Math.hypot(Math.max(0, Math.abs(u) - eu), Math.max(0, Math.abs(w) - s.wid / 2 - PAD_W));
+      if (d >= PAD_BLEND) return undefined;
+      const plane = s.h + s.slope * Math.max(-eu, Math.min(eu, u));
+      return h + (plane - h) * (1 - sstep(0, PAD_BLEND, d));
+    });
+    return r === undefined ? h : r;
+  }
+  if (!AIR && world.setPads) world.setPads(pad);
+
+  // planned airfields: level by construction, so nothing to search or grow
+  function makeAirfield(k) {
+    const a = world.airfield(k);                 // render-space copy
+    if (!a) return null;
+    return { x: a.x, z: a.z, heading: a.heading, flat: 0, h: a.h, slope: 0, len: a.len, wid: a.wid, k, visual: null };
   }
 
   // ---------- presentation -------------------------------------------------
-  const SEGL = 14, SEGW = 2;
+  const SEGL = 28, SEGW = 4;
   const STRIP_VERTS = SEGL * SEGW * 2 * 3;
   const stripMat = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.95 });
   const sockMat = new THREE.MeshStandardMaterial({ color: 0xff7a30, roughness: 0.7, flatShading: true });
   const poleMat = new THREE.MeshStandardMaterial({ color: 0xe8e6e0, roughness: 0.6, flatShading: true });
+  const propMat = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.9 });
   const chevMat = new THREE.MeshBasicMaterial({
     color: 0xffe9a8, transparent: true, opacity: 0.5,
     side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending,
@@ -1782,7 +3714,7 @@ function createStrips(THREE, world, opts = {}) {
   const C_GRASS = new THREE.Color(0x9cc45a), C_GRASS2 = new THREE.Color(0x8ab84e);
   const C_WHITE = new THREE.Color(0xf4f7f2);
   const dashMat = new THREE.MeshBasicMaterial({ color: 0xf4f7f2 });
-  const DASHES = 5;
+  const DASHES = 9;
   const visualPool = [];
 
   function makeVisual() {
@@ -1791,23 +3723,71 @@ function createStrips(THREE, world, opts = {}) {
     geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(STRIP_VERTS * 3), 3));
     const mesh = new THREE.Mesh(geo, stripMat);
     mesh.receiveShadow = true;
-    const dashGeo = new THREE.BufferGeometry();   // 5 flat centreline dashes, 2 tris each
+    const dashGeo = new THREE.BufferGeometry();   // flat centreline dashes, 2 tris each
     dashGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(DASHES * 6 * 3), 3));
     const dashes = new THREE.Mesh(dashGeo, dashMat);
     const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.12, 6, 6), poleMat);
     const sock = new THREE.Mesh(new THREE.ConeGeometry(0.55, 2.6, 6), sockMat);
     const chevrons = [];
     for (let i = 0; i < 3; i++) { const c = new THREE.Mesh(chevGeo, chevMat); chevrons.push(c); }
+    const kit = new THREE.Group();                // airfield buildings + vehicles
     const g = new THREE.Group();
-    g.add(mesh, dashes, pole, sock, ...chevrons);
+    g.add(mesh, dashes, pole, sock, kit, ...chevrons);
     group.add(g);
-    return { group: g, mesh, dashes, pole, sock, chevrons };
+    return { group: g, mesh, dashes, pole, sock, chevrons, kit, kitMeshes: {} };
+  }
+
+  // where the winch sits and where the glider waits: opposite ends of the
+  // field, on the centreline. Shared by the launch code and the scenery.
+  function launchPoints(s) {
+    const dx = Math.sin(s.heading), dz = Math.cos(s.heading);
+    const a0 = -s.len / 2 + 26, a1 = s.len / 2 + 14;
+    return {
+      dx, dz,
+      start: { x: s.x + dx * a0, z: s.z + dz * a0 },
+      winch: { x: s.x + dx * a1, z: s.z + dz * a1 },
+      run: a1 - a0,
+    };
+  }
+
+  // airfield dressing: one mesh per prop type, parked along the left edge
+  const KIT = [   // [prop, along (fraction of len), across (m beyond the edge), yaw, scale]
+    ['hangar',        -0.30, 30,  Math.PI / 2, 1],
+    ['clubhouse',     -0.17, 27,  Math.PI / 2, 1],
+    ['gliderTrailer', -0.08, 22,  0.15, 1],
+    ['gliderTrailer', -0.04, 26, -0.1, 1],
+    ['parkedGlider',  -0.40, 17,  0.5, 1],
+    ['parkedGlider',  -0.36, -17, -0.4, 1],
+    ['winchTruck',     null, 0,   0, 1],          // on the centreline, far end
+  ];
+  function dressAirfield(s, v) {
+    v.kit.visible = !!props && s.k !== null;
+    if (!v.kit.visible) return;
+    const dx = Math.sin(s.heading), dz = Math.cos(s.heading), px = dz, pz = -dx;
+    const lp = launchPoints(s);
+    KIT.forEach(([name, along, across, yaw, sc], i) => {
+      const geo = props.geos[name];
+      if (!geo) return;
+      let m = v.kitMeshes[i];
+      if (!m) { m = v.kitMeshes[i] = new THREE.Mesh(geo, propMat); m.castShadow = m.receiveShadow = true; v.kit.add(m); }
+      let x, z;
+      if (along === null) { x = lp.winch.x; z = lp.winch.z; }
+      else {
+        const off = across >= 0 ? (s.wid / 2 + across) : -(s.wid / 2 - across);
+        x = s.x + dx * along * s.len + px * off;
+        z = s.z + dz * along * s.len + pz * off;
+      }
+      m.position.set(x, world.height(x, z), z);
+      m.rotation.set(0, s.heading + yaw, 0);
+      m.scale.setScalar(sc);
+    });
   }
 
   function attachVisual(s) {
     const v = visualPool.pop() || makeVisual();
     v.group.visible = true;
     v.group.position.set(0, 0, 0);               // world coords baked into verts
+    const L = s.len, W = s.wid;
     const dx = Math.sin(s.heading), dz = Math.cos(s.heading);
     const px = dz, pz = -dx;
     const pos = v.mesh.geometry.attributes.position.array;
@@ -1817,23 +3797,25 @@ function createStrips(THREE, world, opts = {}) {
     for (let j = 0; j <= SEGW; j++)
       for (let i = 0; i <= SEGL; i++) {
         const a = i / SEGL - 0.5, b = j / SEGW - 0.5;
-        H.push(world.height(s.x + dx * a * LEN + px * b * WID, s.z + dz * a * LEN + pz * b * WID) + 0.3);
+        H.push(world.height(s.x + dx * a * L + px * b * W, s.z + dz * a * L + pz * b * W) + 0.3);
       }
     let k = 0;
     const put = (i, j) => {
       const a = i / SEGL - 0.5, b = j / SEGW - 0.5;
-      pos[k++] = s.x + dx * a * LEN + px * b * WID;
+      pos[k++] = s.x + dx * a * L + px * b * W;
       pos[k++] = H[j * (SEGL + 1) + i];
-      pos[k++] = s.z + dz * a * LEN + pz * b * WID;
+      pos[k++] = s.z + dz * a * L + pz * b * W;
     };
     let f = 0;
     const paint = (c) => { for (let t = 0; t < 9; t += 3) { col[f + t] = c.r; col[f + t + 1] = c.g; col[f + t + 2] = c.b; } f += 9; };
     for (let j = 0; j < SEGW; j++) {
       for (let i = 0; i < SEGL; i++) {
-        put(i, j); put(i, j + 1); put(i + 1, j + 1);
-        put(i, j); put(i + 1, j + 1); put(i + 1, j);
+        // wound counter-clockwise seen from ABOVE (the old order faced the
+        // ground, so the markings were back-face culled and never drawn)
+        put(i, j); put(i + 1, j + 1); put(i, j + 1);
+        put(i, j); put(i + 1, j); put(i + 1, j + 1);
         // white threshold bars at both ends, mowing stripes between
-        const c = (i === 0 || i === SEGL - 1) ? C_WHITE : ((i & 1) ? C_GRASS : C_GRASS2);
+        const c = (i === 0 || i === SEGL - 1) ? C_WHITE : ((i & 2) ? C_GRASS : C_GRASS2);
         paint(c); paint(c);
       }
     }
@@ -1844,19 +3826,20 @@ function createStrips(THREE, world, opts = {}) {
     // centreline dashes: thin flat quads draped 0.45 over the terrain
     const dp = v.dashes.geometry.attributes.position.array;
     let dk = 0;
+    const dashW = Math.max(0.7, W * 0.035);
     for (let d = 0; d < DASHES; d++) {
-      const a0 = -0.36 + d * 0.18, a1 = a0 + 0.085;        // along, as fraction of LEN
+      const a0 = -0.40 + d * 0.095, a1 = a0 + 0.045;       // along, as fraction of len
       const corner = (a, w) => {
-        const wx = s.x + dx * a * LEN + px * w, wz = s.z + dz * a * LEN + pz * w;
+        const wx = s.x + dx * a * L + px * w, wz = s.z + dz * a * L + pz * w;
         return [wx, world.height(wx, wz) + 0.45, wz];
       };
-      const c00 = corner(a0, -0.7), c01 = corner(a0, 0.7), c10 = corner(a1, -0.7), c11 = corner(a1, 0.7);
-      dp.set([...c00, ...c01, ...c11, ...c00, ...c11, ...c10], dk); dk += 18;
+      const c00 = corner(a0, -dashW), c01 = corner(a0, dashW), c10 = corner(a1, -dashW), c11 = corner(a1, dashW);
+      dp.set([...c00, ...c11, ...c01, ...c00, ...c10, ...c11], dk); dk += 18;
     }
     v.dashes.geometry.attributes.position.needsUpdate = true;
     v.dashes.geometry.computeBoundingSphere();
     // windsock on the right edge at midfield, cone tip blown downwind
-    const sx = s.x + px * (WID / 2 + 7), sz = s.z + pz * (WID / 2 + 7);
+    const sx = s.x + px * (W / 2 + 7), sz = s.z + pz * (W / 2 + 7);
     const sh = world.height(sx, sz);
     v.pole.position.set(sx, sh + 3, sz);
     const wl = Math.hypot(wind.x, wind.z) || 1;
@@ -1865,13 +3848,15 @@ function createStrips(THREE, world, opts = {}) {
       new THREE.Vector3(wind.x / wl, 0.12, wind.z / wl).normalize());
     // approach chevrons climb a ~1:7 slope back from the near (-heading)
     // threshold, anchored to the threshold's true height (strips can slope)
-    const thX = s.x - dx * (LEN / 2), thZ = s.z - dz * (LEN / 2);
+    const thX = s.x - dx * (L / 2), thZ = s.z - dz * (L / 2);
     const thH = world.height(thX, thZ);
     for (let i = 0; i < 3; i++) {
       const d = 70 + i * 60;
       v.chevrons[i].position.set(thX - dx * d, thH + 2.5 + d * 0.14, thZ - dz * d);
       v.chevrons[i].rotation.y = s.heading;      // V opens toward the strip
+      v.chevrons[i].scale.setScalar(Math.max(1, W / 18 * 0.75));
     }
+    dressAirfield(s, v);
     s.visual = v;
   }
 
@@ -1889,7 +3874,7 @@ function createStrips(THREE, world, opts = {}) {
       const rx = x - s.x, rz = z - s.z;
       const dx = Math.sin(s.heading), dz = Math.cos(s.heading);
       const u = rx * dx + rz * dz, w = rx * dz - rz * dx;
-      if (Math.abs(u) < LEN / 2 + 6 && Math.abs(w) < WID / 2 + 2) return s;
+      if (Math.abs(u) < s.len / 2 + 6 && Math.abs(w) < s.wid / 2 + 2) return s;
     }
     return null;
   }
@@ -1902,27 +3887,49 @@ function createStrips(THREE, world, opts = {}) {
     }
     return best && { strip: best, dist: bd };
   }
+  // tree mask for the world's scatter: is this point on (or right beside) a
+  // strip? Pure generation-space, independent of what happens to be live.
+  function covers(gx, gz, margin = 7) {
+    if (AIR) return false;                        // planned airfields mask themselves
+    return eachNear(gx, gz, (g) => {
+      if (!g) return undefined;
+      const rx = gx - g.gx, rz = gz - g.gz;
+      return (Math.abs(rx * g.sin + rz * g.cos) < g.s.len / 2 + margin && Math.abs(rx * g.cos - rz * g.sin) < g.s.wid / 2 + margin) || undefined;
+    }) === true;
+  }
 
   // ---------- streaming + animation ------------------------------------------
   function update(playerPos, dt, time = 0) {
-    const cix = Math.floor((playerPos.x + originX) / CELL), ciz = Math.floor((playerPos.z + originZ) / CELL);
     const needed = new Set();
-    for (let dz = -RADIUS; dz <= RADIUS; dz++)
-      for (let dx = -RADIUS; dx <= RADIUS; dx++)
-        needed.add((cix + dx) + ',' + (ciz + dz));
+    if (AIR) {
+      const kc = Math.round((playerPos.z + originZ) / world.airfieldSpacing);
+      for (let d = -1; d <= 1; d++) needed.add(String(kc + d));
+    } else {
+      const cix = Math.floor((playerPos.x + originX) / CELL), ciz = Math.floor((playerPos.z + originZ) / CELL);
+      for (let dz = -RADIUS; dz <= RADIUS; dz++)
+        for (let dx = -RADIUS; dx <= RADIUS; dx++)
+          needed.add((cix + dx) + ',' + (ciz + dz));
+    }
     for (const [key, s] of strips) {
       if (!needed.has(key)) { if (s) releaseVisual(s); strips.delete(key); }
     }
     for (const key of needed) {
       if (strips.has(key)) continue;
-      const [ix, iz] = key.split(',').map(Number);
-      const s = makeStripData(ix, iz);
+      let s;
+      if (AIR) s = makeAirfield(Number(key));
+      else {
+        const [ix, iz] = key.split(',').map(Number);
+        const g = genStrip(ix, iz);
+        s = g ? { ...g.s, x: g.gx - originX, z: g.gz - originZ, visual: null } : null;
+      }
       strips.set(key, s);
       if (s) attachVisual(s);
     }
     const pulse = 0.3 + 0.25 * (0.5 + 0.5 * Math.sin(time * 2.2));
     chevMat.opacity = pulse;
   }
+  // the airfield with index k, live or not (render space) — launch site lookup
+  function field(k) { return strips.get(String(k)) || makeAirfield(k); }
 
   function rebase(dx, dz) {
     originX += dx; originZ += dz;
@@ -1939,11 +3946,12 @@ function createStrips(THREE, world, opts = {}) {
         s.visual.pole.position.x -= dx; s.visual.pole.position.z -= dz;
         s.visual.sock.position.x -= dx; s.visual.sock.position.z -= dz;
         for (const c of s.visual.chevrons) { c.position.x -= dx; c.position.z -= dz; }
+        for (const m of s.visual.kit.children) { m.position.x -= dx; m.position.z -= dz; }
       }
     }
   }
 
-  return { group, update, query, nearest, rebase, length: LEN, width: WID };
+  return { group, update, query, nearest, covers, field, launchPoints, rebase, length: LEN, width: WID };
 }
 
 
@@ -1979,8 +3987,12 @@ let air = createAir(THREE, world, { seed, wind, map: mapId });
 scene.add(air.group);
 let rings = createRings(THREE, world, { seed });
 scene.add(rings.group);
-let strips = createStrips(THREE, world, { seed, wind });
+let highProps = null;                           // built once, on first visit to the highlands
+const hprops = () => (mapId === 'highland' ? (highProps || (highProps = createHighlandProps(THREE))) : null);
+const stripOpts = () => ({ seed, wind, props: hprops() });
+let strips = createStrips(THREE, world, stripOpts());
 scene.add(strips.group);
+world.setTreeMask(strips.covers);
 
 function rebuildWorld(id, newSeed) {
   if (id === mapId && newSeed === seed) return;
@@ -1994,14 +4006,15 @@ function rebuildWorld(id, newSeed) {
   mapId = id;
   seed = newSeed;
   wind = windForSeed(THREE, seed);
-  world = createWorld(THREE, { seed, wind, map: mapId });
+  world = createWorld(THREE, { seed, wind, map: mapId, props: hprops() });
   scene.add(world.group);
   air = createAir(THREE, world, { seed, wind, map: mapId });
   scene.add(air.group);
   rings = createRings(THREE, world, { seed });
   scene.add(rings.group);
-  strips = createStrips(THREE, world, { seed, wind });
+  strips = createStrips(THREE, world, stripOpts());
   scene.add(strips.group);
+  world.setTreeMask(strips.covers);
   scene.fog.color.copy(world.colors.skyHorizon);
 }
 scene.fog = new THREE.Fog(world.colors.skyHorizon, 230, 780);  // terrain ends at 840 m: stay safely inside it
@@ -2065,10 +4078,10 @@ let score = 0, multiplier = 1, grBonus = 0, bonus = 0, decayTimer = 0, chain = 0
 let thermalEntryAlt = null, ringFlash = 0, saveFlash = 0, panelShown = false;
 // landing: rolling = on the ground bleeding speed; landed = run ended on a strip
 let rolling = false, landed = false, landGrade = '', landBonusPct = 0;
-const bests = { alpine: { dist: 0, time: 0, score: 0 }, coastal: { dist: 0, time: 0, score: 0 } };
+const bests = { alpine: { dist: 0, time: 0, score: 0 }, coastal: { dist: 0, time: 0, score: 0 }, highland: { dist: 0, time: 0, score: 0 } };
 try {  // persists on a real host; sandboxed previews just skip this
   const saved = JSON.parse(localStorage.getItem('glider.bests') || '{}');
-  for (const k of ['alpine', 'coastal']) if (saved[k]) Object.assign(bests[k], saved[k]);
+  for (const k of ['alpine', 'coastal', 'highland']) if (saved[k]) Object.assign(bests[k], saved[k]);
 } catch (e) {}
 function saveBests() { try { localStorage.setItem('glider.bests', JSON.stringify(bests)); } catch (e) {} }
 
@@ -2085,7 +4098,7 @@ function dailyLabel() {
   return d.getUTCDate() + ' ' + MONTHS[d.getUTCMonth()];
 }
 function todayStr() { return new Date().toISOString().slice(0, 10); }   // UTC
-const MAP_NAMES = { alpine: 'ALPINE VALLEY', coastal: 'COASTAL ARCHIPELAGO' };
+const MAP_NAMES = { alpine: 'ALPINE VALLEY', coastal: 'COASTAL ARCHIPELAGO', highland: 'HIGHLAND LOCHS' };
 let dailyBest = { date: todayStr(), dist: 0, time: 0, score: 0 };
 try {
   const s = JSON.parse(localStorage.getItem('glider.daily') || 'null');
@@ -2095,7 +4108,176 @@ function saveDaily() { try { localStorage.setItem('glider.daily', JSON.stringify
 let deathMsg = '';
 const pPrev = new THREE.Vector3();
 
+// ---------- winch launch (highlands): start on the grass, ride the cable up ----------
+// The run begins stationary at the downwind end of the airfield. A winch at
+// the far end reels the cable in: ground roll, rotate, a steep climb on the
+// wire, then release at the top (or early, on the pilot's call). The climb
+// is flown on rails — a smoothstep height profile over the cable run — so it
+// is identical on every device and always hands over to the real flight
+// model wings-level with flying speed. Nothing is scored until release.
+const WINCH = { ACC: 7.5, V_ROT: 21, V_TOP: 30, HEIGHT: 0.52, HEIGHT_MAX: 200, REACH: 0.72 };
+let launch = null;            // null in free flight; the state object while on the ground / on the wire
+let launchK = 0;              // airfield index we launch from: home, or the last field landed at
+let landStrip = null, landHop = false;
+let relFlash = 0, relText = '', hopFlash = 0, cableFall = 0;
+const cableEnd = new THREE.Vector3(), cableVel = new THREE.Vector3(), cableWinch = new THREE.Vector3();
+const cable = (() => {
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(9 * 3), 3));   // 9 points: a sagging line
+  const l = new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0x23272e, transparent: true, opacity: 0.9 }));
+  l.frustumCulled = false; l.visible = false;
+  return l;
+})();
+scene.add(cable);
+const Q_YAW = new THREE.Quaternion(), Q_PITCH = new THREE.Quaternion(), V_UP = new THREE.Vector3(0, 1, 0), V_X = new THREE.Vector3(1, 0, 0);
+
+function armLaunch() {
+  const s = strips.field(launchK) || strips.field(launchK = world.airfieldIndex(0));
+  const lp = strips.launchPoints(s);
+  const gy = s.h + 0.6;
+  launch = {
+    phase: 'ready', heading: s.heading, dx: lp.dx, dz: lp.dz,
+    x0: lp.start.x, z0: lp.start.z, gy,
+    run: lp.run, top: Math.min(WINCH.HEIGHT_MAX, lp.run * WINCH.HEIGHT),
+    d: 0, d0: 0, span: 1, u: 0, v: 0,
+  };
+  cableWinch.set(lp.winch.x, s.h + 1.6, lp.winch.z);
+  pos.set(lp.start.x, gy, lp.start.z);
+  vel.set(0, 0, 0);
+  quat.setFromAxisAngle(V_UP, s.heading);
+  camPos.set(pos.x - lp.dx * 14, pos.y + 4, pos.z - lp.dz * 14);
+  cable.visible = true; cableFall = 0;
+}
+
+// Space / Enter / the on-screen button: start the launch, or let go early
+function launchKey() {
+  if (!launch || inMenu || dead) return false;
+  if (launch.phase === 'ready') { launch.phase = 'roll'; playWhump(0.25); return true; }
+  if (launch.phase === 'climb' && launch.u > 0.12) { releaseCable(false); return true; }
+  return true;
+}
+
+function releaseCable(atTop) {
+  const agl = pos.y - launch.gy;
+  if (!atTop) {
+    // letting go mid-climb: the nose comes down with the release, as a pilot
+    // would fly it — hand over in a shallow climb instead of a 45° zoom
+    const sp = vel.length(), ca = Math.min(0.16, Math.atan2(vel.y, Math.hypot(vel.x, vel.z)));
+    vel.set(launch.dx * Math.cos(ca) * sp, Math.sin(ca) * sp, launch.dz * Math.cos(ca) * sp);
+    quat.copy(Q_YAW.setFromAxisAngle(V_UP, launch.heading)).multiply(Q_PITCH.setFromAxisAngle(V_X, -ca));
+  }
+  launch = null;
+  pitchRate = rollRate = 0;
+  relFlash = 2.2; relText = (atTop ? 'RELEASE  ·  ' : 'RELEASED EARLY  ·  ') + Math.round(agl) + ' m';
+  cableFall = 2.4;                                         // the wire drops away on its drogue
+  cableEnd.copy(pos); cableVel.copy(vel).multiplyScalar(0.3);
+  playChime(1);
+}
+
+function launchStep(dt) {
+  const L = launch;
+  lastAir = 0; lastPT = lastRT = 0;
+  if (L.phase === 'ready') {
+    vel.set(0, 0, 0);
+  } else if (L.phase === 'roll') {
+    L.v = Math.min(WINCH.V_ROT, L.v + WINCH.ACC * dt);
+    L.d += L.v * dt;
+    pos.set(L.x0 + L.dx * L.d, L.gy, L.z0 + L.dz * L.d);
+    vel.set(L.dx * L.v, 0, L.dz * L.v);
+    if (L.v >= WINCH.V_ROT) { L.phase = 'climb'; L.d0 = L.d; L.span = Math.max(60, L.run * WINCH.REACH - L.d); }
+  } else {
+    L.v = Math.min(WINCH.V_TOP, L.v + 2.4 * dt);
+    const slope0 = L.top * 6 * L.u * (1 - L.u) / L.span;               // dy/dx of the profile
+    L.u = Math.min(1, L.u + L.v * dt / (L.span * Math.sqrt(1 + slope0 * slope0)));
+    const d = L.d0 + L.u * L.span;
+    pos.set(L.x0 + L.dx * d, L.gy + L.top * L.u * L.u * (3 - 2 * L.u), L.z0 + L.dz * d);
+    const sl = L.top * 6 * L.u * (1 - L.u) / L.span, n = 1 / Math.sqrt(1 + sl * sl);
+    vel.set(L.dx * n * L.v, sl * n * L.v, L.dz * n * L.v);
+  }
+  // attitude: nose along the flight path, a little extra back-stick on the wire
+  const climb = Math.atan2(vel.y, Math.hypot(vel.x, vel.z) || 1);
+  Q_YAW.setFromAxisAngle(V_UP, L.heading);
+  Q_PITCH.setFromAxisAngle(V_X, -(climb + (L.phase === 'climb' ? 0.07 * Math.sin(Math.PI * L.u) : 0)));
+  quat.slerp(Q_YAW.multiply(Q_PITCH), Math.min(1, 5 * dt));
+  F.set(0, 0, 1).applyQuaternion(quat);
+  U.set(0, 1, 0).applyQuaternion(quat);
+  R.set(1, 0, 0).applyQuaternion(quat);
+  lastAirspeed = L.v;
+  if (L.phase === 'climb' && L.u >= 1) releaseCable(true);
+}
+
+// the wire itself: hook under the nose → winch drum, with a little sag;
+// after release the free end drifts down and the line fades
+function updateCable(dt) {
+  relFlash = Math.max(0, relFlash - dt);
+  if (!launch && cableFall <= 0) { cable.visible = false; return; }
+  cable.visible = true;
+  let ex, ey, ez;
+  if (launch) {
+    vTmp.set(0, -0.45, 1.6).applyQuaternion(quat);
+    ex = pos.x + vTmp.x; ey = pos.y + vTmp.y; ez = pos.z + vTmp.z;
+    cable.material.opacity = 0.9;
+  } else {
+    cableFall -= dt;
+    cableVel.y -= 6 * dt;
+    cableVel.multiplyScalar(1 - 0.6 * dt);
+    cableEnd.addScaledVector(cableVel, dt);
+    cableEnd.lerp(cableWinch, 0.5 * dt);                   // still being wound in
+    ex = cableEnd.x; ey = cableEnd.y; ez = cableEnd.z;
+    cable.material.opacity = 0.9 * Math.max(0, Math.min(1, cableFall / 1.2));
+  }
+  const a = cable.geometry.attributes.position.array;
+  const len = Math.hypot(ex - cableWinch.x, ey - cableWinch.y, ez - cableWinch.z);
+  const sag = launch ? (launch.phase === 'ready' ? 0.012 : 0.004) * len : 0.05 * len;
+  for (let i = 0; i < 9; i++) {
+    const t = i / 8;
+    a[i * 3]     = ex + (cableWinch.x - ex) * t;
+    a[i * 3 + 1] = Math.max(cableWinch.y - 1.2, ey + (cableWinch.y - ey) * t - sag * 4 * t * (1 - t));
+    a[i * 3 + 2] = ez + (cableWinch.z - ez) * t;
+  }
+  cable.geometry.attributes.position.needsUpdate = true;
+}
+
+function rebaseLaunch(dx, dz) {
+  cableWinch.x -= dx; cableWinch.z -= dz; cableEnd.x -= dx; cableEnd.z -= dz;
+  if (launch) { launch.x0 -= dx; launch.z0 -= dz; }
+}
+
+// mission banner + the LAUNCH / RELEASE button
+const ARROWS = ['↑', '↗', '→', '↘', '↓', '↙', '←', '↖'];
+let launchUiPhase = '';
+function updateLaunchHUD() {
+  const phase = launch ? launch.phase : '';
+  if (phase !== launchUiPhase) {
+    launchUiPhase = phase;
+    document.body.classList.toggle('launchReady', phase === 'ready');
+    document.body.classList.toggle('launchWire', phase === 'climb');
+    $('btnLaunch').textContent = phase === 'climb' ? 'RELEASE' : 'LAUNCH';
+  }
+  if (mapId !== 'highland' || inMenu) return;
+  let t;
+  if (phase === 'ready') t = 'WINCH LAUNCH · ' + (IS_TOUCH ? 'tap LAUNCH' : 'press SPACE');
+  else if (phase === 'roll') t = 'ALL OUT — wings level';
+  else if (phase === 'climb') t = 'ON THE WIRE · ' + Math.round(pos.y - launch.gy) + ' m' + (IS_TOUCH ? '' : ' · SPACE releases');
+  else {
+    // the mission: reach the next airfield up the glen and land on it
+    let k = world.airfieldIndex(pos.z), f = strips.field(k);
+    if (f && (f.z < pos.z + 120 || k === launchK)) f = strips.field(++k);
+    if (f && k === launchK) f = strips.field(++k);
+    if (f) {
+      const rel = Math.atan2(f.x - pos.x, f.z - pos.z) - Math.atan2(F.x, F.z);
+      // screen-left is world +X when flying +Z, so a positive bearing points LEFT
+      const idx = ((Math.round(-rel / (Math.PI / 4)) % 8) + 8) % 8;
+      t = 'NEXT AIRFIELD ' + ARROWS[idx] + ' ' + (Math.hypot(f.x - pos.x, f.z - pos.z) / 1000).toFixed(1) + ' km';
+    } else t = '';
+  }
+  if ($('objective').textContent !== t) $('objective').textContent = t;
+}
+
 function respawn() {
+  launch = null; cable.visible = false; cableFall = 0; relFlash = 0; hopFlash = 0;
+  if (mapId === 'highland') armLaunch();
+  else {
   // launch with land ahead: scan the corridor for the first island/terrain
   let z0 = 0;
   for (let z = 0; z <= 1600; z += 40) {
@@ -2104,6 +4286,7 @@ function respawn() {
   pos.set(world.riverCenter(z0), assist ? 150 : 110, z0);
   vel.set(0, 0, 30);
   quat.identity();
+  }
   pitchRate = rollRate = 0;
   distance = 0; flightTime = 0; dead = false;
   score = 0; multiplier = 1; grBonus = 0; bonus = 0; decayTimer = 0; chain = 0; peakMult = 1;
@@ -2156,6 +4339,7 @@ function openMenu() {
   glider.visible = false;
   $('bestAlpine').textContent = bests.alpine.dist > 0 ? 'best ' + (bests.alpine.dist / 1000).toFixed(2) + ' km' : 'not yet flown';
   $('bestCoastal').textContent = bests.coastal.dist > 0 ? 'best ' + (bests.coastal.dist / 1000).toFixed(2) + ' km' : 'not yet flown';
+  $('bestHighland').textContent = bests.highland.dist > 0 ? 'best ' + (bests.highland.dist / 1000).toFixed(2) + ' km' : 'new · not yet flown';
   const ds = dailySeed(), dm = dailyMapId(ds);
   $('dailyMeta').textContent = dailyLabel() + ' · ' + MAP_NAMES[dm] + ' · same sky for everyone';
   $('dailyStripe').className = 'mapStripe ' + (dm === 'alpine' ? 'alpineStripe' : 'coastStripe');
@@ -2172,6 +4356,8 @@ function startGame(id, asDaily, asSchool) {
   holdStart = false;
   document.body.classList.remove('prestart');
   document.body.classList.toggle('school', school);
+  document.body.classList.toggle('winch', id === 'highland');
+  launchK = 0;                                             // a fresh visit starts at the home field
   if (school) { assist = true; applyAssist(); }            // training wheels on
   rebuildWorld(id, daily ? dailySeed() : (school ? SCHOOL_SEED : 7));
   inMenu = false;
@@ -2189,9 +4375,11 @@ addEventListener('keydown', e => {
     if (e.code === 'Digit1') startGame('alpine', false, true);
     if (e.code === 'Digit2') startGame('alpine');
     if (e.code === 'Digit3') startGame('coastal');
-    if (e.code === 'Digit4') startDaily();
+    if (e.code === 'Digit4') startGame('highland');
+    if (e.code === 'Digit5') startDaily();
     return;
   }
+  if ((e.code === 'Space' || e.code === 'Enter') && !paused && !e.repeat) { if (launchKey()) e.preventDefault(); }
   if (e.code === 'KeyP') { togglePause(); return; }
   if (paused) { if (e.code === 'KeyM') { resumeGame(); openMenu(); } return; }
   if (e.code === 'KeyR') respawn();
@@ -2219,6 +4407,7 @@ function physicsStep(dt) {
     return;
   }
   if (rolling) { groundRoll(dt); return; }
+  if (launch) { launchStep(dt); return; }                  // on the ground or on the wire
 
   // input → target rates → smoothed actual rates
   const kPitch = ((keys.KeyW || keys.ArrowUp) ? 1 : 0) - ((keys.KeyS || keys.ArrowDown) ? 1 : 0);
@@ -2324,8 +4513,9 @@ function physicsStep(dt) {
   const ground = Math.max(0, world.height(pos.x, pos.z)); // water level caps at 0
   if (pos.y < ground + 0.6) {
     // a strip touchdown beats every other outcome: slow sink, wings level
-    if (strips.query(pos.x, pos.z) && vel.y > -5.5 && Math.abs(U.y) > 0.85) {
-      rolling = true;
+    const onStrip = strips.query(pos.x, pos.z);
+    if (onStrip && vel.y > -5.5 && Math.abs(U.y) > 0.85) {
+      rolling = true; landStrip = onStrip;
       const sink = -vel.y;
       landGrade = sink < 1.2 ? 'BUTTER' : sink < 2.8 ? 'SMOOTH' : 'FIRM';
       landBonusPct = sink < 1.2 ? 0.10 : sink < 2.8 ? 0.06 : 0.03;
@@ -2381,6 +4571,10 @@ function groundRoll(dt) {
   if (vel.length() < 1.2) {
     vel.set(0, 0, 0);
     rolling = false; landed = true;
+    // highlands: reaching a different airfield is the mission — bank a
+    // cross-country bonus and fly the next leg from here
+    landHop = !!(landStrip && landStrip.k !== null && landStrip.k !== launchK);
+    if (landHop) { landBonusPct += 0.25; launchK = landStrip.k; }
     score *= 1 + landBonusPct;                             // bank the run
     dead = true; deadTimer = 0.6; panelShown = false;      // reuse the panel flow, no wreck
     recordRun();
@@ -2530,16 +4724,18 @@ function updateHUD() {
   $('score').textContent = Math.round(score).toLocaleString();
   $('spd').textContent = vel.length().toFixed(0) + ' m/s';
   $('alt').textContent = agl.toFixed(0) + ' m';
-  $('spd').style.color = vel.dot(F) < 10 ? '#ff5050' : '';
+  $('spd').style.color = (vel.dot(F) < 10 && !launch) ? '#ff5050' : '';
   const inLift = lastAir > 2.5 && !dead;
   if (inLift && !wasInLift) playWhump();
   wasInLift = inLift;
   $('msg').textContent = dead ? ''
+    : relFlash > 0 ? relText
     : saveFlash > 0 ? '+SAVE  ·  +1×'
     : ringFlash > 0 ? 'RING ×' + chain
     : scrapeFlash > 0 ? 'scrape!'
     : inLift ? '▲ LIFT' : '';
-  $('msg').style.color = dead ? '#ffe6b0' : (ringFlash > 0 || saveFlash > 0) ? '#ffd23a' : '#ffd9b0';
+  $('msg').style.color = dead ? '#ffe6b0' : relFlash > 0 ? '#9fdcf5' : (ringFlash > 0 || saveFlash > 0) ? '#ffd23a' : '#ffd9b0';
+  updateLaunchHUD();
   // variometer: ±8 m/s bar
   const vy = Math.max(-8, Math.min(8, vel.y));
   const f = $('vfill');
@@ -2825,7 +5021,7 @@ const coachShown = {};
 function updateCoach(dt) {
   coachCooldown -= dt;
   if (coachTimer > 0) { coachTimer -= dt; if (coachTimer <= 0) $('coach').style.opacity = 0; }
-  if (!assist || dead) { $('coach').style.opacity = 0; coachTimer = 0; return; }
+  if (!assist || dead || launch) { $('coach').style.opacity = 0; coachTimer = 0; return; }
   if (coachCooldown > 0) return;
   const show = (key, msg, once = false) => {
     if (once && coachShown[key]) return;
@@ -3122,12 +5318,13 @@ function showLandedPanel() {
   } else {
     $('deathTitle').textContent = (daily ? 'DAILY FLIGHT · ' + dailyLabel() : MAP_NAMES[mapId]) + ' · LANDED';
     $('deathDist').textContent = (distance / 1000).toFixed(2) + ' km';
-    $('deathSub').textContent = landGrade + ' touchdown +' + Math.round(landBonusPct * 100) + '% · '
+    $('deathSub').textContent = (landHop ? 'AIRFIELD REACHED · ' : '') + landGrade + ' touchdown +' + Math.round(landBonusPct * 100) + '% · '
       + sc.toLocaleString('en') + ' pts · ' + Math.round(flightTime) + ' s';
     const b = daily ? dailyBest : bests[mapId];
     const bsc = Math.round(b.score);
-    $('deathBest').textContent = newBest ? '\u2605 NEW BEST'
-      : 'best ' + bsc.toLocaleString('en') + '  (' + (sc - bsc).toLocaleString('en') + ')';
+    $('deathBest').textContent = (newBest ? '\u2605 NEW BEST'
+      : 'best ' + bsc.toLocaleString('en') + '  (' + (sc - bsc).toLocaleString('en') + ')')
+      + (landHop ? ' · next launch from here' : '');
   }
   $('btnShare').textContent = 'SHARE';
   document.body.classList.add('dead');
@@ -3136,10 +5333,10 @@ function shareText() {
   const m = new Date(), mon = MONTHS[m.getUTCMonth()];
   const title = daily
     ? 'GLIDER \u2014 Daily ' + m.getUTCDate() + ' ' + mon.charAt(0) + mon.slice(1).toLowerCase()
-    : 'GLIDER \u2014 ' + (mapId === 'alpine' ? 'Alpine Valley' : 'Coastal Archipelago');
+    : 'GLIDER \u2014 ' + (mapId === 'alpine' ? 'Alpine Valley' : mapId === 'highland' ? 'Highland Lochs' : 'Coastal Archipelago');
   const stats = '\u{1FA82} ' + (distance / 1000).toFixed(2) + ' km · '
     + Math.round(score).toLocaleString('en') + ' pts · ' + Math.round(flightTime) + ' s aloft'
-    + (landed ? ' · landed (' + landGrade.toLowerCase() + ')' : '');
+    + (landed ? ' · landed (' + landGrade.toLowerCase() + (landHop ? ', airfield to airfield' : '') + ')' : '');
   return title + '\n' + stats + (SHARE_URL ? SHARE_URL + (daily ? '?daily' : '') : '');
 }
 async function doShare() {
@@ -3202,6 +5399,7 @@ function frame(now) {
   rings.update(pos, FIXED_DT, now / 1000);
   strips.update(pos, FIXED_DT, now / 1000);
   updateSchool(FIXED_DT);
+  updateCable(FIXED_DT);
   updateMotes(FIXED_DT);
   updateAudio(now);
   // floating origin: every ~10 km, teleport the universe back toward zero so
@@ -3212,6 +5410,7 @@ function frame(now) {
     const dz = Math.trunc(pos.z / world.chunkSize) * world.chunkSize;
     world.rebase(dx, dz); air.rebase(dx, dz); rings.rebase(dx, dz); strips.rebase(dx, dz);
     if (gate.visible) { gate.position.x -= dx; gate.position.z -= dz; }
+    rebaseLaunch(dx, dz);
     pos.x -= dx; pos.z -= dz;
     camPos.x -= dx; camPos.z -= dz;
     if (burst.visible) {
@@ -3251,6 +5450,8 @@ $('pause').addEventListener('click', e => { if (e.target === $('pause')) resumeG
 $('mapAlpine').addEventListener('click', () => { startAudio(); startGame('alpine'); });
 $('mapCoastal').addEventListener('click', () => { startAudio(); startGame('coastal'); });
 $('mapDaily').addEventListener('click', () => { startAudio(); startDaily(); });
+$('mapHighland').addEventListener('click', () => { startAudio(); startGame('highland'); });
+$('btnLaunch').addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); startAudio(); launchKey(); });
 $('mapSchool').addEventListener('click', () => { startAudio(); startGame('alpine', false, true); });
 $('btnAgain').addEventListener('click', () => { if (dead) respawn(); });
 $('btnShare').addEventListener('click', doShare);
