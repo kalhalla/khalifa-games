@@ -14,7 +14,7 @@
 <meta name="twitter:card" content="summary_large_image"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <link rel="apple-touch-icon" href="/sunset-city/square.png"/>
-<meta name="build-version" content="v0.42"/>
+<meta name="build-version" content="v0.43"/>
 <style>
   html,body{margin:0;padding:0;overflow:hidden;background:#1a1420;height:100%;touch-action:none;}
   canvas{display:block;}
@@ -400,13 +400,14 @@ const OVERPASS={cx:158,z0:-350,z1:350,y:6.76,W:24,RAMP:85}; // ROADS r3: the mot
 // stands on it. A smooth ramp up from the plain (RO) to a rounded lip (RL, height H), then a bowl down to a small
 // floor (RF, height F) where the stone sits. Off until the strike. It sits in the dirt strip between the city's
 // edge (x 192) and the ring road (x 255), which is what bounds its size.
+const HARD_PADS=[];                       // [x0,x1,z0,z1] concrete lots that count as road (DEST)
 const MCR={on:false,x:224,z:-150,RO:31,RL:17,RF:5.5,H:3.6,F:0.5};
 function craterH(x,z){ const r=Math.hypot(x-MCR.x,z-MCR.z); if(r>=MCR.RO) return 0;
   if(r>=MCR.RL){ const t=(MCR.RO-r)/(MCR.RO-MCR.RL); return MCR.H*t*t*(3-2*t); }
   const t=Math.min(1,(MCR.RL-r)/(MCR.RL-MCR.RF)); return MCR.H-(MCR.H-MCR.F)*t*t*(3-2*t); }
 // reserved ground for roadside landmarks (keeps desert scatter clear)
 const LANDMARKS=[{x:-240,z:120,r:24},{x:6,z:224,r:14},{x:-180,z:-249,r:17},{x:43,z:198,r:13},
-  {x:224,z:-150,r:36},{x:224,z:-150,r:56}];   // the fallen star's crater + the drive-in
+  {x:224,z:-150,r:36},{x:224,z:-150,r:56},{x:714,z:-310,r:36},{x:-228,z:-200,r:40}];   // + STARLITE GAS, THE PINK PELICAN (v0.43)   // the fallen star's crater + the drive-in
 const EXTRA_PALMS=[[-247,108],[-247,132],[-160,12],[-151,7],[-162,-9],
   [44,-169],[60,-169],[67,-166],[50,196],[0,217],[-172,-242]];
 
@@ -617,7 +618,7 @@ function updateStreaks(dt){
 // dusk palette pairs (day → night)
 // FLAT (v0.35): the quiet illustration palette. Amber-cream sun, cool grey sky fill, warm grey bounce, dusty beige
 // haze: low contrast and no magenta cast by day; night keeps its blues. (v0.34: fog c4756a, sun ff7038, sky 6a7ab8, ground 262640)
-const FOG_DAY=new THREE.Color(0xb7a596),  FOG_NIGHT=new THREE.Color(0x2e2a4e),
+const FOG_DAY=new THREE.Color(0xb7a596),  FOG_NIGHT=new THREE.Color(0x15172c),
       BG_DAY =new THREE.Color(0x33335c),  BG_NIGHT =new THREE.Color(0x10102a),
       SUN_DAY=new THREE.Color(0xffc48e),  SUN_NIGHT=new THREE.Color(0x9090d8),
       HS_DAY =new THREE.Color(0x9ea4b6),  HS_NIGHT =new THREE.Color(0x2a2a55),
@@ -2940,7 +2941,7 @@ function cdTick(dt,t,k){ const F=CD.fx; if(!F) return;
   if(F.winM){ F.winM.material.opacity=0.95*k; F.winM.visible=k>0.02; }
   if(F.tvM){ const f=0.5+0.5*Math.sin(t*7.3)*Math.sin(t*3.1+1.3); F.tvM.material.opacity=0.95*k*(0.45+0.55*f); F.tvM.visible=k>0.02; }
   if(F.panel) F.panel.color.setScalar(0.72+0.28*k);
-  if(F.glow){ F.glow.material.opacity=0.5*k*k; F.glow.visible=k>0.03; }
+  if(F.glow){ F.glow.material.opacity=0.9*k*k; F.glow.visible=k>0.03; }
   const S=F.steam; if(S){ const p=S.pos, c=S.col;
     for(let i=0;i<S.n;i++){ S.age[i]+=dt; if(S.age[i]>S.life[i]) S.age[i]-=S.life[i]; const v=S.V[(i/S.PER)|0], a=S.age[i]/S.life[i];
       p[i*3]=v[0]+S.dx[i]*a*1.1+0.35*a*Math.sin(t*0.6+i); p[i*3+1]=v[1]+0.15+a*2.8; p[i*3+2]=v[2]+S.dz[i]*a*1.1;
@@ -3915,7 +3916,7 @@ function updateNeon(dt,k){
   // pavement spill only come up with dusk so they never wash the day scene
   for(const m of neonFX.letters) m.opacity=(0.8+0.2*k)*(m.userData.flick||1);
   if(neonFX.halo) neonFX.halo.opacity=(0.04+0.42*k);
-  if(neonFX.pool) neonFX.pool.opacity=0.55*k*k;
+  if(neonFX.pool) neonFX.pool.opacity=0.9*k*k;
   if(neonFX.tubes) neonFX.tubes.color.setScalar(0.62+0.38*k);
   SHOP_MAT.emissiveIntensity=0.07+0.58*k;     // lit glass reads as interior light, not a light box
   if(neonFX.marquee) neonFX.marquee.emissiveIntensity=0.45+0.6*k;
@@ -5012,7 +5013,7 @@ function cityTick(dt,t){         // owned by CITY: blinking beacons, chasing mar
   const k=duskK;
   if(neonFX.beacon){ const on=(t%1.6)<0.22; neonFX.beacon.color.setHex(on?0xff2a2a:0x3a0808); neonFX.beaconHalo.opacity=on?0.25+0.75*k:0; }
   if(neonFX.bulbs) neonFX.bulbs.offset.x=(Math.floor(t*7)%3)/3;
-  if(cityFX.lampPools) for(const m of cityFX.lampPools) m.opacity=0.08+0.47*k;
+  if(cityFX.lampPools) for(const m of cityFX.lampPools) m.opacity=0.05+0.85*k;   // v0.43: the pools carry the night
   if(cityFX.lampHalo) cityFX.lampHalo.opacity=0.2+0.7*k;
   cdTick(dt,t,k);   // citydet
 }
@@ -5020,7 +5021,7 @@ function peopleTick(dt,t){}     // owned by PEOPLE
 function trafficTick(dt,t){}    // owned by TRAFFIC
 
 // ---------------- petrol station, landmarks ----------------
-const STATIONS=[{x:224,z:-8,r:13},{x:-180,z:-249,r:10}];   // main forecourt + LAST GAS outpost
+const STATIONS=[{x:224,z:-8,r:13},{x:-180,z:-249,r:10},{x:708,z:-312,r:11}];   // + STARLITE GAS in the fields (v0.43)   // main forecourt + LAST GAS outpost
 const STATION=STATIONS[0];
 function nearStationD(x,z){
   let best=null,bd=1e9;
@@ -9287,6 +9288,7 @@ function airportHard(x,z){ const A=AIRPORT, dx=x-A.cx, dz=z-A.cz;
 function onPavement(x,z){
   if(mtnIn(x,z)) return mtnOnRoad(x,z,0.4);   // MTN: only the road itself is hard
   if(airportHard(x,z)) return true;
+  for(let i=0;i<HARD_PADS.length;i++){ const p=HARD_PADS[i]; if(x>p[0]&&x<p[1]&&z>p[2]&&z<p[3]) return true; }
   if(typeof DRIVEIN!=='undefined'&&driveInHard(x,z)) return true;   // the drive-in's concrete lot
   if(overpassHeight(x,z)>=0) return true;   // flyover corridor: deck, ramps, apron beneath
   for(const b of world.blocks)
@@ -11107,6 +11109,9 @@ function flattenCar(g){
     const beam=D.beam=new THREE.Mesh(bg,new THREE.MeshBasicMaterial({color:0xd4e2ff,transparent:true,opacity:0.08,blending:THREE.AdditiveBlending,depthWrite:false,fog:false,side:THREE.DoubleSide}));
     beam.renderOrder=3; rest.add(beam); }
   const lamp=D.lamp=new THREE.PointLight(0xc4d2ff,0.6,48,2); lamp.position.set(XS-8,5,SZ); rest.add(lamp);
+  { const pg=new THREE.CircleGeometry(1,24); pg.rotateX(-Math.PI/2);                       // the picture's light on the lot
+    const pl=D.pool=new THREE.Mesh(pg,new THREE.MeshBasicMaterial({map:glowTex,color:0xbccdff,transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false,fog:false}));
+    pl.position.set(XS-15,0.14,SZ); pl.scale.set(19,1,24); pl.renderOrder=1; rest.add(pl); }
   // ---- the audience: cars parked nose to the screen, one draw call each ----
   const paints=[0x6fb3aa,0xd69a9c,0xe4dcc2,0x8a2a26,0x2c3e55,0xa5c2d6,0x55705a,0x1c1c20,0xc9a24a,0xe8e6e0], kinds=['sedan','caddy','riviera'];
   const slots=[]; for(let r=0;r<rows.length;r++) for(let k=0;k<8;k++){ const pz=-171+k*6+1.9; if(Math.abs(pz-SZ)<3.2) continue; slots.push([rows[r]-1.5,pz,r]); }
@@ -11238,6 +11243,7 @@ function driveInTick(dt){
   D.film.material.color.setScalar(0.42+0.58*duskK);
   D.beam.material.opacity=(0.02+0.11*duskK)*(0.55+0.9*D.lum);
   D.lamp.intensity=night*(0.35+2.1*D.lum);
+  if(D.pool) D.pool.material.opacity=duskK*duskK*(0.08+0.5*D.lum);
 }
 const zombies=[];
 let wave=0,waveLeft=0,waveSpawnT=0,waveTimer=0,kills=0;
@@ -14959,6 +14965,7 @@ function drawMinimap(t){
     c.save(); c.translate(q[0],q[1]); if(dia) c.rotate(0.785); c.fillStyle='#15121f'; c.fillRect(-ps-1.2,-ps-1.2,2*ps+2.4,2*ps+2.4);
     c.fillStyle=pc; c.fillRect(-ps,-ps,2*ps,2*ps); c.restore(); };
   for(const s of STATIONS) poi(s.x,s.z,'#ffa53a',false);
+  poi(-221,-200,'#ff5fae',false);                       // THE PINK PELICAN
   for(const b of banks) poi(b.x,b.z,'#86d27a',true);
   poi(GARAGE.x,GARAGE.z,'#7db4ff',false);
   // threats: police (red and flashing once you are wanted), the dead in zombie mode
@@ -17297,9 +17304,9 @@ function updateDusk(dt){
   setSky(k);
   scene.fog.color.copy(FOG_DAY).lerp(FOG_NIGHT,k).lerp(skc3,0.5);   // melt the far ground into the horizon sky
   scene.background.copy(BG_DAY).lerp(BG_NIGHT,k);
-  sun.intensity=1.12*(1-k)+0.22;
+  sun.intensity=1.34-1.26*k;             // v0.43: a real night (was 0.22 of sun left at k=1; now 0.08 of moon)
   sun.color.copy(SUN_DAY).lerp(SUN_NIGHT,k);
-  hemi.intensity=0.8-0.43*k;
+  hemi.intensity=0.8-0.585*k;            // v0.43: 0.215 at night (was 0.37)
   hemi.color.copy(HS_DAY).lerp(HS_NIGHT,k);
   hemi.groundColor.copy(HG_DAY).lerp(HG_NIGHT,k);
   for(const m of clouds.children) m.material.color.setRGB(1-0.55*k,1-0.58*k,1-0.42*k);
@@ -19706,6 +19713,94 @@ function zRemNearest(cx,cz,maxD2){ let best=null, bd=maxD2;
   for(const s of ZREM.s){ if(s.amt<=0.04) continue; const d2=(s.x-cx)*(s.x-cx)+(s.z-cz)*(s.z-cz); if(d2<bd){ bd=d2; best=s; } }
   return best; }
 
+// ================= NIGHT + DEST (v0.43): pools of light, and two places to drive to =================
+// Night is now properly dark (updateDusk), so light reads as light. Everything that glows throws a coloured pool on
+// the ground: street lamps (sodium), shop fronts and neon (already built, now much stronger), the drive-in screen
+// (flickering with the film), every car's headlights (one instanced mesh for the traffic near you), and the two new
+// destinations. The pools are additive ground decals, not real lights, so hundreds of them cost a few draw calls.
+//   STARLITE GAS    a lit filling station at a crossroads in the fields east of town (680,-340). It refuels.
+//   THE PINK PELICAN a neon club on the sand between the coast road and the city's west edge.
+const NIGHT={pools:[],im:null,neon:[],glowMats:[],tr:null,TRN:LOWQ?18:28,k:-1};
+function nightPool(x,z,rx,rz,hex,y){ NIGHT.pools.push([x,z,rx,rz,hex,y||0.13]); }
+function nightNeon(hex,dayK){ const m=new THREE.MeshBasicMaterial({color:hex}); NIGHT.neon.push({m,c:new THREE.Color(hex),d:dayK===undefined?0.5:dayK}); return m; }
+(function buildDestinations(){
+  const pad=(parts,x0,x1,z0,z1,c,y)=>{ parts.push({g:new THREE.BoxGeometry(x1-x0,0.05,z1-z0),c:c||'#8d8a84',x:(x0+x1)/2,y:y||0.035,z:(z0+z1)/2}); HARD_PADS.push([x0,x1,z0,z1]); };
+  const parked=(x,z,ry,kind,hex)=>{ let car=null; try{ car=MODELS[kind].build(hex); }catch(e){ car=null; }
+    if(!car){ try{ car=buildCar({body:hex,type:'civ'}); }catch(e){ return; } }
+    const m=new THREE.Mesh(flattenCar(car.g),MAT.vc); m.position.set(x,0.06,z); m.rotation.y=ry; m.castShadow=m.receiveShadow=true; scene.add(m);
+    const fx=Math.sin(ry), fz=Math.cos(ry); world.circles.push({x:x+fx*1.15,z:z+fz*1.15,r:1.08}); world.circles.push({x:x-fx*1.15,z:z-fz*1.15,r:1.08}); };
+  // ---------------- STARLITE GAS ----------------
+  { const X=714, Z=-310, P=[];
+    pad(P,694,734,-327,-293); pad(P,687.6,694,-322,-298,'#86837d'); pad(P,700,728,-332.4,-327,'#86837d');
+    const CX=708, CZ=-312;                                                    // the canopy
+    P.push({g:new THREE.BoxGeometry(17,0.55,10),c:'#eef0ea',x:CX,y:5.2,z:CZ},{g:new THREE.BoxGeometry(17.3,0.5,10.3),c:'#2f8f6a',x:CX,y:4.82,z:CZ});
+    for(const [dx,dz] of [[-6.5,-3.4],[6.5,-3.4],[-6.5,3.4],[6.5,3.4]]){ P.push({g:new THREE.BoxGeometry(0.42,4.7,0.42),c:'#dfe2dc',x:CX+dx,y:2.35,z:CZ+dz}); world.circles.push({x:CX+dx,z:CZ+dz,r:0.34}); }
+    for(const dz of [-3.4,3.4]){ P.push({g:new THREE.BoxGeometry(11,0.22,1.5),c:'#b9b6ae',x:CX,y:0.15,z:CZ+dz});          // pump islands
+      for(const dx of [-3,3]){ P.push({g:new THREE.BoxGeometry(0.9,1.7,0.6),c:'#c8352e',x:CX+dx,y:1.1,z:CZ+dz},{g:new THREE.BoxGeometry(0.94,0.5,0.64),c:'#f1ede2',x:CX+dx,y:1.75,z:CZ+dz});
+        world.boxes.push({x0:CX+dx-0.55,x1:CX+dx+0.55,z0:CZ+dz-0.4,z1:CZ+dz+0.4}); } }
+    const SX=725, SZ=-306;                                                    // the shop
+    P.push({g:new THREE.BoxGeometry(11,3.5,8),c:'#e7dfcc',x:SX,y:1.8,z:SZ},{g:new THREE.BoxGeometry(11.6,0.3,8.6),c:'#2f8f6a',x:SX,y:3.65,z:SZ},
+      {g:new THREE.BoxGeometry(1.5,1.1,0.9),c:'#dfe8ee',x:SX-6.1,y:0.6,z:SZ+2.8},{g:new THREE.BoxGeometry(0.6,0.95,0.6),c:'#3a5a7a',x:SX-6.0,y:0.5,z:SZ-3.2},{g:new THREE.BoxGeometry(0.6,0.95,0.6),c:'#7a3a2e',x:SX-6.0,y:0.5,z:SZ-2.5});
+    world.boxes.push({x0:SX-5.5,x1:SX+5.5,z0:SZ-4,z1:SZ+4});
+    P.push({g:new THREE.CylinderGeometry(0.2,0.26,9,8),c:'#d8d8d4',x:692.5,y:4.5,z:-329}); world.circles.push({x:692.5,z:-329,r:0.4});   // the sign mast
+    const st=new THREE.Mesh(mergeParts(P),MAT.vc); st.castShadow=st.receiveShadow=true; scene.add(st);
+    const win=new THREE.Mesh(new THREE.PlaneGeometry(6.4,2.0),nightNeon(0xffd9a0,0.35)); win.position.set(SX-5.52,1.75,SZ); win.rotation.y=-Math.PI/2; scene.add(win);   // the lit shop window
+    const under=new THREE.Mesh(new THREE.PlaneGeometry(15,8),nightNeon(0xe8fff0,0.3)); under.rotation.x=Math.PI/2; under.position.set(CX,4.54,CZ); scene.add(under);        // the canopy's light box
+    const nv=lambert(0x1f3a30), sm=signMat(textTexture('STARLITE','#16382c','#f4ffe9',512,160,104),0.9), sm2=signMat(textTexture('GAS · 24 HRS','#c8352e','#fff4e0',512,120,70),0.8);
+    const s1=new THREE.Mesh(new THREE.BoxGeometry(0.4,1.7,5),[sm,sm,nv,nv,nv,nv]); s1.position.set(692.5,8.3,-329); s1.rotation.y=0.78; scene.add(s1);
+    const s2=new THREE.Mesh(new THREE.BoxGeometry(0.36,1.1,5),[sm2,sm2,nv,nv,nv,nv]); s2.position.set(692.5,6.85,-329); s2.rotation.y=0.78; scene.add(s2);
+    const fs=signMat(textTexture('STARLITE GAS','#eef0ea','#2f8f6a',1024,96,70),0.7), fa=new THREE.Mesh(new THREE.PlaneGeometry(10,0.46),fs); fa.position.set(CX,4.82,CZ-5.17); fa.rotation.y=Math.PI; scene.add(fa);
+    const fb=new THREE.Mesh(new THREE.PlaneGeometry(10,0.46),fs); fb.position.set(CX-8.67,4.82,CZ); fb.rotation.y=-Math.PI/2; scene.add(fb);
+    parked(731,-299,0.05,'sedan',0x8a2a26); parked(727.5,-298.6,-0.04,'caddy',0xe4dcc2);
+    nightPool(CX,CZ,16,11.5,0x7dffb4); nightPool(CX,CZ,8.5,5.5,0xdfffe8); nightPool(SX-9,SZ,7,6.5,0xffb868); nightPool(692.5,-329,5,5,0xff6a4a);
+  }
+  // ---------------- THE PINK PELICAN ----------------
+  { const BX=-212, BZ=-200, P=[];
+    pad(P,-256,-221,-225,-175,'#7e7a80'); pad(P,-221,-203,-216,-184,'#86828a');
+    for(let k=0;k<8;k++) P.push({g:new THREE.BoxGeometry(5.2,0.03,0.14),c:'#d8d2c8',x:-246.5,y:0.066,z:-221+k*6});          // bays
+    P.push({g:new THREE.BoxGeometry(14,5.4,27),c:'#3a2338',x:BX,y:2.7,z:BZ},{g:new THREE.BoxGeometry(14.6,0.4,27.6),c:'#24162a',x:BX,y:5.5,z:BZ},
+      {g:new THREE.BoxGeometry(4.2,0.3,6.4),c:'#24162a',x:BX-9,y:3.3,z:BZ},{g:new THREE.BoxGeometry(0.22,3.3,0.22),c:'#c9a24a',x:BX-10.8,y:1.65,z:BZ-2.9},{g:new THREE.BoxGeometry(0.22,3.3,0.22),c:'#c9a24a',x:BX-10.8,y:1.65,z:BZ+2.9},
+      {g:new THREE.BoxGeometry(0.3,2.5,1.9),c:'#7a1f3c',x:BX-7.05,y:1.25,z:BZ},{g:new THREE.BoxGeometry(3.4,0.04,5.6),c:'#8a1f3c',x:BX-8.8,y:0.09,z:BZ});   // canopy, posts, door, red carpet
+    world.boxes.push({x0:BX-7,x1:BX+7,z0:BZ-13.5,z1:BZ+13.5});
+    const cl=new THREE.Mesh(mergeParts(P),MAT.vc); cl.castShadow=cl.receiveShadow=true; scene.add(cl);
+    const pink=nightNeon(0xff4fa3,0.55), cyan=nightNeon(0x49e6ff,0.55), N=[];                                         // neon tube round the roof line and the door
+    const tube=(m,w,h,d,x,y,z)=>{ const t=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m); t.position.set(x,y,z); scene.add(t); };
+    tube(pink,0.16,0.16,27.6,BX-7.35,5.25,BZ); tube(pink,14.6,0.16,0.16,BX,5.25,BZ-13.85); tube(pink,14.6,0.16,0.16,BX,5.25,BZ+13.85); tube(pink,0.16,0.16,27.6,BX+7.35,5.25,BZ);
+    tube(cyan,0.16,0.16,27.6,BX-7.35,4.75,BZ); tube(cyan,0.12,2.7,0.12,BX-7.1,1.35,BZ-1.15); tube(cyan,0.12,2.7,0.12,BX-7.1,1.35,BZ+1.15); tube(cyan,0.12,0.12,2.4,BX-7.1,2.7,BZ);
+    tube(pink,4.3,0.12,0.12,BX-9,3.12,BZ-3.2); tube(pink,4.3,0.12,0.12,BX-9,3.12,BZ+3.2); tube(pink,0.12,0.12,6.4,BX-11.1,3.12,BZ);
+    const nv=lambert(0x1a0f1e), sm=signMat(textTexture('THE PINK PELICAN','#1a0f1e','#ff5fae',1024,170,100),1.0), sm2=signMat(textTexture('LIVE GIRLS · COCKTAILS · OPEN LATE','#1a0f1e','#5fe9ff',1024,90,52),0.9);
+    const s1=new THREE.Mesh(new THREE.BoxGeometry(0.4,2.6,16),[nv,sm,nv,nv,nv,nv]); s1.position.set(BX-6.6,7.1,BZ); scene.add(s1);
+    const s3=new THREE.Mesh(new THREE.BoxGeometry(0.3,0.95,13),[nv,sm2,nv,nv,nv,nv]); s3.position.set(BX-6.65,8.95,BZ); scene.add(s3);
+    const cars=[[-246.5,-218,1.57,'caddy',0x1c1c20],[-246.5,-206,1.6,'sedan',0x6fb3aa],[-246.5,-194,1.55,'riviera',0xd69a9c],[-246.5,-182,1.58,'sedan',0xc9a24a],[-232,-222,0.02,'caddy',0x2c3e55]];
+    for(const c of cars) parked(c[0],c[1],c[2],c[3],c[4]);
+    nightPool(BX-11,BZ,11,10,0xff4fa3); nightPool(BX-9,BZ,5,4.5,0xffd0e6); nightPool(BX-9.5,BZ-11,6,6,0x49e6ff); nightPool(BX-9.5,BZ+11,6,6,0x49e6ff);
+    nightPool(BX,BZ-16.5,8,4,0xff4fa3); nightPool(BX,BZ+16.5,8,4,0xff4fa3); nightPool(-240,-200,13,22,0x7a3a8a);
+  }
+  // ---------------- the pools, one mesh ----------------
+  const g=new THREE.CircleGeometry(1,22); g.rotateX(-Math.PI/2);
+  const mat=new THREE.MeshBasicMaterial({map:glowTex,transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false,fog:false});
+  const im=NIGHT.im=new THREE.InstancedMesh(g,mat,NIGHT.pools.length), M=new THREE.Matrix4(), Q=new THREE.Quaternion(), c=new THREE.Color();
+  NIGHT.pools.forEach((p,i)=>{ M.compose(new THREE.Vector3(p[0],p[5],p[1]),Q,new THREE.Vector3(p[2],1,p[3])); im.setMatrixAt(i,M); im.setColorAt(i,c.setHex(p[4])); });
+  im.instanceColor.needsUpdate=true; im.frustumCulled=false; im.renderOrder=1; im.visible=false; scene.add(im);
+  // ---------------- traffic headlights on the road, one mesh ----------------
+  const tg=new THREE.PlaneGeometry(1,1); tg.rotateX(-Math.PI/2); tg.rotateY(Math.PI);                  // v runs forward from the car
+  const tm=new THREE.MeshBasicMaterial({map:hlPoolTex(),color:0xffe9c4,transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false,fog:false});
+  const tr=NIGHT.tr=new THREE.InstancedMesh(tg,tm,NIGHT.TRN); tr.instanceMatrix.setUsage(THREE.DynamicDrawUsage); tr.frustumCulled=false; tr.renderOrder=1; tr.count=0; tr.visible=false; scene.add(tr);
+})();
+const _ngM=new THREE.Matrix4(), _ngQ=new THREE.Quaternion(), _ngP=new THREE.Vector3(), _ngS=new THREE.Vector3(), _ngUp=new THREE.Vector3(0,1,0);
+function nightTick(dt){
+  const k=duskK, N=NIGHT, k2=k*k;
+  if(N.im){ N.im.visible=k>0.04; N.im.material.opacity=0.95*k2; }
+  if(Math.abs(k-N.k)>0.004){ N.k=k; for(const n of N.neon) n.m.color.copy(n.c).multiplyScalar(n.d+(1-n.d)*k); }
+  const tr=N.tr; if(!tr) return;
+  if(k<0.25){ tr.visible=false; return; }
+  const sx=onFoot?foot.x:player.x, sz=onFoot?foot.z:player.z; let n=0;
+  for(let i=0;i<traffic.length&&n<N.TRN;i++){ const v=traffic[i]; if(v.wrecked||v.dyn||!v.car) continue;
+    const dx=v.x-sx, dz=v.z-sz; if(dx*dx+dz*dz>150*150) continue;
+    const a=v.a||0, fx=Math.sin(a), fz=Math.cos(a), L=v.kind==='bus'?19:15;
+    _ngQ.setFromAxisAngle(_ngUp,a); _ngP.set(v.x+fx*(L/2+2.0),(v.y||0)+0.14,v.z+fz*(L/2+2.0)); _ngS.set(6.4,1,L); _ngM.compose(_ngP,_ngQ,_ngS); tr.setMatrixAt(n++,_ngM); }
+  tr.count=n; tr.visible=n>0; tr.instanceMatrix.needsUpdate=true; tr.material.opacity=0.62*hlSm(0.25,0.8,k);
+}
 // ---- drive-in wrecks: blown out of the lot by the strike, exploding one after another, burning on ----
 function driveInWreckTick(dt){
   const D=DRIVEIN, t=MET.t; if(t<0) return;
@@ -19949,7 +20044,7 @@ function metCineTick(dt){
   MET.cineK+=(want-MET.cineK)*Math.min(1,dt*(want?1.6:0.9)); if(!want&&MET.cineK<0.002) MET.cineK=0;
 }
 function fx2Tick(dt){
-  metCineTick(dt); driveInTick(dt);
+  metCineTick(dt); driveInTick(dt); nightTick(dt);
   if(MCR.on&&MCR.core){ const p=0.5+0.5*Math.sin(elapsed*2.1); MCR.core.material.emissiveIntensity=0.75+0.5*p; MCR.halo.material.opacity=0.36+0.26*p; MCR.glow.material.opacity=0.2+0.16*p; }
   FXD.mat.uniforms.uH.value=renderer.domElement.height; fxUpdate(FXD,dt);
   afenceTick(dt); zRemTick(dt); metTick(dt); infTick(dt);
@@ -20327,6 +20422,6 @@ addEventListener('resize',()=>{
   if(meOn){ mecv.width=innerWidth; mecv.height=innerHeight; }
 });
 </script>
-<div id="buildver" style="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(2px + env(safe-area-inset-bottom));font:600 10px/1.2 ui-monospace,Menlo,monospace;color:#fff;opacity:.6;letter-spacing:.06em;pointer-events:none;z-index:2147483000;text-shadow:0 1px 2px #000">v0.42 · 26 Nov · closer camera, steer assist</div>
+<div id="buildver" style="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(2px + env(safe-area-inset-bottom));font:600 10px/1.2 ui-monospace,Menlo,monospace;color:#fff;opacity:.6;letter-spacing:.06em;pointer-events:none;z-index:2147483000;text-shadow:0 1px 2px #000">v0.43 · 27 Nov · night lights, gas, club</div>
 </body>
 </html>
