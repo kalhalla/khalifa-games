@@ -14,7 +14,7 @@
 <meta name="twitter:card" content="summary_large_image"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <link rel="apple-touch-icon" href="/sunset-city/square.png"/>
-<meta name="build-version" content="v0.43"/>
+<meta name="build-version" content="v0.44"/>
 <style>
   html,body{margin:0;padding:0;overflow:hidden;background:#1a1420;height:100%;touch-action:none;}
   canvas{display:block;}
@@ -16632,7 +16632,9 @@ function solVenues(){
   if(bar) for(const f of fronts){ const dd=Math.hypot(f.x-bar.x,f.z-bar.z); if(dd<110) continue;
     const sc=Math.abs(f.d-150)*0.6+(f.bar?0:25)+f.pen; if(!club||sc<club.sc) club=Object.assign({sc},f); }
   if(bar) V.push(solBuildBar(bar.x,bar.z,bar.ry));
-  if(club) V.push(solBuildClub(club.x,club.z,club.ry));
+  // v0.44: her club is THE PINK PELICAN by the beach (DEST). The set dresses its entrance: the pole and podium under the
+  // canopy beside the door, the rope, the bouncer, the floor lights. She is collected from the car park in front.
+  V.push(solBuildClub(-219.02,-201.3,-Math.PI/2,true));
   return V;
 }
 function solBuildPool(cx,cz,ry){
@@ -16712,14 +16714,16 @@ function solBuildBar(fx,fz,ry){
   return {kind:'bar',name:'La Paloma',short:'LA PALOMA',outfit:'bar',F,seat:{x:st[0],z:st[1]},spot:{x:s[0],y:oy,z:s[1],ry},stand:{x:s[0],z:s[1]},kerb:K,
     banner:"Pick me up at La Paloma. Don't be late."};
 }
-function solBuildClub(fx,fz,ry){
-  const oy=groundHeight(fx+Math.sin(ry)*1,fz+Math.cos(ry)*1)||0.34, F=solFrame(fx,oy,fz,ry);
+function solBuildClub(fx,fz,ry,pel){
+  const oy=pel?0.1:(groundHeight(fx+Math.sin(ry)*1,fz+Math.cos(ry)*1)||0.34), F=solFrame(fx,oy,fz,ry);
   const box=(w,h,d)=>new THREE.BoxGeometry(w,h,d), cyl=(a,b,h,n)=>new THREE.CylinderGeometry(a,b,h,n||8);
   const P=[], sy=PODIUM_H-0.38, PU=-1.25, PV=1.35;
+  if(!pel){                                                                          // the Pelican has its own front, canopy and door
   P.push({g:box(5.6,2.5,0.14),c:'#1a0f22',y:4.85,z:0.07});                           // club panel over the old fascia and sign
   P.push({g:box(5.0,0.28,2.35),c:'#1c1026',y:3.3,z:1.18},{g:box(5.0,0.5,0.08),c:'#241230',y:3.3,z:2.36});    // canopy + front fascia
   for(const u of [-2.4,2.4]) P.push({g:cyl(0.04,0.04,3.1,6),c:'#d8d6e2',x:u,y:1.55,z:2.28});
   P.push({g:box(1.4,2.5,0.08),c:'#2a0f2e',x:1.3,y:1.25,z:0.04},{g:box(1.6,0.12,0.12),c:'#d8d6e2',x:1.3,y:2.55,z:0.06});   // door
+  }
   P.push({g:cyl(0.88,0.92,0.45,14),c:'#18121e',x:PU,y:0.225,z:PV},{g:cyl(0.034,0.034,2.64,8),c:'#eeeaf6',x:PU,y:0.45+1.32,z:PV});  // podium + pole
   for(const u of [0.3,1.4]) P.push({g:cyl(0.03,0.04,0.9,6),c:'#e0c060',x:u,y:0.45,z:1.25},{g:new THREE.IcosahedronGeometry(0.05,0),c:'#e0c060',x:u,y:0.93,z:1.25});
   P.push({g:cyl(0.025,0.025,1.12,6),c:'#9a1030',x:0.85,y:0.76,z:1.25,rz:Math.PI/2});   // velvet rope
@@ -16730,10 +16734,12 @@ function solBuildClub(fx,fz,ry){
   for(const [w,h,d,x,y,z,c] of B) P.push({g:box(w,h,d),c,x:BU+x,y,z:BV+z});
   solMesh(F,P,MAT.vc,true);
   const N=[];
+  if(!pel){
   for(const v of [0.02,2.34]) N.push({g:box(5.0,0.04,0.04),c:'#ff3fa4',y:3.15,z:v});
   for(const y of [3.62,6.08]) N.push({g:box(5.6,0.05,0.05),c:'#b45cff',y,z:0.16});            // panel neon border
   for(const u of [-2.78,2.78]) N.push({g:box(0.05,2.5,0.05),c:'#b45cff',x:u,y:4.85,z:0.16});
   for(const u of [-2.5,2.5]) N.push({g:box(0.04,0.04,2.35),c:'#b45cff',x:u,y:3.15,z:1.18});
+  }
   N.push({g:new THREE.TorusGeometry(0.9,0.035,4,20),c:'#ff3fa4',x:PU,y:0.45,z:PV,rx:Math.PI/2});
   solMesh(F,N,new THREE.MeshBasicMaterial({vertexColors:true}));
   // coloured floor lights: two flashing sets (emissive only, no new lights)
@@ -16741,11 +16747,14 @@ function solBuildClub(fx,fz,ry){
   for(const [u,v] of [[-2.4,0.6],[-0.1,0.6],[-2.4,2.2],[-0.1,2.2],[0.4,2.3],[1.3,2.3],[2.2,2.3],[-1.25,2.5]]) fl[(i++)%2].push({g:box(0.5,0.02,0.5),c:'#ffffff',x:u,y:0.015,z:v});
   const flM=[new THREE.MeshBasicMaterial({color:0xff3fa4}),new THREE.MeshBasicMaterial({color:0x9a4cff})];
   solMesh(F,fl[0],flM[0]); solMesh(F,fl[1],flM[1]);
-  solSign(F,'VELVET ROOM','#ff4fb0',false,0,2.41,3.3,4.4,0.55);
+  if(!pel) solSign(F,'VELVET ROOM','#ff4fb0',false,0,2.41,3.3,4.4,0.55);
   solGlow(F,PU,PV,0.03,5,4,0xff4fb0,0.6); const back=solGlow(F,PU,0.08,1.8,3.2,3.6,0xb45cff,0.45); back.rotation.set(0,ry,0);
   world.circles.push((()=>{ const [x,z]=F.w(PU,PV); return {x,z,r:0.95}; })());
-  for(const u of [-2.4,2.4]){ const [x,z]=F.w(u,2.28); world.circles.push({x,z,r:0.12}); }
-  const pole=F.w(PU,PV), st=F.w(PU,2.35), K=solKerb(...F.w(PU,2.6));
+  if(!pel) for(const u of [-2.4,2.4]){ const [x,z]=F.w(u,2.28); world.circles.push({x,z,r:0.12}); }
+  const pole=F.w(PU,PV), st=F.w(PU,2.35), K=pel?{x:-232,z:-200,cx:-232,cz:-200,nx:1,nz:0,d:0,e:null}:solKerb(...F.w(PU,2.6));   // the Pelican: pull up in the car park, at the door
+  if(pel) return {kind:'club',name:'the Pink Pelican',short:'PINK PELICAN',outfit:'club',F,flM,
+    pole:{x:pole[0],z:pole[1]},spot:{x:pole[0],y:oy+0.45,z:pole[1],ry},stand:{x:st[0],z:st[1]},kerb:K,
+    banner:"The Pink Pelican, down by the beach. Come get me. Don't be late."};
   return {kind:'club',name:'the Velvet Room',short:'VELVET ROOM',outfit:'club',F,flM,
     pole:{x:pole[0],z:pole[1]},spot:{x:pole[0],y:oy+0.45,z:pole[1],ry},stand:{x:st[0],z:st[1]},kerb:K,
     banner:"Velvet Room. Come get me. Don't be late."};
@@ -20422,6 +20431,6 @@ addEventListener('resize',()=>{
   if(meOn){ mecv.width=innerWidth; mecv.height=innerHeight; }
 });
 </script>
-<div id="buildver" style="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(2px + env(safe-area-inset-bottom));font:600 10px/1.2 ui-monospace,Menlo,monospace;color:#fff;opacity:.6;letter-spacing:.06em;pointer-events:none;z-index:2147483000;text-shadow:0 1px 2px #000">v0.43 · 27 Nov · night lights, gas, club</div>
+<div id="buildver" style="position:fixed;left:50%;transform:translateX(-50%);bottom:calc(2px + env(safe-area-inset-bottom));font:600 10px/1.2 ui-monospace,Menlo,monospace;color:#fff;opacity:.6;letter-spacing:.06em;pointer-events:none;z-index:2147483000;text-shadow:0 1px 2px #000">v0.44 · 27 Nov · Pelican pickup</div>
 </body>
 </html>
